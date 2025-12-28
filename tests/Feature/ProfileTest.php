@@ -2,8 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
+use App\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -12,21 +13,31 @@ class ProfileTest extends TestCase
 
     public function test_profile_page_is_displayed(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($customer, 'customer')
             ->get('/profile');
 
-        $response->assertOk();
+        $response->assertRedirect(route('account.index', absolute: false));
     }
 
     public function test_profile_information_can_be_updated(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test2@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($customer, 'customer')
             ->patch('/profile', [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
@@ -36,37 +47,48 @@ class ProfileTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect('/profile');
 
-        $user->refresh();
+        $customer->refresh();
 
-        $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
+        $this->assertSame('Test User', $customer->name);
+        $this->assertSame('test@example.com', $customer->email);
+        $this->assertNull($customer->email_verified_at);
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test3@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+            'email_verified_at' => now(),
+        ]);
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($customer, 'customer')
             ->patch('/profile', [
                 'name' => 'Test User',
-                'email' => $user->email,
+                'email' => $customer->email,
             ]);
 
         $response
             ->assertSessionHasNoErrors()
             ->assertRedirect('/profile');
 
-        $this->assertNotNull($user->refresh()->email_verified_at);
+        $this->assertNotNull($customer->refresh()->email_verified_at);
     }
 
     public function test_user_can_delete_their_account(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test4@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($customer, 'customer')
             ->delete('/profile', [
                 'password' => 'password',
             ]);
@@ -75,16 +97,21 @@ class ProfileTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect('/');
 
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
+        $this->assertGuest('customer');
+        $this->assertSoftDeleted($customer);
     }
 
     public function test_correct_password_must_be_provided_to_delete_account(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test5@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($customer, 'customer')
             ->from('/profile')
             ->delete('/profile', [
                 'password' => 'wrong-password',
@@ -94,6 +121,6 @@ class ProfileTest extends TestCase
             ->assertSessionHasErrors('password')
             ->assertRedirect('/profile');
 
-        $this->assertNotNull($user->fresh());
+        $this->assertNotNull($customer->fresh());
     }
 }

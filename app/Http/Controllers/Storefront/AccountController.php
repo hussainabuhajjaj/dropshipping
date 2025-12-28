@@ -336,6 +336,30 @@ class AccountController extends Controller
         return Redirect::back();
     }
 
+    public function claimOrders(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'phone_last4' => 'sometimes|nullable|string|size:4',
+        ]);
+
+        $email = strtolower($data['email']);
+        $phoneLast4 = $data['phone_last4'] ?? null;
+
+        if ($email !== strtolower($request->user()->email)) {
+            return Redirect::back()->withErrors(['email' => 'Email must match your account email.']);
+        }
+
+        $service = app(\App\Domain\Orders\Services\LinkGuestOrdersService::class);
+        $linked = $service->linkByEmail($email, (int) $request->user()->id, $phoneLast4);
+
+        if ($linked > 0) {
+            return Redirect::back()->with('success', $linked . ' order' . ($linked > 1 ? 's' : '') . ' linked to your account.');
+        }
+
+        return Redirect::back()->withErrors(['email' => 'No matching guest orders found.']);
+    }
+
     private function transformCoupon(Coupon $coupon): array
     {
         return [

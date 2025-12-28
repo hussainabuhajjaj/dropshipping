@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront\Concerns;
 
-use App\Models\Category;
+use App\Domain\Products\Models\Category;
 use Illuminate\Support\Facades\Cache;
 
 trait FormatsCategories

@@ -1,6 +1,12 @@
 <template>
   <StorefrontLayout>
     <div class="noon-home">
+      <!-- Database Banners - Hero -->
+      <BannerHero v-if="banners?.hero?.length" :banner="banners.hero[0]" />
+
+      <!-- Database Banners - Carousel -->
+      <BannerCarousel v-if="banners?.carousel?.length" :banners="banners.carousel" />
+
       <section class="top-strip">
         <div v-for="item in topStrip" :key="item.title" class="strip-card">
           <span class="strip-icon">{{ item.icon }}</span>
@@ -144,6 +150,9 @@
         </div>
       </section>
 
+      <!-- Database Banners - Strip (after best sellers) -->
+      <BannerStrip v-if="banners?.strip" :banner="banners.strip" />
+
       <section class="section-block">
         <div class="section-head">
           <div>
@@ -174,17 +183,9 @@
       </section>
 
       <section class="value-grid">
-        <div class="value-card">
-          <h3>{{ t("Delivery built for Cote d'Ivoire") }}</h3>
-          <p>{{ t('Standard delivery in 7 to 18 business days with proactive tracking updates.') }}</p>
-        </div>
-        <div class="value-card">
-          <h3>{{ t('Smart sourcing, safer spending') }}</h3>
-          <p>{{ t('We verify supplier availability, quality, and customs requirements before checkout.') }}</p>
-        </div>
-        <div class="value-card">
-          <h3>{{ t('Support that responds') }}</h3>
-          <p>{{ t('Get answers fast via WhatsApp and email with order-ready agents.') }}</p>
+        <div v-for="item in valueProps" :key="item.title" class="value-card">
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.body }}</p>
         </div>
       </section>
     </div>
@@ -193,9 +194,12 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
+import BannerHero from '@/Components/BannerHero.vue'
+import BannerCarousel from '@/Components/BannerCarousel.vue'
+import BannerStrip from '@/Components/BannerStrip.vue'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({
@@ -205,8 +209,10 @@ const props = defineProps({
   categoryHighlights: { type: Array, default: () => [] },
   currency: { type: String, default: 'USD' },
   homeContent: { type: Object, default: () => ({}) },
+  banners: { type: Object, default: () => ({}) },
 })
 
+const page = usePage()
 const { t } = useTranslations()
 
 const fallbackSlides = [
@@ -375,13 +381,34 @@ const bannerStrip = computed(() => {
     href: '/products',
   }
 })
+
+const fallbackValueProps = [
+  {
+    title: t("Delivery built for Cote d'Ivoire"),
+    body: t('Standard delivery in 7 to 18 business days with proactive tracking updates.'),
+  },
+  {
+    title: t('Smart sourcing, safer spending'),
+    body: t('We verify supplier availability, quality, and customs requirements before checkout.'),
+  },
+  {
+    title: t('Support that responds'),
+    body: t('Get answers fast via WhatsApp and email with order-ready agents.'),
+  },
+]
+
+const valueProps = computed(() => {
+  const configured = page.props.storefront?.value_props
+  if (Array.isArray(configured) && configured.length) {
+    return configured
+  }
+  return fallbackValueProps
+})
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap');
-
 .noon-home {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color: #151517;
   --azura-yellow: #ffd428;
   --azura-ink: #111318;
@@ -397,7 +424,7 @@ const bannerStrip = computed(() => {
 .noon-home h1,
 .noon-home h2,
 .noon-home h3 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: "Segoe UI Semibold", "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
 .top-strip {

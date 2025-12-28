@@ -32,6 +32,22 @@
             {{ $this->table }}
         </x-filament::section>
 
+        @if (auth()->user()?->role === 'admin' && $lastApiErrorMessage)
+            <x-filament::section
+                heading="Last CJ API Error"
+                description="Visible to admins only. Use this to help debug CJ API responses."
+                icon="heroicon-o-exclamation-triangle"
+            >
+                <x-filament::fieldset label="Error">
+                    <p class="text-sm text-red-700 font-medium mb-2">{{ $lastApiErrorMessage }}@if($lastApiErrorStatus) (status: {{ $lastApiErrorStatus }})@endif @if($lastApiErrorCode) (code: {{ $lastApiErrorCode }})@endif</p>
+                    @if($lastApiErrorHint)
+                        <p class="text-sm text-slate-700 mb-2"><strong>Hint:</strong> {{ $lastApiErrorHint }}</p>
+                    @endif
+                    <pre class="rounded-lg border bg-slate-50 p-3 text-xs text-slate-700 overflow-auto dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">@if(is_string($lastApiErrorBody)){{ $lastApiErrorBody }}@else{{ $json($lastApiErrorBody) }}@endif</pre>
+                </x-filament::fieldset>
+            </x-filament::section>
+        @endif
+
         <x-filament::section
             heading="Raw CJ payload"
             description="Inspect the response to debug mapping."

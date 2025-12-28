@@ -22,8 +22,15 @@ class ProductVariantsRelationManager extends RelationManager
             Forms\Components\TextInput::make('cj_vid')->label('CJ VID'),
             Forms\Components\TextInput::make('sku')->required(),
             Forms\Components\TextInput::make('title')->required(),
-            Forms\Components\TextInput::make('price')->numeric()->required(),
-            Forms\Components\TextInput::make('compare_at_price')->numeric(),
+            Forms\Components\TextInput::make('price')
+                ->label('Variant price')
+                ->helperText('Overrides product price for this variant.')
+                ->numeric()
+                ->required(),
+            Forms\Components\TextInput::make('compare_at_price')
+                ->label('Compare-at price')
+                ->helperText('Optional MSRP or crossed-out price.')
+                ->numeric(),
             Forms\Components\TextInput::make('currency')->default('USD')->required(),
             Forms\Components\Select::make('inventory_policy')
                 ->options(['allow' => 'Allow', 'deny' => 'Deny'])

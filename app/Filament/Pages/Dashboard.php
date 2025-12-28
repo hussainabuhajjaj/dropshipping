@@ -19,6 +19,7 @@ use App\Filament\Widgets\QueueHealthWidget;
 use App\Filament\Widgets\CJSyncHealthWidget;
 use App\Filament\Widgets\CJWebhookHealthWidget;
 use App\Filament\Widgets\LowStockProductsTable;
+use App\Filament\Widgets\AnalyticsKPIWidget;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
@@ -27,14 +28,15 @@ class Dashboard extends BaseDashboard
     {
         return [
             AdminStatsOverview::class,
+            AnalyticsKPIWidget::class,
             OperationsOverview::class,
             SalesTrendChart::class,
             OrderStatusChart::class,
-            FulfillmentIssuesTable::class,
             PaymentStatusChart::class,
+            ConversionFunnelChart::class,
+            FulfillmentIssuesTable::class,
             TopSellersTable::class,
             ReturnRequestsTable::class,
-            ConversionFunnelChart::class,
             ReviewTrendChart::class,
             CouponUsageChart::class,
             QueueHealthWidget::class,

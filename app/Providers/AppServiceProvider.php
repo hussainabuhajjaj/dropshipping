@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Product;
+use App\Observers\ProductSeoObserver;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +14,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Bind translation provider based on config
+        $provider = config('services.translation_provider', 'libre_translate');
+
+        match ($provider) {
+            'deepseek' => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\DeepSeekClient::class
+            ),
+            'libre_translate' => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\LibreTranslateClient::class
+            ),
+            default => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\LibreTranslateClient::class
+            ),
+        };
     }
 
     /**
@@ -21,5 +39,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+        Product::observe(ProductSeoObserver::class);
     }
 }

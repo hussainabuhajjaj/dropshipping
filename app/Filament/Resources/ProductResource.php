@@ -9,6 +9,7 @@ use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\PricingService;
 use App\Filament\Resources\ProductResource\Pages;
 use App\Models\Product;
+use App\Jobs\TranslateProductJob;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -23,6 +24,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use App\Filament\Resources\BaseResource;
+use Filament\Actions\ActionGroup;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -79,8 +81,18 @@ class ProductResource extends BaseResource
                 ])->columns(2),
            Section::make('Pricing')
                 ->schema([
+                   Placeholder::make('pricing_guide')
+                        ->label('Pricing hierarchy')
+                        ->content(
+                            '<div class="text-sm text-slate-600 space-y-1">'
+                            . '<p><strong>Product price:</strong> default for all variants.</p>'
+                            . '<p><strong>Variant price:</strong> overrides product price when set.</p>'
+                            . '<p><strong>Margin:</strong> calculated from cost; must meet minimum threshold.</p>'
+                            . '</div>'
+                        ),
                    TextInput::make('selling_price')
                         ->label('Selling price')
+                        ->helperText('Default product-level price; variants can override.')
                         ->numeric()
                         ->required()
                         ->prefix('$')
@@ -100,6 +112,7 @@ class ProductResource extends BaseResource
                         }),
                    TextInput::make('cost_price')
                         ->label('Cost price')
+                        ->helperText('Baseline cost; used when variant cost is missing.')
                         ->numeric()
                         ->required()
                         ->prefix('$')
@@ -149,6 +162,22 @@ class ProductResource extends BaseResource
                         ->label('CJ PID')
                         ->disabled()
                         ->dehydrated(false),
+                    Select::make('cj_warehouse_id')
+                        ->label('CJ Warehouse')
+                        ->options(fn () => app(\App\Domain\Fulfillment\Services\CJWarehouseService::class)->getWarehouseOptions())
+                        ->searchable()
+                        ->reactive()
+                        ->afterStateUpdated(function ($state, callable $set) {
+                            $warehouses = app(\App\Domain\Fulfillment\Services\CJWarehouseService::class)->getWarehouseOptions();
+                            $set('cj_warehouse_name', $warehouses[$state] ?? null);
+                        })
+                        ->helperText('Select the CJ warehouse for this product.')
+                        ->columnSpan(1),
+                    TextInput::make('cj_warehouse_name')
+                        ->label('Warehouse Name')
+                        ->disabled()
+                        ->dehydrated()
+                        ->columnSpan(1),
                     Toggle::make('cj_sync_enabled')
                         ->label('Sync from CJ')
                         ->helperText('Allow CJ to update this product during automatic sync.'),
@@ -213,6 +242,17 @@ class ProductResource extends BaseResource
                     ->getStateUsing(fn (Product $record) => self::syncStatus($record))
                     ->badge()
                     ->color(fn (Product $record) => self::syncStatusColor($record))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('translation_status')
+                    ->label('Translation')
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'completed' => 'success',
+                        'in_progress' => 'warning',
+                        'failed' => 'danger',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state) => ucfirst($state))
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('cj_pid')
                     ->label('CJ PID')
@@ -328,13 +368,14 @@ class ProductResource extends BaseResource
                     }),
             ])
             ->recordActions([
-                ActionsEditAction::make(),
+                ActionGroup::make([
+ ActionsEditAction::make(),
                 Action::make('quickEdit')
                     ->label('Quick edit')
                     ->icon('heroicon-o-pencil-square')
                     ->slideOver()
-                    ->form([
-                        TextInput::make('selling_price')->label('Selling price')->numeric()->required(),
+                    ->schema([
+                        TextInput::make('selling_price')->label('Selling price')->helperText('Default product-level price; variants may override.')->numeric()->required(),
                         TextInput::make('cost_price')->label('Cost price')->numeric()->required(),
                         TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
                         Toggle::make('is_active')->label('Active'),
@@ -392,6 +433,69 @@ class ProductResource extends BaseResource
                             ->success()
                             ->send();
                     }),
+                Action::make('translate')
+                    ->label('Translate')
+                    ->icon('heroicon-o-language')
+                    ->requiresConfirmation()
+                    ->action(function (Product $record): void {
+                        if (empty(config('services.deepseek.key'))) {
+                            Notification::make()
+                                ->title('DeepSeek not configured')
+                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        TranslateProductJob::dispatch((int) $record->id, ['en', 'fr'], 'en', false);
+
+                        Notification::make()
+                            ->title('Translation queued')
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('generateSeo')
+                    ->label('Generate SEO')
+                    ->icon('heroicon-o-sparkles')
+                    ->requiresConfirmation()
+                    ->action(function (Product $record): void {
+                        if (empty(config('services.deepseek.key'))) {
+                            Notification::make()
+                                ->title('DeepSeek not configured')
+                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        \App\Jobs\GenerateProductSeoJob::dispatch((int) $record->id, 'en', true);
+
+                        Notification::make()
+                            ->title('SEO queued')
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('generateMarketing')
+                    ->label('Generate Marketing')
+                    ->icon('heroicon-o-megaphone')
+                    ->requiresConfirmation()
+                    ->action(function (Product $record): void {
+                        if (empty(config('services.deepseek.key'))) {
+                            Notification::make()
+                                ->title('DeepSeek not configured')
+                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        \App\Jobs\GenerateProductMarketingJob::dispatch((int) $record->id, 'en', true, 'friendly');
+
+                        Notification::make()
+                            ->title('Marketing queued')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('preview')
                     ->label('Preview')
                     ->icon('heroicon-o-arrow-top-right-on-square')
@@ -401,6 +505,8 @@ class ProductResource extends BaseResource
                     ->label('Activate/Deactivate')
                     ->icon('heroicon-o-power')
                     ->action(fn (Product $record) => $record->update(['is_active' => ! $record->is_active])),
+                ])
+               
             ])
             ->toolbarActions([
                 ActionsBulkActionGroup::make([
@@ -457,6 +563,7 @@ class ProductResource extends BaseResource
                                     $product = $importer->importByPid($record->cj_pid, [
                                         'respectSyncFlag' => true,
                                         'defaultSyncEnabled' => true,
+                                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                                     ]);
                                 } catch (\Throwable) {
                                     $errors++;
@@ -569,6 +676,78 @@ class ProductResource extends BaseResource
                             Notification::make()
                                 ->title('Featured updated')
                                 ->body("Marked {$records->count()} product(s) as featured.")
+                                ->success()
+                                ->send();
+                        }),
+                    BulkAction::make('translate')
+                        ->label('Translate')
+                        ->icon('heroicon-o-language')
+                        ->form([
+                            TextInput::make('locales')
+                                ->label('Locales')
+                                ->default('en,fr')
+                                ->required(),
+                            TextInput::make('source_locale')
+                                ->label('Source locale')
+                                ->default('en')
+                                ->required(),
+                            Toggle::make('force')
+                                ->label('Force re-translate')
+                                ->default(false),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $locales = array_values(array_filter(array_map('trim', explode(',', (string) ($data['locales'] ?? '')))));
+                            $source = (string) ($data['source_locale'] ?? 'en');
+                            $force = (bool) ($data['force'] ?? false);
+
+                            foreach ($records as $record) {
+                                TranslateProductJob::dispatch((int) $record->id, $locales, $source, $force);
+                            }
+
+                            Notification::make()
+                                ->title('Translations queued')
+                                ->body("Queued {$records->count()} product(s).")
+                                ->success()
+                                ->send();
+                        }),
+                    BulkAction::make('generateSeo')
+                        ->label('Generate SEO')
+                        ->icon('heroicon-o-sparkles')
+                        ->form([
+                            Toggle::make('force')
+                                ->label('Force overwrite')
+                                ->default(true),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $force = (bool) ($data['force'] ?? true);
+
+                            foreach ($records as $record) {
+                                \App\Jobs\GenerateProductSeoJob::dispatch((int) $record->id, 'en', $force);
+                            }
+
+                            Notification::make()
+                                ->title('SEO queued')
+                                ->body("Queued {$records->count()} product(s).")
                                 ->success()
                                 ->send();
                         }),

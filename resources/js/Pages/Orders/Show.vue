@@ -121,6 +121,34 @@
               <p v-if="item.return_request.notes" class="mt-1 text-sm text-slate-600">
                 {{ t('Notes: :notes', { notes: item.return_request.notes }) }}
               </p>
+              
+              <!-- Return Label Actions -->
+              <div v-if="item.return_request.status === 'approved' && item.return_request.return_label_url" class="mt-4 space-y-2">
+                <p class="text-xs font-semibold text-slate-600">{{ t('Return shipping label available') }}</p>
+                <div class="flex gap-2">
+                  <a
+                    :href="`/returns/${item.return_request.id}/label/preview`"
+                    target="_blank"
+                    class="btn-ghost text-xs"
+                  >
+                    {{ t('Preview Label') }}
+                  </a>
+                  <a
+                    :href="`/returns/${item.return_request.id}/label/download`"
+                    class="btn-secondary text-xs"
+                  >
+                    {{ t('Download Label') }}
+                  </a>
+                </div>
+                <p class="text-xs text-slate-500">
+                  {{ t('Print this label and attach it to your return package') }}
+                </p>
+              </div>
+              <div v-else-if="item.return_request.status === 'approved'" class="mt-3">
+                <p class="text-xs text-slate-500">
+                  {{ t('Your return has been approved. A shipping label will be generated shortly.') }}
+                </p>
+              </div>
             </div>
             <div
               v-else-if="item.fulfillment_status === 'fulfilled'"

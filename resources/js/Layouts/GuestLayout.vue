@@ -65,8 +65,6 @@ const setLocale = (target) => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:wght@600;700&display=swap');
-
 .auth-shell {
     min-height: 100vh;
     display: flex;
@@ -76,7 +74,7 @@ const setLocale = (target) => {
     position: relative;
     overflow: hidden;
     padding: 48px 16px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
     color: #1f2937;
 }
 
@@ -123,7 +121,7 @@ const setLocale = (target) => {
 }
 
 .auth-brand {
-    font-family: 'Fraunces', serif;
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
     font-size: 28px;
     letter-spacing: 0.04em;
 }

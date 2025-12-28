@@ -13,6 +13,7 @@ class ApiException extends RuntimeException
         public readonly ?int $status = null,
         public readonly ?string $codeString = null,
         public readonly mixed $body = null,
+        public readonly ?string $requestId = null,
     ) {
         parent::__construct($message, $status ?? 0);
     }

@@ -19,5 +19,23 @@
    - Implement tests for wishlist controller, CJ client endpoints, checkout stock guard, and the new sync command.
    - Update docs/OperationsBooklet with usage guides, CJ integration steps, and seeding instructions.
 
+### Catalog Filters and Sort
+
+- Warehouse filter: sent as `warehouseId` to `/v1/product/list` and `/v1/product/listV2`.
+- In-stock-only filter: sent as `haveStock=1` when enabled.
+- Sort codes: mapped to `sort` and validated.
+   - `1`: Price low → high
+   - `2`: Price high → low
+   - `5`: Newest
+   - `6`: Best selling
+- Default sort: omitted (blank) to allow CJ’s default "best match" when supported.
+
+References:
+- Product list: https://developers.cjdropshipping.com/api2.0/v1/product/list
+- Product list V2: https://developers.cjdropshipping.com/api2.0/v1/product/listV2
+
+Notes:
+- If CJ expects different parameter names (e.g., `sortType`, `storageStatus`), update `CjProductApi::listProducts()` and `CJCatalog::fetch()` accordingly.
+- Warehouse list endpoint: `/v1/product/globalWarehouse/list` is used to populate filter options; failures surface a warning and disable selection.
+
 ### Work in progress
-- Scaffolded the `cj:sync-catalog` command so we can start wiring rate-limited pulls and store `site_settings` sync metadata.

@@ -10,6 +10,8 @@ use App\Domain\Products\Models\ProductVariant;
 use App\Models\Coupon;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
+use App\Services\AbandonedCartService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -64,7 +66,7 @@ class CartController extends Controller
 
         if ($existing) {
             $newQty = $existing['quantity'] + $incomingQty;
-            if (! $this->hasCjStock($existing, $newQty)) {
+            if (! $this->hasStock($existing, $newQty, $variant)) {
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
 
@@ -76,13 +78,15 @@ class CartController extends Controller
             });
         } else {
             $line = $this->buildLine($product, $variant, $incomingQty);
-            if (! $this->hasCjStock($line, $incomingQty)) {
+            if (! $this->hasStock($line, $incomingQty, $variant)) {
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
             $cart->push($line);
         }
 
         session(['cart' => $cart->values()->all()]);
+
+        $this->captureAbandonedCart($cart->values()->all());
 
         return back()->with('cart_notice', 'Added to cart');
     }
@@ -95,6 +99,8 @@ class CartController extends Controller
             ->all();
 
         session(['cart' => $cart]);
+
+        $this->captureAbandonedCart($cart);
 
         return back();
     }
@@ -113,12 +119,17 @@ class CartController extends Controller
         })->values()->all();
 
         foreach ($cart as $line) {
-            if ($line['id'] === $lineId && ! $this->hasCjStock($line, $line['quantity'])) {
-                return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
+            if ($line['id'] === $lineId) {
+                $variant = isset($line['variant_id']) ? ProductVariant::find($line['variant_id']) : null;
+                if (! $this->hasStock($line, $line['quantity'], $variant)) {
+                    return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
+                }
             }
         }
 
         session(['cart' => $cart]);
+
+        $this->captureAbandonedCart($cart);
 
         return back();
     }
@@ -171,7 +182,7 @@ class CartController extends Controller
             'sku' => $selectedVariant?->sku,
             'cj_pid' => $product->attributes['cj_pid'] ?? null,
             'cj_vid' => $selectedVariant?->metadata['cj_vid'] ?? null,
-            'stock_on_hand' => $product->stock_on_hand,
+            'stock_on_hand' => $selectedVariant?->stock_on_hand ?? $product->stock_on_hand,
         ];
     }
 
@@ -202,17 +213,38 @@ class CartController extends Controller
             'description' => $coupon->description,
         ]]);
 
+        $this->captureAbandonedCart($this->cart());
+
         return back()->with('cart_notice', 'Coupon applied.');
     }
 
     public function removeCoupon(): RedirectResponse
     {
         session()->forget('cart_coupon');
+        $this->captureAbandonedCart($this->cart());
         return back()->with('cart_notice', 'Coupon removed.');
+    }
+
+    private function captureAbandonedCart(array $cart): void
+    {
+        if (empty($cart)) {
+            return;
+        }
+
+        app(AbandonedCartService::class)->capture(
+            $cart,
+            Auth::guard('customer')->user()?->email,
+            Auth::guard('customer')->id()
+        );
     }
 
     private function hasCjStock(array $line, int $desiredQty): bool
     {
+        // Prefer local stock snapshot if available before hitting CJ APIs
+        if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
+            return (int) $line['stock_on_hand'] >= $desiredQty;
+        }
+
         $client = app(CJDropshippingClient::class);
 
         try {
@@ -222,8 +254,6 @@ class CartController extends Controller
                 $resp = $client->getStockBySku((string) $line['sku']);
             } elseif ($line['cj_pid'] ?? false) {
                 $resp = $client->getStockByPid((string) $line['cj_pid']);
-            } elseif (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
-                return (int) $line['stock_on_hand'] >= $desiredQty;
             } else {
                 return true;
             }
@@ -231,10 +261,10 @@ class CartController extends Controller
             return $this->sumStorage($resp->data ?? null) >= $desiredQty;
         } catch (ApiException $exception) {
             Log::warning('CJ stock check failed', ['error' => $exception->getMessage(), 'line' => $line['id'] ?? null]);
-            return $this->fallbackStockCheck($line, $desiredQty);
+            return true; // allow on API failure
         } catch (\Throwable $exception) {
             Log::error('CJ stock check failed', ['error' => $exception->getMessage(), 'line' => $line['id'] ?? null]);
-            return $this->fallbackStockCheck($line, $desiredQty);
+            return true; // allow on error
         }
     }
 
@@ -274,12 +304,24 @@ class CartController extends Controller
         return $total;
     }
 
-    private function fallbackStockCheck(array $line, int $desiredQty): bool
+    private function hasStock(array $line, int $desiredQty, ?ProductVariant $variant = null): bool
     {
+        // 1. Check local stock_on_hand first (variant or product level)
         if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
-            return (int) $line['stock_on_hand'] >= $desiredQty;
+            $available = (int) $line['stock_on_hand'];
+            if ($available < $desiredQty) {
+                return false;
+            }
+            return true; // local stock sufficient
+        } elseif ($variant && $variant->stock_on_hand !== null) {
+            if ($variant->stock_on_hand < $desiredQty) {
+                return false;
+            }
+            return true;
         }
 
-        return true;
+        // 2. Fallback to live CJ API check if no local stock data
+        return $this->hasCjStock($line, $desiredQty);
     }
 }
+

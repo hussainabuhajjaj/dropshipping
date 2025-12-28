@@ -37,7 +37,17 @@ class SyncCjProductsJob implements ShouldQueue
                 'pageSize' => $this->pageSize,
             ]);
         } catch (ApiException $e) {
-            Log::warning('CJ sync failed', ['page' => $this->pageNum, 'error' => $e->getMessage()]);
+            Log::warning('CJ sync failed', ['page' => $this->pageNum, 'error' => $e->getMessage(), 'status' => $e->status]);
+
+            // If rate-limited by CJ, requeue with exponential backoff
+            if ($e->status === 429) {
+                $attempt = max(1, $this->attempts());
+                $delay = min(60 * (2 ** ($attempt - 1)), 3600); // cap at 1 hour
+                Log::info('CJ rate limit hit; releasing job back to queue', ['page' => $this->pageNum, 'delay' => $delay]);
+                $this->release($delay);
+                return;
+            }
+
             return;
         }
 

@@ -7,14 +7,18 @@ use App\Http\Controllers\Storefront\ProductController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
+use App\Http\Controllers\Storefront\ExpressCheckoutController;
 use App\Http\Controllers\Storefront\TrackingPageController;
 use App\Http\Controllers\Storefront\OrderController;
 use App\Http\Controllers\Storefront\AccountController;
 use App\Http\Controllers\Storefront\WishlistController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\ProductReviewController;
+use App\Http\Controllers\Storefront\ReviewHelpfulController;
 use App\Http\Controllers\Storefront\ReturnRequestController;
+use App\Http\Controllers\Storefront\ReturnLabelController;
 use App\Http\Controllers\Storefront\CategoryController;
+use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Webhooks\CJWebhookController;
 use App\Http\Controllers\Webhooks\TrackingWebhookController;
 use App\Http\Controllers\Payments\PaystackCallbackController;
@@ -61,6 +65,8 @@ Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('ca
 
 Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
+Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
 Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
 Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::get('/orders/track', TrackingPageController::class)->name('orders.track');
@@ -98,14 +104,21 @@ Route::middleware('auth:admin')
         Route::get('/customers', [ExportController::class, 'customers'])->name('customers');
     });
 
-Route::inertia('/legal/shipping-policy', 'Legal/ShippingPolicy')->name('legal.shipping');
-Route::inertia('/legal/refund-policy', 'Legal/RefundPolicy')->name('legal.refund');
-Route::inertia('/legal/privacy-policy', 'Legal/PrivacyPolicy')->name('legal.privacy');
-Route::inertia('/legal/terms-of-service', 'Legal/TermsOfService')->name('legal.terms');
-Route::inertia('/legal/customs-disclaimer', 'Legal/CustomsDisclaimer')->name('legal.customs');
+Route::get('/legal/shipping-policy', [PageController::class, 'shippingPolicy'])->name('legal.shipping');
+Route::get('/legal/refund-policy', [PageController::class, 'refundPolicy'])->name('legal.refund');
+Route::get('/legal/privacy-policy', [PageController::class, 'privacyPolicy'])->name('legal.privacy');
+Route::get('/legal/terms-of-service', [PageController::class, 'termsOfService'])->name('legal.terms');
+Route::get('/about', [PageController::class, 'about'])->name('about');
+Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::inertia('/support', 'Support/Index')->name('support');
-Route::inertia('/about', 'About/Index')->name('about');
 Route::inertia('/faq', 'Faq/Index')->name('faq');
+
+// Redirect legacy /policies/* routes to /legal/* for backward compatibility
+Route::redirect('/policies/shipping', '/legal/shipping-policy', 301);
+Route::redirect('/policies/refund', '/legal/refund-policy', 301);
+Route::redirect('/policies/terms', '/legal/terms-of-service', 301);
+Route::redirect('/policies/privacy', '/legal/privacy-policy', 301);
+Route::redirect('/policies/about', '/about', 301);
 
 Route::middleware('auth:customer')->group(function () {
     Route::get('/account', [AccountController::class, 'index'])->name('account.index');
@@ -127,15 +140,21 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/account/gift-cards/redeem', [AccountController::class, 'redeemGiftCard'])->name('account.gift-cards.redeem');
     Route::post('/account/coupons/save', [AccountController::class, 'saveCoupon'])->name('account.coupons.save');
     Route::delete('/account/coupons/{couponRedemption}', [AccountController::class, 'destroyCoupon'])->name('account.coupons.destroy');
+    Route::post('/account/claim-orders', [AccountController::class, 'claimOrders'])->name('account.claim-orders');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::post('/products/{product:slug}/reviews', [ProductReviewController::class, 'store'])
         ->name('products.reviews.store');
+    Route::post('/reviews/{review}/helpful', [ReviewHelpfulController::class, 'vote'])
+        ->name('reviews.helpful');
     Route::post('/returns', [ReturnRequestController::class, 'store'])->name('returns.store');
+    Route::get('/returns/{returnRequest}/label/download', [ReturnLabelController::class, 'download'])->name('returns.label.download');
+    Route::get('/returns/{returnRequest}/label/preview', [ReturnLabelController::class, 'preview'])->name('returns.label.preview');
     Route::get('/account/wishlist', [WishlistController::class, 'index'])->name('account.wishlist');
     Route::post('/account/wishlist', [WishlistController::class, 'store'])->name('account.wishlist.store');
     Route::delete('/account/wishlist/{product}', [WishlistController::class, 'destroy'])->name('account.wishlist.destroy');

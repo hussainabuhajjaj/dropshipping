@@ -23,6 +23,12 @@ class Payment extends Model
         'provider_reference',
         'idempotency_key',
         'amount',
+        'refunded_amount',
+        'refund_status',
+        'refund_reference',
+        'refund_reason',
+        'refunded_by',
+        'refunded_at',
         'currency',
         'meta',
         'paid_at',
@@ -31,11 +37,17 @@ class Payment extends Model
     protected $casts = [
         'meta' => 'array',
         'paid_at' => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function refunder(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'refunded_by');
     }
 
     public function webhooks(): HasMany

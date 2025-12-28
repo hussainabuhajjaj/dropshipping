@@ -39,9 +39,11 @@ class DeliveryConfirmedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $name = $notifiable->name ?? ($this->order->customer_name ?? $this->order->email ?? 'Customer');
+
         return (new MailMessage)
             ->subject("Delivered: order #{$this->order->number}")
-            ->greeting("Hi {$notifiable->name},")
+            ->greeting("Hi {$name},")
             ->line("Your order #{$this->order->number} was delivered" . ($this->deliveredAt ? " on {$this->deliveredAt}" : '') . '.')
             ->action('View order', $this->trackingLink())
             ->line('If anything is off, reply and we will help immediately.');

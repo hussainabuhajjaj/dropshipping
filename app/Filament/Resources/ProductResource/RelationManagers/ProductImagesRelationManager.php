@@ -16,6 +16,36 @@ class ProductImagesRelationManager extends RelationManager
 {
     protected static string $relationship = 'images';
 
+    private function formSchema(): array
+    {
+        return [
+            Forms\Components\FileUpload::make('url')
+                ->label('Upload Image')
+                ->image()
+                ->directory('products')
+                ->maxSize(5120)
+                ->imageEditor()
+                ->imageEditorAspectRatios([
+                    null,
+                    '16:9',
+                    '4:3',
+                    '1:1',
+                ])
+                ->helperText('Upload an image from your computer (max 5MB) or enter a URL below'),
+            Forms\Components\TextInput::make('url')
+                ->label('Or Enter Image URL')
+                ->url()
+                ->placeholder('https://example.com/image.jpg')
+                ->helperText('Alternatively, enter a direct URL to an external image'),
+            Forms\Components\TextInput::make('position')
+                ->label('Display Position')
+                ->numeric()
+                ->default(1)
+                ->minValue(1)
+                ->helperText('Images are displayed in ascending order'),
+        ];
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -26,13 +56,11 @@ class ProductImagesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->schema([
-                        Forms\Components\TextInput::make('url')->label('Image URL')->required(),
-                        Forms\Components\TextInput::make('position')->numeric()->default(1),
-                    ]),
+                    ->schema($this->formSchema()),
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->schema($this->formSchema()),
                 DeleteAction::make(),
             ])
             ->toolbarActions([]);

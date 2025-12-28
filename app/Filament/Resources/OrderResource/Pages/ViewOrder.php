@@ -11,6 +11,7 @@ use App\Domain\Observability\EventLogger;
 use App\Domain\Payments\PaymentService;
 use App\Events\Orders\RefundProcessed;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Payments\Paystack\PaystackRefundService;
 use App\Services\Api\ApiException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -129,6 +130,96 @@ class ViewOrder extends ViewRecord
                     });
 
                     Event::dispatch(new RefundProcessed($record, (float) $data['amount'], $data['currency'], $data['reason']));
+                }),
+            Actions\Action::make('processPaystackRefund')
+                ->label('Process Paystack Refund')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('danger')
+                ->visible(function (Order $record) {
+                    $payment = $record->payments()
+                        ->where('provider', 'paystack')
+                        ->where('status', 'paid')
+                        ->first();
+                    return $payment && ($payment->refunded_amount < $payment->amount);
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Process Paystack Refund')
+                ->modalDescription('This will process a real refund through Paystack API.')
+                ->schema([
+                    TextInput::make('amount')
+                        ->label('Refund Amount')
+                        ->numeric()
+                        ->required()
+                        ->prefix(function (Order $record): string { return $record->currency; })
+                        ->default(function (Order $record): float {
+                            $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                            return $payment ? ($payment->amount - $payment->refunded_amount) : 0;
+                        })
+                        ->helperText(function (Order $record): string {
+                            $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                            if ($payment) {
+                                $available = $payment->amount - $payment->refunded_amount;
+                                return "Available to refund: {$available} {$payment->currency}";
+                            }
+                            return '';
+                        }),
+                    Textarea::make('reason')
+                        ->label('Refund Reason')
+                        ->required()
+                        ->rows(3)
+                        ->placeholder('Customer request, damaged goods, etc.'),
+                ])
+                ->action(function (Order $record, array $data): void {
+                    try {
+                        $payment = $record->payments()
+                            ->where('provider', 'paystack')
+                            ->where('status', 'paid')
+                            ->first();
+                        
+                        if (!$payment) {
+                            throw new \RuntimeException('No Paystack payment found for this order.');
+                        }
+
+                        $refundService = app(PaystackRefundService::class);
+                        $refundService->refund(
+                            $payment,
+                            (float) $data['amount'],
+                            $data['reason'],
+                            auth()->id()
+                        );
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'paystack_refund_processed',
+                            'note' => $data['reason'],
+                            'payload' => [
+                                'amount' => $data['amount'],
+                                'payment_id' => $payment->id,
+                            ],
+                        ]);
+
+                        app(EventLogger::class)->order(
+                            $record,
+                            'refund',
+                            'refunded',
+                            $data['reason'],
+                            ['amount' => $data['amount'], 'provider' => 'paystack']
+                        );
+
+                        Notification::make()
+                            ->success()
+                            ->title('Refund Processed')
+                            ->body("Paystack refund of {$data['amount']} {$payment->currency} processed successfully.")
+                            ->send();
+                            
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Refund Failed')
+                            ->body('Error: ' . $e->getMessage())
+                            ->send();
+                    }
                 }),
             Actions\Action::make('markPaid')
                 ->label('Mark as Paid')

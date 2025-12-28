@@ -57,7 +57,14 @@ class CJCatalog extends BasePage implements HasTable
     public ?string $productSku = null;
     public ?string $materialKey = null;
     public ?string $categoryId = null;
+    public array $categoryOptions = [];
+    public ?string $warehouseId = null;
+    public array $warehouseOptions = [];
+    public bool $warehouseLoadFailed = false;
+    public bool $inStockOnly = false;
+    public string $sort = '';
     public ?string $storeProductId = null;
+    public ?string $shipToCountry = null;
     public int $syncEnabledCount = 0;
     public int $syncDisabledCount = 0;
     public int $syncStaleCount = 0;
@@ -68,6 +75,31 @@ class CJCatalog extends BasePage implements HasTable
     {
         return $table
             ->records(fn (?string $search, ?string $sortColumn, ?string $sortDirection): array => $this->buildTableRecords($search, $sortColumn, $sortDirection))
+            ->headerActions([
+                Action::make('setShipTo')
+                    ->label('Ship-to Filter')
+                    ->icon('heroicon-o-globe-alt')
+                    ->color('secondary')
+                    ->schema([
+                        \Filament\Forms\Components\TextInput::make('country')
+                            ->label('Country code (e.g., US, GB)')
+                            ->maxLength(2)
+                            ->default(strtoupper((string) (config('services.cj.ship_to_default') ?? ''))),
+                    ])
+                    ->action(function (array $data): void {
+                        $code = strtoupper(trim((string) ($data['country'] ?? '')));
+                        $this->shipToCountry = $code !== '' ? $code : null;
+                        $this->flushCachedTableRecords();
+                    }),
+                Action::make('clearShipTo')
+                    ->label('Clear Ship-to')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('gray')
+                    ->action(function (): void {
+                        $this->shipToCountry = null;
+                        $this->flushCachedTableRecords();
+                    }),
+            ])
             ->columns([
                 ImageColumn::make('image')
                     ->label('Image')
@@ -171,9 +203,103 @@ class CJCatalog extends BasePage implements HasTable
             ->emptyStateDescription('Adjust your filters or refresh the catalog.');
     }
 
+    public function getStatsData(): array
+    {
+        return [
+            [
+                'label' => 'Total Products',
+                'value' => number_format($this->total),
+                'icon' => 'heroicon-o-cube',
+            ],
+            [
+                'label' => 'Current Page',
+                'value' => "Page {$this->pageNum} of " . ($this->totalPagesKnown ? $this->totalPages : '--'),
+                'icon' => 'heroicon-o-bookmark',
+            ],
+            [
+                'label' => 'Average Price',
+                'value' => $this->avgPrice ? '$' . $this->avgPrice : '--',
+                'icon' => 'heroicon-o-currency-dollar',
+            ],
+            [
+                'label' => 'Items Loaded',
+                'value' => number_format($this->loaded),
+                'icon' => 'heroicon-o-check-circle',
+            ],
+            [
+                'label' => 'Total Inventory',
+                'value' => number_format($this->inventoryTotal),
+                'icon' => 'heroicon-o-archive-box',
+            ],
+            [
+                'label' => 'With Images',
+                'value' => number_format($this->withImages),
+                'icon' => 'heroicon-o-photo',
+            ],
+            [
+                'label' => 'Sync Enabled',
+                'value' => number_format($this->syncEnabledCount),
+                'icon' => 'heroicon-o-arrow-path',
+            ],
+            [
+                'label' => 'Sync Disabled',
+                'value' => number_format($this->syncDisabledCount),
+                'icon' => 'heroicon-o-pause-circle',
+            ],
+            [
+                'label' => 'Stale Products',
+                'value' => number_format($this->syncStaleCount),
+                'icon' => 'heroicon-o-exclamation-circle',
+            ],
+        ];
+    }
+
     public function mount(): void
     {
+        $default = strtoupper((string) (config('services.cj.ship_to_default') ?? ''));
+        $this->shipToCountry = $default !== '' ? $default : null;
+        $this->loadCategories();
+        $this->loadWarehouses();
         $this->fetch();
+    }
+
+    private function loadCategories(): void
+    {
+        try {
+            $resp = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class)->listCategories();
+            $tree = $resp->data ?? [];
+            $this->categoryOptions = $this->flattenCategories(is_array($tree) ? $tree : []);
+        } catch (\Throwable $e) {
+            $this->categoryOptions = [];
+        }
+    }
+
+    private function loadWarehouses(): void
+    {
+        $this->warehouseLoadFailed = false;
+        try {
+            $service = app(\App\Domain\Fulfillment\Services\CJWarehouseService::class);
+            $options = $service->getWarehouseOptions();
+            if (! is_array($options) || empty($options)) {
+                $this->warehouseLoadFailed = true;
+                $this->warehouseOptions = [];
+                Notification::make()
+                    ->title('Could not load CJ warehouses')
+                    ->body('Warehouse filter disabled until reload.')
+                    ->danger()
+                    ->send();
+                return;
+            }
+            $this->warehouseOptions = $options;
+        } catch (\Throwable $e) {
+            $this->warehouseLoadFailed = true;
+            $this->warehouseOptions = [];
+            Notification::make()
+                ->title('Could not load CJ warehouses')
+                ->body('Warehouse filter disabled until reload.')
+                ->danger()
+                ->send();
+        }
     }
 
     public function fetch(bool $append = false, bool $notify = true): void
@@ -181,6 +307,8 @@ class CJCatalog extends BasePage implements HasTable
         try {
             $this->pageNum = max(1, $this->pageNum);
             $this->pageSize = min(200, max(10, $this->pageSize));
+
+            $sort = in_array($this->sort, ['1', '2', '5', '6'], true) ? $this->sort : null;
 
             $filters = [
                 'pageNum' => $this->pageNum,
@@ -190,6 +318,9 @@ class CJCatalog extends BasePage implements HasTable
                 'productName' => $this->productName,
                 'materialKey' => $this->materialKey,
                 'storeProductId' => $this->storeProductId,
+                'warehouseId' => $this->warehouseId,
+                'haveStock' => $this->inStockOnly ? 1 : null,
+                'sort' => $sort,
             ];
 
             $client = app(CJDropshippingClient::class);
@@ -219,6 +350,7 @@ class CJCatalog extends BasePage implements HasTable
             $product = $importer->importByPid($pid, [
                 'respectSyncFlag' => false,
                 'defaultSyncEnabled' => true,
+                'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
             ]);
 
             if (! $product) {
@@ -335,6 +467,47 @@ class CJCatalog extends BasePage implements HasTable
         }
     }
 
+    private function flattenCategories(array $nodes, string $prefix = ''): array
+    {
+        $options = [];
+
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            // CJ API shape: categoryFirstList -> categorySecondList -> categoryId/categoryName
+            $id = $node['id']
+                ?? $node['categoryId']
+                ?? $node['categoryid']
+                ?? null;
+
+            $name = $node['name']
+                ?? $node['categoryName']
+                ?? $node['categoryname']
+                ?? $node['categoryFirstName']
+                ?? $node['categorySecondName']
+                ?? null;
+
+            if ($id !== null && $name !== null) {
+                $label = $prefix ? $prefix . ' › ' . $name : $name;
+                $options[$id] = $label;
+            }
+
+            $children = $node['children']
+                ?? $node['childNode']
+                ?? $node['child']
+                ?? $node['categoryFirstList']
+                ?? $node['categorySecondList']
+                ?? [];
+            if (is_array($children) && $children !== []) {
+                $options += $this->flattenCategories($children, $prefix ? $prefix . ' › ' . ($name ?? '') : ($name ?? ''));
+            }
+        }
+
+        return $options;
+    }
+
     public function getImagePreviewModalId(): string
     {
         return $this->getId() . '-image-preview';
@@ -388,6 +561,9 @@ class CJCatalog extends BasePage implements HasTable
         $this->productSku = null;
         $this->materialKey = null;
         $this->categoryId = null;
+        $this->warehouseId = null;
+        $this->inStockOnly = false;
+        $this->sort = '';
         $this->storeProductId = null;
         $this->pageNum = 1;
         $this->pageSize = 24;
@@ -440,6 +616,7 @@ class CJCatalog extends BasePage implements HasTable
                 $product = $importer->importByPid($pid, [
                     'respectSyncFlag' => false,
                     'defaultSyncEnabled' => true,
+                    'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                 ]);
             } catch (ApiException $e) {
                 Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
@@ -491,6 +668,7 @@ class CJCatalog extends BasePage implements HasTable
                     $product = $importer->importByPid($pid, [
                         'respectSyncFlag' => false,
                         'defaultSyncEnabled' => true,
+                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
                 } catch (ApiException $e) {
                     Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
@@ -641,6 +819,16 @@ class CJCatalog extends BasePage implements HasTable
     {
         $records = collect($this->items ?? []);
 
+        // Apply pre-import ship-to filtering using best-effort warehouse inference
+        $shipTo = $this->shipToCountry;
+        if ($shipTo) {
+            $records = $records->filter(function (array $record) use ($shipTo): bool {
+                $codes = $this->recordWarehouseCountries($record);
+                // If we cannot infer any warehouses, do not exclude
+                return $codes === [] || in_array($shipTo, $codes, true);
+            });
+        }
+
         if ($search) {
             $needle = Str::lower($search);
             $records = $records->filter(function (array $record) use ($needle): bool {
@@ -673,6 +861,42 @@ class CJCatalog extends BasePage implements HasTable
                 return $record;
             })
             ->all();
+    }
+
+    private function recordWarehouseCountries(array $record): array
+    {
+        $candidates = [];
+
+        $lists = [
+            $record['warehouseList'] ?? null,
+            $record['warehouseInfo'] ?? null,
+            $record['warehouse'] ?? null,
+            $record['warehouses'] ?? null,
+        ];
+
+        foreach ($lists as $list) {
+            if (! is_array($list)) {
+                continue;
+            }
+
+            foreach ($list as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $code = $item['countryCode']
+                    ?? $item['country']
+                    ?? $item['warehouseCountryCode']
+                    ?? $item['warehouseCountry']
+                    ?? null;
+
+                if (is_string($code) && $code !== '') {
+                    $candidates[] = strtoupper($code);
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
     }
 
     public function getTableRecordKey($record): string

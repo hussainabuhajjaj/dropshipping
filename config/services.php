@@ -46,6 +46,27 @@ return [
         'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
+    'shippo' => [
+        'api_token' => env('SHIPPO_API_TOKEN'),
+        'base_url' => env('SHIPPO_BASE_URL', 'https://api.goshippo.com'),
+    ],
+
+    'returns' => [
+        'address_line1' => env('RETURNS_ADDRESS_LINE1', '123 Return Center'),
+        'address_line2' => env('RETURNS_ADDRESS_LINE2'),
+        'city' => env('RETURNS_CITY', 'City'),
+        'state' => env('RETURNS_STATE', 'State'),
+        'postal_code' => env('RETURNS_POSTAL_CODE', '00000'),
+        'country' => env('RETURNS_COUNTRY', 'US'),
+        'phone' => env('RETURNS_PHONE', '+1234567890'),
+    ],
+
     'tracking' => [
         'webhook_secret' => env('TRACKING_WEBHOOK_SECRET'),
     ],
@@ -58,6 +79,10 @@ return [
         'timeout' => env('CJ_TIMEOUT', 10),
         'webhook_secret' => env('CJ_WEBHOOK_SECRET'),
         'platform_token' => env('CJ_PLATFORM_TOKEN'),
+        'alerts_email' => env('CJ_ALERTS_EMAIL'),
+        // Optional: default ship-to country for CJ imports (e.g., 'US', 'GB').
+        // When null or empty, imports will not be filtered by ship-to.
+        'ship_to_default' => env('CJ_SHIP_TO_DEFAULT'),
     ],
 
     'google' => [
@@ -97,5 +122,19 @@ return [
             'endpoint' => env('VONAGE_WHATSAPP_ENDPOINT', 'https://api.nexmo.com/v1/messages'),
         ],
     ],
+    'deepseek' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+        'timeout' => env('DEEPSEEK_TIMEOUT', 20),
+    ],
+
+    'libre_translate' => [
+        'base_url' => env('LIBRE_TRANSLATE_BASE_URL', 'https://libretranslate.de'),
+        'key' => env('LIBRE_TRANSLATE_API_KEY'),
+        'timeout' => env('LIBRE_TRANSLATE_TIMEOUT', 10),
+    ],
+
+    'translation_provider' => env('TRANSLATION_PROVIDER', 'libre_translate'),
 
 ];

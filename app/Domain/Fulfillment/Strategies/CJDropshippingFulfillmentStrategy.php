@@ -21,6 +21,12 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
     public function dispatch(FulfillmentRequestData $data): FulfillmentResult
     {
         $providerSettings = $data->provider->settings ?? [];
+        
+        // Use product's warehouse if available, otherwise fall back to provider settings
+        $product = $data->orderItem->productVariant?->product;
+        $warehouseId = $product?->cj_warehouse_id ?? $providerSettings['warehouse_id'] ?? null;
+        $fromCountry = $product?->cj_warehouse_id ? $this->getCountryFromWarehouse($product->cj_warehouse_id) : ($providerSettings['from_country'] ?? 'CN');
+        
         $payload = [
             'orderNumber' => $data->orderItem->order?->number,
             'shippingZip' => $data->shippingAddress?->postal_code,
@@ -40,13 +46,13 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
             'payType' => $providerSettings['pay_type'] ?? 3,
             'shopAmount' => null,
             'logisticName' => $providerSettings['shipping_method'] ?? 'PostNL',
-            'fromCountryCode' => $providerSettings['from_country'] ?? 'CN',
+            'fromCountryCode' => $fromCountry,
             'houseNumber' => null,
             'iossType' => $providerSettings['ioss_type'] ?? null,
             'platform' => $providerSettings['platform'] ?? 'Api',
             'iossNumber' => $providerSettings['ioss_number'] ?? null,
             'shopLogisticsType' => $providerSettings['shop_logistics_type'] ?? 1,
-            'storageId' => $providerSettings['storage_id'] ?? null,
+            'storageId' => $warehouseId ?? $providerSettings['storage_id'] ?? null,
             'products' => [
                 [
                     'vid' => $data->supplierProduct?->external_product_id ?? null,
@@ -119,5 +125,18 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         }
 
         return $body;
+    }
+
+    private function getCountryFromWarehouse(string $warehouseId): string
+    {
+        // Map warehouse IDs to country codes
+        return match ($warehouseId) {
+            'CN' => 'CN',
+            'US' => 'US',
+            'DE' => 'DE',
+            'UK' => 'GB',
+            'AU' => 'AU',
+            default => 'CN',
+        };
     }
 }

@@ -21,6 +21,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Table;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use UnitEnum;
 
 class CJMyProducts extends Page implements HasTable
@@ -39,9 +40,19 @@ class CJMyProducts extends Page implements HasTable
     public int $totalPages = 1;
     public ?string $lastSyncAt = null;
     public ?string $lastSyncSummary = null;
+    public ?string $shipToCountry = null;
+
+    // Admin-visible: last CJ API error details (temporary debug aid)
+    public ?string $lastApiErrorMessage = null;
+    public mixed $lastApiErrorBody = null;
+    public ?int $lastApiErrorStatus = null;
+    public ?string $lastApiErrorCode = null;
+    public ?string $lastApiErrorHint = null; // Human-friendly remediation suggestion for admins
 
     public function mount(): void
     {
+        $default = strtoupper((string) (config('services.cj.ship_to_default') ?? ''));
+        $this->shipToCountry = $default !== '' ? $default : null;
         $this->fetch();
         $this->loadSyncInfo();
     }
@@ -57,12 +68,45 @@ class CJMyProducts extends Page implements HasTable
                 'pageSize' => $this->pageSize,
             ]);
             $this->products = $resp->data ?? null;
+            // Clear previous API error details on a successful fetch
+            $this->lastApiErrorMessage = null;
+            $this->lastApiErrorBody = null;
+            $this->lastApiErrorStatus = null;
+            $this->lastApiErrorCode = null;
+
             $this->hydrateTotals();
             Notification::make()->title('Loaded My Products')->success()->send();
             $this->loadSyncInfo();
         } catch (ApiException $e) {
+            Log::error('CJ API exception in fetch()', [
+                'message' => $e->getMessage(),
+                'status' => $e->status,
+                'code' => $e->codeString,
+                'body' => $e->body,
+            ]);
+
+            // Save sanitized error details for admin-only UI debug
+            $this->lastApiErrorMessage = $e->getMessage();
+            $this->lastApiErrorStatus = $e->status;
+            $this->lastApiErrorCode = $e->codeString;
+            $body = $e->body;
+            if (is_array($body) || is_object($body)) {
+                $this->lastApiErrorBody = $body;
+            } else {
+                $str = (string) $body;
+                $this->lastApiErrorBody = strlen($str) > 2000 ? substr($str, 0, 2000) . '... (truncated)' : $str;
+            }
+
+            // Compute and set an admin hint for remediation
+            $this->lastApiErrorHint = \App\Infrastructure\Fulfillment\Clients\CJ\CjErrorMapper::hint($this->lastApiErrorCode, $this->lastApiErrorStatus, $e->body);
+
             Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
         } catch (\Throwable $e) {
+            Log::error('CJ unexpected exception in fetch()', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
         }
     }
@@ -80,6 +124,7 @@ class CJMyProducts extends Page implements HasTable
             $product = $importer->importByPid($pid, [
                 'respectSyncFlag' => false,
                 'defaultSyncEnabled' => true,
+                'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
             ]);
 
             if (! $product) {
@@ -90,8 +135,97 @@ class CJMyProducts extends Page implements HasTable
             Notification::make()->title("Imported {$product->name}")->success()->send();
             $this->loadSyncInfo();
         } catch (ApiException $e) {
+            Log::error('CJ API exception in importProduct()', [
+                'message' => $e->getMessage(),
+                'status' => $e->status,
+                'code' => $e->codeString,
+                'body' => $e->body,
+                'pid' => $pid,
+            ]);
+
+            // Save sanitized error details for admin UI
+            $this->lastApiErrorMessage = $e->getMessage();
+            $this->lastApiErrorStatus = $e->status;
+            $this->lastApiErrorCode = $e->codeString;
+            $body = $e->body;
+            if (is_array($body) || is_object($body)) {
+                $this->lastApiErrorBody = $body;
+            } else {
+                $str = (string) $body;
+                $this->lastApiErrorBody = strlen($str) > 2000 ? substr($str, 0, 2000) . '... (truncated)' : $str;
+            }
+
+            // Compute and set an admin hint for remediation
+            $this->lastApiErrorHint = \App\Infrastructure\Fulfillment\Clients\CJ\CjErrorMapper::hint($this->lastApiErrorCode, $this->lastApiErrorStatus, $e->body);
+
             Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
         } catch (\Throwable $e) {
+            Log::error('CJ unexpected exception in importProduct()', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    public function testConnection(): void
+    {
+        try {
+            $resp = app(CJDropshippingClient::class)->listMyProducts([
+                'pageNum' => 1,
+                'pageSize' => 1,
+            ]);
+
+            // Clear previous API error details on a successful test
+            $this->lastApiErrorMessage = null;
+            $this->lastApiErrorBody = null;
+            $this->lastApiErrorStatus = null;
+            $this->lastApiErrorCode = null;
+            $this->lastApiErrorHint = null;
+
+            $count = is_array($resp->data['content'] ?? null) ? count($resp->data['content']) : null;
+
+            Notification::make()
+                ->title('CJ connection OK')
+                ->body($count !== null ? "Fetched {$count} item(s)." : 'Connected successfully.')
+                ->success()
+                ->send();
+
+            // Refresh the in-page data so the user sees updated results if desired
+            $this->fetch();
+        } catch (ApiException $e) {
+            Log::error('CJ API exception in testConnection()', [
+                'message' => $e->getMessage(),
+                'status' => $e->status,
+                'code' => $e->codeString,
+                'body' => $e->body,
+            ]);
+
+            $this->lastApiErrorMessage = $e->getMessage();
+            $this->lastApiErrorStatus = $e->status;
+            $this->lastApiErrorCode = $e->codeString;
+            $body = $e->body;
+            if (is_array($body) || is_object($body)) {
+                $this->lastApiErrorBody = $body;
+            } else {
+                $str = (string) $body;
+                $this->lastApiErrorBody = strlen($str) > 2000 ? substr($str, 0, 2000) . '... (truncated)' : $str;
+            }
+
+            $this->lastApiErrorHint = $this->mapCJError($this->lastApiErrorCode, $this->lastApiErrorStatus, $e->body);
+
+            Notification::make()
+                ->title('CJ test failed')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        } catch (\Throwable $e) {
+            Log::error('CJ unexpected exception in testConnection()', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
         }
     }
@@ -114,6 +248,31 @@ class CJMyProducts extends Page implements HasTable
     {
         return $table
             ->records(fn (): array => $this->productList())
+            ->headerActions([
+                Action::make('setShipTo')
+                    ->label('Ship-to Filter')
+                    ->icon('heroicon-o-globe-alt')
+                    ->color('secondary')
+                    ->schema([
+                        \Filament\Forms\Components\TextInput::make('country')
+                            ->label('Country code (e.g., US, GB)')
+                            ->maxLength(2)
+                            ->default(strtoupper((string) (config('services.cj.ship_to_default') ?? ''))),
+                    ])
+                    ->action(function (array $data): void {
+                        $code = strtoupper(trim((string) ($data['country'] ?? '')));
+                        $this->shipToCountry = $code !== '' ? $code : null;
+                        $this->dispatch('$refresh');
+                    }),
+                Action::make('clearShipTo')
+                    ->label('Clear Ship-to')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('gray')
+                    ->action(function (): void {
+                        $this->shipToCountry = null;
+                        $this->dispatch('$refresh');
+                    }),
+            ])
             ->columns([
                 ViewColumn::make('image')
                     ->label('Image')
@@ -175,6 +334,13 @@ class CJMyProducts extends Page implements HasTable
                     ->action(function (): void {
                         $this->fetch();
                     }),
+                Action::make('testConnection')
+                    ->label('Test CJ connection')
+                    ->icon('heroicon-o-link')
+                    ->color('secondary')
+                    ->action(function (): void {
+                        $this->testConnection();
+                    }),
                 Action::make('import')
                     ->label('Import by PID')
                     ->icon('heroicon-o-cloud-arrow-down')
@@ -207,7 +373,7 @@ class CJMyProducts extends Page implements HasTable
                         $this->importProduct((string) ($record['pid'] ?? ''));
                     })
                     ->requiresConfirmation()
-                    ->visible(fn (array $record): bool => ! empty($record['pid'])),
+                    ->visible(fn (?array $record): bool => is_array($record) && ! empty($record['pid'])), 
                 Action::make('view')
                     ->label('View on CJ')
                     ->icon('heroicon-o-eye')
@@ -226,6 +392,18 @@ class CJMyProducts extends Page implements HasTable
             return [];
         }
 
+        // Pre-import ship-to filtering using best-effort warehouse inference
+        $shipTo = $this->shipToCountry;
+        if ($shipTo) {
+            $content = array_values(array_filter($content, function ($item) use ($shipTo): bool {
+                if (! is_array($item)) {
+                    return true;
+                }
+                $codes = $this->rawWarehouseCountries($item);
+                return $codes === [] || in_array($shipTo, $codes, true);
+            }));
+        }
+
         return array_map(fn ($item) => [
             'pid' => (string) ($item['productId'] ?? $item['id'] ?? ''),
             'name' => $item['nameEn'] ?? $item['name'] ?? 'CJ product',
@@ -238,6 +416,42 @@ class CJMyProducts extends Page implements HasTable
             'warehouses' => $this->buildWarehouseList($item),
             'raw' => $item,
         ], $content);
+    }
+
+    private function rawWarehouseCountries(array $item): array
+    {
+        $candidates = [];
+
+        $lists = [
+            $item['warehouseList'] ?? null,
+            $item['warehouseInfo'] ?? null,
+            $item['warehouse'] ?? null,
+            $item['warehouses'] ?? null,
+        ];
+
+        foreach ($lists as $list) {
+            if (! is_array($list)) {
+                continue;
+            }
+
+            foreach ($list as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $code = $entry['countryCode']
+                    ?? $entry['country']
+                    ?? $entry['warehouseCountryCode']
+                    ?? $entry['warehouseCountry']
+                    ?? null;
+
+                if (is_string($code) && $code !== '') {
+                    $candidates[] = strtoupper($code);
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
     }
 
     private function recordUrl(array $record): ?string
@@ -289,4 +503,5 @@ class CJMyProducts extends Page implements HasTable
         $names = array_values(array_unique($names));
         return $names ? implode(', ', $names) : null;
     }
+
 }

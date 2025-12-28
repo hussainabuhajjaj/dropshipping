@@ -23,6 +23,9 @@ class CjProductApi extends CjBaseApi
             'productName' => $filters['productName'] ?? null,
             'materialKey' => $filters['materialKey'] ?? null,
             'storeProductId' => $filters['storeProductId'] ?? null,
+            'warehouseId' => $filters['warehouseId'] ?? null,
+            'haveStock' => $filters['haveStock'] ?? null,
+            'sort' => $filters['sort'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $this->client()->get('/v1/product/listV2', $params);
@@ -47,6 +50,9 @@ class CjProductApi extends CjBaseApi
             'productSku' => $filters['productSku'] ?? null,
             'productName' => $filters['productName'] ?? null,
             'materialKey' => $filters['materialKey'] ?? null,
+            'warehouseId' => $filters['warehouseId'] ?? null,
+            'haveStock' => $filters['haveStock'] ?? null,
+            'sort' => $filters['sort'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $this->client()->get('/v1/product/list', $params);
@@ -68,6 +74,67 @@ class CjProductApi extends CjBaseApi
         return $this->client()->get('/v1/product/query', $params);
     }
 
+    /**
+     * Search products (POST /v1/product/search)
+     */
+    public function searchProducts(array $filters = []): ApiResponse
+    {
+        $payload = array_filter([
+            'keyword' => $filters['keyword'] ?? null,
+            'pageNum' => $filters['pageNum'] ?? null,
+            'pageSize' => $filters['pageSize'] ?? null,
+            'categoryId' => $filters['categoryId'] ?? null,
+            'minPrice' => $filters['minPrice'] ?? null,
+            'maxPrice' => $filters['maxPrice'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $this->client()->post('/v1/product/search', $payload);
+    }
+
+    public function productDetail(string $pid): ApiResponse
+    {
+        return $this->client()->post('/v1/product/detail', ['pid' => $pid]);
+    }
+
+    /**
+     * Get price information by product id (pid).
+     */
+    public function getPriceByPid(string $pid): ApiResponse
+    {
+        return $this->client()->get('/v1/product/price/queryByPid', ['pid' => $pid]);
+    }
+
+    /**
+     * Get price information by SKU.
+     */
+    public function getPriceBySku(string $sku): ApiResponse
+    {
+        return $this->client()->get('/v1/product/price/queryBySku', ['sku' => $sku]);
+    }
+
+    /**
+     * Get price information by variant id (vid).
+     */
+    public function getPriceByVid(string $vid): ApiResponse
+    {
+        return $this->client()->get('/v1/product/price/queryByVid', ['vid' => $vid]);
+    }
+
+    /**
+     * Search variants with filters (POST /v1/product/variant/search)
+     */
+    public function searchVariants(array $filters = []): ApiResponse
+    {
+        $payload = array_filter([
+            'pid' => $filters['pid'] ?? null,
+            'keyword' => $filters['keyword'] ?? null,
+            'pageNum' => $filters['pageNum'] ?? null,
+            'pageSize' => $filters['pageSize'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $this->client()->post('/v1/product/variant/search', $payload);
+    }
+
     public function addToMyProducts(string $pid): ApiResponse
     {
         return $this->client()->post('/v1/product/addMyProduct', ['pid' => $pid]);
@@ -83,6 +150,8 @@ class CjProductApi extends CjBaseApi
             'storeProductId' => $filters['storeProductId'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
 
+        // Use the documented My Product endpoint per CJ docs (myProduct/query)
+        // See: https://developers.cjdropshipping.com/api2.0/v1/product/myProduct/query
         return $this->client()->get('/v1/product/myProduct/query', $params);
     }
 

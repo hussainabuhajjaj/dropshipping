@@ -19,6 +19,8 @@ class CJIntegration extends BasePage
 
     protected static ?int $navigationSort = 90;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected string $view = 'filament.pages.cj-integration';
 
     public ?array $settingsData = null;

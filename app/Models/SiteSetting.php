@@ -18,6 +18,7 @@ class SiteSetting extends Model
         'support_email',
         'support_whatsapp',
         'support_phone',
+        'support_hours',
         'site_name',
         'site_description',
         'meta_title',
@@ -42,6 +43,7 @@ class SiteSetting extends Model
         'privacy_policy',
         'terms_of_service',
         'customs_disclaimer',
+        'about_page_html',
         'auto_approve_reviews',
         'auto_approve_review_days',
         'cj_last_sync_at',
@@ -56,6 +58,9 @@ class SiteSetting extends Model
         'shipping_handling_fee' => 'float',
         'free_shipping_threshold' => 'float',
         'cj_last_sync_at' => 'datetime',
+        'support_hours' => 'string',
+        'about_page_html' => 'string',
+        'logo_path'=>'array'
     ];
 
     public function defaultFulfillmentProvider(): BelongsTo

@@ -7,26 +7,36 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('
-            UPDATE orders
-            INNER JOIN customers ON customers.email = orders.email
-            SET orders.customer_id = customers.id
-            WHERE orders.customer_id IS NULL
-        ');
+        // Use DB-agnostic UPDATE statements using subqueries so tests (sqlite) work
+        DB::table('orders')
+            ->whereNull('customer_id')
+            ->update([
+                'customer_id' => DB::raw('(SELECT id FROM customers WHERE customers.email = orders.email LIMIT 1)'),
+            ]);
 
-        DB::statement('
-            UPDATE addresses
-            INNER JOIN orders ON orders.shipping_address_id = addresses.id
-            SET addresses.customer_id = orders.customer_id
-            WHERE addresses.customer_id IS NULL AND orders.customer_id IS NOT NULL
-        ');
+        DB::table('addresses')
+            ->whereNull('customer_id')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('orders')
+                    ->whereNotNull('orders.customer_id')
+                    ->whereRaw('orders.shipping_address_id = addresses.id');
+            })
+            ->update([
+                'customer_id' => DB::raw('(SELECT customer_id FROM orders WHERE orders.shipping_address_id = addresses.id LIMIT 1)'),
+            ]);
 
-        DB::statement('
-            UPDATE addresses
-            INNER JOIN orders ON orders.billing_address_id = addresses.id
-            SET addresses.customer_id = orders.customer_id
-            WHERE addresses.customer_id IS NULL AND orders.customer_id IS NOT NULL
-        ');
+        DB::table('addresses')
+            ->whereNull('customer_id')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('orders')
+                    ->whereNotNull('orders.customer_id')
+                    ->whereRaw('orders.billing_address_id = addresses.id');
+            })
+            ->update([
+                'customer_id' => DB::raw('(SELECT customer_id FROM orders WHERE orders.billing_address_id = addresses.id LIMIT 1)'),
+            ]);
     }
 
     public function down(): void

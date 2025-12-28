@@ -26,6 +26,7 @@ class SiteSettingResource extends BaseResource
     protected static string|UnitEnum|null $navigationGroup = 'Administration';
     protected static ?int $navigationSort = 20;
     protected static bool $adminOnly = true;
+    protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Schema $schema): Schema
     {
@@ -35,13 +36,28 @@ class SiteSettingResource extends BaseResource
                     Forms\Components\TextInput::make('support_email')->email(),
                     Forms\Components\TextInput::make('support_whatsapp'),
                     Forms\Components\TextInput::make('support_phone'),
-                ])->columns(3),
+                    Forms\Components\TextInput::make('support_hours')
+                        ->helperText('Example: Mon-Sat, 9:00-18:00 GMT'),
+                ])->columns(2),
             Section::make('Storefront')
                 ->schema([
                     Forms\Components\TextInput::make('site_name')->label('Site name')->maxLength(120),
                     Forms\Components\Textarea::make('site_description')->label('Site description')->rows(2),
-                    Forms\Components\TextInput::make('logo_path')->label('Logo URL/path'),
-                    Forms\Components\TextInput::make('favicon_path')->label('Favicon URL/path'),
+                    Forms\Components\FileUpload::make('logo_path')
+                        ->label('Logo')
+                        ->disk('public')
+                        ->directory('assets/logos')
+                        ->image()
+                        ->imageEditor()
+                        ->maxSize(5120)  // 5MB
+                        ->helperText('Recommended: PNG or SVG, 200x50px or larger'),
+                    Forms\Components\FileUpload::make('favicon_path')
+                        ->label('Favicon')
+                        ->disk('public')
+                        ->directory('assets/favicons')
+                        ->image()
+                        ->maxSize(512)  // 512KB
+                        ->helperText('Recommended: ICO or PNG, 32x32px or 64x64px'),
                 ])->columns(2),
             Section::make('SEO')
                 ->schema([
@@ -115,6 +131,11 @@ class SiteSettingResource extends BaseResource
                         ->columnSpanFull(),
                     Forms\Components\Textarea::make('customs_disclaimer')
                         ->label('Customs disclaimer')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('about_page_html')
+                        ->label('About page content')
+                        ->helperText('Admin-managed content for the About Us page. Supports basic HTML.')
                         ->rows(6)
                         ->columnSpanFull(),
                 ]),

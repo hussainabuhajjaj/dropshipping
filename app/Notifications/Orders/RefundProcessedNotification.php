@@ -42,9 +42,11 @@ class RefundProcessedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $name = $notifiable->name ?? ($this->order->customer_name ?? $this->order->email ?? 'Customer');
+
         return (new MailMessage)
             ->subject("Refund processed for order #{$this->order->number}")
-            ->greeting("Hi {$notifiable->name},")
+            ->greeting("Hi {$name},")
             ->line("We’ve processed your refund of {$this->currency} {$this->amount} for order #{$this->order->number}.")
             ->line($this->reason ? "Reason: {$this->reason}" : null)
             ->line('Depending on your payment provider, it may take a few days to appear.')

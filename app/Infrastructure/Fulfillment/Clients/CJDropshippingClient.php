@@ -56,9 +56,26 @@ class CJDropshippingClient
             }
         }
 
-        $resp = $this->client->post('/v1/authentication/getAccessToken', [
-            'apiKey' => $this->apiKey,
-        ]);
+        // Use ApiClient retry features and also catch transient failures to provide clearer retries.
+        $attempts = 0;
+        $maxAttempts = 3;
+        $lastException = null;
+        while ($attempts < $maxAttempts) {
+            try {
+                $resp = $this->client->post('/v1/authentication/getAccessToken', [
+                    'apiKey' => $this->apiKey,
+                ]);
+                break;
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                $attempts++;
+                if ($attempts >= $maxAttempts) {
+                    throw new RuntimeException('CJ getAccessToken failed after retries: ' . $e->getMessage());
+                }
+                // Exponential backoff: 200ms, 400ms, ...
+                usleep(200000 * $attempts);
+            }
+        }
 
         $data = $resp->data ?? [];
         $accessToken = $data['accessToken'] ?? null;
@@ -70,6 +87,7 @@ class CJDropshippingClient
             throw new RuntimeException('CJ getAccessToken missing accessToken.');
         }
 
+        // Persist into cache with TTL derived from returned expiry when available
         Cache::put($cacheKey, $accessToken, $this->ttlFromDate($accessExpiry, 60 * 60 * 24 * 10));
 
         if ($refresh) {
@@ -88,7 +106,8 @@ class CJDropshippingClient
             $resp = $this->client->post('/v1/authentication/refreshAccessToken', [
                 'refreshToken' => $refreshToken,
             ]);
-        } catch (ApiException) {
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('CJ refreshAccessToken failed', ['error' => $e->getMessage()]);
             return null;
         }
 
@@ -144,6 +163,26 @@ class CJDropshippingClient
         return $this->products()->listProductsV2($filters);
     }
 
+    public function searchProducts(array $filters): ApiResponse
+    {
+        return $this->products()->searchProducts($filters);
+    }
+
+    public function productDetail(string $pid): ApiResponse
+    {
+        return $this->products()->productDetail($pid);
+    }
+
+    public function getPriceByPid(string $pid): ApiResponse
+    {
+        return $this->products()->getPriceByPid($pid);
+    }
+
+    public function getPriceBySku(string $sku): ApiResponse
+    {
+        return $this->products()->getPriceBySku($sku);
+    }
+
     public function listGlobalWarehouses(): ApiResponse
     {
         return $this->products()->listGlobalWarehouses();
@@ -182,6 +221,16 @@ class CJDropshippingClient
     public function getStockByPid(string $pid): ApiResponse
     {
         return $this->products()->getStockByPid($pid);
+    }
+
+    public function getPriceByVid(string $vid): ApiResponse
+    {
+        return $this->products()->getPriceByVid($vid);
+    }
+
+    public function searchVariants(array $filters = []): ApiResponse
+    {
+        return $this->products()->searchVariants($filters);
     }
 
     public function getProductReviews(string $pid, int $pageNum = 1, int $pageSize = 20): ApiResponse

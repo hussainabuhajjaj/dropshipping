@@ -70,6 +70,10 @@
           <span v-if="selectedVariant?.compare_at_price" class="text-sm text-slate-400 line-through">
             {{ currency }} {{ Number(selectedVariant.compare_at_price).toFixed(2) }}
           </span>
+          <span v-if="stockBadge.label" :class="stockBadge.class" class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
+            <span class="h-2 w-2 rounded-full" :class="stockBadge.dot" />
+            {{ stockBadge.label }}
+          </span>
           <span class="text-xs text-slate-500">{{ t('Ships in :days days', { days: product.lead_time_days ?? 7 }) }}</span>
           <span v-if="reviewSummary.count" class="inline-flex items-center gap-1 text-xs text-slate-600">
             <svg viewBox="0 0 24 24" class="h-4 w-4 text-slate-500" fill="currentColor">
@@ -123,8 +127,8 @@
                 +
               </button>
             </div>
-            <button type="submit" class="btn-primary">
-              {{ form.processing ? t('Adding...') : t('Add to cart') }}
+            <button type="submit" class="btn-primary" :disabled="isOutOfStock">
+              {{ form.processing ? t('Adding...') : isOutOfStock ? t('Out of stock') : t('Add to cart') }}
             </button>
             <a
               :href="whatsappLink"
@@ -251,6 +255,18 @@
                   <label class="text-xs font-semibold text-slate-600">{{ t('Review') }}</label>
                   <textarea v-model="reviewForm.body" rows="3" class="input-base mt-1 w-full" :placeholder="t('Tell us how it arrived.')" />
                 </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-600">{{ t('Photos (optional)') }}</label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    class="input-base mt-1 w-full"
+                    @change="onImagesChange"
+                  />
+                  <p class="mt-1 text-[0.7rem] text-slate-500">{{ t('Up to 3 images, 3MB each') }}</p>
+                  <p v-if="imagesError" class="mt-1 text-[0.75rem] text-red-600">{{ imagesError }}</p>
+                </div>
                 <button type="submit" class="btn-primary w-full sm:w-auto" :disabled="reviewForm.processing">
                   {{ reviewForm.processing ? t('Submitting...') : t('Submit review') }}
                 </button>
@@ -287,10 +303,16 @@
                 </div>
               </div>
             </div>
-            <div v-if="reviews.length" class="space-y-4">
-              <div v-for="review in reviews" :key="review.id" class="rounded-xl border border-slate-100 bg-white p-4">
+            <div v-if="reviewsState.length" class="space-y-4">
+              <div v-for="review in reviewsState" :key="review.id" class="rounded-xl border border-slate-100 bg-white p-4">
                 <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold text-slate-900">{{ review.author }}</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-semibold text-slate-900">{{ review.author }}</p>
+                    <span v-if="review.verified_purchase" class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[0.7rem] font-semibold text-emerald-700">
+                      <span class="h-2 w-2 rounded-full bg-emerald-500" />
+                      {{ t('Verified purchase') }}
+                    </span>
+                  </div>
                   <span class="text-xs text-slate-500">{{ formatDate(review.created_at) }}</span>
                 </div>
                 <div class="mt-1 flex items-center gap-1 text-xs text-slate-600">
@@ -301,6 +323,37 @@
                 </div>
                 <p v-if="review.title" class="mt-2 text-sm font-semibold text-slate-900">{{ review.title }}</p>
                 <p class="mt-1 text-sm text-slate-600">{{ review.body }}</p>
+
+                <div v-if="review.images?.length" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <a
+                    v-for="(image, idx) in review.images"
+                    :key="idx"
+                    :href="image"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="block overflow-hidden rounded-lg border border-slate-100"
+                  >
+                    <img :src="image" :alt="review.title || review.author" class="h-28 w-full object-cover" />
+                  </a>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 font-semibold transition hover:border-slate-300"
+                    :class="isReviewVoted(review.id) ? 'bg-slate-50 text-slate-500' : 'bg-white text-slate-800'
+                    "
+                    :disabled="isReviewVoted(review.id) || helpfulLoadingId === review.id"
+                    @click="voteHelpful(review)"
+                  >
+                    <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14 9V5a2 2 0 0 0-2-2l-2 6H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8.5a4.5 4.5 0 0 0 4.5-4.5V11a2 2 0 0 0-2-2h-1Z" />
+                    </svg>
+                    <span>{{ t('Helpful') }}</span>
+                    <span class="font-semibold">{{ review.helpful_count ?? 0 }}</span>
+                  </button>
+                  <span v-if="isReviewVoted(review.id)" class="text-[0.75rem] text-emerald-700">{{ t('Thanks for your feedback!') }}</span>
+                </div>
               </div>
             </div>
             <p v-else class="text-slate-500">{{ t('No reviews yet. Verified reviews appear after delivery.') }}</p>
@@ -327,6 +380,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3'
+import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import { useTranslations } from '@/i18n'
@@ -374,6 +428,31 @@ const selectVariant = (id) => {
   selectedVariantId.value = id
 }
 
+const stockStatus = computed(() => {
+  const stock = selectedVariant.value?.stock_on_hand
+  const threshold = selectedVariant.value?.low_stock_threshold ?? 5
+  if (stock === null || stock === undefined) {
+    return { label: '', status: 'unknown' }
+  }
+  if (stock <= 0) {
+    return { label: t('Out of stock'), status: 'out' }
+  }
+  if (stock <= threshold) {
+    return { label: t('Low stock'), status: 'low' }
+  }
+  return { label: t('In stock'), status: 'in' }
+})
+
+const stockBadge = computed(() => {
+  const { status, label } = stockStatus.value
+  if (!label) return { label: '', class: '', dot: '' }
+  if (status === 'out') return { label, class: 'border border-red-200 bg-red-50 text-red-700', dot: 'bg-red-500' }
+  if (status === 'low') return { label, class: 'border border-amber-200 bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
+  return { label, class: 'border border-emerald-200 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' }
+})
+
+const isOutOfStock = computed(() => stockStatus.value.status === 'out')
+
 const selectedImage = ref(props.product.media?.[0] ?? null)
 const activeTab = ref('description')
 
@@ -381,6 +460,10 @@ const page = usePage()
 const authUser = computed(() => page.props.auth?.user ?? null)
 const successMessage = ref(page.props.flash?.cart_notice ?? '')
 const reviewNotice = ref(page.props.flash?.review_notice ?? '')
+const reviewsState = ref([...(props.reviews ?? [])])
+const votedHelpfulIds = ref(new Set())
+const helpfulLoadingId = ref(null)
+const imagesError = ref('')
 let successTimeout = null
 
 const clearSuccessSoon = () => {
@@ -594,7 +677,27 @@ const reviewForm = useForm({
   rating: 5,
   title: '',
   body: '',
+  images: [],
 })
+
+const onImagesChange = (event) => {
+  const files = Array.from(event.target?.files ?? [])
+  const images = files.filter((file) => file.type?.startsWith('image/'))
+
+  if (images.length > 3) {
+    imagesError.value = t('Attach up to 3 images')
+  } else {
+    imagesError.value = ''
+  }
+
+  const trimmed = images.slice(0, 3)
+  const tooLarge = trimmed.find((file) => file.size > 3 * 1024 * 1024)
+  if (tooLarge) {
+    imagesError.value = t('Each image must be under 3MB')
+  }
+
+  reviewForm.images = tooLarge ? [] : trimmed
+}
 
 const submitReview = () => {
   if (! reviewForm.order_item_id) {
@@ -604,8 +707,39 @@ const submitReview = () => {
     preserveScroll: true,
     onSuccess: () => {
       reviewNotice.value = page.props.flash?.review_notice ?? t('Thanks for your review.')
+      reviewForm.reset('title', 'body', 'images')
+      imagesError.value = ''
     },
   })
+}
+
+const markVoted = (id) => {
+  const next = new Set(votedHelpfulIds.value)
+  next.add(id)
+  votedHelpfulIds.value = next
+}
+
+const isReviewVoted = (id) => votedHelpfulIds.value.has(id)
+
+const voteHelpful = async (review) => {
+  if (! review?.id || isReviewVoted(review.id) || helpfulLoadingId.value === review.id) {
+    return
+  }
+  helpfulLoadingId.value = review.id
+
+  try {
+    const { data } = await axios.post(route('reviews.helpful', { review: review.id }))
+    reviewsState.value = reviewsState.value.map((r) =>
+      r.id === review.id ? { ...r, helpful_count: data.helpful_count ?? r.helpful_count ?? 0 } : r,
+    )
+    markVoted(review.id)
+  } catch (error) {
+    if (error?.response?.status === 409) {
+      markVoted(review.id)
+    }
+  } finally {
+    helpfulLoadingId.value = null
+  }
 }
 
 const formatOrderDate = (value) => {

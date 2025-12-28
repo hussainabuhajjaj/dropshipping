@@ -8,6 +8,7 @@ use App\Services\Api\ApiException;
 use App\Services\Api\ApiResponse;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CJDropshippingClient
@@ -60,16 +61,64 @@ class CJDropshippingClient
 
         $request = $this->http()->withHeaders($headers);
 
-        $response = $isGet
-            ? $request->send($method, $this->baseUrl . '/' . ltrim($path, '/'), ['query' => $payload])
-            : $request->withBody($body, 'application/json')->send($method, $this->baseUrl . '/' . ltrim($path, '/'));
+        try {
+            $response = $isGet
+                ? $request->send($method, $this->baseUrl . '/' . ltrim($path, '/'), ['query' => $payload])
+                : $request->withBody($body, 'application/json')->send($method, $this->baseUrl . '/' . ltrim($path, '/'));
 
-        return $this->buildResponse($response->body(), $response->status());
+            return $this->buildResponse($response->body(), $response->status());
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $res = $e->response;
+            $raw = $res ? $res->body() : null;
+            $status = $res ? $res->status() : 0;
+
+            $decoded = null;
+            try {
+                $decoded = json_decode((string) $raw, true);
+            } catch (\Throwable $_) {
+                // ignore
+            }
+
+            $requestId = is_array($decoded) && array_key_exists('requestId', $decoded) ? (string) $decoded['requestId'] : null;
+            $message = is_array($decoded) && array_key_exists('message', $decoded) ? (string) $decoded['message'] : $e->getMessage();
+            $codeString = is_array($decoded) && array_key_exists('code', $decoded) ? (string) $decoded['code'] : null;
+
+            $apiEx = new ApiException($message ?: 'HTTP request failed', $status, $codeString, $decoded ?? $raw, $requestId);
+
+            // Send alerts for server-side or rate-limit errors
+            if ($apiEx->status >= 500 || $apiEx->status === 429) {
+                \App\Infrastructure\Fulfillment\Clients\CJ\CjAlertService::alert('CJ API error', [
+                    'status' => $apiEx->status,
+                    'code' => $apiEx->codeString,
+                    'requestId' => $apiEx->requestId,
+                    'body' => $apiEx->body,
+                ]);
+            }
+
+            throw $apiEx;
+        } catch (\App\Services\Api\ApiException $e) {
+            // Send alerts for server-side or repeated errors
+            if ($e->status >= 500 || $e->status === 429) {
+                \App\Infrastructure\Fulfillment\Clients\CJ\CjAlertService::alert('CJ API error', [
+                    'status' => $e->status,
+                    'code' => $e->codeString,
+                    'requestId' => $e->requestId,
+                    'body' => $e->body,
+                ]);
+            }
+
+            throw $e;
+        }
     }
 
     public function searchProducts(array $filters): ApiResponse
     {
         return $this->request('POST', '/product/search', $filters);
+    }
+
+    public function listProducts(array $filters = []): ApiResponse
+    {
+        return $this->request('GET', '/product/list', $filters);
     }
 
     public function productDetail(string $productId): ApiResponse
@@ -316,6 +365,38 @@ class CJDropshippingClient
         return $this->multipartRequest('/shopping/order/updateWaybillInfo', $payload);
     }
 
+    /**
+     * Query product price by PID.
+     */
+    public function getPriceByPid(string $pid): ApiResponse
+    {
+        return $this->request('GET', '/v1/product/price/queryByPid', ['pid' => $pid]);
+    }
+
+    /**
+     * Query product price by SKU.
+     */
+    public function getPriceBySku(string $sku): ApiResponse
+    {
+        return $this->request('GET', '/v1/product/price/queryBySku', ['sku' => $sku]);
+    }
+
+    /**
+     * Query product price by VID.
+     */
+    public function getPriceByVid(string $vid): ApiResponse
+    {
+        return $this->request('GET', '/v1/product/price/queryByVid', ['vid' => $vid]);
+    }
+
+    /**
+     * Search product variants.
+     */
+    public function searchVariants(array $payload): ApiResponse
+    {
+        return $this->request('POST', '/v1/product/variant/search', $payload);
+    }
+
     private function sign(int $timestamp, string $body): string
     {
         $data = $timestamp . $body;
@@ -365,9 +446,39 @@ class CJDropshippingClient
             }
         }
 
-        $response = $request->post($this->baseUrl . '/' . ltrim($path, '/'));
+        try {
+            $response = $request->post($this->baseUrl . '/' . ltrim($path, '/'));
 
-        return $this->buildResponse($response->body(), $response->status());
+            return $this->buildResponse($response->body(), $response->status());
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $res = $e->response;
+            $raw = $res ? $res->body() : null;
+            $status = $res ? $res->status() : 0;
+
+            $decoded = null;
+            try {
+                $decoded = json_decode((string) $raw, true);
+            } catch (\Throwable $_) {
+                // ignore
+            }
+
+            $requestId = is_array($decoded) && array_key_exists('requestId', $decoded) ? (string) $decoded['requestId'] : null;
+            $message = is_array($decoded) && array_key_exists('message', $decoded) ? (string) $decoded['message'] : $e->getMessage();
+            $codeString = is_array($decoded) && array_key_exists('code', $decoded) ? (string) $decoded['code'] : null;
+
+            $apiEx = new ApiException($message ?: 'HTTP request failed', $status, $codeString, $decoded ?? $raw, $requestId);
+
+            if ($apiEx->status >= 500 || $apiEx->status === 429) {
+                \App\Infrastructure\Fulfillment\Clients\CJ\CjAlertService::alert('CJ API error', [
+                    'status' => $apiEx->status,
+                    'code' => $apiEx->codeString,
+                    'requestId' => $apiEx->requestId,
+                    'body' => $apiEx->body,
+                ]);
+            }
+
+            throw $apiEx;
+        }
     }
 
     private function buildResponse(string $rawBody, int $status): ApiResponse
@@ -378,8 +489,13 @@ class CJDropshippingClient
             $ok = (bool) $decoded['result'] && ((int) $decoded['code'] === 200);
             $message = $decoded['message'] ?? null;
             $data = $decoded['data'] ?? null;
+            $requestId = is_array($decoded) && array_key_exists('requestId', $decoded) ? (string) $decoded['requestId'] : null;
+
             if (! $ok) {
-                throw new ApiException($message ?: 'API error', $status, (string) ($decoded['code'] ?? ''), $decoded);
+                // Log request id to help triage
+                Log::warning('CJ API returned error', ['status' => $status, 'code' => $decoded['code'] ?? null, 'requestId' => $requestId]);
+
+                throw new ApiException($message ?: 'API error', $status, (string) ($decoded['code'] ?? ''), $decoded, $requestId);
             }
 
             return ApiResponse::success($data, $decoded, $message, $status);

@@ -16,8 +16,14 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Schemas\Components\Section;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 
 class ProductReviewResource extends BaseResource
 {
@@ -67,6 +73,18 @@ class ProductReviewResource extends BaseResource
                 Tables\Columns\TextColumn::make('product.name')->label('Product')->searchable(),
                 Tables\Columns\TextColumn::make('customer.email')->label('Customer')->searchable(),
                 Tables\Columns\TextColumn::make('rating')->sortable(),
+                IconColumn::make('verified_purchase')
+                    ->label('Verified')
+                    ->boolean(),
+                Tables\Columns\TextColumn::make('helpful_count')
+                    ->label('Helpful')
+                    ->alignCenter()
+                    ->sortable(),
+                ImageColumn::make('images')
+                    ->label('Images')
+                    ->getStateUsing(fn ($record) => $record->images[0] ?? null)
+                    ->size(40)
+                    ->circular(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -83,10 +101,26 @@ class ProductReviewResource extends BaseResource
                     'approved' => 'Approved',
                     'rejected' => 'Rejected',
                 ]),
+                TernaryFilter::make('verified_purchase')->label('Verified purchase'),
             ])
             ->recordActions([
                 ActionsEditAction::make(),
                 ActionsDeleteAction::make(),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    BulkAction::make('approve')
+                        ->label('Approve selected')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->action(fn ($records) => ProductReview::whereIn('id', $records)->update(['status' => 'approved'])),
+                    BulkAction::make('reject')
+                        ->label('Reject selected')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->action(fn ($records) => ProductReview::whereIn('id', $records)->update(['status' => 'rejected'])),
+                    DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

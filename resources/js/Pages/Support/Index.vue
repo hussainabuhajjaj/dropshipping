@@ -25,7 +25,7 @@
           </div>
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ t('Hours') }}</p>
-            <p class="text-sm text-slate-600">{{ t('Mon-Sat, 9:00-18:00 GMT') }}</p>
+            <p class="text-sm text-slate-600">{{ supportHours }}</p>
           </div>
         </div>
       </div>
@@ -47,4 +47,5 @@ const { t } = useTranslations()
 const supportEmail = page.props.site?.support_email ?? 'support@dispatch.store'
 const supportWhatsApp = page.props.site?.support_whatsapp ?? '+225 00 00 00 00'
 const supportPhone = page.props.site?.support_phone ?? null
+const supportHours = page.props.site?.support_hours ?? 'Mon-Sat, 9:00-18:00 GMT'
 </script>

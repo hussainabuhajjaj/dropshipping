@@ -20,6 +20,8 @@ trait TransformsProducts
             'sku' => $variant->sku,
             'currency' => $variant->currency ?? $product->currency ?? 'USD',
             'cj_vid' => $variant->cj_vid,
+            'stock_on_hand' => $variant->stock_on_hand,
+            'low_stock_threshold' => $variant->low_stock_threshold,
         ])->values()->all();
 
         $defaultVariant = $variantPayload[0] ?? null;
@@ -28,12 +30,15 @@ trait TransformsProducts
 
         $wishlist = collect(session('wishlist', []));
 
+        $locale = app()->getLocale();
+        $translation = $product->translationForLocale($locale);
+
         $data = [
             'id' => $product->id,
             'slug' => $product->slug,
-            'name' => $product->name,
+            'name' => $translation?->name ?: $product->name,
             'category' => $product->category?->name,
-            'description' => $product->description,
+            'description' => $translation?->description ?: $product->description,
             'media' => $media,
             'videos' => $product->cj_video_urls ?? [],
             'is_active' => (bool) $product->is_active,

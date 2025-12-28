@@ -20,16 +20,23 @@ class CjSyncProducts extends Command
         $pageSize = (int) $this->option('page-size');
         $queue = (bool) $this->option('queue');
 
+        $rateSeconds = (int) config('services.cj.rate_limit_seconds', 0);
+
         for ($i = 0; $i < $pages; $i++) {
             $page = $start + $i;
             $job = new SyncCjProductsJob($page, $pageSize);
 
             if ($queue) {
-                dispatch($job);
-                $this->info("Queued CJ sync for page {$page}");
+                // Delay queued jobs to respect a configured rate (per-page)
+                $delay = $i * $rateSeconds;
+                dispatch($job)->delay(now()->addSeconds($delay));
+                $this->info("Queued CJ sync for page {$page} (delay {$delay}s)");
             } else {
                 dispatch_sync($job);
                 $this->info("Synced CJ page {$page}");
+                if ($rateSeconds > 0 && $i < $pages - 1) {
+                    sleep($rateSeconds);
+                }
             }
         }
 

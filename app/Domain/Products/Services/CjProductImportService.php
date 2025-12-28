@@ -7,8 +7,10 @@ namespace App\Domain\Products\Services;
 use App\Domain\Products\Models\Category;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
+use App\Jobs\GenerateProductSeoJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class CjProductImportService
 {
@@ -47,6 +49,20 @@ class CjProductImportService
         $pid = $this->resolvePid($productData);
         if ($pid === '') {
             return null;
+        }
+
+        $shipTo = strtoupper((string) ($options['shipToCountry'] ?? ''));
+        if ($shipTo !== '') {
+            $warehouseCountries = $this->extractWarehouseCountries($productData, $variants);
+            // If we can’t infer warehouses, allow import by default to avoid skipping good products.
+            if ($warehouseCountries !== [] && ! in_array($shipTo, $warehouseCountries, true)) {
+                Log::info('CJ product skipped due to ship-to country filter', [
+                    'pid' => $pid,
+                    'ship_to' => $shipTo,
+                    'warehouses' => $warehouseCountries,
+                ]);
+                return null;
+            }
         }
 
         $product = Product::query()->where('cj_pid', $pid)->first();
@@ -151,13 +167,37 @@ class CjProductImportService
             $product->save();
         }
 
+        $shouldGenerateSeo = ($options['generateSeo'] ?? true) === true;
+        if ($shouldGenerateSeo && (! $product->meta_title || ! $product->meta_description)) {
+            try {
+                GenerateProductSeoJob::dispatch((int) $product->id, 'en', false);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to dispatch SEO job', ['product_id' => $product->id, 'error' => $e->getMessage()]);
+            }
+        }
+
         if ($syncVariants) {
-            $this->syncVariants($product, $variants, $pid);
+            try {
+                $this->syncVariants($product, $variants, $pid);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to sync variants for product', ['cj_pid' => $pid, 'error' => $e->getMessage()]);
+            }
         }
 
         if ($syncImages) {
-            $imagesUpdated = $this->mediaService->syncImages($product, $productData, $variants);
-            $videosUpdated = $this->mediaService->syncVideos($product, $productData, $variants);
+            try {
+                $imagesUpdated = $this->mediaService->syncImages($product, $productData, $variants);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to sync images for product', ['cj_pid' => $pid, 'error' => $e->getMessage()]);
+                $imagesUpdated = false;
+            }
+
+            try {
+                $videosUpdated = $this->mediaService->syncVideos($product, $productData, $variants);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to sync videos for product', ['cj_pid' => $pid, 'error' => $e->getMessage()]);
+                $videosUpdated = false;
+            }
         }
 
         if ($imagesUpdated || $videosUpdated) {
@@ -245,7 +285,32 @@ class CjProductImportService
                 'pageSize' => $pageSize,
             ]);
 
-            $content = $resp->data['content'][0]['productList'] ?? [];
+            // Normalize possible CJ response shapes to an array of product items.
+            $raw = $resp->data ?? [];
+            $content = [];
+
+            if (is_array($raw)) {
+                // Case: content is an array of pages where each page may contain a productList
+                if (! empty($raw['content']) && is_array($raw['content'])) {
+                    foreach ($raw['content'] as $entry) {
+                        if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
+                            $content = array_merge($content, $entry['productList']);
+                        } elseif (is_array($entry)) {
+                            $content[] = $entry;
+                        }
+                    }
+                } elseif (! empty($raw['productList']) && is_array($raw['productList'])) {
+                    $content = $raw['productList'];
+                } elseif (! empty($raw['content']) && is_array($raw['content'])) {
+                    $content = $raw['content'];
+                } else {
+                    // Fallback: if raw looks like a list of items, treat it as such.
+                    $numericKeys = array_filter(array_keys($raw), 'is_int');
+                    if ($numericKeys !== []) {
+                        $content = $raw;
+                    }
+                }
+            }
 
             if (! is_array($content) || $content === []) {
                 break;
@@ -267,6 +332,7 @@ class CjProductImportService
                     $product = $this->importByPid($pid, [
                         'respectSyncFlag' => ! $forceUpdate,
                         'defaultSyncEnabled' => true,
+                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
 
                     if ($product) {
@@ -294,49 +360,57 @@ class CjProductImportService
     {
         if (is_array($variants) && $variants !== []) {
             foreach ($variants as $variant) {
-                if (! is_array($variant)) {
-                    continue;
-                }
+                try {
+                    if (! is_array($variant)) {
+                        continue;
+                    }
 
-                $vid = (string) ($variant['vid'] ?? '');
-                $sku = $variant['variantSku'] ?? $variant['sku'] ?? null;
+                    $vid = (string) ($variant['vid'] ?? '');
+                    $sku = $variant['variantSku'] ?? $variant['sku'] ?? null;
 
-                if (! $sku && ! $vid) {
-                    continue;
-                }
+                    if (! $sku && ! $vid) {
+                        continue;
+                    }
 
-                ProductVariant::updateOrCreate(
-                    [
-                        'product_id' => $product->id,
-                        'cj_vid' => $vid ?: null,
-                        'sku' => $sku,
-                    ],
-                    [
-                        'title' => $variant['variantName'] ?? ($variant['variantKey'] ?? 'Variant'),
-                        'price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->selling_price ?? 0),
-                        'cost_price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->cost_price ?? 0),
-                        'currency' => $product->currency ?? 'USD',
-                        'metadata' => [
-                            'cj_vid' => $vid,
-                            'cj_variant' => $variant,
+                    ProductVariant::updateOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'cj_vid' => $vid ?: null,
+                            'sku' => $sku,
                         ],
-                    ]
-                );
+                        [
+                            'title' => $variant['variantName'] ?? ($variant['variantKey'] ?? 'Variant'),
+                            'price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->selling_price ?? 0),
+                            'cost_price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->cost_price ?? 0),
+                            'currency' => $product->currency ?? 'USD',
+                            'metadata' => [
+                                'cj_vid' => $vid,
+                                'cj_variant' => $variant,
+                            ],
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to sync single variant', ['product_id' => $product->id, 'variant' => $variant, 'error' => $e->getMessage()]);
+                }
             }
 
             return;
         }
 
         if (! $product->variants()->exists()) {
-            $product->variants()->create([
-                'title' => 'Default',
-                'price' => $product->selling_price ?? 0,
-                'cost_price' => $product->cost_price ?? 0,
-                'currency' => $product->currency ?? 'USD',
-                'metadata' => [
-                    'cj_pid' => $pid,
-                ],
-            ]);
+            try {
+                $product->variants()->create([
+                    'title' => 'Default',
+                    'price' => $product->selling_price ?? 0,
+                    'cost_price' => $product->cost_price ?? 0,
+                    'currency' => $product->currency ?? 'USD',
+                    'metadata' => [
+                        'cj_pid' => $pid,
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to create default variant', ['product_id' => $product->id, 'error' => $e->getMessage()]);
+            }
         }
     }
 
@@ -349,8 +423,87 @@ class CjProductImportService
             ?? '');
     }
 
+    /**
+     * Extract potential warehouse country codes from product/variant payloads.
+     * Best-effort: if nothing is present, returns an empty array to avoid over-filtering.
+     */
+    private function extractWarehouseCountries(array $productData, mixed $variants): array
+    {
+        $candidates = [];
+
+        $lists = [
+            $productData['warehouses'] ?? null,
+            $productData['warehouseList'] ?? null,
+            $productData['globalWarehouseList'] ?? null,
+            $productData['warehouseInfos'] ?? null,
+        ];
+
+        foreach ($lists as $list) {
+            if (! is_array($list)) {
+                continue;
+            }
+
+            foreach ($list as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $code = $item['countryCode']
+                    ?? $item['country']
+                    ?? $item['warehouseCountryCode']
+                    ?? $item['warehouseCountry']
+                    ?? null;
+
+                if (is_string($code) && $code !== '') {
+                    $candidates[] = strtoupper($code);
+                }
+            }
+        }
+
+        if (is_array($variants)) {
+            foreach ($variants as $variant) {
+                if (! is_array($variant)) {
+                    continue;
+                }
+
+                $code = $variant['warehouseCountry'] ?? $variant['warehouseCountryCode'] ?? null;
+                if (! $code) {
+                    $warehouse = $variant['warehouse'] ?? null;
+                    if (is_array($warehouse)) {
+                        $code = $warehouse['countryCode'] ?? $warehouse['country'] ?? null;
+                    }
+                }
+
+                if (is_string($code) && $code !== '') {
+                    $candidates[] = strtoupper($code);
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($candidates)));
+    }
+
     private function resolveCategoryFromPayload(array $productData): ?Category
     {
+        // V2 API: Use embedded category structure with proper IDs
+        // oneCategoryId/Name, twoCategoryId/Name, categoryId/threeCategoryName
+        $oneCategoryId = (string) ($productData['oneCategoryId'] ?? '');
+        $oneCategoryName = (string) ($productData['oneCategoryName'] ?? '');
+        $twoCategoryId = (string) ($productData['twoCategoryId'] ?? '');
+        $twoCategoryName = (string) ($productData['twoCategoryName'] ?? '');
+        $threeCategoryId = (string) ($productData['categoryId'] ?? '');
+        $threeCategoryName = (string) ($productData['threeCategoryName'] ?? '');
+
+        // If we have V2 API structure, build hierarchy with proper CJ IDs
+        if ($oneCategoryId !== '' && $oneCategoryName !== '') {
+            return $this->buildCategoryHierarchy([
+                ['id' => $oneCategoryId, 'name' => $oneCategoryName, 'parent' => null],
+                $twoCategoryId !== '' ? ['id' => $twoCategoryId, 'name' => $twoCategoryName, 'parent' => $oneCategoryId] : null,
+                $threeCategoryId !== '' ? ['id' => $threeCategoryId, 'name' => $threeCategoryName, 'parent' => $twoCategoryId] : null,
+            ]);
+        }
+
+        // Fallback: Legacy API or string-based categories
         $categoryId = (string) ($productData['categoryId'] ?? '');
 
         if ($categoryId !== '') {
@@ -369,7 +522,9 @@ class CjProductImportService
             return null;
         }
 
-        $segments = array_filter(array_map('trim', explode('/', $rawName)));
+           // Handle both "/" and ">" separators used by different CJ APIs
+           $rawName = str_replace(' > ', '/', $rawName);
+           $segments = array_filter(array_map('trim', explode('/', $rawName)));
         if ($segments === []) {
             return null;
         }
@@ -384,19 +539,75 @@ class CjProductImportService
             }
 
             $slug = Str::slug($parent ? "{$parent->slug} {$segment}" : $segment);
-            $category = Category::firstOrCreate(
-                [
+            
+            // Search first by name and parent_id (or both null for root categories)
+            $category = Category::query()
+                ->where('name', $segment)
+                ->where('parent_id', $parent?->id)
+                ->first();
+            
+            if (! $category) {
+                $category = Category::create([
                     'name' => $segment,
-                    'parent_id' => $parent?->id,
-                ],
-                [
                     'slug' => $slug,
                     'parent_id' => $parent?->id,
-                ]
-            );
+                ]);
+            }
 
             if ($position === $totalSegments - 1 && $categoryId !== '' && $category->cj_id !== $categoryId) {
                 $category->update(['cj_id' => $categoryId]);
+            }
+
+            $parent = $category;
+        }
+
+        return $category;
+    }
+
+    private function buildCategoryHierarchy(array $levels): ?Category
+    {
+        $parent = null;
+        $category = null;
+
+        foreach ($levels as $level) {
+            if ($level === null) {
+                continue;
+            }
+
+            $cjId = $level['id'] ?? null;
+            $name = $level['name'] ?? '';
+            $parentId = $level['parent'] ?? null;
+
+            if ($name === '') {
+                continue;
+            }
+
+            // First, try to find by CJ ID (most reliable)
+            if ($cjId) {
+                $category = Category::query()->where('cj_id', $cjId)->first();
+                if ($category) {
+                    $parent = $category;
+                    continue;
+                }
+            }
+
+            // Then try by name and parent
+            $category = Category::query()
+                ->where('name', $name)
+                ->where('parent_id', $parent?->id)
+                ->first();
+
+            if (! $category) {
+                $slug = Str::slug($parent ? "{$parent->slug} {$name}" : $name);
+                $category = Category::create([
+                    'name' => $name,
+                    'slug' => $slug,
+                    'parent_id' => $parent?->id,
+                    'cj_id' => $cjId,
+                ]);
+            } elseif ($cjId && $category->cj_id !== $cjId) {
+                // Update CJ ID if missing
+                $category->update(['cj_id' => $cjId]);
             }
 
             $parent = $category;

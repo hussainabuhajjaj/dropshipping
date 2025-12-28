@@ -1,5 +1,33 @@
 <template>
-  <div class="brand-theme min-h-screen text-slate-900">
+  <div class="brand-theme min-h-screen text-slate-900" :style="themeStyle">
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isNavigating"
+        class="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-white/90 backdrop-blur dark:bg-slate-900/90"
+      >
+        <div class="flex items-center gap-3">
+          <div class="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="h-12 w-12 object-contain" />
+            <span v-else class="text-lg font-semibold text-slate-800 dark:text-slate-100">{{ brandName }}</span>
+          </div>
+          <div class="text-xl font-semibold text-slate-900 dark:text-white">{{ brandName }}</div>
+        </div>
+        <DotLottieVue
+          style="height: 240px; width: 240px"
+          autoplay
+          loop
+          src="/lottie/loader.json"
+        />
+        <p class="text-sm text-slate-600 dark:text-slate-300">Loading...</p>
+      </div>
+    </Transition>
     <Head :title="seoTitle">
       <meta name="description" head-key="description" :content="seoDescription" />
       <link v-if="canonicalUrl" rel="canonical" :href="canonicalUrl" />
@@ -27,8 +55,9 @@
             </svg>
           </button>
 
-          <Link href="/" class="text-lg font-semibold tracking-tight text-brand-strong">
-            Azura
+          <Link href="/" class="flex items-center gap-2 text-lg font-semibold tracking-tight text-brand-strong">
+            <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="h-10 w-auto drop-shadow-sm" />
+            <!-- {{ brandName }} -->
           </Link>
 
           <form class="hidden flex-1 items-center sm:flex" @submit.prevent="submitSearch">
@@ -246,8 +275,6 @@
             class="relative"
             @mouseenter="openCategories"
             @mouseleave="closeCategories"
-            @focusin="openCategories"
-            @focusout="closeCategories"
           >
             <button type="button" class="inline-flex items-center gap-2 text-slate-700">
               {{ t('Categories') }}
@@ -258,49 +285,46 @@
 
             <div
               v-if="categoriesOpen"
-              class="absolute left-0 top-7 z-20 w-[560px] rounded-2xl border border-slate-200 bg-white p-5"
+              class="absolute left-0 top-7 z-20 w-[560px] max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5"
+              @mouseenter="openCategories"
+              @mouseleave="closeCategories"
             >
-              <div class="grid gap-4 sm:grid-cols-2">
+              <div class="space-y-2">
                 <div
-                  v-for="category in categories"
+                  v-for="category in rootCategories"
                   :key="category.name"
-                  class="rounded-2xl border border-transparent p-3 transition hover:border-slate-200 hover:bg-slate-50"
+                  class="space-y-1"
                 >
+                  <!-- Root category -->
                   <Link
                     :href="categoryHref(category)"
-                    class="flex items-start gap-3"
+                    class="flex items-center gap-3 rounded-lg border border-transparent p-2 text-sm font-semibold text-slate-900 transition hover:border-slate-200 hover:bg-slate-50"
                   >
-                    <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-600">
                       {{ category.short }}
                     </span>
-                    <div>
-                      <p class="text-sm font-semibold text-slate-900">
-                        {{ category.name }}
-                      </p>
-                      <p v-if="category.children.length" class="text-xs text-slate-500">
-                        {{ category.children.length }} subcategories
-                      </p>
-                    </div>
+                    {{ category.name }}
                   </Link>
-                  <div v-if="category.children.length" class="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-                    <Link
-                      v-for="child in category.children"
-                      :key="child.slug ?? child.name"
-                      :href="categoryHref(child)"
-                      class="rounded-lg px-2 py-1 text-slate-600 transition hover:text-slate-900"
-                    >
-                      {{ child.name }}
-                    </Link>
-                  </div>
+
+                  <!-- Subcategories (nested) -->
+                  <CategoryTreeNode
+                    v-if="category.children.length"
+                    :categories="category.children"
+                    :level="1"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          <Link :class="navClass('/products')" href="/products">{{ t('Shop') }}</Link>
-          <Link :class="navClass('/orders/track')" href="/orders/track">{{ t('Track order') }}</Link>
-          <Link :class="navClass('/support')" href="/support">{{ t('Support') }}</Link>
-          <Link :class="navClass('/faq')" href="/faq">{{ t('FAQ') }}</Link>
+          <Link
+            v-for="link in headerLinks"
+            :key="link.href + link.label"
+            :class="navClass(link.href)"
+            :href="link.href"
+          >
+            {{ link.label }}
+          </Link>
           <template v-if="authUser">
             <Link :class="navClass('/orders')" href="/orders">{{ t('Orders') }}</Link>
             <Link :class="navClass('/account')" href="/account">{{ t('Account') }}</Link>
@@ -348,51 +372,35 @@
     <footer class="border-t border-slate-200 bg-white/90">
         <div class="container-base grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-5">
         <div class="space-y-3">
-          <p class="text-lg font-semibold text-slate-900">Azura</p>
+          <p class="text-lg font-semibold text-slate-900">{{ brandName }}</p>
           <p class="text-sm text-slate-600">
-            {{ t('Global sourcing with local clarity. Track every step and see customs details before you pay.') }}
+            {{ footerBlurb }}
           </p>
           <div class="text-xs text-slate-500">
             {{ t('Support: :email', { email: supportEmail }) }}
           </div>
         </div>
-        <div class="space-y-2 text-sm text-slate-600">
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Shop') }}</p>
-          <Link href="/products" class="block hover:text-slate-900">{{ t('All products') }}</Link>
-          <Link href="/orders/track" class="block hover:text-slate-900">{{ t('Track order') }}</Link>
-          <Link href="/cart" class="block hover:text-slate-900">{{ t('Cart') }}</Link>
-          <Link href="/checkout" class="block hover:text-slate-900">{{ t('Checkout') }}</Link>
-        </div>
-        <div class="space-y-2 text-sm text-slate-600">
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Support') }}</p>
-          <Link href="/support" class="block hover:text-slate-900">{{ t('Contact') }}</Link>
-          <Link href="/faq" class="block hover:text-slate-900">{{ t('FAQ') }}</Link>
-          <Link href="/about" class="block hover:text-slate-900">{{ t('About') }}</Link>
-          <Link href="/orders" class="block hover:text-slate-900">{{ t('My orders') }}</Link>
-        </div>
-        <div class="space-y-2 text-sm text-slate-600">
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Account') }}</p>
-          <Link href="/account" class="block hover:text-slate-900">{{ t('Overview') }}</Link>
-          <Link href="/account/notifications" class="block hover:text-slate-900">{{ t('Notifications') }}</Link>
-          <Link href="/orders" class="block hover:text-slate-900">{{ t('Orders') }}</Link>
-          <Link href="/account/addresses" class="block hover:text-slate-900">{{ t('Addresses') }}</Link>
-          <Link href="/account/payments" class="block hover:text-slate-900">{{ t('Payment methods') }}</Link>
-          <Link href="/account/refunds" class="block hover:text-slate-900">{{ t('Refunds') }}</Link>
-          <Link href="/account/wallet" class="block hover:text-slate-900">{{ t('Wallet') }}</Link>
-        </div>
-        <div class="space-y-2 text-sm text-slate-600">
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Legal') }}</p>
-          <Link href="/legal/shipping-policy" class="block hover:text-slate-900">{{ t('Shipping policy') }}</Link>
-          <Link href="/legal/refund-policy" class="block hover:text-slate-900">{{ t('Refund policy') }}</Link>
-          <Link href="/legal/terms-of-service" class="block hover:text-slate-900">{{ t('Terms of service') }}</Link>
-          <Link href="/legal/privacy-policy" class="block hover:text-slate-900">{{ t('Privacy policy') }}</Link>
+        <div
+          v-for="column in footerColumns"
+          :key="column.title"
+          class="space-y-2 text-sm text-slate-600"
+        >
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ column.title }}</p>
+          <Link
+            v-for="link in column.links || []"
+            :key="link.href + link.label"
+            :href="link.href"
+            class="block hover:text-slate-900"
+          >
+            {{ link.label }}
+          </Link>
         </div>
       </div>
 
       <div class="border-t border-slate-100">
           <div class="container-base flex flex-col gap-2 py-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-            <span>Azura (c) {{ new Date().getFullYear() }}</span>
-            <span>Delivery to Cote d'Ivoire with duties shown before checkout.</span>
+            <span>{{ copyrightText }} (c) {{ new Date().getFullYear() }}</span>
+            <span>{{ deliveryNotice }}</span>
           </div>
       </div>
     </footer>
@@ -466,10 +474,15 @@
               </div>
             </div>
           <div class="space-y-2 text-sm text-slate-600">
-            <Link href="/products" class="block hover:text-slate-900" @click="mobileOpen = false">{{ t('Shop') }}</Link>
-            <Link href="/orders/track" class="block hover:text-slate-900" @click="mobileOpen = false">{{ t('Track order') }}</Link>
-            <Link href="/support" class="block hover:text-slate-900" @click="mobileOpen = false">{{ t('Support') }}</Link>
-            <Link href="/faq" class="block hover:text-slate-900" @click="mobileOpen = false">{{ t('FAQ') }}</Link>
+            <Link
+              v-for="link in headerLinks"
+              :key="link.href + link.label + '-mobile'"
+              :href="link.href"
+              class="block hover:text-slate-900"
+              @click="mobileOpen = false"
+            >
+              {{ link.label }}
+            </Link>
             <Link href="/cart" class="block hover:text-slate-900" @click="mobileOpen = false">{{ t('Cart') }}</Link>
           </div>
           <div class="space-y-2 text-sm text-slate-600">
@@ -520,18 +533,23 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import { useTranslations } from '@/i18n'
+import CategoryTreeNode from '@/Components/CategoryTreeNode.vue'
 
 const page = usePage()
 const { t, locale, availableLocales } = useTranslations()
 const mobileOpen = ref(false)
 const categoriesOpen = ref(false)
+const categoriesCloseTimer = ref(null)
 const accountOpen = ref(false)
 const cartOpen = ref(false)
 const accountRef = ref(null)
 const cartRef = ref(null)
+const isNavigating = ref(false)
 
 const authUser = computed(() => page.props.auth?.user ?? null)
+const storefront = computed(() => page.props.storefront ?? {})
 const cartSummary = computed(() => page.props.cart ?? { lines: [], count: 0, subtotal: 0 })
 const cartLines = computed(() => cartSummary.value.lines ?? [])
 const cartCount = computed(() => cartSummary.value.count ?? 0)
@@ -553,6 +571,90 @@ const notices = computed(() => {
   }
   return entries
 })
+
+const fallbackHeaderLinks = [
+  { label: t('Shop'), href: '/products' },
+  { label: t('Track order'), href: '/orders/track' },
+  { label: t('Support'), href: '/support' },
+  { label: t('FAQ'), href: '/faq' },
+]
+const fallbackFooterColumns = [
+  {
+    title: t('Shop'),
+    links: [
+      { label: t('All products'), href: '/products' },
+      { label: t('Track order'), href: '/orders/track' },
+      { label: t('Cart'), href: '/cart' },
+      { label: t('Checkout'), href: '/checkout' },
+    ],
+  },
+  {
+    title: t('Support'),
+    links: [
+      { label: t('Contact'), href: '/support' },
+      { label: t('FAQ'), href: '/faq' },
+      { label: t('About'), href: '/about' },
+      { label: t('My orders'), href: '/orders' },
+    ],
+  },
+  {
+    title: t('Account'),
+    links: [
+      { label: t('Overview'), href: '/account' },
+      { label: t('Notifications'), href: '/account/notifications' },
+      { label: t('Orders'), href: '/orders' },
+      { label: t('Addresses'), href: '/account/addresses' },
+      { label: t('Payment methods'), href: '/account/payments' },
+      { label: t('Refunds'), href: '/account/refunds' },
+      { label: t('Wallet'), href: '/account/wallet' },
+    ],
+  },
+  {
+    title: t('Legal'),
+    links: [
+      { label: t('Shipping policy'), href: '/legal/shipping-policy' },
+      { label: t('Refund policy'), href: '/legal/refund-policy' },
+      { label: t('Terms of service'), href: '/legal/terms-of-service' },
+      { label: t('Privacy policy'), href: '/legal/privacy-policy' },
+    ],
+  },
+]
+
+const brandName = computed(() => storefront.value.brand_name ?? page.props.site?.site_name ?? 'Azura')
+const logoUrl = computed(() => {
+  const path = page.props.site?.logo_path
+  return path ? `/storage/${path}` : null
+})
+const footerBlurb = computed(
+  () => storefront.value.footer_blurb ?? page.props.site?.site_description ?? t('Global sourcing with local clarity.')
+)
+const deliveryNotice = computed(
+  () => storefront.value.delivery_notice ?? t("Delivery to Cote d'Ivoire with duties shown before checkout.")
+)
+const copyrightText = computed(() => storefront.value.copyright_text ?? brandName.value)
+const headerLinks = computed(() => storefront.value.header_links ?? fallbackHeaderLinks)
+const footerColumns = computed(() => storefront.value.footer_columns ?? fallbackFooterColumns)
+const themeColors = computed(() => {
+  const site = page.props.site ?? {}
+  return {
+    primary: site.primary_color || '#FACC15', // Warm golden yellow
+    secondary: site.secondary_color || '#F97316', // Warm orange accent
+    accent: site.accent_color || '#9CA3AF', // Neutral gray for UI balance
+    strong: '#2B2B2B', // Charcoal text
+    background: '#FFFFFF',
+  }
+})
+
+const themeStyle = computed(() => ({
+  '--brand-primary': themeColors.value.primary,
+  '--brand-primary-2': themeColors.value.secondary,
+  '--brand-accent': themeColors.value.accent,
+  '--brand-strong': themeColors.value.strong,
+  '--brand-bg': themeColors.value.background,
+  '--brand-glow-start': themeColors.value.primary,
+  '--brand-glow-end': themeColors.value.secondary,
+  '--brand-soft': 'color-mix(in srgb, ' + themeColors.value.primary + ' 12%, white)',
+}))
 
 const supportEmail = computed(() => page.props.site?.support_email ?? 'support@dispatch.store')
 const currentPath = computed(() => (page.url || '').split('?')[0])
@@ -629,6 +731,10 @@ const fallbackCategories = computed(() => ([
     return source.map((entry) => buildCategory(entry))
   })
 
+const rootCategories = computed(() => {
+  return categories.value.filter(cat => !cat.parent_id)
+})
+
 const resolveSearch = () => page.props.query ?? page.props.filters?.q ?? ''
 const search = ref(resolveSearch())
 
@@ -648,12 +754,36 @@ const submitSearch = () => {
   router.get('/search', { q: value }, { preserveState: true, replace: true })
 }
 
+onMounted(() => {
+  const start = () => { isNavigating.value = true }
+  const finish = () => { isNavigating.value = false }
+  const offStart = router.on('start', start)
+  const offFinish = router.on('finish', finish)
+  const offError = router.on('error', finish)
+  const offInvalid = router.on('invalid', finish)
+  onBeforeUnmount(() => {
+    offStart()
+    offFinish()
+    offError()
+    offInvalid()
+  })
+})
+
 const openCategories = () => {
   categoriesOpen.value = true
+  if (categoriesCloseTimer.value) {
+    clearTimeout(categoriesCloseTimer.value)
+    categoriesCloseTimer.value = null
+  }
 }
 
 const closeCategories = () => {
-  categoriesOpen.value = false
+  if (categoriesCloseTimer.value) {
+    clearTimeout(categoriesCloseTimer.value)
+  }
+  categoriesCloseTimer.value = setTimeout(() => {
+    categoriesOpen.value = false
+  }, 150)
 }
 
 const categoryHref = (category) => {
@@ -705,16 +835,18 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .brand-theme {
-  --brand-primary: #29ab87;
-  --brand-primary-2: #2aaa8a;
-  --brand-accent: #daa520;
-  --brand-highlight: #dfff00;
-  --brand-soft: #dfff86;
-  --brand-strong: #0f2d1f;
+  --brand-primary: #facc15;
+  --brand-primary-2: #f97316;
+  --brand-accent: #9ca3af;
+  --brand-strong: #2b2b2b;
+  --brand-bg: #ffffff;
+  --brand-glow-start: #facc15;
+  --brand-glow-end: #f97316;
+  --brand-soft: color-mix(in srgb, var(--brand-primary) 12%, white);
 }
 
 .bg-brand-glow {
-  background: linear-gradient(90deg, #dfff86 0%, #ffea00 30%, #daa520 60%, #29ab87 100%);
+  background: linear-gradient(135deg, #fffdf2, #fff6c5);
 }
 
 .text-brand-strong {

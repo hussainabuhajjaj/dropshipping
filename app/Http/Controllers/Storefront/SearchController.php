@@ -22,7 +22,7 @@ class SearchController extends Controller
 
         $productQuery = Product::query()
             ->where('is_active', true)
-            ->with(['images', 'category', 'variants'])
+            ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 

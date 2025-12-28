@@ -22,7 +22,7 @@ class CategoryController extends Controller
         $productQuery = Product::query()
             ->where('is_active', true)
             ->where('category_id', $category->id)
-            ->with(['images', 'category', 'variants'])
+            ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
@@ -33,7 +33,7 @@ class CategoryController extends Controller
 
         $heroImage = $category->hero_image;
         if ($heroImage && ! str_starts_with($heroImage, 'http://') && ! str_starts_with($heroImage, 'https://')) {
-            $heroImage = Storage::disk('public')->url($heroImage);
+            $heroImage = Storage::url($heroImage);
         }
 
         return Inertia::render('Categories/Show', [

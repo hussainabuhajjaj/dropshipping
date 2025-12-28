@@ -17,6 +17,9 @@ class ProductVariant extends Model
     protected $fillable = [
         'product_id',
         'cj_vid',
+        'cj_variant_data',
+        'cj_stock',
+        'cj_stock_synced_at',
         'sku',
         'title',
         'price',
@@ -28,13 +31,19 @@ class ProductVariant extends Model
         'package_width_mm',
         'package_height_mm',
         'inventory_policy',
+        'stock_on_hand',
+        'low_stock_threshold',
         'options',
         'metadata',
     ];
 
     protected $casts = [
         'options' => 'array',
+        'cj_variant_data' => 'array',
+        'cj_stock_synced_at' => 'datetime',
         'metadata' => 'array',
+        'stock_on_hand' => 'integer',
+        'low_stock_threshold' => 'integer',
     ];
 
     public function product(): BelongsTo

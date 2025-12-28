@@ -67,6 +67,9 @@ class ProductReviewController extends Controller
             'title' => $data['title'],
             'body' => $data['body'],
             'status' => $status,
+            'images' => $this->processImages($request),
+            'verified_purchase' => true,
+            'helpful_count' => 0,
         ]);
 
         return back()->with(
@@ -75,5 +78,22 @@ class ProductReviewController extends Controller
                 ? 'Thanks for your review. It is now live.'
                 : 'Thanks for your review. It will appear after approval.'
         );
+    }
+
+    private function processImages(Request $request): ?array
+    {
+        if (! $request->hasFile('images')) {
+            return null;
+        }
+
+        $images = [];
+        foreach ($request->file('images', []) as $image) {
+            if ($image->isValid()) {
+                $path = $image->store('reviews', 'public');
+                $images[] = asset("storage/{$path}");
+            }
+        }
+
+        return empty($images) ? null : $images;
     }
 }

@@ -6,7 +6,12 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Events\Orders\OrderCancellationRequested;
+use App\Notifications\Orders\OrderCancellationConfirmedNotification;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -114,6 +119,7 @@ class OrderController extends Controller
                             'status' => $item->returnRequest->status,
                             'reason' => $item->returnRequest->reason,
                             'notes' => $item->returnRequest->notes,
+                            'return_label_url' => $item->returnRequest->return_label_url,
                             'created_at' => $item->returnRequest->created_at,
                         ] : null,
                         'shipments' => $item->shipments->map(function ($shipment) {
@@ -147,4 +153,68 @@ class OrderController extends Controller
             ],
         ]);
     }
+
+    public function cancel(Request $request, Order $order): JsonResponse
+    {
+        $customer = $request->user('customer');
+        if (! $customer || $order->customer_id !== $customer->id) {
+            abort(404);
+        }
+
+        // Only allow cancellation of orders that are not yet fulfilled or cancelled
+        if (!in_array($order->status, ['pending', 'awaiting_fulfillment', 'fulfilling'])) {
+            return response()->json([
+                'error' => 'This order cannot be cancelled. It has already been fulfilled or cancelled.',
+            ], 422);
+        }
+
+        // Only allow cancellation if payment has been confirmed
+        if ($order->payment_status !== 'paid') {
+            return response()->json([
+                'error' => 'This order cannot be cancelled. Payment status does not allow cancellation.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        return DB::transaction(function () use ($order, $customer, $data) {
+            // Update order status
+            $order->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+            ]);
+
+            // Process refund
+            $payment = $order->payments()->where('status', 'completed')->first();
+            if ($payment) {
+                $refundAmount = $order->grand_total;
+                $payment->update([
+                    'refund_status' => 'pending',
+                    'refund_amount' => $refundAmount,
+                    'refunded_at' => now(),
+                ]);
+            }
+
+            // Dispatch cancellation event
+            event(new OrderCancellationRequested($order, $data['reason'] ?? null));
+
+            // Send confirmation notification
+            $notifiable = $order->customer ?? $order->user;
+            if ($notifiable) {
+                Notification::send($notifiable, new OrderCancellationConfirmedNotification($order, (string) $order->grand_total));
+            } else {
+                Notification::route('mail', $order->email)
+                    ->notify(new OrderCancellationConfirmedNotification($order, (string) $order->grand_total));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order cancelled successfully. A refund will be processed shortly.',
+                'order_number' => $order->number,
+            ]);
+        });
+    }
+
 }

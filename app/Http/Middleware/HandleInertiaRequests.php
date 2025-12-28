@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Models\SiteSetting;
+use App\Models\StorefrontSetting;
 use Illuminate\Support\Facades\Schema;
 
 class HandleInertiaRequests extends Middleware
@@ -41,6 +42,9 @@ class HandleInertiaRequests extends Middleware
         $site = Schema::hasTable('site_settings')
             ? SiteSetting::query()->first()
             : null;
+        $storefront = Schema::hasTable('storefront_settings')
+            ? StorefrontSetting::query()->latest()->first()
+            : null;
         $locale = app()->getLocale();
         $translations = [];
         $translationsPath = resource_path("lang/{$locale}.json");
@@ -72,6 +76,7 @@ class HandleInertiaRequests extends Middleware
                 'count' => count($request->session()->get('wishlist', [])),
             ],
             'site' => $site,
+            'storefront' => $storefront,
             'appUrl' => rtrim(config('app.url'), '/'),
             'locale' => $locale,
             'availableLocales' => [

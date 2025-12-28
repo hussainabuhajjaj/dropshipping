@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Domain\Common\Models\Address;
 
-class Customer extends Authenticatable
+class Customer extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory;
     use SoftDeletes;
@@ -93,5 +94,24 @@ class Customer extends Authenticatable
 
         $this->attributes['first_name'] = $first;
         $this->attributes['last_name'] = $last;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $customer): void {
+            if (! array_key_exists('address_line1', $customer->getAttributes()) || $customer->address_line1 === null) {
+                $customer->address_line1 = '';
+            }
+        });
+
+        static::created(function (self $customer): void {
+            // Auto-link past guest orders that match the registration email
+            try {
+                app(\App\Domain\Orders\Services\LinkGuestOrdersService::class)
+                    ->linkByEmail((string) $customer->email, (int) $customer->id, null);
+            } catch (\Throwable $e) {
+                // Swallow exceptions to avoid blocking registration flow
+            }
+        });
     }
 }

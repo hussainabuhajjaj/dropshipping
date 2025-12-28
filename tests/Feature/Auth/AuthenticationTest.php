@@ -2,8 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
+use App\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -17,38 +18,53 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_users_can_authenticate_using_the_login_screen(): void
+    public function test_customers_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test-auth@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $response = $this->post('/login', [
-            'email' => $user->email,
+            'email' => $customer->email,
             'password' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertAuthenticated('customer');
+        $response->assertRedirect(route('account.index', absolute: false));
     }
 
-    public function test_users_can_not_authenticate_with_invalid_password(): void
+    public function test_customers_can_not_authenticate_with_invalid_password(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test-auth2@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
         $this->post('/login', [
-            'email' => $user->email,
+            'email' => $customer->email,
             'password' => 'wrong-password',
         ]);
 
-        $this->assertGuest();
+        $this->assertGuest('customer');
     }
 
-    public function test_users_can_logout(): void
+    public function test_customers_can_logout(): void
     {
-        $user = User::factory()->create();
+        $customer = Customer::create([
+            'first_name' => 'Test',
+            'email' => 'test-logout@example.com',
+            'password' => Hash::make('password'),
+            'address_line1' => '',
+        ]);
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->actingAs($customer, 'customer')->post('/logout');
 
-        $this->assertGuest();
+        $this->assertGuest('customer');
         $response->assertRedirect('/');
     }
 }

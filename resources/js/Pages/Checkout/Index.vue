@@ -4,7 +4,16 @@
       <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ t('Checkout') }}</h1>
 
       <div class="grid gap-10 lg:grid-cols-[1.4fr,1fr]">
-        <form class="space-y-6" @submit.prevent="submit">
+        <div class="space-y-6">
+          <!-- Express Checkout Buttons -->
+          <ExpressCheckoutButtons
+            :amount="total"
+            :currency="currency"
+            :stripe-key="stripeKey"
+            :paystack-key="paystackKey"
+          />
+
+          <form class="space-y-6" @submit.prevent="submit">
           <p v-if="form.errors.payment" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {{ form.errors.payment }}
           </p>
@@ -115,10 +124,25 @@
 import { toRefs } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
+  total: { type: Number, default: 0 },
+  currency: { type: String, default: 'USD' },
+  shipping_method: { type: String, default: 'standard' },
+  discount: { type: Number, default: 0 },
+  coupon: { type: Object, default: null },
+  tax_total: { type: Number, default: 0 },
+  tax_label: { type: String, default: 'Tax' },
+  tax_included: { type: Boolean, default: false },
+  user: { type: Object, default: null },
+  defaultAddress: { type: Object, default: null },
+  shipping: { type: Number, default: 0 },
+  stripeKey: { type: String, default: '' },
+  paystackKey: { type: String, default: '' },
+})
   total: { type: Number, default: 0 },
   currency: { type: String, default: 'USD' },
   shipping_method: { type: String, default: 'standard' },

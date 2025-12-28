@@ -41,7 +41,7 @@ class CustomsInfoNotification extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject("Customs information for order #{$this->order->number}")
-            ->greeting("Hi {$notifiable->name},")
+            ->greeting("Hi " . ($notifiable->name ?? ($this->order->customer_name ?? $this->order->email ?? 'Customer')) . ',')
             ->line('Your shipment is at customs. Duties/VAT were shown at checkout; the carrier may contact you.')
             ->line($this->note)
             ->action('Track order', $this->trackingLink())

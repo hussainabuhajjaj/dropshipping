@@ -43,7 +43,7 @@ class ShippingDelayNotification extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject("Update on your order #{$this->order->number} — slight delay")
-            ->greeting("Hi {$notifiable->name},")
+            ->greeting("Hi " . ($notifiable->name ?? ($this->order->customer_name ?? $this->order->email ?? 'Customer')) . ',')
             ->line("We’re seeing a delay on order #{$this->order->number}.")
             ->line($this->reason ? "Reason: {$this->reason}" : null)
             ->line($this->eta ? "New ETA: {$this->eta}" : null)

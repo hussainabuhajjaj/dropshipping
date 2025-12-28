@@ -7,6 +7,9 @@ use App\Models\ProductReview;
 use Illuminate\Support\Facades\Schedule;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Products\Services\CjProductImportService;
+use App\Domain\Products\Services\CjCategorySyncService;
+use App\Domain\Products\Models\Category;
+use App\Domain\Products\Models\Product;
 use App\Models\SiteSetting;
 use App\Jobs\PollCJFulfillmentStatus;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
@@ -228,6 +231,100 @@ Artisan::command('cj:sync-my-products {--start-page=1} {--page-size=24} {--max-p
 })->purpose('Sync CJ My Products into the local catalog');
 
 Schedule::command('cj:sync-my-products')->hourly()->name('cj:sync-my-products');
+
+Artisan::command('categories:dedupe {--dry-run}', function () {
+    $dryRun = (bool) $this->option('dry-run');
+    $groups = Category::select('name', 'parent_id', DB::raw('COUNT(*) as dupes'))
+        ->groupBy('name', 'parent_id')
+        ->having('dupes', '>', 1)
+        ->get();
+
+    if ($groups->isEmpty()) {
+        $this->info('No duplicate categories found.');
+        return;
+    }
+
+    $totalDeleted = 0;
+    $totalGroups = $groups->count();
+
+    foreach ($groups as $group) {
+        $candidates = Category::where('name', $group->name)
+            ->where('parent_id', $group->parent_id)
+            ->orderByRaw('cj_id IS NULL') // prefer records with cj_id
+            ->orderBy('id')
+            ->get();
+
+        if ($candidates->count() < 2) {
+            continue;
+        }
+
+        $keep = $candidates->first();
+        $dupes = $candidates->slice(1);
+
+        foreach ($dupes as $dup) {
+            $productsCount = Product::where('category_id', $dup->id)->count();
+            $childrenCount = Category::where('parent_id', $dup->id)->count();
+
+            $this->info(sprintf(
+                'Merging "%s" (dup #%d) into #%d: products %d, children %d',
+                $group->name,
+                $dup->id,
+                $keep->id,
+                $productsCount,
+                $childrenCount,
+            ));
+
+            if ($dryRun) {
+                continue;
+            }
+
+            DB::transaction(function () use ($dup, $keep) {
+                Product::where('category_id', $dup->id)->update(['category_id' => $keep->id]);
+                Category::where('parent_id', $dup->id)->update(['parent_id' => $keep->id]);
+
+                if (! $keep->cj_id && $dup->cj_id) {
+                    $keep->cj_id = $dup->cj_id;
+                    $keep->save();
+                }
+
+                $dup->delete();
+            });
+
+            $totalDeleted++;
+        }
+    }
+
+    if ($dryRun) {
+        $this->info(sprintf('Dry-run complete. %d duplicate groups detected.', $totalGroups));
+    } else {
+        $this->info(sprintf('Dedup complete. Removed %d duplicate rows across %d groups.', $totalDeleted, $totalGroups));
+    }
+})->purpose('Merge duplicate categories by name and parent');
+
+Artisan::command('categories:fix {--force}', function () {
+    $force = (bool) $this->option('force');
+
+    if (! $force) {
+        $this->warn('⚠️  This will:');
+        $this->warn('  1. Sync CJ category tree');
+        $this->warn('  2. Merge duplicate categories');
+        $this->warn('  3. Update all products with correct categories');
+        
+        if (! $this->confirm('Continue?')) {
+            $this->info('Cancelled.');
+            return;
+        }
+    }
+
+    $this->info('Step 1: Syncing CJ categories...');
+    $this->call('cj:sync-categories');
+
+    $this->info('Step 2: Merging duplicate categories...');
+    $this->call('categories:dedupe');
+
+    $this->info('✅ Category fix complete!');
+    $this->info('Next: Re-import products with: php artisan cj:sync-my-products --force-update');
+})->purpose('Fix all category hierarchy issues (sync, dedupe, repair)');
 
 Artisan::command('cj:import-snapshots {--limit=200}', function () {
     $limit = (int) $this->option('limit');

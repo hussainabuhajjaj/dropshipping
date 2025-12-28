@@ -217,6 +217,10 @@
             </div>
           </div>
 
+          <div v-if="flashSuccess" class="rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {{ flashSuccess }}
+          </div>
+
           <div v-if="filteredOrders.length" class="space-y-3">
             <div v-for="order in filteredOrders" :key="order.id" class="rounded-xl border border-slate-100 p-4 text-sm">
               <div class="flex flex-wrap items-start justify-between gap-2">
@@ -253,6 +257,32 @@
           </div>
           <div class="text-sm text-slate-500">Open refunds page to see details.</div>
         </div>
+
+        <div class="card space-y-4 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Link past guest orders</h2>
+              <p class="text-sm text-slate-500">Match guest orders by your account email and optional phone last 4.</p>
+            </div>
+          </div>
+
+          <form class="space-y-3" @submit.prevent="claimOrders">
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Email</label>
+              <input v-model="claimOrdersForm.email" type="email" class="input-base mt-1 w-full" readonly />
+              <p v-if="claimOrdersForm.errors.email" class="text-xs text-red-600">{{ claimOrdersForm.errors.email }}</p>
+            </div>
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Phone last 4 (optional)</label>
+              <input v-model="claimOrdersForm.phone_last4" type="text" maxlength="4" class="input-base mt-1 w-full" placeholder="1234" />
+              <p v-if="claimOrdersForm.errors.phone_last4" class="text-xs text-red-600">{{ claimOrdersForm.errors.phone_last4 }}</p>
+            </div>
+            <button type="submit" class="btn-secondary" :disabled="claimOrdersForm.processing">
+              {{ claimOrdersForm.processing ? 'Linking...' : 'Link orders' }}
+            </button>
+            <p v-if="claimOrdersForm.hasErrors" class="text-xs text-red-600">Check the details above and try again.</p>
+          </form>
+        </div>
       </section>
 
       <section id="tracking" class="card space-y-4 p-6">
@@ -282,7 +312,7 @@
 </template>
 
 <script setup>
-import { Link, router, useForm } from '@inertiajs/vue3'
+import { Link, router, useForm, usePage } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 
@@ -296,6 +326,9 @@ const props = defineProps({
   savedCoupons: { type: Array, default: () => [] },
   availableCoupons: { type: Array, default: () => [] },
 })
+
+const page = usePage()
+const flashSuccess = computed(() => page.props.flash?.success || null)
 
 const orderSearch = ref('')
 const filteredOrders = computed(() => {
@@ -336,6 +369,11 @@ const couponForm = useForm({
   code: '',
 })
 
+const claimOrdersForm = useForm({
+  email: props.user.email || '',
+  phone_last4: '',
+})
+
 const updateProfile = () => {
   profileForm.patch('/profile', { preserveScroll: true })
 }
@@ -373,6 +411,15 @@ const saveCoupon = () => {
   couponForm.post('/account/coupons/save', {
     preserveScroll: true,
     onSuccess: () => couponForm.reset(),
+  })
+}
+
+const claimOrders = () => {
+  claimOrdersForm.post('/account/claim-orders', {
+    preserveScroll: true,
+    onSuccess: () => {
+      claimOrdersForm.reset('phone_last4')
+    },
   })
 }
 

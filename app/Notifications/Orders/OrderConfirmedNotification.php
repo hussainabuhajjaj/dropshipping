@@ -38,9 +38,11 @@ class OrderConfirmedNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
+        $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
+        
         return (new MailMessage)
-            ->subject("We’ve received your order #{$this->order->number}")
-            ->greeting("Hi {$notifiable->name},")
+            ->subject("We've received your order #{$this->order->number}")
+            ->greeting("Hi {$name},")
             ->line("Order #{$this->order->number} is confirmed.")
             ->line("Total: {$this->order->currency} {$this->order->grand_total}")
             ->action('Track order', $this->trackingLink())

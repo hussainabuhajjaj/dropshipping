@@ -99,6 +99,38 @@ return [
 
     'key' => env('APP_KEY'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory & Fulfillment Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'inventory' => [
+        // Threshold below which inventory is considered "low stock"
+        'low_stock_warning_threshold' => env('LOW_STOCK_WARNING_THRESHOLD', 5),
+
+        // Allow checkout even if inventory is uncertain (dropshipping mode)
+        'allow_uncertain_stock' => env('ALLOW_UNCERTAIN_STOCK', true),
+
+        // Show "Limited availability" warning at this threshold
+        'limited_availability_threshold' => env('LIMITED_AVAILABILITY_THRESHOLD', 3),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Order & Refund Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'orders' => [
+        // Refund decision auto-approval rules
+        'auto_approve_refunds' => env('AUTO_APPROVE_REFUNDS', true),
+
+        // Days before order can be marked "delivered"
+        'delivery_confirmation_days' => env('DELIVERY_CONFIRMATION_DAYS', 30),
+    ],
+
+
     'previous_keys' => [
         ...array_filter(
             explode(',', (string) env('APP_PREVIOUS_KEYS', ''))

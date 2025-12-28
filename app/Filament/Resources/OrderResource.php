@@ -37,7 +37,13 @@ class OrderResource extends BaseResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('number')->label('Order #')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('shippingAddress.name')->label('Customer')->searchable(),
+                Tables\Columns\TextColumn::make('customer_name')
+                    ->label('Customer')
+                    ->searchable(['guest_name', 'email'])
+                    ->state(fn ($record) => $record->is_guest 
+                        ? ($record->guest_name . ' (Guest)') 
+                        : $record->shippingAddress?->name
+                    ),
                 Tables\Columns\TextColumn::make('email')->label('Email')->searchable(),
                 Tables\Columns\TextColumn::make('status')->label('Fulfillment')->badge()->sortable(),
                 Tables\Columns\TextColumn::make('payment_status')->badge()->sortable(),
@@ -95,9 +101,20 @@ class OrderResource extends BaseResource
                 ])->columns(5),
             Section::make('Customer')
                 ->schema([
+                    TextEntry::make('guest_or_customer_name')
+                        ->label('Name')
+                        ->state(fn ($record) => $record->is_guest 
+                            ? ($record->guest_name . ' (Guest)') 
+                            : $record->shippingAddress?->name
+                        ),
                     TextEntry::make('email')->copyable(),
-                    TextEntry::make('shippingAddress.name')->label('Name'),
-                    TextEntry::make('shippingAddress.phone')->label('Phone')->copyable(),
+                    TextEntry::make('phone_number')
+                        ->label('Phone')
+                        ->copyable()
+                        ->state(fn ($record) => $record->is_guest 
+                            ? $record->guest_phone 
+                            : $record->shippingAddress?->phone
+                        ),
                     TextEntry::make('shippingAddress.line1')->label('Address')->copyable(),
                     TextEntry::make('shippingAddress.city')->label('City')->copyable(),
                     TextEntry::make('shippingAddress.country')->label('Country'),

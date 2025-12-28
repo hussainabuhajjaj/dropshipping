@@ -13,6 +13,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Livewire\Attributes\On;
 
 class ListProducts extends ListRecords
 {
@@ -63,6 +64,7 @@ class ListProducts extends ListRecords
                         $product = $importer->importByLookup($lookupType, $lookupValue, [
                             'respectSyncFlag' => false,
                             'defaultSyncEnabled' => true,
+                            'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                         ]);
 
                         if (! $product) {
@@ -164,5 +166,16 @@ class ListProducts extends ListRecords
         $settings = SiteSetting::query()->first();
 
         return $settings?->cj_last_sync_summary;
+    }
+
+    protected function getFooterWidgets(): array
+    {
+        return [];
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        // Include translation tracking widget in header
+        return [];
     }
 }

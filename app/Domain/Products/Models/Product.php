@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Domain\Products\Models;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Models\ProductTranslation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -19,6 +21,8 @@ class Product extends Model
     protected $fillable = [
         'cj_pid',
         'cj_sync_enabled',
+        'cj_warehouse_id',
+        'cj_warehouse_name',
         'cj_synced_at',
         'cj_last_payload',
         'cj_last_changed_fields',
@@ -47,6 +51,11 @@ class Product extends Model
         'source_url',
         'options',
         'attributes',
+        'seo_metadata',
+        'marketing_metadata',
+        'translation_status',
+        'translated_locales',
+        'last_translation_at',
     ];
 
     protected $casts = [
@@ -64,6 +73,10 @@ class Product extends Model
         'cj_lock_variants' => 'boolean',
         'cj_video_urls' => 'array',
         'stock_on_hand' => 'integer',
+        'seo_metadata' => 'array',
+        'marketing_metadata' => 'array',
+        'translated_locales' => 'array',
+        'last_translation_at' => 'datetime',
     ];
 
     public function variants(): HasMany
@@ -95,4 +108,39 @@ class Product extends Model
     {
         return $this->hasMany(\App\Models\ProductReview::class);
     }
+
+    public function translations(): HasMany
+    {
+        return $this->hasMany(ProductTranslation::class);
+    }
+
+    public function translationForLocale(?string $locale): ?ProductTranslation
+    {
+        if (! $locale) {
+            return null;
+        }
+
+        if ($this->relationLoaded('translations')) {
+            return $this->translations->firstWhere('locale', $locale);
+        }
+
+        return $this->translations()->where('locale', $locale)->first();
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $product): void {
+            // Ensure a slug exists for DB constraints and tests
+            if (! $product->slug || trim((string) $product->slug) === '') {
+                $name = (string) $product->name;
+                $candidate = Str::slug($name);
+                if ($candidate === '') {
+                    $candidate = 'product-' . Str::random(8);
+                }
+
+                $product->slug = $candidate;
+            }
+        });
+    }
 }
+

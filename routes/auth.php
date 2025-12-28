@@ -4,6 +4,9 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\ClaimAccountController;
 use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\Auth\GoogleOAuthController;
+use App\Http\Controllers\Auth\CustomerPasswordResetLinkController;
+use App\Http\Controllers\Auth\CustomerNewPasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -36,18 +39,25 @@ Route::middleware('guest:customer')->group(function () {
     Route::post('claim-account', [ClaimAccountController::class, 'store'])
         ->name('claim-account.store');
 
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
+    Route::get('forgot-password', [CustomerPasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+    Route::post('forgot-password', [CustomerPasswordResetLinkController::class, 'store'])
         ->name('password.email');
 
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    Route::get('reset-password/{token}', [CustomerNewPasswordController::class, 'create'])
         ->name('password.reset');
 
-    Route::post('reset-password', [NewPasswordController::class, 'store'])
+    Route::post('reset-password', [CustomerNewPasswordController::class, 'store'])
         ->name('password.store');
 });
+
+// Google OAuth routes
+Route::get('/auth/google/redirect', [GoogleOAuthController::class, 'redirect'])
+    ->name('auth.google.redirect');
+
+Route::get('/auth/google/callback', [GoogleOAuthController::class, 'callback'])
+    ->name('auth.google.callback');
 
 Route::middleware('auth:customer')->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
@@ -70,4 +80,14 @@ Route::middleware('auth:customer')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
+
+    // Google OAuth authenticated routes
+    Route::get('/auth/google/refresh', [GoogleOAuthController::class, 'refresh'])
+        ->name('auth.google.refresh');
+
+    Route::get('/api/calendar/events', [GoogleOAuthController::class, 'getCalendarEvents'])
+        ->name('api.calendar.events');
+
+    Route::post('/auth/google/logout', [GoogleOAuthController::class, 'logout'])
+        ->name('auth.google.logout');
 });

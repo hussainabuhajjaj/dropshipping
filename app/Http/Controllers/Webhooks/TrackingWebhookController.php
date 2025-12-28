@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Domain\Orders\Services\TrackingService;
 use App\Events\Orders\OrderDelivered;
+use App\Events\Orders\OrderShipped;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
@@ -88,6 +89,8 @@ class TrackingWebhookController extends Controller
             }
             if (! in_array($order->status, ['fulfilled', 'cancelled', 'refunded'], true)) {
                 $order->update(['status' => 'fulfilling']);
+                // Dispatch order shipped event to trigger notifications
+                event(new OrderShipped($order, $shipment->tracking_number));
             }
         }
 

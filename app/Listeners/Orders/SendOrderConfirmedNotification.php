@@ -9,6 +9,7 @@ use App\Events\Orders\OrderPlaced;
 use App\Models\User;
 use App\Notifications\AdminOrderEventNotification;
 use App\Notifications\Orders\OrderConfirmedNotification;
+use App\Notifications\Orders\PaymentReceiptNotification;
 use Illuminate\Support\Facades\Notification;
 
 class SendOrderConfirmedNotification
@@ -22,14 +23,24 @@ class SendOrderConfirmedNotification
         }
 
         $notifiable = $order->customer ?? $order->user;
+        
+        // Get the payment for receipt
+        $payment = $order->payments()->where('status', 'completed')->latest()->first();
 
         if ($notifiable) {
             Notification::send($notifiable, new OrderConfirmedNotification($order));
+            if ($payment) {
+                Notification::send($notifiable, new PaymentReceiptNotification($order, $payment));
+            }
         }
 
         if (! $notifiable) {
             Notification::route('mail', $order->email)
                 ->notify(new OrderConfirmedNotification($order));
+            if ($payment) {
+                Notification::route('mail', $order->email)
+                    ->notify(new PaymentReceiptNotification($order, $payment));
+            }
         }
 
         $this->notifyAdmins($order);

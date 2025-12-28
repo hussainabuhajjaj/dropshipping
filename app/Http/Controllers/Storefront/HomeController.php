@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\HomePageSetting;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\StorefrontBanner;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +27,7 @@ class HomeController extends Controller
     {
         $baseQuery = Product::query()
             ->where('is_active', true)
-            ->with(['images', 'category', 'variants'])
+            ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
@@ -48,7 +49,7 @@ class HomeController extends Controller
         if (! empty($bestSellerIds)) {
             $bestSellersQuery
                 ->whereIn('products.id', $bestSellerIds)
-                ->orderByRaw(DB::raw('FIELD(products.id, ' . implode(',', $bestSellerIds) . ')'));
+                ->orderByRaw('FIELD(products.id, ' . implode(',', $bestSellerIds) . ')');
         } else {
             $bestSellersQuery->orderByDesc('selling_price');
         }
@@ -85,11 +86,58 @@ class HomeController extends Controller
             $heroSlides = collect($heroSlides)->map(function (array $slide) {
                 $image = $slide['image'] ?? null;
                 if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
-                    $slide['image'] = Storage::disk('public')->url($image);
+                    $slide['image'] = Storage::url($image);
                 }
                 return $slide;
             })->values()->all();
         }
+
+        // Fetch active banners
+        $stripBanner = StorefrontBanner::active()
+            ->byDisplayType('strip')
+            ->where(function ($query) {
+                $query->where('target_type', 'none')
+                    ->orWhereNull('target_type');
+            })
+            ->orderBy('display_order')
+            ->first();
+
+        $banners = [
+            'hero' => StorefrontBanner::active()
+                ->byDisplayType('hero')
+                ->where(function ($query) {
+                    $query->where('target_type', 'none')
+                        ->orWhereNull('target_type');
+                })
+                ->orderBy('display_order')
+                ->get()
+                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
+                ->values()
+                ->toArray(),
+            'carousel' => StorefrontBanner::active()
+                ->byDisplayType('carousel')
+                ->where(function ($query) {
+                    $query->where('target_type', 'none')
+                        ->orWhereNull('target_type');
+                })
+                ->orderBy('display_order')
+                ->get()
+                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
+                ->values()
+                ->toArray(),
+            'strip' => $stripBanner ? $this->transformBanner($stripBanner) : null,
+            'sidebar' => StorefrontBanner::active()
+                ->byDisplayType('sidebar')
+                ->where(function ($query) {
+                    $query->where('target_type', 'none')
+                        ->orWhereNull('target_type');
+                })
+                ->orderBy('display_order')
+                ->get()
+                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
+                ->values()
+                ->toArray(),
+        ];
 
         return Inertia::render('Home', [
             'featured' => $featured->map(fn (Product $product) => $this->transformProduct($product)),
@@ -98,6 +146,7 @@ class HomeController extends Controller
             'categories' => $categoryList,
             'categoryHighlights' => $categoryHighlights,
             'currency' => 'USD',
+            'banners' => $banners,
             'homeContent' => $homeContent ? [
                 'top_strip' => $homeContent->top_strip,
                 'hero_slides' => $heroSlides,
@@ -105,6 +154,24 @@ class HomeController extends Controller
                 'banner_strip' => $homeContent->banner_strip,
             ] : null,
         ]);
+    }
+
+    private function transformBanner(StorefrontBanner $banner): array
+    {
+        return [
+            'id' => $banner->id,
+            'title' => $banner->title,
+            'description' => $banner->description,
+            'type' => $banner->type,
+            'displayType' => $banner->display_type,
+            'imagePath' => $banner->image_path ? Storage::url($banner->image_path) : null,
+            'backgroundColor' => $banner->background_color,
+            'textColor' => $banner->text_color,
+            'badgeText' => $banner->badge_text,
+            'badgeColor' => $banner->badge_color,
+            'ctaText' => $banner->cta_text,
+            'ctaUrl' => $banner->getCtaUrl(),
+        ];
     }
 
     private function topSellingProductIds(): array

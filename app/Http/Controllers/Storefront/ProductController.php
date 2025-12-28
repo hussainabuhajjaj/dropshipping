@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductReview;
+use App\Services\ProductRecommendationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -30,7 +31,7 @@ class ProductController extends Controller
 
         $productQuery = Product::query()
             ->where('is_active', true)
-            ->with(['images', 'category', 'variants'])
+            ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
@@ -85,7 +86,7 @@ class ProductController extends Controller
     {
         abort_if(! $product->is_active, 404);
 
-        $product->load(['images', 'variants', 'category']);
+        $product->load(['images', 'variants', 'category', 'translations']);
 
         $reviews = ProductReview::query()
             ->with('customer')
@@ -109,19 +110,10 @@ class ProductController extends Controller
             return [$rating => $reviews->where('rating', $rating)->count()];
         })->all();
 
-        $relatedQuery = Product::query()
-            ->where('is_active', true)
-            ->whereKeyNot($product->id)
-            ->with(['images', 'category']);
+        $recommendationService = app(ProductRecommendationService::class);
 
-        if ($product->category_id) {
-            $relatedQuery->where('category_id', $product->category_id);
-        }
-
-        $related = $relatedQuery
-            ->latest()
-            ->take(4)
-            ->get()
+        $related = $recommendationService
+            ->relatedProducts($product, 4)
             ->map(fn (Product $relatedProduct) => $this->transformProduct($relatedProduct));
 
         $customer = Auth::guard('customer')->user();
@@ -154,6 +146,13 @@ class ProductController extends Controller
                 ->all();
         }
 
+        $personalized = collect();
+        if ($customer) {
+            $personalized = $recommendationService
+                ->personalized($customer, 6)
+                ->map(fn (Product $p) => $this->transformProduct($p));
+        }
+
         return Inertia::render('Products/Show', [
             'product' => $this->transformProduct($product, true),
             'currency' => $product->currency ?? 'USD',
@@ -162,6 +161,9 @@ class ProductController extends Controller
                 'rating' => $review->rating,
                 'title' => $review->title,
                 'body' => $review->body,
+                'images' => $review->images ?? [],
+                'verified_purchase' => (bool) $review->verified_purchase,
+                'helpful_count' => $review->helpful_count ?? 0,
                 'created_at' => $review->created_at,
                 'author' => $review->customer?->name ?? 'Verified buyer',
             ]),
@@ -172,6 +174,7 @@ class ProductController extends Controller
             ],
             'reviewHighlights' => $reviewHighlights,
             'relatedProducts' => $related,
+            'personalizedProducts' => $personalized,
             'reviewableItems' => $reviewableItems,
         ]);
     }
