@@ -136,5 +136,7 @@ return [
     ],
 
     'translation_provider' => env('TRANSLATION_PROVIDER', 'libre_translate'),
+    'translation_locales' => explode(',', (string) env('TRANSLATION_LOCALES', 'en,fr')),
+    'translation_source_locale' => env('TRANSLATION_SOURCE_LOCALE', 'en'),
 
 ];

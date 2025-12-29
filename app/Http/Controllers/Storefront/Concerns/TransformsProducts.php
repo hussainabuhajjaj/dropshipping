@@ -11,18 +11,25 @@ trait TransformsProducts
     protected function transformProduct(Product $product, bool $includeMeta = false): array
     {
         $media = $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [];
+        $locale = app()->getLocale();
         $variants = collect($product->variants ?? []);
-        $variantPayload = $variants->map(fn ($variant) => [
-            'id' => $variant->id,
-            'title' => $variant->title,
-            'price' => (float) ($variant->price ?? 0),
-            'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
-            'sku' => $variant->sku,
-            'currency' => $variant->currency ?? $product->currency ?? 'USD',
-            'cj_vid' => $variant->cj_vid,
-            'stock_on_hand' => $variant->stock_on_hand,
-            'low_stock_threshold' => $variant->low_stock_threshold,
-        ])->values()->all();
+        $variantPayload = $variants->map(function ($variant) use ($locale, $product) {
+            $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+            $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
+            $localizedTitle = $translations[$locale]['title'] ?? null;
+
+            return [
+                'id' => $variant->id,
+                'title' => $localizedTitle ?: $variant->title,
+                'price' => (float) ($variant->price ?? 0),
+                'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
+                'sku' => $variant->sku,
+                'currency' => $variant->currency ?? $product->currency ?? 'USD',
+                'cj_vid' => $variant->cj_vid,
+                'stock_on_hand' => $variant->stock_on_hand,
+                'low_stock_threshold' => $variant->low_stock_threshold,
+            ];
+        })->values()->all();
 
         $defaultVariant = $variantPayload[0] ?? null;
         $price = $defaultVariant['price'] ?? (float) ($product->selling_price ?? 0);
@@ -30,7 +37,6 @@ trait TransformsProducts
 
         $wishlist = collect(session('wishlist', []));
 
-        $locale = app()->getLocale();
         $translation = $product->translationForLocale($locale);
 
         $data = [

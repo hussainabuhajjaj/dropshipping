@@ -21,6 +21,9 @@ class ProductTranslationService
         $name = trim((string) $product->name);
         $description = trim((string) ($product->description ?? ''));
 
+        // Ensure variants are available for translation
+        $product->loadMissing('variants');
+
         $apiKeyConfigured = (bool) (config('services.deepseek.key'));
         if (! $apiKeyConfigured) {
             logger()->warning('DeepSeek not configured, will only persist source locale', [
@@ -36,20 +39,28 @@ class ProductTranslationService
             }
 
             $existing = $product->translationForLocale($locale);
-            if (! $force && $existing && ($existing->name || $existing->description)) {
-                continue;
-            }
+            $skipProductTranslation = ! $force && $existing && ($existing->name || $existing->description);
 
             if ($locale === $sourceLocale) {
-                ProductTranslation::updateOrCreate(
-                    ['product_id' => $product->id, 'locale' => $locale],
-                    ['name' => $name, 'description' => $description]
-                );
+                if (! $skipProductTranslation) {
+                    ProductTranslation::updateOrCreate(
+                        ['product_id' => $product->id, 'locale' => $locale],
+                        ['name' => $name, 'description' => $description]
+                    );
+                }
+
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
                 continue;
             }
 
             if (! $apiKeyConfigured) {
                 // Skip translating to other locales when provider is not available
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
+                continue;
+            }
+
+            if ($skipProductTranslation) {
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
                 continue;
             }
 
@@ -104,25 +115,85 @@ class ProductTranslationService
                 $translationFailed = true;
             }
 
-            // If translation failed, skip saving to avoid corrupting target locale with source
-            if ($translationFailed) {
+            // Persist translated content when successful
+            if (! $translationFailed) {
+                $update = [];
+                if ($translatedName !== null) {
+                    $update['name'] = $translatedName;
+                }
+                if ($translatedDescription !== null) {
+                    $update['description'] = $translatedDescription;
+                }
+
+                if ($update !== []) {
+                    ProductTranslation::updateOrCreate(
+                        ['product_id' => $product->id, 'locale' => $locale],
+                        $update
+                    );
+                }
+            }
+
+            $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
+        }
+    }
+
+    /**
+     * Translate variant titles and store per-locale copies inside metadata.
+     *
+     * @param iterable<int, mixed> $variants
+     */
+    private function translateVariants(iterable $variants, string $locale, string $sourceLocale, bool $force, bool $apiKeyConfigured, Product $product): void
+    {
+        foreach ($variants as $variant) {
+            $title = trim((string) ($variant->title ?? ''));
+            if ($title === '') {
                 continue;
             }
 
-            // Persist translated content
-            $update = [];
-            if ($translatedName !== null) {
-                $update['name'] = $translatedName;
-            }
-            if ($translatedDescription !== null) {
-                $update['description'] = $translatedDescription;
+            $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+            $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
+            $existing = $translations[$locale]['title'] ?? null;
+
+            if (! $force && $existing) {
+                continue;
             }
 
-            if ($update !== []) {
-                ProductTranslation::updateOrCreate(
-                    ['product_id' => $product->id, 'locale' => $locale],
-                    $update
-                );
+            if ($locale === $sourceLocale) {
+                $translations[$locale]['title'] = $title;
+                $metadata['translations'] = $translations;
+                $variant->metadata = $metadata;
+                $variant->save();
+                continue;
+            }
+
+            if (! $apiKeyConfigured) {
+                continue;
+            }
+
+            try {
+                $candidate = trim((string) $this->client->translate($title, $sourceLocale, $locale));
+
+                if ($this->isLikelySourceLanguage($candidate, $sourceLocale, $locale)) {
+                    logger()->warning('Variant translation appears to be in source language, skipping', [
+                        'product_id' => $product->id,
+                        'variant_id' => $variant->id ?? null,
+                        'locale' => $locale,
+                        'text' => substr($candidate, 0, 50),
+                    ]);
+                    continue;
+                }
+
+                $translations[$locale]['title'] = $candidate !== '' ? $candidate : $title;
+                $metadata['translations'] = $translations;
+                $variant->metadata = $metadata;
+                $variant->save();
+            } catch (\Throwable $e) {
+                logger()->error('Translation failed for product variant title', [
+                    'product_id' => $product->id,
+                    'variant_id' => $variant->id ?? null,
+                    'locale' => $locale,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
     }

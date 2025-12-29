@@ -8,6 +8,7 @@ use App\Domain\Products\Models\Category;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
 use App\Jobs\GenerateProductSeoJob;
+use App\Jobs\TranslateProductJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
@@ -66,6 +67,7 @@ class CjProductImportService
         }
 
         $product = Product::query()->where('cj_pid', $pid)->first();
+    $isNewProduct = $product === null;
 
         $respectSyncFlag = (bool) ($options['respectSyncFlag'] ?? true);
         $defaultSyncEnabled = (bool) ($options['defaultSyncEnabled'] ?? true);
@@ -211,6 +213,27 @@ class CjProductImportService
             $product->update([
                 'cj_last_changed_fields' => array_values(array_unique($changedFields)),
             ]);
+        }
+
+        // Trigger translations when a product is newly imported or translatable fields changed
+        $shouldTranslate = ($options['translate'] ?? true) === true;
+        $translatableFields = ['created', 'name', 'description', 'variants'];
+        $hasTranslatableChange = $isNewProduct || array_intersect($translatableFields, $changedFields) !== [];
+
+        if ($shouldTranslate && $hasTranslatableChange) {
+            try {
+                TranslateProductJob::dispatch(
+                    (int) $product->id,
+                    $this->resolveTranslationLocales(),
+                    $this->resolveTranslationSourceLocale(),
+                    false
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Failed to dispatch translation job after CJ import', [
+                    'product_id' => $product->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $product;
@@ -412,6 +435,38 @@ class CjProductImportService
                 Log::warning('Failed to create default variant', ['product_id' => $product->id, 'error' => $e->getMessage()]);
             }
         }
+    }
+
+    /**
+     * Determine which locales should be generated via the translation pipeline.
+     *
+     * @return array<int, string>
+     */
+    private function resolveTranslationLocales(): array
+    {
+        $configured = config('services.translation_locales', ['en', 'fr']);
+
+        if (is_string($configured)) {
+            $configured = explode(',', $configured);
+        }
+
+        if (! is_array($configured)) {
+            return ['en', 'fr'];
+        }
+
+        $normalized = array_values(array_unique(array_filter(array_map(
+            fn ($locale) => strtolower(trim((string) $locale)),
+            $configured
+        ), fn ($locale) => $locale !== '')));
+
+        return $normalized === [] ? ['en', 'fr'] : $normalized;
+    }
+
+    private function resolveTranslationSourceLocale(): string
+    {
+        $source = strtolower(trim((string) config('services.translation_source_locale', 'en')));
+
+        return $source !== '' ? $source : 'en';
     }
 
     private function resolvePid(array $productData): string
