@@ -174,6 +174,7 @@ class CheckoutController extends Controller
                 'currency' => $cart[0]['currency'] ?? 'USD',
                 'subtotal' => $subtotal,
                 'shipping_total' => $shippingTotal,
+                'shipping_total_estimated' => $shippingTotal,
                 'tax_total' => $taxTotal,
                 'discount_total' => $discount,
                 'grand_total' => $grandTotal,
@@ -363,16 +364,15 @@ class CheckoutController extends Controller
                 ?? $provider->settings['warehouse_id'] 
                 ?? null;
             
-            $quote = app(CJFreightService::class)->quote($destination, $items, [
+            $options = app(CJFreightService::class)->quote($destination, $items, [
                 'warehouseId' => $warehouseId,
                 'logisticsType' => $provider->settings['logistics_type'] ?? null,
             ]);
-
-            $first = $quote[0] ?? null;
+            $first = $options[0] ?? null;
             if ($first) {
                 return [
-                    'shipping_total' => (float) ($first['freight'] ?? 0),
-                    'shipping_method' => $first['shippingMethodName'] ?? ($provider->settings['shipping_method'] ?? 'standard'),
+                    'shipping_total' => (float) ($first['price'] ?? 0),
+                    'shipping_method' => $first['logisticName'] ?? ($provider->settings['shipping_method'] ?? 'standard'),
                 ];
             }
         } catch (\Throwable $e) {

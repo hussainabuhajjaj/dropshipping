@@ -52,7 +52,37 @@ class CJFreightService
                 $data = $this->callFreight($payload, true); // fallback to tip endpoint
             }
 
-            return $data;
+            // Normalize into list of options: logisticName, price, estimatedDays
+            $normalized = collect(is_array($data) ? $data : [])
+                ->map(function ($entry) {
+                    $logistic = $entry['logisticName'] ?? $entry['logisticsName'] ?? $entry['shippingMethodName'] ?? null;
+                    $price = isset($entry['freight']) ? (float) $entry['freight'] : (isset($entry['price']) ? (float) $entry['price'] : null);
+                    $currency = $entry['currency'] ?? $entry['currencyCode'] ?? null;
+                    $minDays = $entry['dayMin'] ?? $entry['minDay'] ?? null;
+                    $maxDays = $entry['dayMax'] ?? $entry['maxDay'] ?? null;
+                    $eta = null;
+                    if (is_numeric($minDays) || is_numeric($maxDays)) {
+                        $eta = [
+                            'min' => $minDays !== null ? (int) $minDays : null,
+                            'max' => $maxDays !== null ? (int) $maxDays : null,
+                        ];
+                    } elseif (! empty($entry['deliveryTime'])) {
+                        $eta = ['label' => (string) $entry['deliveryTime']];
+                    }
+
+                    return array_filter([
+                        'logisticName' => $logistic,
+                        'price' => $price,
+                        'currency' => $currency,
+                        'estimatedDays' => $eta,
+                        'raw' => $entry,
+                    ], fn ($v) => $v !== null);
+                })
+                ->filter(fn ($opt) => array_key_exists('logisticName', $opt) && array_key_exists('price', $opt))
+                ->values()
+                ->all();
+
+            return $normalized;
         } catch (\Throwable $e) {
             Log::warning('CJ freight quote failed', [
                 'payload' => $payload,

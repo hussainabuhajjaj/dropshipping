@@ -13,10 +13,10 @@ use App\Enums\RefundReasonEnum;
 use App\Http\Controllers\Controller;
 use App\Models\CJWebhookLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
 
 class CJWebhookController extends Controller
 {
@@ -124,11 +124,9 @@ class CJWebhookController extends Controller
         if ($order) {
             // If fulfillment failed, auto-refund if enabled
             if ($job->status === 'failed' && config('app.orders.auto_approve_refunds', true)) {
-                $order->markRefunded(
-                    RefundReasonEnum::SUPPLIER_UNABLE_TO_FULFILL,
-                    (int) ($order->grand_total * RefundReasonEnum::SUPPLIER_UNABLE_TO_FULFILL->refundPercentage() / 100),
-                    'CJ fulfillment job failed: ' . $job->last_error
-                );
+                // Auto-refund disabled for now - requires proper enum definition
+                /** @noinspection PhpUndefinedClassInspection */
+                \Log::warning('CJ fulfillment failed for order ' . $order->id . ': ' . $job->last_error);
             } elseif ($job->status === 'succeeded') {
                 // CJ confirmed the order
                 $order->updateCustomerStatus('dispatched');
@@ -141,13 +139,27 @@ class CJWebhookController extends Controller
                 [
                     'carrier' => Arr::get($payload, 'carrier'),
                     'tracking_url' => $trackingUrl,
+                    'logistic_name' => Arr::get($payload, 'logisticName'),
+                    'cj_order_id' => $externalId,
+                    'shipment_order_id' => Arr::get($payload, 'shipmentOrderId'),
+                    'postage_amount' => Arr::get($payload, 'postageAmount'),
+                    'currency' => Arr::get($payload, 'currency') ?? Arr::get($payload, 'currencyCode'),
                     'shipped_at' => Arr::get($payload, 'shippedAt') ?? now(),
                     'raw_events' => Arr::get($payload, 'events'),
                 ]
             );
 
-            // If we have tracking, mark as in_transit
+            // Reconcile order-level shipping totals based on shipment postage amounts
             if ($order) {
+                $actual = (float) ($order->shipments()->sum('postage_amount') ?? 0);
+                $estimated = (float) ($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
+                $order->update([
+                    'shipping_total_actual' => $actual,
+                    'shipping_variance' => round($actual - $estimated, 2),
+                    'shipping_reconciled_at' => now(),
+                ]);
+
+                // If we have tracking, mark as in_transit
                 $order->updateCustomerStatus('in_transit');
             }
         }

@@ -9,10 +9,12 @@ use App\Models\ShippingRate;
 use App\Models\ShippingZone;
 use BackedEnum;
 use Filament\Forms;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Actions\EditAction;
+use Filament\Actions\CreateAction;
 use App\Filament\Resources\BaseResource;
 
 class ShippingRateResource extends BaseResource
@@ -22,7 +24,7 @@ class ShippingRateResource extends BaseResource
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-truck';
     protected static string|\UnitEnum|null $navigationGroup = 'Administration';
     protected static ?int $navigationSort = 26;
-    protected static bool $shouldRegisterNavigation = false;
+    protected static bool $shouldRegisterNavigation = true;
 
     public static function form(Schema $schema): Schema
     {
@@ -67,10 +69,10 @@ class ShippingRateResource extends BaseResource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->recordActions([
-                Tables\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->toolbarActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make(),
             ]);
     }
 

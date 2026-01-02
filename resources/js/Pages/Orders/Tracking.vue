@@ -92,6 +92,9 @@
         </p>
 
         <p class="text-xs text-slate-500">
+          {{ t('Your order may arrive in multiple packages and tracking numbers may update separately.') }}
+        </p>
+        <p class="text-xs text-slate-500">
           {{ t('Customs: if additional duties are needed, we will notify you before delivery. Standard delivery timelines apply after clearance.') }}
         </p>
         <p class="text-xs text-slate-500">

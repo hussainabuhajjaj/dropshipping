@@ -31,7 +31,7 @@ class ReviewRequestNotification extends Notification implements ShouldQueue
 
         return (new MailMessage())
             ->subject('How was your recent purchase?')
-            ->greeting('We'd love to hear from you')
+            ->greeting('We\'d love to hear from you')
             ->line("Your order #{$orderNumber} has been delivered. How did you like the {$product?->name}?")
             ->action('Write a Review', $reviewUrl)
             ->line('Your feedback helps other customers make informed decisions.');

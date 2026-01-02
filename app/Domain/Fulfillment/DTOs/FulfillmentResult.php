@@ -9,6 +9,11 @@ class FulfillmentResult
     public function __construct(
         public string $status,
         public ?string $externalReference = null,
+        public ?string $cjOrderId = null,
+        public ?string $shipmentOrderId = null,
+        public ?string $logisticName = null,
+        public ?string $currency = null,
+        public ?float $postageAmount = null,
         public ?string $trackingNumber = null,
         public ?string $trackingUrl = null,
         public array $rawResponse = [],

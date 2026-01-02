@@ -82,6 +82,7 @@
             {{ t('Place order') }}
           </button>
         </form>
+        </div>
 
         <aside class="card-muted space-y-4 p-5">
           <div class="flex items-center justify-between text-sm">
@@ -98,6 +99,9 @@
             </span>
             <span class="text-slate-600">{{ currency }} {{ shipping.toFixed(2) }}</span>
           </div>
+          <p class="text-[0.65rem] text-slate-500">
+            {{ t('Your order may arrive in multiple packages and tracking numbers may update separately.') }}
+          </p>
           <p class="text-[0.65rem] text-slate-500">
             {{ t('Shipping costs are estimated until you provide an address; the total will refresh before payment once final rates are fetched.') }}
           </p>
@@ -142,18 +146,6 @@ const props = defineProps({
   shipping: { type: Number, default: 0 },
   stripeKey: { type: String, default: '' },
   paystackKey: { type: String, default: '' },
-})
-  total: { type: Number, default: 0 },
-  currency: { type: String, default: 'USD' },
-  shipping_method: { type: String, default: 'standard' },
-  discount: { type: Number, default: 0 },
-  coupon: { type: Object, default: null },
-  tax_total: { type: Number, default: 0 },
-  tax_label: { type: String, default: 'Tax' },
-  tax_included: { type: Boolean, default: false },
-  user: { type: Object, default: null },
-  defaultAddress: { type: Object, default: null },
-  shipping: { type: Number, default: 0 },
 })
 
 const { t } = useTranslations()

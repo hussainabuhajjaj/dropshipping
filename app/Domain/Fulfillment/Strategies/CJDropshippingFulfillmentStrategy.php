@@ -45,7 +45,8 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
             'consigneeID' => null,
             'payType' => $providerSettings['pay_type'] ?? 3,
             'shopAmount' => null,
-            'logisticName' => $providerSettings['shipping_method'] ?? 'PostNL',
+            // Use order-selected logisticName when available to keep coherence with freight quote
+            'logisticName' => $data->orderItem->order?->shipping_method ?? ($providerSettings['shipping_method'] ?? 'PostNL'),
             'fromCountryCode' => $fromCountry,
             'houseNumber' => null,
             'iossType' => $providerSettings['ioss_type'] ?? null,
@@ -81,10 +82,19 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         $externalId = Arr::get($body, 'data.orderId') ?? Arr::get($body, 'data.orderNumber');
         $trackingNumber = Arr::get($body, 'data.trackingNumber');
         $trackingUrl = Arr::get($body, 'data.trackingUrl');
+        $postageAmount = Arr::get($body, 'data.postageAmount');
+        $currency = Arr::get($body, 'data.currency') ?? Arr::get($body, 'data.currencyCode');
+        $logisticName = Arr::get($body, 'data.logisticName');
+        $shipmentOrderId = Arr::get($body, 'data.shipmentOrderId');
 
         return new FulfillmentResult(
             status: $success ? 'succeeded' : 'needs_action',
             externalReference: $externalId,
+            cjOrderId: $externalId,
+            shipmentOrderId: $shipmentOrderId,
+            logisticName: $logisticName ?? $payload['logisticName'] ?? null,
+            currency: $currency,
+            postageAmount: is_numeric($postageAmount) ? (float) $postageAmount : null,
             trackingNumber: $trackingNumber,
             trackingUrl: $trackingUrl,
             rawResponse: $body ?? []

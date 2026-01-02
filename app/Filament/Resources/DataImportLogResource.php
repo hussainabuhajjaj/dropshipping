@@ -9,6 +9,7 @@ use App\Models\DataImportLog;
 use BackedEnum;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Actions\Action;
 use UnitEnum;
 
 class DataImportLogResource extends BaseResource
@@ -51,7 +52,7 @@ class DataImportLogResource extends BaseResource
                     ->sortable(),
             ])
             ->recordActions([
-                Tables\Actions\Action::make('details')
+                Action::make('details')
                     ->label('Details')
                     ->icon('heroicon-o-eye')
                     ->modalHeading('Import summary')

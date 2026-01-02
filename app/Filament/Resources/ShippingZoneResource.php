@@ -8,10 +8,12 @@ use App\Filament\Resources\ShippingZoneResource\Pages;
 use App\Models\ShippingZone;
 use BackedEnum;
 use Filament\Forms;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Actions\EditAction;
+use Filament\Actions\CreateAction;
 use App\Filament\Resources\BaseResource;
 
 class ShippingZoneResource extends BaseResource
@@ -61,10 +63,10 @@ class ShippingZoneResource extends BaseResource
                 Tables\Filters\TernaryFilter::make('is_active'),
             ])
             ->recordActions([
-                Tables\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->toolbarActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make(),
             ]);
     }
 

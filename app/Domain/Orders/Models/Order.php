@@ -36,6 +36,10 @@ class Order extends Model
         'currency',
         'subtotal',
         'shipping_total',
+        'shipping_total_estimated',
+        'shipping_total_actual',
+        'shipping_reconciled_at',
+        'shipping_variance',
         'tax_total',
         'discount_total',
         'grand_total',
@@ -49,12 +53,21 @@ class Order extends Model
         'coupon_code',
         'placed_at',
         'refunded_at',
+        'policies_version',
+        'policies_hash',
+        'policies_accepted_at',
     ];
 
     protected $casts = [
         'placed_at' => 'datetime',
         'refunded_at' => 'datetime',
+        'shipping_reconciled_at' => 'datetime',
+        'policies_accepted_at' => 'datetime',
         'is_guest' => 'boolean',
+        'shipping_total' => 'decimal:2',
+        'shipping_total_estimated' => 'decimal:2',
+        'shipping_total_actual' => 'decimal:2',
+        'shipping_variance' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'refund_reason' => RefundReasonEnum::class,
     ];
@@ -89,6 +102,21 @@ class Order extends Model
         return $this->hasMany(OrderEvent::class);
     }
 
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    public function chargebackCases(): HasMany
+    {
+        return $this->hasMany(ChargebackCase::class);
+    }
+
+    public function messageLogs(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Messaging\Models\MessageLog::class);
+    }
+
     public function paymentEvents(): HasManyThrough
     {
         return $this->hasManyThrough(\App\Domain\Payments\Models\PaymentEvent::class, Payment::class);
@@ -99,7 +127,7 @@ class Order extends Model
         return $this->hasManyThrough(\App\Domain\Fulfillment\Models\FulfillmentEvent::class, OrderItem::class);
     }
 
-    public function shipments(): HasMany
+    public function shipments(): HasManyThrough
     {
         return $this->hasManyThrough(Shipment::class, OrderItem::class, 'order_id', 'order_item_id');
     }

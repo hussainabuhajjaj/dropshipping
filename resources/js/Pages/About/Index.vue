@@ -88,12 +88,4 @@ defineProps({
     default: 'Learn more about our story, mission, and values.',
   },
 });
-  </StorefrontLayout>
-</template>
-
-<script setup>
-import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
-import { useTranslations } from '@/i18n'
-
-const { t } = useTranslations()
 </script>

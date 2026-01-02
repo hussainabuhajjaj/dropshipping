@@ -11,13 +11,13 @@ use Filament\Actions\BulkActionGroup as ActionsBulkActionGroup;
 use Filament\Actions\DeleteBulkAction as ActionsDeleteBulkAction;
 use Filament\Actions\EditAction as ActionsEditAction;
 use Filament\Forms;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use App\Filament\Resources\BaseResource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Tables\Table;
 
 class FulfillmentProviderResource extends BaseResource

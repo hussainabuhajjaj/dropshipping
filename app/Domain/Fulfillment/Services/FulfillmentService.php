@@ -133,10 +133,32 @@ class FulfillmentService
             [
                 'carrier' => $orderItem->meta['carrier'] ?? null,
                 'tracking_url' => $result->trackingUrl,
+                'logistic_name' => $result->logisticName,
+                'cj_order_id' => $result->cjOrderId,
+                'shipment_order_id' => $result->shipmentOrderId,
+                'postage_amount' => $result->postageAmount,
+                'currency' => $result->currency ?? $orderItem->order?->currency,
                 'shipped_at' => now(),
                 'raw_events' => $result->rawResponse['events'] ?? null,
             ]
         );
+
+        if ($orderItem->order) {
+            $this->reconcileOrderShipping($orderItem->order);
+        }
+    }
+
+    private function reconcileOrderShipping(\App\Domain\Orders\Models\Order $order): void
+    {
+        $actual = (float) ($order->shipments()->sum('postage_amount') ?? 0);
+        $estimated = (float) ($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
+        $variance = round($actual - $estimated, 2);
+
+        $order->update([
+            'shipping_total_actual' => $actual,
+            'shipping_variance' => $variance,
+            'shipping_reconciled_at' => now(),
+        ]);
     }
 
     private function notifyAdminsIssue(OrderItem $orderItem, string $message): void

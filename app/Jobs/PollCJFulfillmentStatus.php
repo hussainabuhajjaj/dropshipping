@@ -40,8 +40,8 @@ class PollCJFulfillmentStatus implements ShouldQueue
         }
 
         $response = $client->orderStatus(['orderIds' => [$job->external_reference]]);
-        $body = $response->json() ?? [];
-        $data = Arr::get($body, 'data.0');
+        $body = is_array($response) ? $response : (isset($response->data) ? $response->data : []);
+        $data = Arr::get($body, '0');
 
         if (! $data) {
             return;
@@ -67,10 +67,26 @@ class PollCJFulfillmentStatus implements ShouldQueue
                 [
                     'carrier' => $data['carrier'] ?? null,
                     'tracking_url' => $trackingUrl,
+                    'cj_order_id' => $job->external_reference,
+                    'logistic_name' => $data['logisticName'] ?? null,
+                    'postage_amount' => is_numeric($data['postageAmount'] ?? null) ? (float) $data['postageAmount'] : null,
+                    'currency' => $job->orderItem->order?->currency,
                     'shipped_at' => $data['shippedAt'] ?? now(),
                     'raw_events' => $data['events'] ?? null,
                 ]
             );
+
+            // Reconcile order shipping after shipment update
+            if ($job->orderItem->order) {
+                $order = $job->orderItem->order;
+                $actual = (float) ($order->shipments()->sum('postage_amount') ?? 0);
+                $estimated = (float) ($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
+                $order->update([
+                    'shipping_total_actual' => $actual,
+                    'shipping_variance' => round($actual - $estimated, 2),
+                    'shipping_reconciled_at' => now(),
+                ]);
+            }
         }
     }
 }

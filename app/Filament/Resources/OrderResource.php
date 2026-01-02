@@ -18,9 +18,9 @@ use App\Filament\Resources\OrderResource\RelationManagers\PaymentEventsRelationM
 use Filament\Actions\BulkActionGroup as ActionsBulkActionGroup;
 use Filament\Actions\DeleteBulkAction as ActionsDeleteBulkAction;
 use Filament\Actions\ViewAction as ActionsViewAction;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\ViewAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 
