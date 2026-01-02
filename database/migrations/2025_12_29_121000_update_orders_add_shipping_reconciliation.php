@@ -12,10 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('orders', function (Blueprint $table) {
-            $table->decimal('shipping_total_estimated', 10, 2)->nullable()->after('shipping_total');
-            $table->decimal('shipping_total_actual', 10, 2)->nullable()->after('shipping_total_estimated');
-            $table->decimal('shipping_variance', 10, 2)->nullable()->after('shipping_total_actual');
-            $table->timestamp('shipping_reconciled_at')->nullable()->after('shipping_variance');
+            if (!Schema::hasColumn('orders', 'shipping_total_estimated')) {
+                $table->decimal('shipping_total_estimated', 10, 2)->nullable()->after('shipping_total');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_total_actual')) {
+                $table->decimal('shipping_total_actual', 10, 2)->nullable()->after('shipping_total_estimated');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_variance')) {
+                $table->decimal('shipping_variance', 10, 2)->nullable()->after('shipping_total_actual');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_reconciled_at')) {
+                $table->timestamp('shipping_reconciled_at')->nullable()->after('shipping_variance');
+            }
         });
     }
 

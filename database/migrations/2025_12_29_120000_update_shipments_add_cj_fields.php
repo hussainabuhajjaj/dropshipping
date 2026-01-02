@@ -12,11 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('shipments', function (Blueprint $table) {
-            $table->string('cj_order_id')->nullable()->after('order_item_id');
-            $table->string('shipment_order_id')->nullable()->after('cj_order_id');
-            $table->string('logistic_name')->nullable()->after('carrier');
-            $table->decimal('postage_amount', 10, 2)->nullable()->after('tracking_url');
-            $table->string('currency', 3)->nullable()->after('postage_amount');
+            if (!Schema::hasColumn('shipments', 'cj_order_id')) {
+                $table->string('cj_order_id')->nullable()->after('order_item_id');
+            }
+            if (!Schema::hasColumn('shipments', 'shipment_order_id')) {
+                $table->string('shipment_order_id')->nullable()->after('cj_order_id');
+            }
+            if (!Schema::hasColumn('shipments', 'logistic_name')) {
+                $table->string('logistic_name')->nullable()->after('carrier');
+            }
+            if (!Schema::hasColumn('shipments', 'postage_amount')) {
+                $table->decimal('postage_amount', 10, 2)->nullable()->after('tracking_url');
+            }
+            if (!Schema::hasColumn('shipments', 'currency')) {
+                $table->string('currency', 3)->nullable()->after('postage_amount');
+            }
         });
     }
 

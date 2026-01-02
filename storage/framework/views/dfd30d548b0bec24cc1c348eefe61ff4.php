@@ -31,7 +31,7 @@ unset($__defined_vars, $__key, $__value); ?>
 <div class="flex flex-col gap-3">
     <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Headers</h2>
     <div class="flex flex-col">
-        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $headers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+        <?php $__currentLoopData = $headers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $value): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
         <div class="flex max-w-full items-baseline gap-2 h-10 text-sm font-mono">
             <div class="uppercase text-neutral-500 dark:text-neutral-400 shrink-0"><?php echo e($key); ?></div>
             <div class="min-w-6 grow h-3 border-b-2 border-dotted border-neutral-300 dark:border-white/20"></div>
@@ -42,7 +42,7 @@ unset($__defined_vars, $__key, $__value); ?>
                 </span>
             </div>
         </div>
-        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     </div>
 </div>
 <?php /**PATH E:\laragon\www\dropshipping\vendor\laravel\framework\src\Illuminate\Foundation\Providers/../resources/exceptions/renderer/components/request-header.blade.php ENDPATH**/ ?>

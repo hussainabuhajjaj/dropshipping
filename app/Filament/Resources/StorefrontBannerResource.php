@@ -62,6 +62,7 @@ class StorefrontBannerResource extends BaseResource
                         ->label('Banner Image')
                         ->image()
                         ->directory('banners')
+                        ->disk('public')
                         ->maxSize(5120)
                         ->imageEditor()
                         ->imageEditorAspectRatios([

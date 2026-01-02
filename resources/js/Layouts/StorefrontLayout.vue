@@ -846,7 +846,7 @@ onBeforeUnmount(() => {
 }
 
 .bg-brand-glow {
-  background: linear-gradient(135deg, #fffdf2, #fff6c5);
+  background: linear-gradient(90deg,rgba(240, 236, 214, 1) 0%, rgba(246, 225, 109, 1) 50%, rgba(245, 149, 15, 1) 100%);
 }
 
 .text-brand-strong {

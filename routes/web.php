@@ -33,6 +33,7 @@ use App\Http\Middleware\VerifyTrackingWebhookSignature;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\AliExpressOAuthController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/locale/{locale}', function (string $locale, Request $request) {
@@ -159,5 +160,9 @@ Route::middleware('auth:customer')->group(function () {
     Route::post('/account/wishlist', [WishlistController::class, 'store'])->name('account.wishlist.store');
     Route::delete('/account/wishlist/{product}', [WishlistController::class, 'destroy'])->name('account.wishlist.destroy');
 });
+
+Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'redirect'])->name('aliexpress.oauth.redirect');
+Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
+Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
 
 require __DIR__.'/auth.php';
