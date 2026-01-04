@@ -35,6 +35,26 @@ use Illuminate\Support\Str;
 
 class ProductResource extends BaseResource
 {
+    // Livewire property for imported products count (read from cache)
+    public static function getImportedCount(): int
+    {
+        return \Illuminate\Support\Facades\Cache::get('cj_my_products_imported_count', 0);
+    }
+
+    // Key for tracking global product sync job status in cache
+    protected static string $globalSyncStatusCacheKey = 'product_global_sync_status';
+
+    // Get the current global sync status from cache
+    public static function getGlobalSyncStatus(): string
+    {
+        return \Illuminate\Support\Facades\Cache::get(self::$globalSyncStatusCacheKey, 'Idle');
+    }
+
+    // Set the global sync status in cache
+    public static function setGlobalSyncStatus(string $status): void
+    {
+        \Illuminate\Support\Facades\Cache::put(self::$globalSyncStatusCacheKey, $status, now()->addMinutes(30));
+    }
     protected static ?string $model = Product::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
@@ -224,8 +244,18 @@ class ProductResource extends BaseResource
 
     public static function table(Table $table): Table
     {
+        $globalSyncStatus = self::getGlobalSyncStatus();
+        $importedCount = self::getImportedCount();
         return $table
             ->columns([
+                Tables\Columns\ViewColumn::make('imported_count')
+                    ->view('filament.tables.columns.imported-count')
+                    ->label('Imported Count')
+                    ->visible(fn () => true),
+                Tables\Columns\ViewColumn::make('global_sync_status')
+                    ->view('filament.tables.columns.global-sync-status')
+                    ->label('Global Sync Status')
+                    ->visible(fn () => true),
                 Tables\Columns\ImageColumn::make('primary_image')
                     ->label('Image')
                     ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
@@ -639,31 +669,44 @@ class ProductResource extends BaseResource
 
                             $records->load('variants');
 
-                            $records->each(function (Product $record) use ($margin, $applyVariants): void {
+                            $updated = 0;
+                            $skipped = 0;
+                            $variantUpdated = 0;
+                            $variantSkipped = 0;
+
+                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped): void {
                                 if (! is_numeric($record->cost_price)) {
+                                    $skipped++;
                                     return;
                                 }
 
                                 $record->update([
                                     'selling_price' => round(((float) $record->cost_price) * (1 + $margin / 100), 2),
                                 ]);
+                                $updated++;
 
                                 if ($applyVariants) {
-                                    $record->variants->each(function ($variant) use ($margin): void {
+                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped): void {
                                         if (! is_numeric($variant->cost_price)) {
+                                            $variantSkipped++;
                                             return;
                                         }
-
                                         $variant->update([
                                             'price' => round(((float) $variant->cost_price) * (1 + $margin / 100), 2),
                                         ]);
+                                        $variantUpdated++;
                                     });
                                 }
                             });
 
+                            $body = "Updated $updated product(s) and $variantUpdated variant(s).";
+                            if ($skipped > 0 || $variantSkipped > 0) {
+                                $body .= " Skipped $skipped product(s) and $variantSkipped variant(s) due to missing or invalid cost price.";
+                            }
+
                             Notification::make()
-                                ->title('Margin updated')
-                                ->body('Updated prices based on margin percent.')
+                                ->title('Margin update complete')
+                                ->body($body)
                                 ->success()
                                 ->send();
                         }),

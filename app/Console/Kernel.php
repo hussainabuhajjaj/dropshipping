@@ -47,6 +47,9 @@ class Kernel extends ConsoleKernel
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
         // Request product reviews (7 days after delivery)
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
+
+        // Auto-approve pending CJ fulfillment items (every 10 minutes)
+        $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
     }
 
     protected function commands(): void

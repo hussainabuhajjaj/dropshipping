@@ -162,15 +162,34 @@ class AliExpressImport extends Page implements HasForms
                 return;
             }
 
-            $response = \Illuminate\Support\Facades\Http::asForm()->post(
-                'https://api-sg.aliexpress.com/rest/auth/token/create',
-                [
-                    'grant_type' => 'refresh_token',
-                    'refresh_token' => $token->refresh_token,
-                    'client_id' => config('ali_express.client_id'),
-                    'client_secret' => config('ali_express.client_secret'),
-                ]
-            );
+            $apiPath = '/auth/token/create';
+            $params = [
+                'client_id' => config('ali_express.client_id'),
+                'refresh_token' => $token->refresh_token,
+                'sign_method' => 'sha256',
+                'timestamp' => $this->getAliExpressTimestampMillis(),
+            ];
+            // Sort params by key
+            ksort($params);
+            // Concatenate for signature
+            $signString = $apiPath;
+            foreach ($params as $key => $value) {
+                $signString .= $key . $value;
+            }
+            $appSecret = config('ali_express.client_secret');
+            $sign = hash('sha256', $signString . $appSecret);
+            $params['sign'] = strtoupper($sign);
+            // Build query string
+            $query = http_build_query($params);
+            $url = 'https://api-sg.aliexpress.com/rest/' . $apiPath . '?' . $query;
+            $response = \Illuminate\Support\Facades\Http::get($url);
+    /**
+     * Get current UTC timestamp in milliseconds
+     */
+     function getAliExpressTimestampMillis(): string
+    {
+        return (string) round(microtime(true) * 1000);
+    }
 
             $data = $response->json();
             if (!isset($data['access_token'])) {

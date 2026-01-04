@@ -65,8 +65,22 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         ];
 
         try {
-            $response = $this->client->createOrderV3($payload);
-            $body = $this->validatedResponse($response, 'CJ order create failed');
+            // Try endpoints in order: v2, v3, then legacy /order/create
+            try {
+                Log::info('Attempting CJ order creation with v2 endpoint', ['order_number' => $data->orderItem->order?->number]);
+                $response = $this->client->createOrderV2($payload);
+                $body = $this->validatedResponse($response, 'CJ order create v2 failed');
+            } catch (\Throwable $e1) {
+                try {
+                    Log::info('V2 endpoint failed, trying V3', ['error' => $e1->getMessage()]);
+                    $response = $this->client->createOrderV3($payload);
+                    $body = $this->validatedResponse($response, 'CJ order create v3 failed');
+                } catch (\Throwable $e2) {
+                    Log::info('V3 endpoint failed, trying legacy /order/create', ['error' => $e2->getMessage()]);
+                    $response = $this->client->createOrder($payload);
+                    $body = $this->validatedResponse($response, 'CJ order create failed');
+                }
+            }
         } catch (\Throwable $e) {
             Log::warning('CJ fulfillment dispatch failed', [
                 'order_item_id' => $data->orderItem->id,
@@ -86,6 +100,46 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         $currency = Arr::get($body, 'data.currency') ?? Arr::get($body, 'data.currencyCode');
         $logisticName = Arr::get($body, 'data.logisticName');
         $shipmentOrderId = Arr::get($body, 'data.shipmentOrderId');
+
+        // PHASE 2: Confirm order to finalize costs and get final payId requirements
+        if ($externalId && $success) {
+            try {
+                Log::info('Confirming CJ order', [
+                    'order_number' => $data->orderItem->order?->number,
+                    'cj_order_id' => $externalId,
+                ]);
+
+                $confirmResponse = $this->client->confirmOrder($externalId);
+                $confirmBody = $this->validatedResponse($confirmResponse, 'CJ order confirm failed');
+
+                // Merge confirmed data with creation data
+                $body['data'] = array_merge($body['data'] ?? [], $confirmBody['data'] ?? []);
+
+                Log::info('CJ order confirmed', [
+                    'order_id' => $externalId,
+                    'confirm_response' => $confirmBody,
+                ]);
+
+            } catch (\Throwable $confirmError) {
+                Log::warning('CJ order confirmation failed, proceeding with creation data', [
+                    'error' => $confirmError->getMessage(),
+                ]);
+                // Don't fail completely if confirmation fails - still have creation data
+            }
+        }
+
+        // Update order with CJ tracking info if we have an order
+        if ($data->orderItem->order && $externalId) {
+            $data->orderItem->order->update([
+                'cj_order_id' => $externalId,
+                'cj_shipment_order_id' => $shipmentOrderId,
+                'cj_order_status' => 'confirmed',
+                'cj_order_created_at' => now(),
+                'cj_confirmed_at' => now(),
+                'cj_amount_due' => is_numeric($postageAmount) ? (float) $postageAmount : null,
+                'cj_payment_status' => 'pending',  // Ready for payment
+            ]);
+        }
 
         return new FulfillmentResult(
             status: $success ? 'succeeded' : 'needs_action',

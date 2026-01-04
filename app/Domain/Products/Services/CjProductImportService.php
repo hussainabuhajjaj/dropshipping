@@ -94,8 +94,16 @@ class CjProductImportService
 
         $name = $productData['productNameEn'] ?? $productData['productName'] ?? ($productData['name'] ?? 'CJ Product');
         $slug = Str::slug($name . '-' . $pid);
+        // Use first variant price if available, else fallback to productSellPrice
+        $firstVariantPrice = null;
+        if (is_array($variants) && count($variants) > 0) {
+            $first = $variants[0];
+            if (isset($first['variantSellPrice']) && is_numeric($first['variantSellPrice'])) {
+                $firstVariantPrice = (float) $first['variantSellPrice'];
+            }
+        }
         $price = $productData['productSellPrice'] ?? null;
-        $priceValue = is_numeric($price) ? (float) $price : null;
+        $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float) $price : null);
         $incomingDescription = $this->mediaService->cleanDescription(
             $productData['descriptionEn']
                 ?? $productData['productDescriptionEn']

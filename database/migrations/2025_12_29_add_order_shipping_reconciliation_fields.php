@@ -13,10 +13,18 @@ return new class extends Migration
     {
         // Add order-level shipping reconciliation fields
         Schema::table('orders', function (Blueprint $table) {
-            $table->decimal('shipping_total_estimated', 10, 2)->nullable()->after('shipping_total')->comment('Shipping quoted at checkout');
-            $table->decimal('shipping_total_actual', 10, 2)->nullable()->after('shipping_total_estimated')->comment('Sum of actual CJ postage from shipments');
-            $table->decimal('shipping_variance', 10, 2)->nullable()->after('shipping_total_actual')->comment('Difference: actual - estimated');
-            $table->timestamp('shipping_reconciled_at')->nullable()->after('shipping_variance')->comment('When reconciliation was last updated');
+            if (!Schema::hasColumn('orders', 'shipping_total_estimated')) {
+                $table->decimal('shipping_total_estimated', 10, 2)->nullable()->after('shipping_total')->comment('Shipping quoted at checkout');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_total_actual')) {
+                $table->decimal('shipping_total_actual', 10, 2)->nullable()->after('shipping_total_estimated')->comment('Sum of actual CJ postage from shipments');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_variance')) {
+                $table->decimal('shipping_variance', 10, 2)->nullable()->after('shipping_total_actual')->comment('Difference: actual - estimated');
+            }
+            if (!Schema::hasColumn('orders', 'shipping_reconciled_at')) {
+                $table->timestamp('shipping_reconciled_at')->nullable()->after('shipping_variance')->comment('When reconciliation was last updated');
+            }
         });
     }
 

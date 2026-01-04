@@ -88,15 +88,12 @@
           />
         </div>
         <div class="flex items-center gap-2">
-          <button
-            type="button"
+          <Link
+            :href="`/products/${product.slug}`"
             class="btn-secondary px-3 py-2 text-xs bg-[#29ab87] text-white hover:bg-[#2aaa8a]"
-            :class="{ 'cursor-not-allowed opacity-60': !product.is_active || form.processing }"
-            :disabled="!product.is_active || form.processing"
-            @click="handleQuickAdd"
           >
-            {{ form.processing ? t('Adding...') : t('Quick add') }}
-          </button>
+            {{ t('View product') }}
+          </Link>
           <span
             class="text-xs font-semibold uppercase tracking-[0.2em] text-[#29ab87]"
             v-if="wishlistProcessing.value"
@@ -218,18 +215,7 @@ const addToCart = () => {
   form.post('/cart', { preserveScroll: true })
 }
 
-const handleQuickAdd = () => {
-  if (! props.product.is_active) {
-    return
-  }
-
-  if (props.product.variants?.length > 1) {
-    variantModalOpen.value = true
-    return
-  }
-
-  addToCart()
-}
+// Removed quick add logic. Add to cart only from product details page.
 
 const addToWishlist = () => {
   if (wishlistProcessing.value) {

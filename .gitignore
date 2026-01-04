@@ -18,6 +18,8 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/framework/views
+/storage/framework/cache
 /vendor
 Homestead.json
 Homestead.yaml
@@ -26,3 +28,4 @@ Thumbs.db
 *.bat
 /mobile
 *.txt
+/docs

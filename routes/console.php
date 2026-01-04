@@ -191,44 +191,18 @@ Artisan::command('cj:sync-products {--start-page=1} {--pages=1} {--page-size=24}
     }
 })->purpose('Sync CJ products into local snapshots');
 
-Artisan::command('cj:sync-my-products {--start-page=1} {--page-size=24} {--max-pages=50} {--force-update}', function () {
+
+Artisan::command('cj:sync-my-products-job {--start-page=1} {--page-size=24} {--max-pages=50}', function () {
     $start = (int) $this->option('start-page');
     $pageSize = (int) $this->option('page-size');
     $maxPages = (int) $this->option('max-pages');
-    $forceUpdate = (bool) $this->option('force-update');
 
-    $importer = app(CjProductImportService::class);
-
-    $startedAt = microtime(true);
-
-    try {
-        $summary = $importer->syncMyProducts($start, $pageSize, $maxPages, $forceUpdate);
-    } catch (\App\Services\Api\ApiException $e) {
-        $this->error("CJ sync failed: {$e->getMessage()}");
-        return;
+    for ($page = $start; $page < $start + $maxPages; $page++) {
+        \App\Jobs\SyncCjMyProductsJob::dispatch($page, $pageSize);
+        $this->info("Dispatched SyncCjMyProductsJob for page {$page} (size {$pageSize})");
     }
-
-    $duration = microtime(true) - $startedAt;
-    $message = sprintf(
-        'Synced %d product(s) (processed %d, errors %d) in %.2fs.',
-        $summary['imported'],
-        $summary['processed'],
-        $summary['errors'],
-        $duration
-    );
-
-    $this->info($message);
-
-    $settings = SiteSetting::query()->first();
-    if (! $settings) {
-        $settings = SiteSetting::create([]);
-    }
-
-    $settings->update([
-        'cj_last_sync_at' => now(),
-        'cj_last_sync_summary' => $message,
-    ]);
-})->purpose('Sync CJ My Products into the local catalog');
+    $this->info('All jobs dispatched. Monitor logs for progress.');
+})->purpose('Queue CJ My Products import jobs (skips already imported products)');
 
 Schedule::command('cj:sync-my-products')->hourly()->name('cj:sync-my-products');
 

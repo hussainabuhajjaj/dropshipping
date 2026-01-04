@@ -56,6 +56,23 @@ class OrderItemsRelationManager extends RelationManager
             ->filters([])
             ->headerActions([])
             ->recordActions([
+                Action::make('approveCjFulfillment')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->visible(fn ($record) => $record->fulfillmentProvider && $record->fulfillmentProvider->code === 'cj' && $record->fulfillment_status === 'pending')
+                    ->action(function ($record): void {
+                        \App\Jobs\DispatchFulfillmentJob::dispatch($record->id);
+                        $record->update(['fulfillment_status' => 'fulfilling']);
+                        \App\Domain\Orders\Models\OrderAuditLog::create([
+                            'order_id' => $record->order_id,
+                            'user_id' => auth()->id(),
+                            'action' => 'cj_fulfillment_approved',
+                            'note' => 'CJ fulfillment approved by admin',
+                            'payload' => ['order_item_id' => $record->id],
+                        ]);
+                    }),
                Action::make('dispatchFulfillment')
                     ->label('Dispatch')
                     ->icon('heroicon-o-paper-airplane')

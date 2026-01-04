@@ -18,7 +18,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('product_reviews', function (Blueprint $table) {
-            $table->dropColumn('status');
+            if (Schema::hasColumn('product_reviews', 'status')) {
+                $table->dropColumn('status');
+            }
         });
     }
 };

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Domain\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Fulfillment\Contracts\FulfillmentStrategy;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
@@ -16,6 +17,11 @@ class FulfillmentServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(FulfillmentSelector::class);
+
+        // Bind CJDropshippingClient to use fromConfig() factory method
+        $this->app->singleton(CJDropshippingClient::class, function () {
+            return CJDropshippingClient::fromConfig();
+        });
 
         $this->app->bind(FulfillmentStrategy::class, function (Container $app, array $context) {
             /** @var FulfillmentProvider|null $provider */

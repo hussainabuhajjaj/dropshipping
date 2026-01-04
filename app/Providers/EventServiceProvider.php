@@ -80,5 +80,6 @@ class EventServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Product::observe(ProductObserver::class);
+        \App\Domain\Orders\Models\Order::observe(\App\Observers\OrderObserver::class);
     }
 }

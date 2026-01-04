@@ -26,6 +26,36 @@ use UnitEnum;
 
 class CJMyProducts extends Page implements HasTable
 {
+    // Livewire property for imported products count (read from cache)
+    public int $importedCount = 0;
+
+    // Key for tracking sync job status in cache
+    protected string $syncStatusCacheKey = 'cj_my_products_sync_status';
+
+    // Livewire property for UI
+    public string $syncStatusLabel = 'Idle';
+
+    public function getImportedCount(): int
+    {
+        return \Illuminate\Support\Facades\Cache::get('cj_my_products_imported_count', 0);
+    }
+
+    public function updated(): void
+    {
+        $this->importedCount = $this->getImportedCount();
+    }
+
+    // Get the current sync status from cache
+    public function getSyncStatus(): string
+    {
+        return \Illuminate\Support\Facades\Cache::get($this->syncStatusCacheKey, 'Idle');
+    }
+
+    // Set the sync status in cache
+    public function setSyncStatus(string $status): void
+    {
+        \Illuminate\Support\Facades\Cache::put($this->syncStatusCacheKey, $status, now()->addMinutes(30));
+    }
     use InteractsWithTable;
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-rectangle-stack';
@@ -242,6 +272,7 @@ class CJMyProducts extends Page implements HasTable
         $settings = SiteSetting::query()->first();
         $this->lastSyncAt = $settings?->cj_last_sync_at?->toDateTimeString();
         $this->lastSyncSummary = $settings?->cj_last_sync_summary;
+        $this->syncStatusLabel = $this->getSyncStatus();
     }
 
     protected function table(Table $table): Table
@@ -355,11 +386,17 @@ class CJMyProducts extends Page implements HasTable
                     ->icon('heroicon-o-arrow-path')
                     ->color('primary')
                     ->action(function (): void {
-                        Artisan::call('cj:sync-catalog');
-                        Notification::make()
+                        $this->setSyncStatus('Queued');
+                        \Illuminate\Support\Facades\Artisan::call('cj:sync-my-products-job', [
+                            '--start-page' => 1,
+                            '--page-size' => 50,
+                            '--max-pages' => 10, // adjust as needed
+                        ]);
+                        $this->setSyncStatus('Running');
+                        \Filament\Notifications\Notification::make()
                             ->success()
-                            ->title('CJ catalog sync completed')
-                            ->body('Refresh the list to see the latest catalog state.')
+                            ->title('CJ My Products sync jobs dispatched')
+                            ->body('Sync jobs have been queued. Check status below.')
                             ->send();
                         $this->loadSyncInfo();
                     }),

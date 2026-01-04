@@ -17,7 +17,7 @@ class CJDropshippingClient
         private readonly string $baseUrl,
         private readonly string $appId,
         private readonly string $apiKey,
-        private readonly string $apiSecret,
+        private readonly string $apiSecret = '',
         private readonly ?string $platformToken = null,
         private readonly int $timeoutSeconds = 10,
     ) {
@@ -400,13 +400,15 @@ class CJDropshippingClient
     private function sign(int $timestamp, string $body): string
     {
         $data = $timestamp . $body;
-        return Str::lower(hash_hmac('sha256', $data, $this->apiSecret));
+        // Use apiKey as secret if apiSecret is empty (CJ API doesn't use separate secret)
+        $secret = $this->apiSecret ?: $this->apiKey;
+        return Str::lower(hash_hmac('sha256', $data, $secret));
     }
 
     private function assertConfigured(): void
     {
-        if ($this->baseUrl === '' || $this->appId === '' || $this->apiKey === '' || $this->apiSecret === '') {
-            throw new \RuntimeException('CJdropshipping configuration is missing (base_url/app_id/api_key/api_secret).');
+        if ($this->baseUrl === '' || $this->appId === '' || $this->apiKey === '') {
+            throw new \RuntimeException('CJdropshipping configuration is missing (base_url/app_id/api_key).');
         }
     }
 

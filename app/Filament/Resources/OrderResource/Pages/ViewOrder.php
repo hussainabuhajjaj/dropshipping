@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Filament\Resources\OrderResource;
-use App\Models\Order;
+use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderAuditLog;
 use App\Domain\Observability\EventLogger;
 use App\Domain\Payments\PaymentService;

@@ -252,11 +252,56 @@ class ExpressCheckoutController extends Controller
 
     private function quoteShipping(array $cart, array $addressData): array
     {
-        // Simplified shipping quote - integrate with CJ or your shipping provider
-        return [
-            'shipping_total' => 15.00,
-            'shipping_method' => 'standard',
-        ];
+        // Integrate with CJ Dropshipping API for real shipping quote
+        try {
+            // Find first line with CJ product info
+            $line = collect($cart)->first(fn($l) => !empty($l['cj_pid']) && !empty($l['cj_vid']));
+            if (!$line) {
+                return [
+                    'shipping_total' => 0,
+                    'shipping_method' => 'unavailable',
+                    'error' => 'No CJ product in cart',
+                ];
+            }
+
+            $payload = [
+                'productList' => [[
+                    'pid' => $line['cj_pid'],
+                    'vid' => $line['cj_vid'],
+                    'num' => $line['quantity'],
+                ]],
+                'country' => $addressData['country'] ?? '',
+                'province' => $addressData['state'] ?? '',
+                'city' => $addressData['city'] ?? '',
+                'address' => $addressData['line1'] ?? '',
+                'zip' => $addressData['postal_code'] ?? '',
+            ];
+
+            // Use domain client for freightCalculate
+            $cj = \App\Domain\Fulfillment\Clients\CJDropshippingClient::fromConfig();
+            $resp = $cj->freightCalculate($payload);
+            $data = $resp->data ?? [];
+            if (!empty($data['freightList']) && is_array($data['freightList'])) {
+                $best = collect($data['freightList'])->sortBy('freight')->first();
+                return [
+                    'shipping_total' => (float) ($best['freight'] ?? 0),
+                    'shipping_method' => $best['logisticName'] ?? 'CJ',
+                    'freightList' => $data['freightList'],
+                ];
+            }
+            return [
+                'shipping_total' => 0,
+                'shipping_method' => 'unavailable',
+                'error' => $data['msg'] ?? 'No shipping options',
+            ];
+        } catch (\Throwable $e) {
+            \Log::error('CJ shipping quote failed', ['error' => $e->getMessage()]);
+            return [
+                'shipping_total' => 0,
+                'shipping_method' => 'unavailable',
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     private function calculateDiscounts(array $cart, ?array $coupon, $customer, float $subtotal): array

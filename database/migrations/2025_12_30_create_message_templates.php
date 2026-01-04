@@ -32,7 +32,7 @@ return new class extends Migration
             $table->json('required_placeholders')->nullable()->comment('Placeholders required: ["order_number", "tracking_number"]');
             $table->json('available_placeholders')->nullable()->comment('All available placeholders for this template');
             $table->enum('default_channel', ['email', 'whatsapp', 'sms'])->default('email')->comment('Default send channel');
-            $table->json('enabled_channels')->default(json_encode(['email']))->comment('Channels this template supports');
+            $table->json('enabled_channels')->comment('Channels this template supports');
             $table->boolean('is_active')->default(true)->index();
             $table->boolean('send_automatically')->default(false)->comment('Send on trigger automatically');
             $table->json('trigger_types')->nullable()->comment('Auto-send triggers: ["shipment_delayed", "customs_hold"]');

@@ -145,6 +145,11 @@ class FulfillmentService
 
         if ($orderItem->order) {
             $this->reconcileOrderShipping($orderItem->order);
+            
+            // Queue CJ payment after shipment recorded
+            if ($orderItem->order->cj_order_id) {
+                \App\Jobs\PayCJBalanceJob::dispatch($orderItem->order->id);
+            }
         }
     }
 

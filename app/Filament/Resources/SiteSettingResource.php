@@ -157,7 +157,13 @@ class SiteSettingResource extends BaseResource
                         ->options(fn () => FulfillmentProvider::query()->where('is_active', true)->pluck('name', 'id'))
                         ->searchable()
                         ->preload(),
-                ]),
+                    Forms\Components\TextInput::make('cj_auto_approve_delay_hours')
+                        ->label('CJ Auto-Approve Delay (hours)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(24)
+                        ->helperText('Unapproved CJ fulfillment items will be auto-approved after this many hours.'),
+                ])->columns(2),
         ]);
     }
 

@@ -5,6 +5,16 @@
 @endphp
 
 <x-filament-panels::page>
+            <div class="mb-4">
+                <x-filament::badge color="success">
+                    Imported Products: <span wire:poll.2s>{{ $importedCount }}</span>
+                </x-filament::badge>
+            </div>
+        <div class="mb-4">
+            <x-filament::badge color="info">
+                Sync Status: {{ $syncStatusLabel ?? 'Idle' }}
+            </x-filament::badge>
+        </div>
     <div class="space-y-6">
         <x-filament::section
             heading="CJ My Products"

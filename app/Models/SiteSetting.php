@@ -48,6 +48,7 @@ class SiteSetting extends Model
         'auto_approve_review_days',
         'cj_last_sync_at',
         'cj_last_sync_summary',
+        'cj_auto_approve_delay_hours',
     ];
 
     protected $casts = [
@@ -60,8 +61,19 @@ class SiteSetting extends Model
         'cj_last_sync_at' => 'datetime',
         'support_hours' => 'string',
         'about_page_html' => 'string',
-        'logo_path'=>'array'
+        'logo_path' => 'array',
     ];
+
+    // Accessor/mutator for CJ auto-approve delay (hours)
+    public function getCjAutoApproveDelayHoursAttribute(): int
+    {
+        return (int) ($this->attributes['cj_auto_approve_delay_hours'] ?? 24);
+    }
+
+    public function setCjAutoApproveDelayHoursAttribute($value): void
+    {
+        $this->attributes['cj_auto_approve_delay_hours'] = (int) $value;
+    }
 
     public function defaultFulfillmentProvider(): BelongsTo
     {

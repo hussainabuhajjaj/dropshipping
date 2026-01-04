@@ -47,7 +47,7 @@ return new class extends Migration
             $table->string('resolution_code'); // 'customs_cleared', 'reshipped', 'refunded', 'investigating', etc.
             $table->text('admin_notes');
             $table->timestamp('resolved_at');
-            $table->foreignId('resolved_by')->constrained('users')->onDelete('set null');
+            $table->foreignId('resolved_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
 
             $table->index(['shipment_id', 'resolved_at']);

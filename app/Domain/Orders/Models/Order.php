@@ -56,6 +56,19 @@ class Order extends Model
         'policies_version',
         'policies_hash',
         'policies_accepted_at',
+        // CJ Payment tracking
+        'cj_order_id',
+        'cj_shipment_order_id',
+        'cj_order_status',
+        'cj_order_created_at',
+        'cj_confirmed_at',
+        'cj_payment_status',
+        'cj_pay_id',
+        'cj_amount_due',
+        'cj_paid_at',
+        'cj_payment_error',
+        'cj_payment_idempotency_key',
+        'cj_payment_attempts',
     ];
 
     protected $casts = [
@@ -70,6 +83,11 @@ class Order extends Model
         'shipping_variance' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'refund_reason' => RefundReasonEnum::class,
+        // CJ Payment tracking
+        'cj_order_created_at' => 'datetime',
+        'cj_confirmed_at' => 'datetime',
+        'cj_paid_at' => 'datetime',
+        'cj_amount_due' => 'decimal:2',
     ];
 
     public function user(): BelongsTo

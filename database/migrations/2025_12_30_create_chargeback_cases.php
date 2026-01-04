@@ -13,7 +13,7 @@ return new class extends Migration
     {
         // Add policies tracking to orders table
         Schema::table('orders', function (Blueprint $table) {
-            $table->string('policies_version')->nullable()->after('notes')->comment('Version of policies accepted');
+            $table->string('policies_version')->nullable()->after('id')->comment('Version of policies accepted');
             $table->string('policies_hash')->nullable()->after('policies_version')->comment('SHA256 hash of policies accepted');
             $table->timestamp('policies_accepted_at')->nullable()->after('policies_hash')->comment('When policies were accepted');
         });
