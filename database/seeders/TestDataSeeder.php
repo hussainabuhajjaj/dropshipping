@@ -50,7 +50,7 @@ class TestDataSeeder extends Seeder
                 'city' => 'Abidjan',
                 'region' => 'Abidjan',
                 'address_line1' => 'Cocody Block 12',
-                'address_line2' => 'Residence Azura',
+                'address_line2' => 'Residence Simbazu',
                 'postal_code' => '00225',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
@@ -70,16 +70,16 @@ class TestDataSeeder extends Seeder
                 'is_active' => true,
                 'is_blacklisted' => false,
                 'retry_limit' => 2,
-                'contact_email' => 'supplier@azura.test',
+                'contact_email' => 'supplier@Simbazu.test',
                 'contact_phone' => '+22505050505',
                 'website_url' => 'https://supplier.test',
             ]
         );
 
         $supplier = FulfillmentProvider::firstOrCreate(
-            ['code' => 'azura-supplier'],
+            ['code' => 'Simbazu-supplier'],
             [
-                'name' => 'Azura Supplier Network',
+                'name' => 'Simbazu Supplier Network',
                 'type' => 'supplier',
                 'driver_class' => \App\Domain\Fulfillment\Strategies\ManualFulfillmentStrategy::class,
                 'credentials' => [],
@@ -89,9 +89,9 @@ class TestDataSeeder extends Seeder
                 'is_active' => true,
                 'is_blacklisted' => false,
                 'retry_limit' => 3,
-                'contact_email' => 'ops@azura.test',
+                'contact_email' => 'ops@Simbazu.test',
                 'contact_phone' => '+22507070707',
-                'website_url' => 'https://supplier.azura.test',
+                'website_url' => 'https://supplier.Simbazu.test',
             ]
         );
 
@@ -107,18 +107,18 @@ class TestDataSeeder extends Seeder
         );
 
         SiteSetting::updateOrCreate([], [
-            'site_name' => 'Azura',
+            'site_name' => 'Simbazu',
             'site_description' => 'Trending essentials with transparent delivery.',
-            'meta_title' => 'Azura Store',
+            'meta_title' => 'Simbazu Store',
             'meta_description' => 'Shop trending essentials with reliable shipping.',
-            'meta_keywords' => 'dropshipping, azura, essentials, ecommerce',
+            'meta_keywords' => 'dropshipping, Simbazu, essentials, ecommerce',
             'logo_path' => null,
             'favicon_path' => null,
             'timezone' => config('app.timezone', 'UTC'),
             'primary_color' => '#111827',
             'secondary_color' => '#2563eb',
             'accent_color' => '#f59e0b',
-            'support_email' => 'support@azura.test',
+            'support_email' => 'support@Simbazu.test',
             'support_whatsapp' => '+22500000000',
             'support_phone' => '+22500000000',
             'delivery_window' => '7–18 business days',
@@ -131,8 +131,8 @@ class TestDataSeeder extends Seeder
         if (! $product) {
             $category = Category::firstOrCreate(['name' => 'Electronics']);
             $product = Product::create([
-                'slug' => 'azura-smart-hub',
-                'name' => 'Azura Smart Hub',
+                'slug' => 'Simbazu-smart-hub',
+                'name' => 'Simbazu Smart Hub',
                 'category_id' => $category->id,
                 'description' => 'Smart home hub for everyday automation.',
                 'selling_price' => 149.99,
@@ -141,7 +141,7 @@ class TestDataSeeder extends Seeder
                 'currency' => 'USD',
                 'default_fulfillment_provider_id' => $provider->id,
                 'supplier_id' => $supplier->id,
-                'supplier_product_url' => 'https://supplier.azura.test/products/azura-hub',
+                'supplier_product_url' => 'https://supplier.Simbazu.test/products/Simbazu-hub',
                 'shipping_estimate_days' => 9,
                 'is_active' => true,
                 'is_featured' => true,
@@ -152,14 +152,14 @@ class TestDataSeeder extends Seeder
 
             ProductImage::create([
                 'product_id' => $product->id,
-                'url' => 'https://picsum.photos/seed/azura-hub/900/900',
+                'url' => 'https://picsum.photos/seed/Simbazu-hub/900/900',
                 'position' => 1,
             ]);
         } else {
             $product->update([
                 'default_fulfillment_provider_id' => $product->default_fulfillment_provider_id ?? $provider->id,
                 'supplier_id' => $product->supplier_id ?? $supplier->id,
-                'supplier_product_url' => $product->supplier_product_url ?? 'https://supplier.azura.test/products/azura-hub',
+                'supplier_product_url' => $product->supplier_product_url ?? 'https://supplier.Simbazu.test/products/Simbazu-hub',
             ]);
         }
 
@@ -203,7 +203,7 @@ class TestDataSeeder extends Seeder
                 'user_id' => null,
                 'name' => $customer->name,
                 'phone' => $customer->phone,
-                'line2' => 'Residence Azura',
+                'line2' => 'Residence Simbazu',
                 'city' => $customer->city,
                 'state' => $customer->region,
                 'postal_code' => $customer->postal_code,
@@ -428,7 +428,7 @@ class TestDataSeeder extends Seeder
         );
 
         PaymentWebhook::firstOrCreate(
-            ['external_event_id' => 'evt_test_azura_1'],
+            ['external_event_id' => 'evt_test_Simbazu_1'],
             [
                 'payment_id' => $payment->id,
                 'provider' => $payment->provider,
@@ -557,7 +557,7 @@ class TestDataSeeder extends Seeder
         );
 
         $notificationPayload = [
-            'title' => 'Welcome to Azura',
+            'title' => 'Welcome to Simbazu',
             'body' => 'Your account is ready.',
         ];
 
@@ -591,7 +591,7 @@ class TestDataSeeder extends Seeder
         );
 
         GiftCard::firstOrCreate(
-            ['code' => 'AZURA-GIFT-100'],
+            ['code' => 'Simbazu-GIFT-100'],
             [
                 'customer_id' => $customer->id,
                 'balance' => 100,
@@ -602,7 +602,7 @@ class TestDataSeeder extends Seeder
         );
 
         GiftCard::firstOrCreate(
-            ['code' => 'AZURA-GIFT-EXPIRED'],
+            ['code' => 'Simbazu-GIFT-EXPIRED'],
             [
                 'customer_id' => $customer->id,
                 'balance' => 0,
@@ -613,7 +613,7 @@ class TestDataSeeder extends Seeder
         );
 
         $coupon = Coupon::firstOrCreate(
-            ['code' => 'AZURA-15'],
+            ['code' => 'Simbazu-15'],
             [
                 'description' => '15% off your next order',
                 'type' => 'percent',
@@ -628,7 +628,7 @@ class TestDataSeeder extends Seeder
         );
 
         $redeemedCoupon = Coupon::firstOrCreate(
-            ['code' => 'AZURA-REDEEMED'],
+            ['code' => 'Simbazu-REDEEMED'],
             [
                 'description' => 'Redeemed coupon sample',
                 'type' => 'fixed',
@@ -648,7 +648,7 @@ class TestDataSeeder extends Seeder
         );
 
         Coupon::firstOrCreate(
-            ['code' => 'AZURA-INACTIVE'],
+            ['code' => 'Simbazu-INACTIVE'],
             [
                 'description' => 'Inactive/expired coupon',
                 'type' => 'percent',

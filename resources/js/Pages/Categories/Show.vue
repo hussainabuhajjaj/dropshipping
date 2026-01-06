@@ -324,7 +324,7 @@ const clearFilter = (key) => {
   applyFilters()
 }
 
-const metaTitle = computed(() => props.category.meta_title || `${props.category.name} | Azura`)
+const metaTitle = computed(() => props.category.meta_title || `${props.category.name} | Simbazu`)
 const metaDescription = computed(() => props.category.meta_description || '')
 const displayTitle = computed(() => props.category.hero_title || props.category.name)
 const displaySubtitle = computed(() => props.category.hero_subtitle || props.category.description || '')

@@ -33,7 +33,7 @@ class CjProductApi extends CjBaseApi
 
     public function listGlobalWarehouses(): ApiResponse
     {
-        return $this->client()->get('/v1/product/globalWarehouse/list');
+        return $this->client()->get('/v1/product/globalWarehouseList');
     }
 
     public function getWarehouseDetail(string $id): ApiResponse

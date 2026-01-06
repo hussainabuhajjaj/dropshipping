@@ -60,7 +60,7 @@
               :key="variant.id"
               :value="variant.id"
             >
-              {{ variant.title }} — {{ currency }} {{ Number(variant.price ?? 0).toFixed(2) }}
+              {{ variant.title }} — {{ displayVariantPrice(variant) }}
             </option>
           </select>
         </div>
@@ -69,10 +69,10 @@
     <div class="flex flex-col gap-2">
       <div>
         <div class="text-lg font-semibold text-slate-900">
-          {{ currency }} {{ displayPrice.toFixed(2) }}
+          {{ displayPriceFormatted }}
         </div>
         <div v-if="hasDiscount" class="text-xs text-slate-400 line-through">
-          {{ currency }} {{ compareAt.toFixed(2) }}
+          {{ compareAtFormatted }}
         </div>
       </div>
       <div class="flex items-center justify-between gap-3">
@@ -163,6 +163,18 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+// Helper to display price in selected currency
+function displayVariantPrice(variant) {
+  return formatCurrency(convertCurrency(Number(variant.price ?? 0), 'USD', props.currency), props.currency)
+}
+
+const displayPriceFormatted = computed(() =>
+  formatCurrency(convertCurrency(displayPrice.value, 'USD', props.currency), props.currency)
+)
+const compareAtFormatted = computed(() =>
+  formatCurrency(convertCurrency(compareAt.value, 'USD', props.currency), props.currency)
+)
 import { computed, ref, watch } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'

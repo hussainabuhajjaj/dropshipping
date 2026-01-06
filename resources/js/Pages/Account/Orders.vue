@@ -22,7 +22,7 @@
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div class="space-y-1">
                 <p class="font-semibold text-slate-900">#{{ order.number }}</p>
-                <p class="text-slate-500">{{ formatDate(order.placed_at) }} • {{ order.currency }} {{ Number(order.grand_total).toFixed(2) }}</p>
+                <p class="text-slate-500">{{ formatDate(order.placed_at) }} • {{ displayOrderPrice(order.grand_total, order.currency) }}</p>
                 <p class="text-slate-500">Status: <span class="font-semibold text-slate-900">{{ order.status }}</span></p>
                 <p class="text-slate-500">Payment: {{ order.payment_status }}</p>
               </div>
@@ -51,6 +51,13 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+// Helper to display order price in selected currency (default to order's currency if not available)
+function displayOrderPrice(amount, orderCurrency) {
+  // If you want to always show in user's selected currency, replace 'orderCurrency' with a prop or global currency
+  return formatCurrency(convertCurrency(Number(amount), 'USD', orderCurrency), orderCurrency)
+}
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'

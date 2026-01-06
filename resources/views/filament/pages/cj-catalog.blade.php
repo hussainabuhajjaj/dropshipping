@@ -152,7 +152,7 @@
                         </x-slot>
                         <div class="space-y-3">
                             <x-filament::input.wrapper>
-                                <label for="productSku" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Product SKU</label>
+                                {{-- <label for="productSku" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Product SKU</label> --}}
                                 <x-filament::input
                                     id="productSku"
                                     wire:model.defer="productSku"
@@ -161,7 +161,7 @@
                                 />
                             </x-filament::input.wrapper>
                             <x-filament::input.wrapper>
-                                <label for="materialKey" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Material</label>
+                                {{-- <label for="materialKey" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Material</label> --}}
                                 <x-filament::input
                                     id="materialKey"
                                     wire:model.defer="materialKey"
@@ -170,7 +170,7 @@
                                 />
                             </x-filament::input.wrapper>
                             <x-filament::input.wrapper>
-                                <label for="categoryId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Category</label>
+                                {{-- <label for="categoryId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Category</label> --}}
                                 <x-filament::input.select
                                     id="categoryId"
                                     wire:model.defer="categoryId"
@@ -182,7 +182,7 @@
                                 </x-filament::input.select>
                             </x-filament::input.wrapper>
                             <x-filament::input.wrapper>
-                                <label for="warehouseId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Warehouse</label>
+                                {{-- <label for="warehouseId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Warehouse</label> --}}
                                 <x-filament::input.select
                                     id="warehouseId"
                                     wire:model.defer="warehouseId"
@@ -212,7 +212,7 @@
                                 </label>
                             </x-filament::input.wrapper>
                             <x-filament::input.wrapper>
-                                <label for="sort" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Sort</label>
+                                {{-- <label for="sort" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Sort</label> --}}
                                 <x-filament::input.select
                                     id="sort"
                                     wire:model.defer="sort"
@@ -225,7 +225,7 @@
                                 </x-filament::input.select>
                             </x-filament::input.wrapper>
                             <x-filament::input.wrapper>
-                                <label for="storeProductId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Store Product ID</label>
+                                {{-- <label for="storeProductId" class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">Store Product ID</label> --}}
                                 <x-filament::input
                                     id="storeProductId"
                                     wire:model.defer="storeProductId"

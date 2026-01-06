@@ -4,6 +4,10 @@
       <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ t('Checkout') }}</h1>
 
       <div class="grid gap-10 lg:grid-cols-[1.4fr,1fr]">
+        <div v-if="!props.user" class="mb-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 border border-slate-200 flex items-center gap-2">
+          <svg viewBox="0 0 24 24" class="h-5 w-5 text-slate-400 mr-2" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 15h8M8 11h8M8 7h8"/></svg>
+          <span><strong>{{ t('Continue as guest') }}</strong> &mdash; {{ t('No account required. You can create one after checkout for faster future orders.') }}</span>
+        </div>
         <div class="space-y-6">
           <!-- Express Checkout Buttons -->
           <ExpressCheckoutButtons
@@ -125,7 +129,8 @@
 </template>
 
 <script setup>
-import { toRefs } from 'vue'
+import { toRefs, watch } from 'vue'
+import { usePersistentCart } from '@/composables/usePersistentCart.js'
 import { useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
@@ -166,6 +171,27 @@ const form = useForm({
   payment_method: 'card',
   accept_terms: false,
 })
+
+const { cart: persistentCart } = usePersistentCart()
+
+// Watch for guest email entry and send abandoned cart
+watch(
+  () => form.email,
+  (email) => {
+    if (email && !props.user) {
+      // Only send for guests
+      fetch('/cart/abandon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({ cart: persistentCart.value, email })
+      })
+    }
+  }
+)
 
 const submit = () => {
   form.post('/checkout')

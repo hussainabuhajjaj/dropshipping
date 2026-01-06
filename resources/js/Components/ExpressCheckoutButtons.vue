@@ -1,6 +1,7 @@
 <template>
   <div class="space-y-3">
     <div class="text-center text-xs font-medium text-slate-500">{{ t('Express checkout') }}</div>
+    <div class="text-center text-sm font-semibold text-slate-700">{{ displayAmount }}</div>
     
     <div class="flex items-center gap-3">
       <!-- Apple Pay Button -->
@@ -44,6 +45,11 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+const displayAmount = computed(() =>
+  formatCurrency(convertCurrency(props.amount, 'USD', props.currency), props.currency)
+)
 import { ref, onMounted, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'

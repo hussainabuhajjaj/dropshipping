@@ -86,9 +86,8 @@ class AliExpressClient
                     'client_secret' => config('ali_express.client_secret'),
                 ]
             );
-
+            
             $data = $response->json();
-
             if (!isset($data['access_token'])) {
                 throw new \Exception('Token refresh failed: ' . json_encode($data));
             }
@@ -102,6 +101,7 @@ class AliExpressClient
 
             \Illuminate\Support\Facades\Log::info('AliExpress token auto-refreshed');
         } catch (\Exception $e) {
+                    // dd($data);
             \Illuminate\Support\Facades\Log::error('AliExpress token refresh failed', ['error' => $e->getMessage()]);
             throw new FulfillmentException('Failed to refresh AliExpress token: ' . $e->getMessage());
         }

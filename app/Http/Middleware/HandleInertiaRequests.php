@@ -85,7 +85,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'translations' => $translations,
             'seo' => [
-                'title' => $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Azura'),
+                'title' => $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Simbazu'),
                 'description' => $site?->meta_description ?? $site?->site_description ?? null,
                 'image' => $site?->logo_path ?? null,
             ],

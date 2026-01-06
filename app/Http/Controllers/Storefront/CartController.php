@@ -145,7 +145,24 @@ class CartController extends Controller
             return $carry + ((float) $line['price'] * (int) $line['quantity']);
         }, 0.0);
     }
+    /**
+     * Capture abandoned cart from guest checkout (AJAX).
+     */
+    public function abandon(Request $request)
+    {
+        $data = $request->validate([
+            'cart' => 'required|array',
+            'email' => 'nullable|email',
+        ]);
 
+        app(\App\Services\AbandonedCartService::class)->capture(
+            $data['cart'],
+            $data['email'] ?? null,
+            null
+        );
+
+        return response()->json(['status' => 'ok']);
+    }
     private function discount(array $cart, ?array $coupon): float
     {
         if (! $coupon) {
