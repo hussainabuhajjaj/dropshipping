@@ -1,6 +1,6 @@
 @extends('errors.layout')
 
-@section('title', 'Session expired - Azura')
+@section('title', 'Session expired - Simbazu')
 @section('eyebrow', '419')
 @section('code', '419')
 @section('heading', 'Session expired')

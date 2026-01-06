@@ -13,7 +13,7 @@
         <p class="text-sm font-semibold text-slate-900">{{ line.name }}</p>
         <p class="text-xs text-slate-500">{{ t('Variant: :variant', { variant: line.variant ?? t('Default') }) }}</p>
         <p class="text-xs text-slate-500">
-          {{ t('Unit price: :amount', { amount: `${currency} ${Number(line.price).toFixed(2)}` }) }}
+          {{ t('Unit price: :amount', { amount: displayUnitPrice }) }}
         </p>
         <button
           type="button"
@@ -49,13 +49,17 @@
         </button>
       </div>
       <div class="text-sm font-semibold text-slate-900">
-        {{ currency }} {{ (line.price * line.quantity).toFixed(2) }}
+        {{ displayTotalPrice }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+const displayUnitPrice = formatCurrency(convertCurrency(Number(__props.line.price ?? 0), 'USD', __props.currency), __props.currency)
+const displayTotalPrice = formatCurrency(convertCurrency(Number((__props.line.price ?? 0) * (__props.line.quantity ?? 1)), 'USD', __props.currency), __props.currency)
 import { useTranslations } from '@/i18n'
 
 defineProps({

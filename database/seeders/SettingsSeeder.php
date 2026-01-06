@@ -480,10 +480,10 @@ class SettingsSeeder extends Seeder
         ]);
 
         StorefrontSetting::updateOrCreate([], [
-            'brand_name' => 'Azura',
+            'brand_name' => 'Simbazu',
             'footer_blurb' => 'Global sourcing with local clarity. Track every step and see customs details before you pay.',
             'delivery_notice' => "Delivery to Cote d'Ivoire with duties shown before checkout.",
-            'copyright_text' => 'Azura',
+            'copyright_text' => 'Simbazu',
             'header_links' => [
                 ['label' => 'Shop', 'href' => '/products'],
                 ['label' => 'Track order', 'href' => '/orders/track'],

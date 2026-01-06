@@ -32,7 +32,7 @@ class CustomerPerksSeeder extends Seeder
         );
 
         Coupon::firstOrCreate(
-            ['code' => 'AZURA20'],
+            ['code' => 'Simbazu20'],
             [
                 'description' => '20% off select categories',
                 'type' => 'percent',

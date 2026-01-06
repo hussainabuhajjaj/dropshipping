@@ -1,6 +1,6 @@
 @extends('errors.layout')
 
-@section('title', 'Access denied - Azura')
+@section('title', 'Access denied - Simbazu')
 @section('eyebrow', '403')
 @section('code', '403')
 @section('heading', 'Access denied')

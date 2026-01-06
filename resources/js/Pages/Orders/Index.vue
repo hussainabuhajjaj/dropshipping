@@ -57,7 +57,7 @@
         v-else
         :eyebrow="t('Orders')"
         :title="t('No orders yet')"
-        :message="t('Your first Azura order will appear here with status updates and tracking.')"
+        :message="t('Your first Simbazu order will appear here with status updates and tracking.')"
       >
         <template #actions>
           <Link href="/products" class="btn-primary">{{ t('Start shopping') }}</Link>

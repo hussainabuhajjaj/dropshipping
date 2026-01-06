@@ -123,7 +123,7 @@
         <div class="deal-grid">
           <div v-for="(deal, index) in featuredDeals" :key="deal.id" class="deal-card">
             <div class="deal-head">
-              <span class="deal-badge">{{ deal.category || 'Azura' }}</span>
+              <span class="deal-badge">{{ deal.category || 'Simbazu' }}</span>
               <span class="deal-timer">{{ t('Ends in :time', { time: dealTimers[index % dealTimers.length] }) }}</span>
             </div>
             <ProductCard :product="deal" :currency="currency" />
@@ -375,7 +375,7 @@ const bannerStrip = computed(() => {
     return props.homeContent.banner_strip
   }
   return {
-    kicker: t('Azura picks'),
+    kicker: t('Simbazu picks'),
     title: t('Upgrade every room with clear delivery timelines'),
     cta: t('Explore home upgrades'),
     href: '/products',
@@ -410,12 +410,12 @@ const valueProps = computed(() => {
 .noon-home {
   font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   color: #151517;
-  --azura-yellow: #ffd428;
-  --azura-ink: #111318;
-  --azura-slate: #4b5563;
-  --azura-cream: #fff7d6;
-  --azura-peach: #ffe6e1;
-  --azura-ice: #ecf2ff;
+  --Simbazu-yellow: #ffd428;
+  --Simbazu-ink: #111318;
+  --Simbazu-slate: #4b5563;
+  --Simbazu-cream: #fff7d6;
+  --Simbazu-peach: #ffe6e1;
+  --Simbazu-ice: #ecf2ff;
   display: flex;
   flex-direction: column;
   gap: 42px;
@@ -448,7 +448,7 @@ const valueProps = computed(() => {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: var(--azura-cream);
+  background: var(--Simbazu-cream);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -462,7 +462,7 @@ const valueProps = computed(() => {
 
 .strip-subtitle {
   font-size: 12px;
-  color: var(--azura-slate);
+  color: var(--Simbazu-slate);
 }
 
 .hero-block {
@@ -524,7 +524,7 @@ const valueProps = computed(() => {
 .hero-subtitle {
   margin-top: 12px;
   font-size: 15px;
-  color: var(--azura-slate);
+  color: var(--Simbazu-slate);
 }
 
 .hero-actions {
@@ -543,14 +543,14 @@ const valueProps = computed(() => {
 }
 
 .hero-primary {
-  background: var(--azura-ink);
+  background: var(--Simbazu-ink);
   color: #fff;
 }
 
 .hero-secondary {
   background: #fff;
   border: 1px solid #d1d5db;
-  color: var(--azura-ink);
+  color: var(--Simbazu-ink);
 }
 
 .hero-meta {
@@ -610,9 +610,9 @@ const valueProps = computed(() => {
 }
 
 .hero-dot.is-active {
-  background: var(--azura-ink);
+  background: var(--Simbazu-ink);
   width: 26px;
-  border-color: var(--azura-ink);
+  border-color: var(--Simbazu-ink);
 }
 
 .rail-track {
@@ -737,7 +737,7 @@ const valueProps = computed(() => {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: var(--azura-cream);
+  background: var(--Simbazu-cream);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -803,7 +803,7 @@ const valueProps = computed(() => {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  background: var(--azura-cream);
+  background: var(--Simbazu-cream);
   color: #9a3412;
   padding: 4px 8px;
   border-radius: 999px;
@@ -838,7 +838,7 @@ const valueProps = computed(() => {
 }
 
 .banner-cta {
-  background: var(--azura-yellow);
+  background: var(--Simbazu-yellow);
   color: #111827;
   font-weight: 700;
   border-radius: 999px;

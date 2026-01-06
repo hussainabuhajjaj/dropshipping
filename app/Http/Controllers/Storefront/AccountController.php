@@ -61,19 +61,39 @@ class AccountController extends Controller
 
         $orders = Order::query()
             ->where('customer_id', $user->id)
+            ->with(['linehaulShipment', 'lastMileDelivery'])
             ->latest('placed_at')
             ->take(10)
             ->get()
-            ->map(fn (Order $order) => [
-                'id' => $order->id,
-                'number' => $order->number,
-                'status' => $order->status,
-                'payment_status' => $order->payment_status,
-                'grand_total' => $order->grand_total,
-                'currency' => $order->currency,
-                'placed_at' => $order->placed_at,
-                'email' => $order->email,
-            ]);
+            ->map(function (Order $order) {
+                return [
+                    'id' => $order->id,
+                    'number' => $order->number,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                    'grand_total' => $order->grand_total,
+                    'currency' => $order->currency,
+                    'placed_at' => $order->placed_at,
+                    'email' => $order->email,
+                    // Logistics additions:
+                    'linehaul' => $order->linehaulShipment ? [
+                        'status' => $order->linehaulShipment->arrived_at ? 'arrived' : ($order->linehaulShipment->dispatched_at ? 'dispatched' : 'pending'),
+                        'total_weight_kg' => $order->linehaulShipment->total_weight_kg,
+                        'total_fee' => $order->linehaulShipment->total_fee,
+                        'dispatched_at' => $order->linehaulShipment->dispatched_at,
+                        'arrived_at' => $order->linehaulShipment->arrived_at,
+                    ] : null,
+                    'last_mile' => $order->lastMileDelivery ? [
+                        'status' => $order->lastMileDelivery->status,
+                        'driver_name' => $order->lastMileDelivery->driver_name,
+                        'driver_phone' => $order->lastMileDelivery->driver_phone,
+                        'yango_reference' => $order->lastMileDelivery->yango_reference,
+                        'out_for_delivery_at' => $order->lastMileDelivery->out_for_delivery_at,
+                        'delivered_at' => $order->lastMileDelivery->delivered_at,
+                    ] : null,
+                    'shipping_quote' => $order->shipping_quote_snapshot ?? null,
+                ];
+            });
 
         $refunds = Payment::query()
             ->where('status', 'refunded')
@@ -409,18 +429,38 @@ class AccountController extends Controller
         $user = $request->user();
         $orders = Order::query()
             ->where('customer_id', $user->id)
+            ->with(['linehaulShipment', 'lastMileDelivery'])
             ->latest('placed_at')
             ->get()
-            ->map(fn (Order $order) => [
-                'id' => $order->id,
-                'number' => $order->number,
-                'status' => $order->status,
-                'payment_status' => $order->payment_status,
-                'grand_total' => $order->grand_total,
-                'currency' => $order->currency,
-                'placed_at' => $order->placed_at,
-                'email' => $order->email,
-            ]);
+            ->map(function (Order $order) {
+                return [
+                    'id' => $order->id,
+                    'number' => $order->number,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment_status,
+                    'grand_total' => $order->grand_total,
+                    'currency' => $order->currency,
+                    'placed_at' => $order->placed_at,
+                    'email' => $order->email,
+                    // Logistics additions:
+                    'linehaul' => $order->linehaulShipment ? [
+                        'status' => $order->linehaulShipment->arrived_at ? 'arrived' : ($order->linehaulShipment->dispatched_at ? 'dispatched' : 'pending'),
+                        'total_weight_kg' => $order->linehaulShipment->total_weight_kg,
+                        'total_fee' => $order->linehaulShipment->total_fee,
+                        'dispatched_at' => $order->linehaulShipment->dispatched_at,
+                        'arrived_at' => $order->linehaulShipment->arrived_at,
+                    ] : null,
+                    'last_mile' => $order->lastMileDelivery ? [
+                        'status' => $order->lastMileDelivery->status,
+                        'driver_name' => $order->lastMileDelivery->driver_name,
+                        'driver_phone' => $order->lastMileDelivery->driver_phone,
+                        'yango_reference' => $order->lastMileDelivery->yango_reference,
+                        'out_for_delivery_at' => $order->lastMileDelivery->out_for_delivery_at,
+                        'delivered_at' => $order->lastMileDelivery->delivered_at,
+                    ] : null,
+                    'shipping_quote' => $order->shipping_quote_snapshot ?? null,
+                ];
+            });
 
         return Inertia::render('Account/Orders', [
             'orders' => $orders,

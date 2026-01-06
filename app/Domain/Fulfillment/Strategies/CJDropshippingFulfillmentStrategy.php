@@ -65,31 +65,23 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         ];
 
         try {
-            // Try endpoints in order: v2, v3, then legacy /order/create
+            Log::info('Attempting CJ order creation with v2 endpoint', ['order_number' => $data->orderItem->order?->number]);
+            $response = $this->client->createOrderV2($payload);
+            $body = $this->validatedResponse($response, 'CJ order create v2 failed');
+        } catch (\Throwable $e1) {
+            Log::info('V2 endpoint failed, trying V3', ['error' => $e1->getMessage()]);
             try {
-                Log::info('Attempting CJ order creation with v2 endpoint', ['order_number' => $data->orderItem->order?->number]);
-                $response = $this->client->createOrderV2($payload);
-                $body = $this->validatedResponse($response, 'CJ order create v2 failed');
-            } catch (\Throwable $e1) {
-                try {
-                    Log::info('V2 endpoint failed, trying V3', ['error' => $e1->getMessage()]);
-                    $response = $this->client->createOrderV3($payload);
-                    $body = $this->validatedResponse($response, 'CJ order create v3 failed');
-                } catch (\Throwable $e2) {
-                    Log::info('V3 endpoint failed, trying legacy /order/create', ['error' => $e2->getMessage()]);
-                    $response = $this->client->createOrder($payload);
-                    $body = $this->validatedResponse($response, 'CJ order create failed');
-                }
+                $response = $this->client->createOrderV3($payload);
+                $body = $this->validatedResponse($response, 'CJ order create v3 failed');
+            } catch (\Throwable $e2) {
+                Log::warning('CJ fulfillment dispatch failed', [
+                    'order_item_id' => $data->orderItem->id,
+                    'provider_id' => $data->provider->id ?? null,
+                    'payload' => $payload,
+                    'error' => $e2->getMessage(),
+                ]);
+                throw new FulfillmentException('CJ order create failed: ' . $e2->getMessage(), previous: $e2);
             }
-        } catch (\Throwable $e) {
-            Log::warning('CJ fulfillment dispatch failed', [
-                'order_item_id' => $data->orderItem->id,
-                'provider_id' => $data->provider->id ?? null,
-                'payload' => $payload,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw new FulfillmentException('CJ order create failed: ' . $e->getMessage(), previous: $e);
         }
 
         $success = Arr::get($body, 'result') === true || Arr::get($body, 'code') === 200;

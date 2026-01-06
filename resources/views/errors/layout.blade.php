@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>@yield('title', 'Azura')</title>
+        <title>@yield('title', 'Simbazu')</title>
         <style>
             :root {
                 color-scheme: light;
@@ -114,7 +114,7 @@
                 <div class="glow two"></div>
                 <div class="grid">
                     <div>
-                        <div class="eyebrow">@yield('eyebrow', 'Azura')</div>
+                        <div class="eyebrow">@yield('eyebrow', 'Simbazu')</div>
                         <div class="code">@yield('code', 'Error')</div>
                         <div class="heading">@yield('heading', 'Something went off-course')</div>
                         <p class="copy">@yield('message', 'We could not complete that request.')</p>
@@ -123,7 +123,7 @@
                             <a class="btn" href="/support">Contact support</a>
                         </div>
                         <div class="footer">
-                            Azura keeps your catalog ready and your orders traceable.
+                            Simbazu keeps your catalog ready and your orders traceable.
                         </div>
                     </div>
                 </div>

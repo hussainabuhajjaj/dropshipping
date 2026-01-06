@@ -24,7 +24,7 @@ const setLocale = (target) => {
 
         <div class="auth-wrapper">
             <aside class="auth-aside">
-                <Link href="/" class="auth-brand">Azura</Link>
+                <Link href="/" class="auth-brand">Simbazu</Link>
                 <p class="auth-tagline">{{ t('Curated global essentials, delivered with clarity.') }}</p>
                 <div class="auth-points">
                     <div class="auth-point">

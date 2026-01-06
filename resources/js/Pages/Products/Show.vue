@@ -58,7 +58,7 @@
 
       <div class="space-y-6">
         <div class="space-y-2">
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ product.category ?? 'Azura' }}</p>
+          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ product.category ?? 'Simbazu' }}</p>
           <h1 class="text-3xl font-semibold tracking-tight text-slate-900">{{ product.name }}</h1>
           <p class="text-sm text-slate-600">{{ descriptionText }}</p>
         </div>

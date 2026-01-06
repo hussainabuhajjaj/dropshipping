@@ -55,17 +55,72 @@ class CJDropshippingClient
             'CJ-SIGN' => $signature,
         ];
 
+        // Inject access token for Shopping API calls
+        $accessToken = $this->getAccessToken();
+        if ($accessToken) {
+            $headers['accessToken'] = $accessToken;
+        }
         if ($this->platformToken) {
             $headers['platformToken'] = $this->platformToken;
         }
+    /**
+     * Retrieve and cache CJ Shopping API access token.
+     * If forceRefresh is true, always refresh from CJ API.
+     */
+    public function getAccessToken(bool $forceRefresh = false): ?string
+    {
+        $cacheKey = 'cj.access_token';
+        if (! $forceRefresh) {
+            $token = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            if ($token) {
+                return $token;
+            }
+        }
+        // Call CJ Shopping API to get new token
+        $response = \Illuminate\Support\Facades\Http::post($this->baseUrl . '/v1/authentication/getAccessToken', [
+            'appId' => $this->appId,
+            'appKey' => $this->apiKey,
+        ]);
+        $body = $response->json();
+        if (is_array($body) && isset($body['accessToken'])) {
+            $token = $body['accessToken'];
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $token, 3500); // Cache for ~1 hour
+            return $token;
+        }
+        return null;
+    }
 
         $request = $this->http()->withHeaders($headers);
 
+        $finalUrl = $this->baseUrl . '/' . ltrim($path, '/');
+        $cjDebug = env('CJ_DEBUG', false);
+        if ($cjDebug) {
+            Log::debug('[CJ_DEBUG] Base URL', ['base_url' => $this->baseUrl]);
+            Log::debug('[CJ_DEBUG] Final URL', ['url' => $finalUrl]);
+            Log::debug('[CJ_DEBUG] HTTP Method', ['method' => $method]);
+            Log::debug('[CJ_DEBUG] Headers', ['headers' => array_merge($headers, [
+                'CJ-APIKEY' => '***',
+                'CJ-APPID' => '***',
+                'CJ-SIGN' => '***',
+                'CJ-TIMESTAMP' => '***',
+                'platformToken' => isset($headers['platformToken']) ? '***' : null,
+            ])]);
+            if (!$isGet) {
+                Log::debug('[CJ_DEBUG] Request Body', ['body' => $body]);
+            }
+        }
+
         try {
             $response = $isGet
-                ? $request->send($method, $this->baseUrl . '/' . ltrim($path, '/'), ['query' => $payload])
-                : $request->withBody($body, 'application/json')->send($method, $this->baseUrl . '/' . ltrim($path, '/'));
+                ? $request->send($method, $finalUrl, ['query' => $payload])
+                : $request->withBody($body, 'application/json')->send($method, $finalUrl);
 
+            if ($cjDebug) {
+                Log::debug('[CJ_DEBUG] CJ Response', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+            }
             return $this->buildResponse($response->body(), $response->status());
         } catch (\Illuminate\Http\Client\RequestException $e) {
             $res = $e->response;
@@ -113,42 +168,46 @@ class CJDropshippingClient
 
     public function searchProducts(array $filters): ApiResponse
     {
-        return $this->request('POST', '/product/search', $filters);
+        return $this->request('POST', '/v1/product/search', $filters);
     }
 
     public function listProducts(array $filters = []): ApiResponse
     {
-        return $this->request('GET', '/product/list', $filters);
+        return $this->request('GET', '/v1/product/list', $filters);
     }
 
     public function productDetail(string $productId): ApiResponse
     {
-        return $this->request('POST', '/product/detail', ['pid' => $productId]);
+        return $this->request('POST', '/v1/product/detail', ['pid' => $productId]);
     }
 
     public function freightQuote(array $payload): ApiResponse
     {
-        return $this->request('POST', '/freight/calculate', $payload);
+        return $this->request('POST', '/v1/freight/calculate', $payload);
     }
 
+    /**
+     * @deprecated The /v1/order/create endpoint is not part of the Shopping API and must not be used.
+     * Any call to this method will throw an exception.
+     */
     public function createOrder(array $payload): ApiResponse
     {
-        return $this->request('POST', '/order/create', $payload);
+        throw new \RuntimeException('The /v1/order/create endpoint is deprecated and not supported by the CJ Shopping API. Use createOrderV2 or createOrderV3.');
     }
 
     public function orderStatus(array $payload): ApiResponse
     {
-        return $this->request('POST', '/order/status', $payload);
+        return $this->request('POST', '/v1/order/status', $payload);
     }
 
     public function orderDetail(array $payload): ApiResponse
     {
-        return $this->request('POST', '/order/detail', $payload);
+        return $this->request('POST', '/v1/order/detail', $payload);
     }
 
     public function track(array $payload): ApiResponse
     {
-        return $this->request('POST', '/logistics/track', $payload);
+        return $this->request('POST', '/v1/logistics/track', $payload);
     }
 
     /**
@@ -156,7 +215,7 @@ class CJDropshippingClient
      */
     public function disputeProducts(array $filters): ApiResponse
     {
-        return $this->request('GET', '/disputes/disputeProducts', $filters);
+        return $this->request('GET', '/v1/disputes/disputeProducts', $filters);
     }
 
     /**
@@ -164,7 +223,7 @@ class CJDropshippingClient
      */
     public function disputeConfirmInfo(array $payload): ApiResponse
     {
-        return $this->request('POST', '/disputes/disputeConfirmInfo', $payload);
+        return $this->request('POST', '/v1/disputes/disputeConfirmInfo', $payload);
     }
 
     /**
@@ -172,7 +231,7 @@ class CJDropshippingClient
      */
     public function createDispute(array $payload): ApiResponse
     {
-        return $this->request('POST', '/disputes/create', $payload);
+        return $this->request('POST', '/v1/disputes/create', $payload);
     }
 
     /**
@@ -180,7 +239,7 @@ class CJDropshippingClient
      */
     public function cancelDispute(array $payload): ApiResponse
     {
-        return $this->request('POST', '/disputes/cancel', $payload);
+        return $this->request('POST', '/v1/disputes/cancel', $payload);
     }
 
     /**
@@ -188,7 +247,7 @@ class CJDropshippingClient
      */
     public function getDisputeList(array $filters = []): ApiResponse
     {
-        return $this->request('GET', '/disputes/getDisputeList', $filters);
+        return $this->request('GET', '/v1/disputes/getDisputeList', $filters);
     }
 
     /**
@@ -196,7 +255,7 @@ class CJDropshippingClient
      */
     public function setWebhook(array $payload): ApiResponse
     {
-        return $this->request('POST', '/webhook/set', $payload);
+        return $this->request('POST', '/v1/webhook/set', $payload);
     }
 
     /**
@@ -204,7 +263,7 @@ class CJDropshippingClient
      */
     public function freightCalculate(array $payload): ApiResponse
     {
-        return $this->request('POST', '/logistic/freightCalculate', $payload);
+        return $this->request('POST', '/v1/logistic/freightCalculate', $payload);
     }
 
     /**
@@ -212,7 +271,7 @@ class CJDropshippingClient
      */
     public function freightCalculateTip(array $payload): ApiResponse
     {
-        return $this->request('POST', '/logistic/freightCalculateTip', $payload);
+        return $this->request('POST', '/v1/logistic/freightCalculateTip', $payload);
     }
 
     /**
@@ -220,7 +279,7 @@ class CJDropshippingClient
      */
     public function trackInfo(array $payload): ApiResponse
     {
-        return $this->request('GET', '/logistic/trackInfo', $payload);
+        return $this->request('GET', '/v1/logistic/trackInfo', $payload);
     }
 
     /**
@@ -228,7 +287,7 @@ class CJDropshippingClient
      */
     public function getTrackInfo(array $payload): ApiResponse
     {
-        return $this->request('GET', '/logistic/getTrackInfo', $payload);
+        return $this->request('GET', '/v1/logistic/getTrackInfo', $payload);
     }
 
     /**
@@ -236,7 +295,7 @@ class CJDropshippingClient
      */
     public function warehouseDetail(string $id): ApiResponse
     {
-        return $this->request('GET', '/warehouse/detail', ['id' => $id]);
+        return $this->request('GET', '/v1/warehouse/detail', ['id' => $id]);
     }
 
     /**
@@ -244,7 +303,7 @@ class CJDropshippingClient
      */
     public function createOrderV2(array $payload): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/createOrderV2', $payload);
+        return $this->request('POST', '/v1/shopping/order/createOrderV2', $payload);
     }
 
     /**
@@ -252,7 +311,7 @@ class CJDropshippingClient
      */
     public function createOrderV3(array $payload): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/createOrderV3', $payload);
+        return $this->request('POST', '/v1/shopping/order/createOrderV3', $payload);
     }
 
     /**
@@ -260,7 +319,7 @@ class CJDropshippingClient
      */
     public function addCart(array $cjOrderIds): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/addCart', ['cjOrderIdList' => $cjOrderIds]);
+        return $this->request('POST', '/v1/shopping/order/addCart', ['cjOrderIdList' => $cjOrderIds]);
     }
 
     /**
@@ -268,7 +327,7 @@ class CJDropshippingClient
      */
     public function addCartConfirm(array $cjOrderIds): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/addCartConfirm', ['cjOrderIdList' => $cjOrderIds]);
+        return $this->request('POST', '/v1/shopping/order/addCartConfirm', ['cjOrderIdList' => $cjOrderIds]);
     }
 
     /**
@@ -276,7 +335,7 @@ class CJDropshippingClient
      */
     public function saveGenerateParentOrder(string $shipmentOrderId): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/saveGenerateParentOrder', ['shipmentOrderId' => $shipmentOrderId]);
+        return $this->request('POST', '/v1/shopping/order/saveGenerateParentOrder', ['shipmentOrderId' => $shipmentOrderId]);
     }
 
     /**
@@ -284,7 +343,7 @@ class CJDropshippingClient
      */
     public function listOrders(array $filters = []): ApiResponse
     {
-        return $this->request('GET', '/shopping/order/list', $filters);
+        return $this->request('GET', 'v1/shopping/order/list', $filters);
     }
 
     /**
@@ -292,7 +351,7 @@ class CJDropshippingClient
      */
     public function getOrderDetail(array $filters): ApiResponse
     {
-        return $this->request('GET', '/shopping/order/getOrderDetail', $filters);
+        return $this->request('GET', 'v1/shopping/order/getOrderDetail', $filters);
     }
 
     /**
@@ -300,7 +359,7 @@ class CJDropshippingClient
      */
     public function deleteOrder(string $orderId): ApiResponse
     {
-        return $this->request('DELETE', '/shopping/order/deleteOrder', ['orderId' => $orderId]);
+        return $this->request('DELETE', 'v1/shopping/order/deleteOrder', ['orderId' => $orderId]);
     }
 
     /**
@@ -308,7 +367,7 @@ class CJDropshippingClient
      */
     public function confirmOrder(string $orderId): ApiResponse
     {
-        return $this->request('PATCH', '/shopping/order/confirmOrder', ['orderId' => $orderId]);
+        return $this->request('PATCH', 'v1/shopping/order/confirmOrder', ['orderId' => $orderId]);
     }
 
     /**
@@ -316,7 +375,7 @@ class CJDropshippingClient
      */
     public function changeWarehouse(string $orderCode, string $storageId): ApiResponse
     {
-        return $this->request('POST', '/shopping/order/changeWarehouse', [
+        return $this->request('POST', 'v1/shopping/order/changeWarehouse', [
             'orderCode' => $orderCode,
             'storageId' => $storageId,
         ]);
@@ -327,7 +386,7 @@ class CJDropshippingClient
      */
     public function getBalance(): ApiResponse
     {
-        return $this->request('GET', '/shopping/pay/getBalance');
+        return $this->request('GET', 'v1/shopping/pay/getBalance');
     }
 
     /**
@@ -335,7 +394,7 @@ class CJDropshippingClient
      */
     public function payBalance(string $orderId): ApiResponse
     {
-        return $this->request('POST', '/shopping/pay/payBalance', ['orderId' => $orderId]);
+        return $this->request('POST', 'v1/shopping/pay/payBalance', ['orderId' => $orderId]);
     }
 
     /**
@@ -343,7 +402,7 @@ class CJDropshippingClient
      */
     public function payBalanceV2(string $shipmentOrderId, string $payId): ApiResponse
     {
-        return $this->request('POST', '/shopping/pay/payBalanceV2', [
+        return $this->request('POST', 'v1/shopping/pay/payBalanceV2', [
             'shipmentOrderId' => $shipmentOrderId,
             'payId' => $payId,
         ]);
@@ -354,7 +413,7 @@ class CJDropshippingClient
      */
     public function uploadWaybillInfo(array $payload): ApiResponse
     {
-        return $this->multipartRequest('/shopping/order/uploadWaybillInfo', $payload);
+        return $this->multipartRequest('/v1/shopping/order/uploadWaybillInfo', $payload);
     }
 
     /**
@@ -362,7 +421,7 @@ class CJDropshippingClient
      */
     public function updateWaybillInfo(array $payload): ApiResponse
     {
-        return $this->multipartRequest('/shopping/order/updateWaybillInfo', $payload);
+        return $this->multipartRequest('/v1/shopping/order/updateWaybillInfo', $payload);
     }
 
     /**

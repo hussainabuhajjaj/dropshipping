@@ -64,6 +64,9 @@ Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.up
 Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
 Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 
+// Abandoned cart capture for guests
+Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
+
 Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
 Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');

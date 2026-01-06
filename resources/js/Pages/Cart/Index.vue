@@ -21,7 +21,7 @@
           v-else
           :eyebrow="t('Cart')"
           :title="t('Your cart is waiting')"
-          :message="t('Add a few Azura finds and we will hold them here. Prices update automatically before checkout.')"
+          :message="t('Add a few Simbazu finds and we will hold them here. Prices update automatically before checkout.')"
         >
           <template #actions>
             <Link href="/products" class="btn-primary">{{ t('Browse products') }}</Link>
@@ -40,17 +40,17 @@
             </form>
             <p v-if="coupon" class="text-xs text-slate-600">
               {{ t('Applied:') }} <span class="font-semibold text-slate-900">{{ coupon.code }}</span>
-              <span v-if="discount"> ({{ currency }} {{ discount.toFixed(2) }} {{ t('off') }})</span>
+              <span v-if="discount"> ({{ displayPrice(discount) }} {{ t('off') }})</span>
             </p>
           </div>
 
           <div class="flex items-center justify-between text-sm">
             <span>{{ t('Subtotal') }}</span>
-            <span class="font-semibold text-slate-900">{{ currency }} {{ subtotal.toFixed(2) }}</span>
+            <span class="font-semibold text-slate-900">{{ displayPrice(subtotal) }}</span>
           </div>
           <div class="flex items-center justify-between text-sm text-green-700" v-if="discount > 0">
             <span>{{ t('Discount') }}</span>
-            <span>- {{ currency }} {{ discount.toFixed(2) }}</span>
+            <span>- {{ displayPrice(discount) }}</span>
           </div>
           <div class="flex items-center justify-between text-sm text-slate-600">
             <span>{{ t('Shipping') }}</span>
@@ -78,11 +78,18 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+// Helper to display price in selected currency
+function displayPrice(amount) {
+  return formatCurrency(convertCurrency(amount, 'USD', props.currency), props.currency)
+}
 import { Link, router } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CartLineItem from '@/Components/CartLineItem.vue'
 import EmptyState from '@/Components/EmptyState.vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { usePersistentCart } from '@/composables/usePersistentCart.js'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({
@@ -91,24 +98,37 @@ const props = defineProps({
   subtotal: { type: Number, default: 0 },
   discount: { type: Number, default: 0 },
   coupon: { type: Object, default: null },
+  user: { type: Object, default: null },
 })
 
 const { t } = useTranslations()
 
 const couponCode = ref('')
 
+const { cart, removeLine: removeLineLocal, updateLine: updateLineLocal } = usePersistentCart()
+
+const isLoggedIn = computed(() => !!props.user)
+
 const removeLine = (id) => {
-  router.delete(`/cart/${id}`, {
-    preserveScroll: true,
-  })
+  if (isLoggedIn.value) {
+    router.delete(`/cart/${id}`, {
+      preserveScroll: true,
+    })
+  } else {
+    removeLineLocal(id)
+  }
 }
 
 const updateQty = (id, quantity) => {
-  router.patch(
-    `/cart/${id}`,
-    { quantity },
-    { preserveScroll: true }
-  )
+  if (isLoggedIn.value) {
+    router.patch(
+      `/cart/${id}`,
+      { quantity },
+      { preserveScroll: true }
+    )
+  } else {
+    updateLineLocal(id, quantity)
+  }
 }
 
 const applyCoupon = () => {

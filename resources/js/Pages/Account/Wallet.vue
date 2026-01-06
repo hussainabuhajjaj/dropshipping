@@ -21,7 +21,7 @@
             <div v-for="card in giftCards" :key="card.id" class="rounded-xl border border-slate-100 p-4 text-sm">
               <p class="font-semibold text-slate-900">{{ card.code }}</p>
               <p class="text-slate-500">
-                Balance: {{ card.currency }} {{ Number(card.balance).toFixed(2) }}
+                Balance: {{ displayCardBalance(card) }}
               </p>
               <p class="text-slate-500">Status: {{ card.status }}</p>
               <p v-if="card.expires_at" class="text-xs text-slate-400">
@@ -95,6 +95,11 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+function displayCardBalance(card) {
+  return formatCurrency(convertCurrency(Number(card.balance ?? 0), 'USD', card.currency), card.currency)
+}
 import { Link, router, useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import EmptyState from '@/Components/EmptyState.vue'

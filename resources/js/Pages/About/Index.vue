@@ -24,7 +24,7 @@
           <section class="space-y-4">
             <h2 class="text-2xl font-semibold text-slate-900">{{ t('Built for cross-border clarity') }}</h2>
             <p class="text-slate-600">
-              {{ t("Azura helps customers in Cote d'Ivoire access global products with predictable delivery and transparent customs. We coordinate suppliers, track orders, and keep you informed.") }}
+              {{ t("Simbazu helps customers in Cote d'Ivoire access global products with predictable delivery and transparent customs. We coordinate suppliers, track orders, and keep you informed.") }}
             </p>
           </section>
 

@@ -15,7 +15,7 @@
           <div v-for="refund in refunds" :key="refund.id" class="rounded-xl border border-slate-100 p-4 text-sm">
             <p class="font-semibold text-slate-900">Order #{{ refund.order_number }}</p>
             <p class="text-slate-500">
-              {{ refund.currency }} {{ Number(refund.amount).toFixed(2) }} refunded
+              {{ displayRefundAmount(refund.amount, refund.currency) }} refunded
             </p>
             <p class="text-slate-500">Reference: {{ refund.provider_reference || 'N/A' }}</p>
             <p class="text-slate-400 text-xs">Updated {{ formatDate(refund.updated_at) }}</p>
@@ -34,6 +34,11 @@
 </template>
 
 <script setup>
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+
+function displayRefundAmount(amount, currency) {
+  return formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', currency), currency)
+}
 import { Link } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import EmptyState from '@/Components/EmptyState.vue'

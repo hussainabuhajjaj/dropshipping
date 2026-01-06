@@ -1,6 +1,6 @@
 @extends('errors.layout')
 
-@section('title', 'Server error - Azura')
+@section('title', 'Server error - Simbazu')
 @section('eyebrow', '500')
 @section('code', '500')
 @section('heading', 'Something slipped')
