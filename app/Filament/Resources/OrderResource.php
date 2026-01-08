@@ -221,6 +221,35 @@ class OrderResource extends Resource
                     ->label('View Details')
                     ->icon('heroicon-o-eye'),
 
+                ActionsAction::make('dispatch_all')
+                    ->label('Dispatch All')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->modalHeading('Dispatch All Order Items')
+                    ->modalDescription(fn (Order $record) =>
+                        "This will dispatch all items in order {$record->number} to their fulfillment providers."
+                    )
+                    ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
+                    ->action(function (Order $record) {
+                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+                        foreach ($items as $item) {
+                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
+                            $item->update(['fulfillment_status' => 'fulfilling']);
+                            \App\Domain\Orders\Models\OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'fulfillment_dispatched',
+                                'note' => 'Dispatched to provider (bulk)',
+                                'payload' => ['order_item_id' => $item->id],
+                            ]);
+                        }
+                        Notification::make()
+                            ->title('All items dispatched')
+                            ->success()
+                            ->send();
+                    }),
+
                 ActionsAction::make('pay_cj')
                     ->label('Pay CJ Balance')
                     ->icon('heroicon-o-currency-dollar')

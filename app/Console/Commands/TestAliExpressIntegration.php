@@ -54,20 +54,22 @@ class TestAliExpressIntegration extends Command
     {
         $this->line('📋 Testing Token Storage and Retrieval...');
         
-        $token = AliExpressToken::getLatestToken();
-        
-        if (!$token) {
+        $setting = new \App\Models\Setting();
+        $accessToken = $setting->valueOf('aliexpress_access_token');
+        $refreshToken = $setting->valueOf('aliexpress_refresh_token');
+        $expiresAt = $setting->valueOf('aliexpress_expires_at');
+        if (!$accessToken) {
             $this->warn('⚠️  No token found. Run: php artisan serve, then visit /aliexpress/oauth/redirect');
             return;
         }
-
         $this->info('✓ Token found');
-        $this->line("  • Access Token: " . substr($token->access_token, 0, 20) . "...");
-        $this->line("  • Expires At: " . ($token->expires_at ? $token->expires_at->diffForHumans() : 'Never'));
-        $this->line("  • Refresh Token: " . ($token->refresh_token ? substr($token->refresh_token, 0, 20) . "..." : 'None'));
-        
-        $this->info('✓ Token Status: ' . ($token->isExpired() ? '❌ Expired' : '✅ Valid'));
-        $this->info('✓ Can Refresh: ' . ($token->canRefresh() ? '✅ Yes' : '❌ No'));
+        $this->line("  • Access Token: " . substr($accessToken, 0, 20) . "...");
+        $this->line("  • Expires At: " . ($expiresAt ? \Carbon\Carbon::parse($expiresAt)->diffForHumans() : 'Never'));
+        $this->line("  • Refresh Token: " . ($refreshToken ? substr($refreshToken, 0, 20) . "..." : 'None'));
+        $isExpired = $expiresAt && \Carbon\Carbon::parse($expiresAt)->isPast();
+        $canRefresh = $refreshToken && (!$expiresAt || \Carbon\Carbon::parse($expiresAt)->isFuture());
+        $this->info('✓ Token Status: ' . ($isExpired ? '❌ Expired' : '✅ Valid'));
+        $this->info('✓ Can Refresh: ' . ($canRefresh ? '✅ Yes' : '❌ No'));
     }
 
     private function testCategories(): void

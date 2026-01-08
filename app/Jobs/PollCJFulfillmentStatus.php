@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Domain\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
 use App\Domain\Orders\Models\Shipment;
 use Illuminate\Bus\Queueable;
@@ -21,11 +21,11 @@ class PollCJFulfillmentStatus implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public function __construct(public int $fulfillmentJobId)
+    public function __construct(private readonly CJDropshippingClient $client, public int $fulfillmentJobId)
     {
     }
 
-    public function handle(CJDropshippingClient $client): void
+    public function handle(): void
     {
         $job = FulfillmentJob::with(['orderItem.order', 'provider'])
             ->find($this->fulfillmentJobId);
@@ -39,7 +39,7 @@ class PollCJFulfillmentStatus implements ShouldQueue
             return;
         }
 
-        $response = $client->orderStatus(['orderIds' => [$job->external_reference]]);
+        $response = $this->client->orderStatus(['orderIds' => [$job->external_reference]]);
         $body = is_array($response) ? $response : (isset($response->data) ? $response->data : []);
         $data = Arr::get($body, '0');
 

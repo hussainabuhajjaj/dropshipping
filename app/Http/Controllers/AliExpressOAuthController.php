@@ -13,13 +13,16 @@ class AliExpressOAuthController extends Controller
     public function redirect()
     {
         $query = http_build_query([
-            'app_id' => config('ali_express.client_id'),
+            'client_id' => config('ali_express.client_id'),
+            // 'appkey' => config('ali_express.client_id'),
             'redirect_uri' => config('ali_express.redirect_uri'),
             'state' => csrf_token(),
             'site' => 'aliexpress',
-            'response_type' => 'code',
+            'response_type' => 'token',
+            "force_auth" => true
         ]);
-        return redirect('https://oauth.aliexpress.com/authorize?' . $query);
+       //response_type=code&force_auth=true&redirect_uri=${callback-url}&client_id=${appkey}
+        return redirect('https://api-sg.aliexpress.com/oauth/authorize?' . $query);
     }
 
     public function callback(Request $request)

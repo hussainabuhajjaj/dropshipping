@@ -221,7 +221,24 @@ class AliExpressImport extends Page implements HasForms
     public function getToken(): ?AliExpressToken
     {
         try {
-            return AliExpressToken::getLatestToken();
+            $setting = new \App\Models\Setting();
+            $accessToken = $setting->valueOf('aliexpress_access_token');
+            $refreshToken = $setting->valueOf('aliexpress_refresh_token');
+            $expiresAt = $setting->valueOf('aliexpress_expires_at');
+            if (!$accessToken) {
+                return null;
+            }
+            return (object) [
+                'access_token' => $accessToken,
+                'refresh_token' => $refreshToken,
+                'expires_at' => $expiresAt ? \Carbon\Carbon::parse($expiresAt) : null,
+                'isExpired' => function() use ($expiresAt) {
+                    return $expiresAt && \Carbon\Carbon::parse($expiresAt)->isPast();
+                },
+                'canRefresh' => function() use ($refreshToken, $expiresAt) {
+                    return $refreshToken && (!$expiresAt || \Carbon\Carbon::parse($expiresAt)->isFuture());
+                }
+            ];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::warning('Could not fetch AliExpress token', ['error' => $e->getMessage()]);
             return null;

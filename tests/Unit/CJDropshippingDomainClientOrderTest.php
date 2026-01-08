@@ -61,3 +61,4 @@ class CJDropshippingDomainClientOrderTest extends TestCase
         $this->assertStringStartsWith('https://example.test/disputes/create', $captured->url());
     }
 }
+

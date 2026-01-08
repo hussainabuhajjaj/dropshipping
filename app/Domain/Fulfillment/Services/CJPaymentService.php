@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Fulfillment\Services;
 
 use App\Domain\Orders\Models\Order;
-use App\Domain\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

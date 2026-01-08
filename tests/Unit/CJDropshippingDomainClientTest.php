@@ -111,3 +111,4 @@ class CJDropshippingDomainClientTest extends TestCase
         $this->assertSame('POST', strtoupper($captured->method()));
     }
 }
+

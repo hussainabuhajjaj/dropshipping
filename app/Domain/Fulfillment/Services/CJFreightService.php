@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Fulfillment\Services;
 
-use App\Domain\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
@@ -95,7 +95,7 @@ class CJFreightService
     private function callFreight(array $payload, bool $useTip = false): array
     {
         $response = $useTip
-            ? $this->client->freightCalculateTip(['reqDTOS' => [$payload]])
+            ? $this->client->freightCalculate(['reqDTOS' => [$payload]])
             : $this->client->freightCalculate($payload);
 
         $data = $response->data ?? [];

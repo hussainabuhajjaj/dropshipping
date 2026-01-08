@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
-use App\Domain\Fulfillment\Clients\CJDropshippingClient as CjOpenClient;
-use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient as CjApiClient;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\Api\ApiResponse;
 use BackedEnum;

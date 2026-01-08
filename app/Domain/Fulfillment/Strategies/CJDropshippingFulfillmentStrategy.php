@@ -8,7 +8,7 @@ use App\Domain\Fulfillment\Contracts\FulfillmentStrategy;
 use App\Domain\Fulfillment\DTOs\FulfillmentRequestData;
 use App\Domain\Fulfillment\DTOs\FulfillmentResult;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
-use App\Domain\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 

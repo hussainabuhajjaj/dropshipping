@@ -13,9 +13,23 @@ use RuntimeException;
 use App\Infrastructure\Fulfillment\Clients\CJ\CjAuthApi;
 use App\Infrastructure\Fulfillment\Clients\CJ\CjProductApi;
 use App\Infrastructure\Fulfillment\Clients\CJ\CjSettingsApi;
+use App\Models\Setting;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class CJDropshippingClient
 {
+    /**
+     * Calculate freight/shipping cost using CJ API.
+     * Endpoint: /v1/freight/calculate (POST)
+     * @param array $payload
+     * @return ApiResponse
+     */
+    public function freightCalculate(array $payload): ApiResponse
+    {
+        // You may need to adjust the endpoint or payload according to CJ API docs
+        return $this->client->post('/v1/freight/calculate', $payload);
+    }
     private string $apiKey;
     private string $baseUrl;
     private int $timeout;
@@ -38,94 +52,154 @@ class CJDropshippingClient
         $this->client = new ApiClient($this->baseUrl, [], $this->timeout);
     }
 
-    public function getAccessToken(bool $forceRefresh = false): string
+    // public function getAccessToken(bool $forceRefresh = false): string
+    // {
+    //     $cacheKey = 'cj.access_token';
+    //     $refreshKey = 'cj.refresh_token';
+    //     $cached = $forceRefresh ? null : Cache::get($cacheKey);
+
+    //     if ($cached) {
+    //         return $cached;
+    //     }
+
+    //     $refreshToken = Cache::get($refreshKey);
+    //     if ($refreshToken && ! $forceRefresh) {
+    //         $token = $this->refreshAccessToken($refreshToken);
+    //         if ($token) {
+    //             return $token;
+    //         }
+    //     }
+
+    //     // Use ApiClient retry features and also catch transient failures to provide clearer retries.
+    //     $attempts = 0;
+    //     $maxAttempts = 3;
+    //     $lastException = null;
+    //     while ($attempts < $maxAttempts) {
+    //         try {
+    //             $resp = $this->client->post('/v1/authentication/getAccessToken', [
+    //                 'apiKey' => $this->apiKey,
+    //             ]);
+    //             break;
+    //         } catch (\Throwable $e) {
+    //             $lastException = $e;
+    //             $attempts++;
+    //             if ($attempts >= $maxAttempts) {
+    //                 throw new RuntimeException('CJ getAccessToken failed after retries: ' . $e->getMessage());
+    //             }
+    //             // Exponential backoff: 200ms, 400ms, ...
+    //             usleep(200000 * $attempts);
+    //         }
+    //     }
+
+    //     $data = $resp->data ?? [];
+    //     $accessToken = $data['accessToken'] ?? null;
+    //     $accessExpiry = $data['accessTokenExpiryDate'] ?? null;
+    //     $refresh = $data['refreshToken'] ?? null;
+    //     $refreshExpiry = $data['refreshTokenExpiryDate'] ?? null;
+
+    //     if (! $accessToken) {
+    //         throw new RuntimeException('CJ getAccessToken missing accessToken.');
+    //     }
+
+    //     // Persist into cache with TTL derived from returned expiry when available
+    //     Cache::put($cacheKey, $accessToken, $this->ttlFromDate($accessExpiry, 60 * 60 * 24 * 10));
+
+    //     if ($refresh) {
+    //         Cache::put($refreshKey, $refresh, $this->ttlFromDate($refreshExpiry, 60 * 60 * 24 * 120));
+    //     }
+
+    //     return $accessToken;
+    // }
+
+    // public function refreshAccessToken(string $refreshToken): ?string
+    // {
+    //     $cacheKey = 'cj.access_token';
+    //     $refreshKey = 'cj.refresh_token';
+
+    //     try {
+    //         $resp = $this->client->post('/v1/authentication/refreshAccessToken', [
+    //             'refreshToken' => $refreshToken,
+    //         ]);
+    //     } catch (\Throwable $e) {
+    //         \Illuminate\Support\Facades\Log::warning('CJ refreshAccessToken failed', ['error' => $e->getMessage()]);
+    //         return null;
+    //     }
+
+    //     $data = $resp->data ?? [];
+    //     $accessToken = $data['accessToken'] ?? null;
+    //     $accessExpiry = $data['accessTokenExpiryDate'] ?? null;
+    //     $refresh = $data['refreshToken'] ?? null;
+    //     $refreshExpiry = $data['refreshTokenExpiryDate'] ?? null;
+
+    //     if ($accessToken) {
+    //         Cache::put($cacheKey, $accessToken, $this->ttlFromDate($accessExpiry, 60 * 60 * 24 * 10));
+    //     }
+
+    //     if ($refresh) {
+    //         Cache::put($refreshKey, $refresh, $this->ttlFromDate($refreshExpiry, 60 * 60 * 24 * 120));
+    //     }
+
+    //     return $accessToken;
+    // }
+public function getAccessToken()
     {
-        $cacheKey = 'cj.access_token';
-        $refreshKey = 'cj.refresh_token';
-        $cached = $forceRefresh ? null : Cache::get($cacheKey);
-
-        if ($cached) {
-            return $cached;
-        }
-
-        $refreshToken = Cache::get($refreshKey);
-        if ($refreshToken && ! $forceRefresh) {
-            $token = $this->refreshAccessToken($refreshToken);
-            if ($token) {
-                return $token;
+        $setting = new Setting();
+        if ($access_token = $setting->valueOf('cj_access_token', null)) {
+            $access_token_expired_at = $setting->valueOf('cj_access_expiry', null);
+            if ($access_token_expired_at < now()) {
+                return $access_token;
             }
         }
-
-        // Use ApiClient retry features and also catch transient failures to provide clearer retries.
-        $attempts = 0;
-        $maxAttempts = 3;
-        $lastException = null;
-        while ($attempts < $maxAttempts) {
-            try {
-                $resp = $this->client->post('/v1/authentication/getAccessToken', [
-                    'apiKey' => $this->apiKey,
-                ]);
-                break;
-            } catch (\Throwable $e) {
-                $lastException = $e;
-                $attempts++;
-                if ($attempts >= $maxAttempts) {
-                    throw new RuntimeException('CJ getAccessToken failed after retries: ' . $e->getMessage());
-                }
-                // Exponential backoff: 200ms, 400ms, ...
-                usleep(200000 * $attempts);
-            }
-        }
-
-        $data = $resp->data ?? [];
-        $accessToken = $data['accessToken'] ?? null;
-        $accessExpiry = $data['accessTokenExpiryDate'] ?? null;
-        $refresh = $data['refreshToken'] ?? null;
-        $refreshExpiry = $data['refreshTokenExpiryDate'] ?? null;
-
-        if (! $accessToken) {
-            throw new RuntimeException('CJ getAccessToken missing accessToken.');
-        }
-
-        // Persist into cache with TTL derived from returned expiry when available
-        Cache::put($cacheKey, $accessToken, $this->ttlFromDate($accessExpiry, 60 * 60 * 24 * 10));
-
-        if ($refresh) {
-            Cache::put($refreshKey, $refresh, $this->ttlFromDate($refreshExpiry, 60 * 60 * 24 * 120));
-        }
-
-        return $accessToken;
+        return $this->generateNewToken();
     }
 
-    public function refreshAccessToken(string $refreshToken): ?string
+
+    public function generateNewToken()
     {
-        $cacheKey = 'cj.access_token';
-        $refreshKey = 'cj.refresh_token';
+        $response = Http::timeout(300)
+            ->retry(2, sleepMilliseconds: 200)
+            ->post($this->baseUrl . '/v1/authentication/getAccessToken', [
+                'apiKey' => $this->apiKey, // Only apiKey is required per docs
+            ]);
+
+        $body = $response->json();
+        $data = $body['data'];
+        // dd($body);
+        $Cjbody = [
+            'cj_access_token' => $data['accessToken'],
+            'cj_access_expiry' => $this->parseDate($data['accessTokenExpiryDate'] ?? null),
+            'cj_refresh_token' => $data['refreshToken'] ?? null,
+            'cj_refresh_expiry' => isset($data['refreshTokenExpiryDate']) ?
+                $this->parseDate($data['refreshTokenExpiryDate']) : null,
+            'cj_open_id' => $data['openId'] ?? null,
+            'cj_created_at' => now()->timestamp,
+        ];
+
+        Setting::setSetting($Cjbody);
+        return $Cjbody['cj_access_token'];
+    }
+    public function parseDate(?string $dateString): int
+    {
+        if (!$dateString) {
+            // Default fallback: access token 15 days, refresh token 180 days from now
+            return time() + (15 * 86400); // 15 days
+        }
 
         try {
-            $resp = $this->client->post('/v1/authentication/refreshAccessToken', [
-                'refreshToken' => $refreshToken,
+            // Try to parse the date string (e.g., "2021-08-18T09:16:33+08:00")
+            return \Carbon\Carbon::parse($dateString)->timestamp;
+        } catch (\Exception $e) {
+            Log::warning('[CJ Auth] Failed to parse date, using defaults', [
+                'date_string' => $dateString,
+                'error' => $e->getMessage()
             ]);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('CJ refreshAccessToken failed', ['error' => $e->getMessage()]);
-            return null;
+
+            // Default fallback based on the type of date
+            if (str_contains($dateString, 'accessTokenExpiryDate') || str_contains($dateString, 'access')) {
+                return time() + (15 * 86400); // 15 days
+            }
+            return time() + (180 * 86400); // 180 days
         }
-
-        $data = $resp->data ?? [];
-        $accessToken = $data['accessToken'] ?? null;
-        $accessExpiry = $data['accessTokenExpiryDate'] ?? null;
-        $refresh = $data['refreshToken'] ?? null;
-        $refreshExpiry = $data['refreshTokenExpiryDate'] ?? null;
-
-        if ($accessToken) {
-            Cache::put($cacheKey, $accessToken, $this->ttlFromDate($accessExpiry, 60 * 60 * 24 * 10));
-        }
-
-        if ($refresh) {
-            Cache::put($refreshKey, $refresh, $this->ttlFromDate($refreshExpiry, 60 * 60 * 24 * 120));
-        }
-
-        return $accessToken;
     }
 
     public function logout(): ApiResponse
@@ -147,7 +221,24 @@ class CJDropshippingClient
     {
         return $this->products()->getProduct($pid);
     }
+    /**
+     * Create order using v2 endpoint (with auth token)
+     */
+    public function createOrderV2(array $payload): ApiResponse
+    {
+        $client = $this->authClient();
+        return $client->post('/v1/shopping/order/createOrderV2', $payload);
+    }
 
+    /**
+     * Create order V3 (updated endpoint, with auth token)
+     */
+    public function createOrderV3(array $payload): ApiResponse
+    {
+        $client = $this->authClient();
+        return $client->post('/v1/shopping/order/createOrderV3', $payload);
+    }
+    
     public function getProductBy(array $criteria): ApiResponse
     {
         return $this->products()->getProductBy($criteria);

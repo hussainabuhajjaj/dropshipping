@@ -31,6 +31,34 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('dispatch_all')
+                ->label('Dispatch All')
+                ->icon('heroicon-o-paper-airplane')
+                ->color('primary')
+                ->requiresConfirmation()
+                ->modalHeading('Dispatch All Order Items')
+                ->modalDescription(fn (Order $record) =>
+                    "This will dispatch all items in order {$record->number} to their fulfillment providers."
+                )
+                ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
+                ->action(function (Order $record) {
+                    $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+                    foreach ($items as $item) {
+                        \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
+                        $item->update(['fulfillment_status' => 'fulfilling']);
+                        \App\Domain\Orders\Models\OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'fulfillment_dispatched',
+                            'note' => 'Dispatched to provider (bulk)',
+                            'payload' => ['order_item_id' => $item->id],
+                        ]);
+                    }
+                    Notification::make()
+                        ->title('All items dispatched')
+                        ->success()
+                        ->send();
+                }),
             Actions\Action::make('copyShipping')
                 ->label('Copy Shipping Info')
                 ->color('gray')
