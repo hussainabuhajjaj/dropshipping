@@ -77,7 +77,8 @@ class AliExpressOAuthController extends Controller
             ]);
 
             Log::info('AliExpress token stored successfully', ['token_id' => $token->id]);
-            return redirect('/admin/aliexpress-import')->with('success', 'Successfully authenticated with AliExpress!');
+            // Redirect back to ali-express-import page with access token in query string
+            return redirect('/ali-express-import?access_token=' . urlencode($data['access_token']));
         } catch (\Exception $e) {
             Log::error('AliExpress OAuth callback error', ['error' => $e->getMessage()]);
             return response('Authentication error: ' . $e->getMessage(), 500);
