@@ -18,13 +18,24 @@ class AliExpressOAuthController extends Controller
             'redirect_uri' => config('ali_express.redirect_uri'),
             'state' => csrf_token(),
             'site' => 'aliexpress',
-            'response_type' => 'token',
+            'response_type' => 'code',
             "force_auth" => true
         ]);
        //response_type=code&force_auth=true&redirect_uri=${callback-url}&client_id=${appkey}
         return redirect('https://api-sg.aliexpress.com/oauth/authorize?' . $query);
     }
-
+    public function createSystemToken(Request $request)
+    {
+        $code = $request->input('code');
+        if (!$code) {
+            return response()->json(['error' => 'Missing code'], 400);
+        }
+        $client = new \App\Infrastructure\Fulfillment\Clients\AliExpressClient(
+            config('ali_express.client_id')
+        );
+        $result = $client->createToken($code);
+        return response()->json($result);
+    }
     public function callback(Request $request)
     {
         try {

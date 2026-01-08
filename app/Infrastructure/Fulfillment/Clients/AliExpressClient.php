@@ -73,7 +73,39 @@ class AliExpressClient
 
         return $token->access_token;
     }
+    public function createToken(string $authCode): array
+    {
+        require_once base_path('ae-php-sdk/IopClientImpl.php');
+        require_once base_path('ae-php-sdk/IopRequest.php');
+        require_once base_path('ae-php-sdk/Protocol.php');
 
+        $url = 'https://api-sg.aliexpress.com/rest';
+        $action = '/auth/token/create';
+
+        // Use app credentials from provider settings if available, else fallback to config
+        $appKey = $this->provider->settings['client_id'] ?? config('ali_express.client_id');
+        $appSecret = $this->provider->settings['client_secret'] ?? config('ali_express.client_secret');
+
+        $client = new \IopClientImpl($url, $appKey, $appSecret);
+        $request = new \IopRequest();
+        $request->setApiName($action);
+        $request->addApiParameter('code', $authCode);
+
+        try {
+            $response = $client->execute($request, \Protocol::GOP);
+            if (method_exists($response, 'getGopResponseBody')) {
+                $body = $response->getGopResponseBody();
+                $data = json_decode($body, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $data;
+                }
+                return ['raw' => $body];
+            }
+            return ['raw' => $response];
+        } catch (\Exception $e) {
+            return ['error' => $e->getMessage()];
+        }
+    }
     protected function refreshToken(AliExpressToken $token): void
     {
         try {
