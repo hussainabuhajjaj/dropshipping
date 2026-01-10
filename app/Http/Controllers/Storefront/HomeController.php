@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
+use App\Services\Promotions\PromotionHomepageService;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
@@ -23,7 +24,7 @@ class HomeController extends Controller
     use TransformsProducts;
     use FormatsCategories;
 
-    public function index(): Response
+    public function index(PromotionHomepageService $promotionHomepageService): Response
     {
         $baseQuery = Product::query()
             ->where('is_active', true)
@@ -153,6 +154,7 @@ class HomeController extends Controller
                 'rail_cards' => $homeContent->rail_cards,
                 'banner_strip' => $homeContent->banner_strip,
             ] : null,
+            'homepagePromotions' => $promotionHomepageService->getHomepagePromotions(),
         ]);
     }
 

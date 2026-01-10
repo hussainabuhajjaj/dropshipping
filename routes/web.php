@@ -1,10 +1,14 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Webhooks\PaymentWebhookController;
-use App\Http\Controllers\Webhooks\CJDropshippingController;
-use App\Http\Controllers\Storefront\ProductController;
+// --- Core Laravel & Vendor Imports ---
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
+// --- Storefront Controllers ---
 use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Storefront\CategoryController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\ExpressCheckoutController;
@@ -17,23 +21,31 @@ use App\Http\Controllers\Storefront\ProductReviewController;
 use App\Http\Controllers\Storefront\ReviewHelpfulController;
 use App\Http\Controllers\Storefront\ReturnRequestController;
 use App\Http\Controllers\Storefront\ReturnLabelController;
-use App\Http\Controllers\Storefront\CategoryController;
 use App\Http\Controllers\Storefront\PageController;
-use App\Http\Controllers\Webhooks\CJWebhookController;
+use App\Http\Controllers\Storefront\PromotionController;
+
+// --- Webhook Controllers ---
+use App\Http\Controllers\Webhooks\PaymentWebhookController;
 use App\Http\Controllers\Webhooks\TrackingWebhookController;
-use App\Http\Controllers\Payments\PaystackCallbackController;
-use App\Http\Controllers\Seo\SitemapController;
-use App\Http\Controllers\Seo\RobotsController;
+use App\Http\Controllers\Webhooks\CJWebhookController;
+use App\Http\Controllers\Webhooks\CJDropshippingController;
+
+// --- Admin & Misc Controllers ---
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\AdminPasswordResetLinkController;
 use App\Http\Controllers\Admin\AdminNewPasswordController;
+use App\Http\Controllers\Payments\PaystackCallbackController;
+use App\Http\Controllers\Seo\SitemapController;
+use App\Http\Controllers\Seo\RobotsController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\AliExpressOAuthController;
+
+// --- Middleware ---
 use App\Http\Middleware\VerifyPaymentWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
 use App\Http\Middleware\VerifyTrackingWebhookSignature;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use App\Http\Controllers\AliExpressOAuthController;
+
+// ---------------- ROUTES ----------------
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/locale/{locale}', function (string $locale, Request $request) {
@@ -74,6 +86,7 @@ Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'co
 Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
 Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::get('/orders/track', TrackingPageController::class)->name('orders.track');
+Route::get('/promotions', [PromotionController::class, 'index'])->name('promotions.index');
 
 Route::post('/webhooks/payments/{provider}', PaymentWebhookController::class)
     ->middleware(['throttle:30,1', VerifyPaymentWebhookSignature::class, IdempotencyMiddleware::class])

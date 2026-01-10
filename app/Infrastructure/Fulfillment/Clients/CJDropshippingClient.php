@@ -19,17 +19,7 @@ use Illuminate\Support\Facades\Log;
 
 class CJDropshippingClient
 {
-    /**
-     * Calculate freight/shipping cost using CJ API.
-     * Endpoint: /v1/freight/calculate (POST)
-     * @param array $payload
-     * @return ApiResponse
-     */
-    public function freightCalculate(array $payload): ApiResponse
-    {
-        // You may need to adjust the endpoint or payload according to CJ API docs
-        return $this->client->post('/v1/freight/calculate', $payload);
-    }
+   
     private string $apiKey;
     private string $baseUrl;
     private int $timeout;
@@ -51,7 +41,17 @@ class CJDropshippingClient
 
         $this->client = new ApiClient($this->baseUrl, [], $this->timeout);
     }
-
+ /**
+     * Calculate freight/shipping cost using CJ API.
+     * Endpoint: /v1/freight/calculate (POST)
+     * @param array $payload
+     * @return ApiResponse
+     */
+    public function freightCalculate(array $payload): ApiResponse
+    {
+        // You may need to adjust the endpoint or payload according to CJ API docs
+        return $this->client->post('/v1/freight/calculate', $payload);
+    }
     // public function getAccessToken(bool $forceRefresh = false): string
     // {
     //     $cacheKey = 'cj.access_token';

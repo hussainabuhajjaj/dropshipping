@@ -172,6 +172,37 @@
         </div>
       </section>
 
+
+      <!-- Homepage Promotions Section -->
+      <section v-if="homepagePromotions && homepagePromotions.length" class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">{{ t('Featured Promotions') }}</p>
+            <h2 class="section-title">{{ t('Special offers just for you') }}</h2>
+          </div>
+          <Link href="/promotions" class="section-link">{{ t('See all promotions') }}</Link>
+        </div>
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="promo in homepagePromotions" :key="promo.id" class="promotion-card reveal">
+            <div class="promotion-header">
+              <span class="promotion-type" :class="promo.type">{{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }}</span>
+              <span v-if="promo.end_at" class="promotion-timer">{{ t('Ends at') }} {{ new Date(promo.end_at).toLocaleString() }}</span>
+            </div>
+            <h3 class="promotion-title">{{ promo.name }}</h3>
+            <p class="promotion-desc">{{ promo.description }}</p>
+            <div class="promotion-meta">
+              <span v-if="promo.value_type === 'percent'">{{ promo.value }}% {{ t('off') }}</span>
+              <span v-else-if="promo.value_type === 'amount'">-{{ displayPrice(promo.value) }}</span>
+            </div>
+            <div v-if="promo.targets && promo.targets.length" class="promotion-targets">
+              <span v-for="target in promo.targets" :key="target.id" class="promotion-target">
+                {{ target.target_type === 'product' ? t('Product') : t('Category') }}: {{ target.target_value }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="banner-strip">
         <div class="banner-fill">
           <div>
@@ -181,6 +212,7 @@
           <Link :href="bannerStrip.href" class="banner-cta">{{ bannerStrip.cta }}</Link>
         </div>
       </section>
+const homepagePromotions = computed(() => Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : [])
 
       <section class="value-grid">
         <div v-for="item in valueProps" :key="item.title" class="value-card">

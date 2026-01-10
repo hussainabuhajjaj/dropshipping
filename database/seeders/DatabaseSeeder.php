@@ -29,6 +29,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $this->call(FullTestDataSeeder::class);
+        $this->call(\Database\Seeders\PromotionSeeder::class);
     }
 }

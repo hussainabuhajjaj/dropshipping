@@ -14,6 +14,7 @@ class FullTestDataSeeder extends Seeder
             CustomerPerksSeeder::class,
             CJSeeder::class,
             TestDataSeeder::class,
+            PromotionSeeder::class,
         ]);
     }
 }

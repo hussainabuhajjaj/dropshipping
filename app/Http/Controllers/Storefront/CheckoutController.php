@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront;
 
 use App\Domain\Common\Models\Address;
-use App\Events\Orders\OrderPaid;
 use App\Events\Orders\OrderPlaced;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
@@ -17,8 +16,6 @@ use App\Domain\Products\Models\ProductVariant;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Fulfillment\Services\CJFreightService;
 use Illuminate\Support\Facades\Log;
-use App\Models\Coupon;
-use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,22 +34,26 @@ class CheckoutController extends Controller
     public function index(): Response|RedirectResponse
     {
         $cart = session('cart', []);
+        
         if (empty($cart)) {
             return redirect()->route('products.index');
         }
 
-        if (! $this->validateStock($cart)) {
+        if (!$this->validateStock($cart)) {
             return back()->withErrors(['cart' => 'One or more items are out of stock. Please adjust your cart.']);
         }
 
-        $subtotal = $this->subtotal($cart);
-        $customer = $this->currentCustomer();
+        $subtotal = $this->calculateSubtotal($cart);
+        $customer = $this->getCurrentCustomer();
+        
         app(AbandonedCartService::class)->capture($cart, $customer?->email, $customer?->id);
+        
         $defaultAddress = $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->first();
-        $quotePayload = $this->quotePayloadFromAddress($defaultAddress);
+        
+        $quotePayload = $this->createQuotePayloadFromAddress($defaultAddress);
         $shippingQuote = $this->quoteShipping($cart, $quotePayload);
         $shipping = $shippingQuote['shipping_total'] ?? 0;
         $selectedMethod = $shippingQuote['shipping_method'] ?? 'standard';
@@ -99,11 +100,12 @@ class CheckoutController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $cart = session('cart', []);
+        
         if (empty($cart)) {
             return redirect()->route('products.index');
         }
 
-        $data = $request->validate([
+        $validatedData = $request->validate([
             'email' => ['required', 'email'],
             'phone' => ['required', 'string', 'max:30'],
             'first_name' => ['required', 'string', 'max:120'],
@@ -119,9 +121,9 @@ class CheckoutController extends Controller
             'accept_terms' => ['accepted'],
         ]);
 
-        $customer = $this->currentCustomer();
-        $subtotal = $this->subtotal($cart);
-        $shippingQuote = $this->quoteShipping($cart, $data);
+        $customer = $this->getCurrentCustomer();
+        $subtotal = $this->calculateSubtotal($cart);
+        $shippingQuote = $this->quoteShipping($cart, $validatedData);
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
         $discount = $discounts['amount'];
@@ -136,39 +138,34 @@ class CheckoutController extends Controller
         $taxIncluded = (bool) ($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        [$order, $customer, $payment] = DB::transaction(function () use ($data, $cart, $shippingQuote, $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $shippingQuote, $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
             $customer = Auth::guard('customer')->user();
-            $isGuest = false;
+            $isGuest = !$customer;
 
-            // Only auto-create customer if they explicitly register, not for guest checkout
-            if (! $customer) {
-                // Guest checkout - no customer account creation
-                $isGuest = true;
-                $customer = null;
-            }
-
+            // Create shipping address
             $shippingAddress = Address::create([
                 'user_id' => null,
                 'customer_id' => $customer?->id,
-                'name' => trim($data['first_name'] . ' ' . ($data['last_name'] ?? '')),
-                'phone' => $data['phone'],
-                'line1' => $data['line1'],
-                'line2' => $data['line2'] ?? null,
-                'city' => $data['city'],
-                'state' => $data['state'] ?? null,
-                'postal_code' => $data['postal_code'] ?? null,
-                'country' => strtoupper($data['country']),
+                'name' => trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')),
+                'phone' => $validatedData['phone'],
+                'line1' => $validatedData['line1'],
+                'line2' => $validatedData['line2'] ?? null,
+                'city' => $validatedData['city'],
+                'state' => $validatedData['state'] ?? null,
+                'postal_code' => $validatedData['postal_code'] ?? null,
+                'country' => strtoupper($validatedData['country']),
                 'type' => 'shipping',
             ]);
 
+            // Create order
             $order = Order::create([
-                'number' => $this->generateNumber(),
+                'number' => $this->generateOrderNumber(),
                 'user_id' => null,
                 'customer_id' => $customer?->id,
-                'guest_name' => $isGuest ? trim($data['first_name'] . ' ' . ($data['last_name'] ?? '')) : null,
-                'guest_phone' => $isGuest ? $data['phone'] : null,
+                'guest_name' => $isGuest ? trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')) : null,
+                'guest_phone' => $isGuest ? $validatedData['phone'] : null,
                 'is_guest' => $isGuest,
-                'email' => $data['email'],
+                'email' => $validatedData['email'],
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
                 'currency' => $cart[0]['currency'] ?? 'USD',
@@ -181,14 +178,15 @@ class CheckoutController extends Controller
                 'shipping_address_id' => $shippingAddress->id,
                 'billing_address_id' => $shippingAddress->id,
                 'shipping_method' => $shippingQuote['shipping_method'] ?? 'standard',
-                'delivery_notes' => $data['delivery_notes'] ?? null,
+                'delivery_notes' => $validatedData['delivery_notes'] ?? null,
                 'coupon_code' => $coupon['code'] ?? null,
                 'placed_at' => now(),
             ]);
 
+            // Create order items
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
-
-            collect($cart)->each(function (array $line) use ($order, $fallbackProvider) {
+            
+            foreach ($cart as $line) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_variant_id' => $line['variant_id'],
@@ -204,15 +202,16 @@ class CheckoutController extends Controller
                         'variant' => $line['variant'],
                     ],
                     'meta' => [
-                        'media' => $line['media'],
+                        'media' => $line['media'] ?? null,
                         'coupon_code' => $coupon['code'] ?? null,
                     ],
                 ]);
-            });
+            }
 
-            $paymentProvider = in_array($data['payment_method'], ['card', 'mobile_money'], true)
+            // Create payment
+            $paymentProvider = in_array($validatedData['payment_method'], ['card', 'mobile_money'], true)
                 ? 'paystack'
-                : $data['payment_method'];
+                : $validatedData['payment_method'];
 
             $payment = Payment::create([
                 'order_id' => $order->id,
@@ -224,17 +223,18 @@ class CheckoutController extends Controller
                 'paid_at' => null,
                 'meta' => [
                     'type' => 'checkout_pending',
-                    'payment_method' => $data['payment_method'],
+                    'payment_method' => $validatedData['payment_method'],
                     'coupon_code' => $coupon['code'] ?? null,
                 ],
             ]);
 
             event(new OrderPlaced($order));
 
-            return [$order, $customer, $payment];
+            return [$order, $payment];
         });
 
-        if (in_array($data['payment_method'], ['card', 'mobile_money'], true)) {
+        // Handle payment based on method
+        if (in_array($validatedData['payment_method'], ['card', 'mobile_money'], true)) {
             $reference = 'azr_' . strtolower($order->number) . '_' . Str::lower(Str::random(6));
             $payment->update(['provider_reference' => $reference]);
 
@@ -242,28 +242,32 @@ class CheckoutController extends Controller
                 $init = app(PaystackService::class)->initialize(
                     $order,
                     $payment,
-                    ['email' => $data['email']],
-                    $data['payment_method']
+                    ['email' => $validatedData['email']],
+                    $validatedData['payment_method']
                 );
+                
+                $authorizationUrl = $init->data['authorization_url'] ?? null;
+                
+                if (!$authorizationUrl) {
+                    return back()->withErrors([
+                        'payment' => 'Payment provider did not return an authorization link.',
+                    ]);
+                }
+                
+                session()->forget(['cart', 'cart_coupon']);
+                app(AbandonedCartService::class)->markRecovered();
+                
+                return redirect()->away($authorizationUrl);
+                
             } catch (\Throwable $e) {
+                Log::error('Payment initialization failed', ['error' => $e->getMessage()]);
                 return back()->withErrors([
                     'payment' => 'Unable to start payment. Please try again.',
                 ]);
             }
-
-            $authorizationUrl = $init->data['authorization_url'] ?? null;
-            if (! $authorizationUrl) {
-                return back()->withErrors([
-                    'payment' => 'Payment provider did not return an authorization link.',
-                ]);
-            }
-
-            session()->forget(['cart', 'cart_coupon']);
-            app(AbandonedCartService::class)->markRecovered();
-
-            return redirect()->away($authorizationUrl);
         }
 
+        // For bank transfer or other offline methods
         session()->forget(['cart', 'cart_coupon']);
         app(AbandonedCartService::class)->markRecovered();
 
@@ -303,14 +307,24 @@ class CheckoutController extends Controller
         ]);
     }
 
-    private function subtotal(array $cart): float
+    /**
+     * Calculate cart subtotal
+     */
+    private function calculateSubtotal(array $cart): float
     {
-        return collect($cart)->reduce(function ($carry, $line) {
-            return $carry + ((float) $line['price'] * (int) $line['quantity']);
-        }, 0.0);
+        $subtotal = 0.0;
+        
+        foreach ($cart as $line) {
+            $subtotal += ((float) $line['price'] * (int) $line['quantity']);
+        }
+        
+        return $subtotal;
     }
 
-    private function generateNumber(): string
+    /**
+     * Generate unique order number
+     */
+    private function generateOrderNumber(): string
     {
         do {
             $number = 'DS-' . Str::upper(Str::random(8));
@@ -319,20 +333,25 @@ class CheckoutController extends Controller
         return $number;
     }
 
+    /**
+     * Get shipping quote
+     */
     private function quoteShipping(array $cart, array $data): array
     {
         $fallback = [
-            'shipping_total' => 0,
+            'shipping_total' => 0.0,
             'shipping_method' => 'standard',
         ];
 
         $providerId = $cart[0]['fulfillment_provider_id'] ?? SiteSetting::query()->value('default_fulfillment_provider_id');
-        if (! $providerId) {
+        
+        if (!$providerId) {
             return $fallback;
         }
 
         $provider = FulfillmentProvider::find($providerId);
-        if (! $provider || $provider->driver_class !== \App\Domain\Fulfillment\Strategies\CJDropshippingFulfillmentStrategy::class) {
+        
+        if (!$provider || $provider->driver_class !== \App\Domain\Fulfillment\Strategies\CJDropshippingFulfillmentStrategy::class) {
             return $fallback;
         }
 
@@ -343,23 +362,31 @@ class CheckoutController extends Controller
             'zip' => $data['postal_code'] ?? null,
         ];
 
-        $items = collect($cart)->map(function ($line) {
+        $items = [];
+        
+        foreach ($cart as $line) {
             $variant = ProductVariant::find($line['variant_id']);
             $product = $variant?->product;
-            return [
+            
+            $sku = $line['external_sku'] ?? $variant?->sku ?? $line['sku'] ?? '';
+            
+            if ($sku === '') {
+                continue;
+            }
+            
+            $items[] = [
                 'vid' => $line['cj_vid'] ?? $line['vid'] ?? null,
-                'sku' => $line['external_sku'] ?? $variant?->sku ?? $line['sku'] ?? '',
+                'sku' => $sku,
                 'quantity' => (int) $line['quantity'],
-                            'warehouse_id' => $product?->cj_warehouse_id,
+                'warehouse_id' => $product?->cj_warehouse_id,
             ];
-        })->filter(fn ($i) => $i['sku'] !== '')->values()->all();
+        }
 
         if (empty($items)) {
             return $fallback;
         }
 
         try {
-            // Use the product's warehouse if available, otherwise fall back to provider default
             $warehouseId = collect($items)->pluck('warehouse_id')->filter()->first() 
                 ?? $provider->settings['warehouse_id'] 
                 ?? null;
@@ -368,21 +395,30 @@ class CheckoutController extends Controller
                 'warehouseId' => $warehouseId,
                 'logisticsType' => $provider->settings['logistics_type'] ?? null,
             ]);
-            $first = $options[0] ?? null;
-            if ($first) {
+            
+            $firstOption = $options[0] ?? null;
+            
+            if ($firstOption) {
                 return [
-                    'shipping_total' => (float) ($first['price'] ?? 0),
-                    'shipping_method' => $first['logisticName'] ?? ($provider->settings['shipping_method'] ?? 'standard'),
+                    'shipping_total' => (float) ($firstOption['price'] ?? 0),
+                    'shipping_method' => $firstOption['logisticName'] ?? ($provider->settings['shipping_method'] ?? 'standard'),
                 ];
             }
         } catch (\Throwable $e) {
-            Log::warning('CJ freight quote failed', ['error' => $e->getMessage()]);
+            Log::warning('CJ freight quote failed', [
+                'error' => $e->getMessage(),
+                'destination' => $destination,
+                'items_count' => count($items)
+            ]);
         }
 
         return $fallback;
     }
 
-    private function quotePayloadFromAddress(?Address $address): array
+    /**
+     * Create quote payload from address
+     */
+    private function createQuotePayloadFromAddress(?Address $address): array
     {
         return [
             'country' => strtoupper($address?->country ?? 'CI'),
@@ -392,27 +428,34 @@ class CheckoutController extends Controller
         ];
     }
 
-    private function discount(array $cart, ?array $coupon): float
+    /**
+     * Calculate discount from coupon
+     */
+    private function calculateDiscount(array $cart, ?array $coupon): float
     {
-        if (! $coupon) {
+        if (!$coupon) {
             return 0.0;
         }
 
-        $subtotal = $this->subtotal($cart);
-        if ($coupon['min_order_total'] && $subtotal < (float) $coupon['min_order_total']) {
+        $subtotal = $this->calculateSubtotal($cart);
+        
+        if (isset($coupon['min_order_total']) && $subtotal < (float) $coupon['min_order_total']) {
             return 0.0;
         }
 
-        if ($coupon['type'] === 'fixed') {
+        if (($coupon['type'] ?? null) === 'fixed') {
             return min((float) $coupon['amount'], $subtotal);
         }
 
-        return round($subtotal * ((float) $coupon['amount'] / 100), 2);
+        return round($subtotal * ((float) ($coupon['amount'] ?? 0) / 100), 2);
     }
 
+    /**
+     * Calculate best discount (coupon vs campaign)
+     */
     private function calculateDiscounts(array $cart, ?array $coupon, ?Customer $customer, float $subtotal): array
     {
-        $couponDiscount = $this->discount($cart, $coupon);
+        $couponDiscount = $this->calculateDiscount($cart, $coupon);
         $campaign = app(CampaignManager::class)->bestForCart($cart, $subtotal, $customer);
 
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
@@ -428,19 +471,27 @@ class CheckoutController extends Controller
         ];
     }
 
-    private function currentCustomer(): ?Customer
+    /**
+     * Get current authenticated customer
+     */
+    private function getCurrentCustomer(): ?Customer
     {
         $user = Auth::guard('customer')->user();
-        if (! $user) {
+        
+        if (!$user) {
             return null;
         }
 
         return Customer::find($user->id);
     }
 
+    /**
+     * Calculate tax amount
+     */
     private function calculateTax(float $amount, ?SiteSetting $settings): float
     {
         $rate = (float) ($settings?->tax_rate ?? 0);
+        
         if ($rate <= 0) {
             return 0.0;
         }
@@ -448,6 +499,9 @@ class CheckoutController extends Controller
         return round($amount * ($rate / 100), 2);
     }
 
+    /**
+     * Apply shipping rules (free shipping threshold, handling fees)
+     */
     private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
     {
         $eligibleTotal = max(0, $subtotal - $discount);
@@ -465,11 +519,14 @@ class CheckoutController extends Controller
         return $shippingTotal;
     }
 
+    /**
+     * Validate stock for all cart items
+     */
     private function validateStock(array $cart): bool
     {
         foreach ($cart as $line) {
             // Check local stock first
-            if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
+            if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
                 if ((int) $line['stock_on_hand'] < (int) $line['quantity']) {
                     return false;
                 }
@@ -477,7 +534,7 @@ class CheckoutController extends Controller
             }
 
             // Fallback to CJ API check
-            if (! $this->validateCjStock([$line])) {
+            if (!$this->validateCJStock([$line])) {
                 return false;
             }
         }
@@ -485,13 +542,16 @@ class CheckoutController extends Controller
         return true;
     }
 
-    private function validateCjStock(array $cart): bool
+    /**
+     * Validate stock using CJ Dropshipping API
+     */
+    private function validateCJStock(array $cart): bool
     {
         $client = app(CJDropshippingClient::class);
 
         foreach ($cart as $line) {
             // Prefer local stock snapshot if present
-            if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
+            if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
                 if ((int) $line['stock_on_hand'] < (int) $line['quantity']) {
                     return false;
                 }
@@ -499,80 +559,87 @@ class CheckoutController extends Controller
             }
 
             try {
-                if ($line['cj_vid'] ?? false) {
-                    $resp = $client->getStockByVid((string) $line['cj_vid']);
-                } elseif ($line['sku'] ?? false) {
-                    $resp = $client->getStockBySku((string) $line['sku']);
-                } elseif ($line['cj_pid'] ?? false) {
-                    $resp = $client->getStockByPid((string) $line['cj_pid']);
+                $response = null;
+                
+                if (isset($line['cj_vid'])) {
+                    $response = $client->getStockByVid((string) $line['cj_vid']);
+                } elseif (isset($line['sku'])) {
+                    $response = $client->getStockBySku((string) $line['sku']);
+                } elseif (isset($line['cj_pid'])) {
+                    $response = $client->getStockByPid((string) $line['cj_pid']);
                 } else {
                     continue;
                 }
 
-                $available = $this->sumStorage($resp->data ?? null);
+                $available = $this->sumStorage($response->data ?? null);
+                
                 if ($available < (int) $line['quantity']) {
                     return false;
                 }
             } catch (ApiException $exception) {
-                Log::warning('CJ stock check failed during checkout', ['error' => $exception->getMessage(), 'line' => $line['id'] ?? null]);
-                if (! $this->fallbackStockCheck($line, (int) $line['quantity'])) {
+                Log::warning('CJ stock check failed during checkout', [
+                    'error' => $exception->getMessage(),
+                    'line' => $line['id'] ?? null
+                ]);
+                
+                if (!$this->fallbackStockCheck($line, (int) $line['quantity'])) {
                     return false;
                 }
-                continue;
             } catch (\Throwable $exception) {
-                Log::error('CJ stock check failed during checkout', ['error' => $exception->getMessage(), 'line' => $line['id'] ?? null]);
-                if (! $this->fallbackStockCheck($line, (int) $line['quantity'])) {
+                Log::error('CJ stock check failed during checkout', [
+                    'error' => $exception->getMessage(),
+                    'line' => $line['id'] ?? null
+                ]);
+                
+                if (!$this->fallbackStockCheck($line, (int) $line['quantity'])) {
                     return false;
                 }
-                continue;
             }
         }
 
         return true;
     }
 
+    /**
+     * Sum storage numbers from CJ API response
+     */
     private function sumStorage(mixed $payload): int
     {
+        if (is_numeric($payload)) {
+            return (int) $payload;
+        }
+
+        if (!is_array($payload)) {
+            return 0;
+        }
+
         $total = 0;
 
-        $add = function ($value) use (&$total) {
+        // Check for direct storageNum
+        if (isset($payload['storageNum']) && is_numeric($payload['storageNum'])) {
+            $total += (int) $payload['storageNum'];
+        }
+
+        // Recursively search for storageNum in nested arrays
+        array_walk_recursive($payload, function ($value) use (&$total) {
             if (is_numeric($value)) {
                 $total += (int) $value;
             }
-        };
-
-        if (is_numeric($payload)) {
-            $add($payload);
-            return $total;
-        }
-
-        if (is_array($payload)) {
-            if (array_key_exists('storageNum', $payload)) {
-                $add($payload['storageNum']);
-            }
-
-            foreach ($payload as $entry) {
-                if (is_array($entry) && array_key_exists('storageNum', $entry)) {
-                    $add($entry['storageNum']);
-                } elseif (is_array($entry)) {
-                    foreach ($entry as $deep) {
-                        if (is_array($deep) && array_key_exists('storageNum', $deep)) {
-                            $add($deep['storageNum']);
-                        }
-                    }
-                }
-            }
-        }
+        });
 
         return $total;
     }
 
+    /**
+     * Fallback stock check using local stock data
+     */
     private function fallbackStockCheck(array $line, int $desiredQty): bool
     {
-        if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
+        if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
             return (int) $line['stock_on_hand'] >= $desiredQty;
         }
 
+        // If no local stock data, assume stock is available
         return true;
     }
 }

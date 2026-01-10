@@ -13,7 +13,19 @@ class CampaignManager
     {
         $customer = $customer ?? Auth::guard('customer')->user();
 
+        // Use new PromotionEngine for general-purpose promotions
+        $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
+        $promoResult = $promotionEngine->applyPromotions([
+            'lines' => $cart,
+            'subtotal' => $subtotal,
+            'user_id' => $customer?->id,
+        ]);
+        $promoDiscounts = $promoResult['discounts'] ?? [];
+        $promoTotal = $promoResult['total_discount'] ?? 0.0;
+        $promoLabel = collect($promoDiscounts)->pluck('label')->filter()->implode(' + ');
+
         $candidates = array_filter([
+            $promoTotal > 0 ? ['amount' => $promoTotal, 'label' => $promoLabel] : null,
             $this->firstOrderDiscount($customer, $subtotal),
             $this->highValueThreshold($subtotal),
         ]);

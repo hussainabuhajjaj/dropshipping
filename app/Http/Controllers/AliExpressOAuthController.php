@@ -76,6 +76,13 @@ class AliExpressOAuthController extends Controller
                 'raw' => json_encode($data),
             ]);
 
+            // Store in settings for Filament/CLI access
+            \App\Models\Setting::setSetting([
+                'aliexpress_access_token' => $data['access_token'],
+                'aliexpress_refresh_token' => $data['refresh_token'] ?? null,
+                'aliexpress_expires_at' => isset($data['expires_in']) ? now()->addSeconds($data['expires_in']) : null,
+            ]);
+
             Log::info('AliExpress token stored successfully', ['token_id' => $token->id]);
             // Redirect back to ali-express-import page with access token in query string
             return redirect('/ali-express-import?access_token=' . urlencode($data['access_token']));

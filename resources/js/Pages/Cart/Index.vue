@@ -42,7 +42,22 @@
               {{ t('Applied:') }} <span class="font-semibold text-slate-900">{{ coupon.code }}</span>
               <span v-if="discount"> ({{ displayPrice(discount) }} {{ t('off') }})</span>
             </p>
+
+            <!-- Applied Promotions (not just coupon) -->
+            <div v-if="appliedPromotions && appliedPromotions.length" class="applied-promotions">
+              <div class="text-xs font-semibold text-green-700 mb-1">{{ t('Promotions applied:') }}</div>
+              <ul class="space-y-1">
+                <li v-for="promo in appliedPromotions" :key="promo.id" class="text-xs text-slate-700">
+                  <span class="font-semibold">{{ promo.name }}</span>
+                  <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
+                  <span class="ml-2" v-if="promo.value_type === 'percent'">-{{ promo.value }}%</span>
+                  <span class="ml-2" v-else-if="promo.value_type === 'amount'">-{{ displayPrice(promo.value) }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
+// Accept appliedPromotions as a prop (array of applied promotions)
+const appliedPromotions = computed(() => Array.isArray(props.appliedPromotions) ? props.appliedPromotions : [])
 
           <div class="flex items-center justify-between text-sm">
             <span>{{ t('Subtotal') }}</span>

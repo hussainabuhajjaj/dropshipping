@@ -26,14 +26,38 @@ class CartController extends Controller
     {
         $cart = $this->cart();
         $coupon = session('cart_coupon');
+        $subtotal = $this->subtotal($cart);
         $discount = $this->discount($cart, $coupon);
+
+        // Get applied promotions (not just coupon)
+        $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
+        $cartContext = [
+            'lines' => $cart,
+            'subtotal' => $subtotal,
+            'user_id' => auth('customer')->id(),
+        ];
+        $appliedPromotions = $promotionEngine->getApplicablePromotions($cartContext)->map(function ($promo) {
+            return [
+                'id' => $promo->id,
+                'name' => $promo->name,
+                'description' => $promo->description,
+                'type' => $promo->type,
+                'value_type' => $promo->value_type,
+                'value' => $promo->value,
+                'start_at' => $promo->start_at,
+                'end_at' => $promo->end_at,
+                'targets' => $promo->targets,
+                'conditions' => $promo->conditions,
+            ];
+        })->values()->all();
 
         return Inertia::render('Cart/Index', [
             'lines' => $cart,
             'currency' => $cart[0]['currency'] ?? 'USD',
-            'subtotal' => $this->subtotal($cart),
+            'subtotal' => $subtotal,
             'discount' => $discount,
             'coupon' => $coupon,
+            'appliedPromotions' => $appliedPromotions,
         ]);
     }
 
