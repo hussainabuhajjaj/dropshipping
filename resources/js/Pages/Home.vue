@@ -1,11 +1,27 @@
 <template>
   <StorefrontLayout>
     <div class="noon-home">
-      <!-- Database Banners - Hero -->
-      <BannerHero v-if="banners?.hero?.length" :banner="banners.hero[0]" />
 
-      <!-- Database Banners - Carousel -->
-      <BannerCarousel v-if="banners?.carousel?.length" :banners="banners.carousel" />
+      <!-- Homepage Guide for Promotions/Discounts -->
+      <section v-if="homepagePromotions && homepagePromotions.length" class="promo-guide mb-6">
+        <div class="promo-guide-content">
+          <span class="promo-guide-badge">{{ t('Deals & Discounts') }}</span>
+          <span class="promo-guide-text">{{ t('Check out today\'s promotions and discounts!') }}</span>
+          <Link href="/promotions" class="promo-guide-link">{{ t('See all promotions') }}</Link>
+        </div>
+      </section>
+
+      <!-- Database Banners - Hero (highlight promotion if available) -->
+      <BannerHero
+        v-if="banners?.hero?.length"
+        :banner="highlightBannerWithPromotion(banners.hero[0], homepagePromotions)"
+      />
+
+      <!-- Database Banners - Carousel (highlight promotions) -->
+      <BannerCarousel
+        v-if="banners?.carousel?.length"
+        :banners="banners.carousel.map(b => highlightBannerWithPromotion(b, homepagePromotions))"
+      />
 
       <section class="top-strip">
         <div v-for="item in topStrip" :key="item.title" class="strip-card">
@@ -105,7 +121,9 @@
           >
             <div class="rail-icon">{{ category.short }}</div>
             <div>
-              <p class="rail-title">{{ category.name }}</p>
+              <p class="rail-title">{{ category.name }}
+                <span v-if="categoryHasPromotion(category, homepagePromotions)" class="category-promo-badge">{{ t('Promo!') }}</span>
+              </p>
               <p class="rail-count">{{ t(':count products', { count: formatCount(category.count) }) }}</p>
             </div>
           </Link>
@@ -145,6 +163,7 @@
             :key="product.id"
             :product="product"
             :currency="currency"
+            :promotions="homepagePromotions"
             class="reveal"
           />
         </div>
@@ -167,6 +186,7 @@
             :key="product.id"
             :product="product"
             :currency="currency"
+            :promotions="homepagePromotions"
             class="reveal"
           />
         </div>
@@ -212,6 +232,8 @@
           <Link :href="bannerStrip.href" class="banner-cta">{{ bannerStrip.cta }}</Link>
         </div>
       </section>
+
+
 const homepagePromotions = computed(() => Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : [])
 
       <section class="value-grid">
@@ -225,6 +247,31 @@ const homepagePromotions = computed(() => Array.isArray(page.props.homepagePromo
 </template>
 
 <script setup>
+// Helper: Highlight banners with promotion info if any promotion is active
+function highlightBannerWithPromotion(banner, promotions) {
+  if (!promotions || !promotions.length) return banner
+  // Example: Add a badge if a flash sale is active
+  const flash = promotions.find(p => p.type === 'flash_sale')
+  if (flash) {
+    return {
+      ...banner,
+      badgeText: flash.name,
+      badgeColor: '#eab308',
+      description: flash.description || banner.description,
+      ctaText: 'Shop Flash Sale',
+      ctaUrl: '/promotions',
+    }
+  }
+  return banner
+}
+
+// Helper: Check if a category is targeted by any promotion
+function categoryHasPromotion(category, promotions) {
+  if (!promotions || !promotions.length) return false
+  return promotions.some(p =>
+    (p.targets || []).some(t => t.target_type === 'category' && (t.target_value === category.name || t.target_id == category.id))
+  )
+}
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'

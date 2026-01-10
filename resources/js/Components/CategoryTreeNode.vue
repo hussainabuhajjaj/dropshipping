@@ -18,6 +18,7 @@
         </span>
         <span v-else class="text-slate-500">→</span>
         {{ category.name }}
+        <span v-if="categoryHasPromotion(category, promotions)" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
       </Link>
 
       <!-- Nested children -->
@@ -33,10 +34,18 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 
-defineProps({
+const props = defineProps({
   categories: { type: Array, default: () => [] },
   level: { type: Number, default: 1 },
+  promotions: { type: Array, default: () => [] },
 })
+
+function categoryHasPromotion(category, promotions) {
+  if (!promotions || !promotions.length) return false
+  return promotions.some(p =>
+    (p.targets || []).some(t => t.target_type === 'category' && (t.target_value === category.name || t.target_id == category.id))
+  )
+}
 
 const categoryHref = (category) => {
   if (category?.slug) {

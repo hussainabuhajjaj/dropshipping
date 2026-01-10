@@ -58,7 +58,10 @@
 
       <div class="space-y-6">
         <div class="space-y-2">
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ product.category ?? 'Simbazu' }}</p>
+          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">
+            {{ product.category ?? 'Simbazu' }}
+            <span v-if="productPromotion" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
+          </p>
           <h1 class="text-3xl font-semibold tracking-tight text-slate-900">{{ product.name }}</h1>
           <p class="text-sm text-slate-600">{{ descriptionText }}</p>
         </div>
@@ -368,7 +371,7 @@
         <Link href="/products" class="btn-ghost">{{ t('Browse all') }}</Link>
       </div>
       <div v-if="relatedProducts.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ProductCard v-for="item in relatedProducts" :key="item.id" :product="item" :currency="currency" />
+        <ProductCard v-for="item in relatedProducts" :key="item.id" :product="item" :currency="currency" :promotions="page.props.homepagePromotions || []" />
       </div>
       <div v-else class="card-muted p-5 text-sm text-slate-600">
         {{ t('Explore more products with predictable delivery and upfront customs details.') }}
@@ -378,6 +381,15 @@
 </template>
 
 <script setup>
+// Promotion logic for product details
+function productPromotionForDetails(product, promotions) {
+  if (!promotions?.length) return null
+  return promotions.find(p =>
+    (p.targets || []).some(t => t.target_type === 'product' && (t.target_id == product.id || t.target_value == product.name))
+  )
+}
+
+const productPromotion = computed(() => productPromotionForDetails(props.product, page.props.homepagePromotions || []))
 import { computed, ref } from 'vue'
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3'
 import axios from 'axios'

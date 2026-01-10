@@ -76,6 +76,7 @@
             :key="product.id"
             :product="product"
             :currency="currency"
+            :promotions="(page && page.props && page.props.homepagePromotions) ? page.props.homepagePromotions : []"
           />
         </div>
         <EmptyState
@@ -174,7 +175,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
@@ -186,6 +187,8 @@ const props = defineProps({
   categories: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
 })
+
+const page = usePage ? usePage() : null;
 
 const { t } = useTranslations()
 
