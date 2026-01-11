@@ -125,12 +125,14 @@ class CjProductImportService
             ]
         );
 
+        // Set cost price as imported, selling price to 0
+        $rawCost = $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0));
         $payload = [
             'name' => $name,
             'category_id' => $category?->id,
             'description' => $description,
-            'selling_price' => $lockPrice ? ($product?->selling_price ?? 0) : ($priceValue ?? ($product?->selling_price ?? 0)),
-            'cost_price' => $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0)),
+            'selling_price' => 0,
+            'cost_price' => $rawCost,
             'currency' => $productData['currency'] ?? 'USD',
             'attributes' => $attributes,
             'source_url' => $productData['productUrl'] ?? $productData['sourceUrl'] ?? null,
@@ -302,9 +304,8 @@ class CjProductImportService
 
     public function syncMyProducts(int $startPage = 1, int $pageSize = 24, int $maxPages = 50, bool $forceUpdate = false): array
     {
-        $imported = 0;
+        $queued = 0;
         $processed = 0;
-        $errors = 0;
         $lastPage = $startPage;
 
         for ($i = 0; $i < $maxPages; $i++) {
@@ -321,7 +322,6 @@ class CjProductImportService
             $content = [];
 
             if (is_array($raw)) {
-                // Case: content is an array of pages where each page may contain a productList
                 if (! empty($raw['content']) && is_array($raw['content'])) {
                     foreach ($raw['content'] as $entry) {
                         if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
@@ -335,7 +335,6 @@ class CjProductImportService
                 } elseif (! empty($raw['content']) && is_array($raw['content'])) {
                     $content = $raw['content'];
                 } else {
-                    // Fallback: if raw looks like a list of items, treat it as such.
                     $numericKeys = array_filter(array_keys($raw), 'is_int');
                     if ($numericKeys !== []) {
                         $content = $raw;
@@ -359,18 +358,16 @@ class CjProductImportService
 
                 $processed++;
 
+                // Dispatch import job for each product
                 try {
-                    $product = $this->importByPid($pid, [
+                    \App\Jobs\ImportCjProductJob::dispatch($pid, [
                         'respectSyncFlag' => ! $forceUpdate,
                         'defaultSyncEnabled' => true,
-                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+                        // 'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
-
-                    if ($product) {
-                        $imported++;
-                    }
+                    $queued++;
                 } catch (\Throwable) {
-                    $errors++;
+                    // Optionally log or count errors
                 }
             }
 
@@ -380,9 +377,8 @@ class CjProductImportService
         }
 
         return [
-            'imported' => $imported,
+            'queued' => $queued,
             'processed' => $processed,
-            'errors' => $errors,
             'last_page' => $lastPage,
         ];
     }
@@ -548,8 +544,7 @@ class CjProductImportService
 
     private function resolveCategoryFromPayload(array $productData): ?Category
     {
-        // V2 API: Use embedded category structure with proper IDs
-        // oneCategoryId/Name, twoCategoryId/Name, categoryId/threeCategoryName
+        // Always try to build 3-level hierarchy if possible
         $oneCategoryId = (string) ($productData['oneCategoryId'] ?? '');
         $oneCategoryName = (string) ($productData['oneCategoryName'] ?? '');
         $twoCategoryId = (string) ($productData['twoCategoryId'] ?? '');
@@ -558,23 +553,16 @@ class CjProductImportService
         $threeCategoryName = (string) ($productData['threeCategoryName'] ?? '');
 
         // If we have V2 API structure, build hierarchy with proper CJ IDs
-        if ($oneCategoryId !== '' && $oneCategoryName !== '') {
+        if ($oneCategoryId && $oneCategoryName && $twoCategoryId && $twoCategoryName && $threeCategoryId && $threeCategoryName) {
             return $this->buildCategoryHierarchy([
                 ['id' => $oneCategoryId, 'name' => $oneCategoryName, 'parent' => null],
-                $twoCategoryId !== '' ? ['id' => $twoCategoryId, 'name' => $twoCategoryName, 'parent' => $oneCategoryId] : null,
-                $threeCategoryId !== '' ? ['id' => $threeCategoryId, 'name' => $threeCategoryName, 'parent' => $twoCategoryId] : null,
+                ['id' => $twoCategoryId, 'name' => $twoCategoryName, 'parent' => $oneCategoryId],
+                ['id' => $threeCategoryId, 'name' => $threeCategoryName, 'parent' => $twoCategoryId],
             ]);
         }
 
         // Fallback: Legacy API or string-based categories
         $categoryId = (string) ($productData['categoryId'] ?? '');
-
-        if ($categoryId !== '') {
-            $existing = Category::query()->where('cj_id', $categoryId)->first();
-            if ($existing) {
-                return $existing;
-            }
-        }
 
         $rawName = $productData['categoryName']
             ?? $productData['categoryNameEn']
@@ -585,30 +573,26 @@ class CjProductImportService
             return null;
         }
 
-           // Handle both "/" and ">" separators used by different CJ APIs
-           $rawName = str_replace(' > ', '/', $rawName);
-           $segments = array_filter(array_map('trim', explode('/', $rawName)));
-        if ($segments === []) {
+        // Handle both "/" and ">" separators used by different CJ APIs
+        $rawName = str_replace(' > ', '/', $rawName);
+        $segments = array_filter(array_map('trim', explode('/', $rawName)));
+        if (count($segments) < 3) {
+            // Not enough segments for 3 levels
             return null;
         }
 
         $parent = null;
         $category = null;
-        $totalSegments = count($segments);
-
         foreach ($segments as $position => $segment) {
             if ($segment === '') {
                 continue;
             }
-
             $slug = Str::slug($parent ? "{$parent->slug} {$segment}" : $segment);
-            
-            // Search first by name and parent_id (or both null for root categories)
+            // Search by name and parent_id
             $category = Category::query()
                 ->where('name', $segment)
                 ->where('parent_id', $parent?->id)
                 ->first();
-            
             if (! $category) {
                 $category = Category::create([
                     'name' => $segment,
@@ -616,14 +600,12 @@ class CjProductImportService
                     'parent_id' => $parent?->id,
                 ]);
             }
-
-            if ($position === $totalSegments - 1 && $categoryId !== '' && $category->cj_id !== $categoryId) {
-                $category->update(['cj_id' => $categoryId]);
-            }
-
             $parent = $category;
         }
-
+        // Assign CJ ID to the deepest category if available
+        if ($categoryId !== '' && $category && $category->cj_id !== $categoryId) {
+            $category->update(['cj_id' => $categoryId]);
+        }
         return $category;
     }
 
@@ -631,35 +613,25 @@ class CjProductImportService
     {
         $parent = null;
         $category = null;
-
         foreach ($levels as $level) {
             if ($level === null) {
                 continue;
             }
-
             $cjId = $level['id'] ?? null;
             $name = $level['name'] ?? '';
-            $parentId = $level['parent'] ?? null;
-
             if ($name === '') {
                 continue;
             }
-
-            // First, try to find by CJ ID (most reliable)
+            // Try to find by CJ ID first
             if ($cjId) {
-                $category = Category::query()->where('cj_id', $cjId)->first();
+                $category = Category::query()->where('cj_id', $cjId)->where('name', $name)->where('parent_id', $parent?->id)->first();
                 if ($category) {
                     $parent = $category;
                     continue;
                 }
             }
-
             // Then try by name and parent
-            $category = Category::query()
-                ->where('name', $name)
-                ->where('parent_id', $parent?->id)
-                ->first();
-
+            $category = Category::query()->where('name', $name)->where('parent_id', $parent?->id)->first();
             if (! $category) {
                 $slug = Str::slug($parent ? "{$parent->slug} {$name}" : $name);
                 $category = Category::create([
@@ -669,13 +641,10 @@ class CjProductImportService
                     'cj_id' => $cjId,
                 ]);
             } elseif ($cjId && $category->cj_id !== $cjId) {
-                // Update CJ ID if missing
                 $category->update(['cj_id' => $cjId]);
             }
-
             $parent = $category;
         }
-
         return $category;
     }
 

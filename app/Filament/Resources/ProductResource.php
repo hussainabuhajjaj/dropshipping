@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Filament\Resources;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Products\Services\CjProductImportService;
@@ -241,113 +242,138 @@ class ProductResource extends BaseResource
                 ->visible(fn ($record) => filled($record?->cj_pid)),
         ]);
     }
-
+protected function paginateTableQuery(Builder $query): CursorPaginator
+{
+    return $query->cursorPaginate(($this->getTableRecordsPerPage() === 'all') ? $query->count() : $this->getTableRecordsPerPage());
+}
     public static function table(Table $table): Table
     {
         $globalSyncStatus = self::getGlobalSyncStatus();
         $importedCount = self::getImportedCount();
         return $table
             ->columns([
-                Tables\Columns\ViewColumn::make('imported_count')
-                    ->view('filament.tables.columns.imported-count')
-                    ->label('Imported Count')
-                    ->visible(fn () => true),
-                Tables\Columns\ViewColumn::make('global_sync_status')
-                    ->view('filament.tables.columns.global-sync-status')
-                    ->label('Global Sync Status')
-                    ->visible(fn () => true),
-                Tables\Columns\ImageColumn::make('primary_image')
-                    ->label('Image')
-                    ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
-                    ->square(),
-                Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('source')
-                    ->label('Source')
-                    ->getStateUsing(fn (Product $record) => $record->cj_pid ? 'CJ' : 'Local')
-                    ->badge()
-                    ->color(fn (string $state) => $state === 'CJ' ? 'info' : 'gray')
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('sync_status')
-                    ->label('Sync')
-                    ->getStateUsing(fn (Product $record) => self::syncStatus($record))
-                    ->badge()
-                    ->color(fn (Product $record) => self::syncStatusColor($record))
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('translation_status')
-                    ->label('Translation')
-                    ->badge()
-                    ->color(fn (string $state) => match ($state) {
-                        'completed' => 'success',
-                        'in_progress' => 'warning',
-                        'failed' => 'danger',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state) => ucfirst($state))
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('cj_pid')
-                    ->label('CJ PID')
-                    ->copyable()
-                    ->tooltip(fn ($state) => $state)
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('category.name')->label('Category')->sortable()->toggleable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean(),
-                Tables\Columns\IconColumn::make('is_featured')->boolean()->label('Featured')->toggleable(),
-                Tables\Columns\TextColumn::make('selling_price')->money('USD')->sortable(),
-                Tables\Columns\TextColumn::make('cost_price')->money('USD')->sortable(),
-                Tables\Columns\TextColumn::make('stock_on_hand')
-                    ->label('Stock')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('images_count')
-                    ->label('Images')
-                    ->badge()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('supplier.name')->label('Supplier')->sortable()->toggleable(),
-                Tables\Columns\TextColumn::make('defaultFulfillmentProvider.name')
-                    ->label('Fulfillment')
-                    ->sortable()
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('shipping_estimate_days')
-                    ->label('Ship est. (d)')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('cj_synced_at')
-                    ->label('Last synced')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('cj_last_changed_fields')
-                    ->label('Recent changes')
-                    ->formatStateUsing(fn (Product $record) => self::formatChangedFields($record))
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
-                Tables\Columns\TextColumn::make('media_status')
-                    ->label('Media status')
-                    ->getStateUsing(fn (Product $record) => self::mediaStatus($record))
-                    ->badge(fn (Product $record) => self::mediaStatusColor($record))
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\IconColumn::make('cj_lock_price')
-                    ->label('Price lock')
-                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
-                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\IconColumn::make('cj_lock_description')
-                    ->label('Description lock')
-                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
-                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\IconColumn::make('cj_lock_images')
-                    ->label('Images lock')
-                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
-                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\IconColumn::make('cj_lock_variants')
-                    ->label('Variants lock')
-                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
-                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
-            ])
+                    Tables\Columns\ViewColumn::make('imported_count')
+                        ->view('filament.tables.columns.imported-count')
+                        ->label('Imported Count')
+                        ->visible(fn () => true),
+                    Tables\Columns\ViewColumn::make('global_sync_status')
+                        ->view('filament.tables.columns.global-sync-status')
+                        ->label('Global Sync Status')
+                        ->visible(fn () => true),
+                    Tables\Columns\ImageColumn::make('primary_image')
+                        ->label('Image')
+                        ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
+                        ->square(),
+                    Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
+                    Tables\Columns\TextColumn::make('source')
+                        ->label('Source')
+                        ->getStateUsing(fn (Product $record) => $record->cj_pid ? 'CJ' : 'Local')
+                        ->badge()
+                        ->color(fn (string $state) => $state === 'CJ' ? 'info' : 'gray')
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('sync_status')
+                        ->label('Sync')
+                        ->getStateUsing(fn (Product $record) => self::syncStatus($record))
+                        ->badge()
+                        ->color(fn (Product $record) => self::syncStatusColor($record))
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('translation_status')
+                        ->label('Translation')
+                        ->badge()
+                        ->color(fn (string $state) => match ($state) {
+                            'completed' => 'success',
+                            'in_progress' => 'warning',
+                            'failed' => 'danger',
+                            default => 'gray',
+                        })
+                        ->formatStateUsing(fn (string $state) => ucfirst($state))
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('cj_pid')
+                        ->label('CJ PID')
+                        ->copyable()
+                        ->tooltip(fn ($state) => $state)
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('category.name')->label('Category')->sortable()->toggleable(),
+                    Tables\Columns\IconColumn::make('is_active')->boolean(),
+                    Tables\Columns\IconColumn::make('is_featured')->boolean()->label('Featured')->toggleable(),
+                    Tables\Columns\TextColumn::make('selling_price')->money('USD')->sortable(),
+                    Tables\Columns\TextColumn::make('cost_price')->money('USD')->sortable(),
+                    Tables\Columns\BadgeColumn::make('margin_status')
+                        ->label('Margin Status')
+                        ->getStateUsing(function ($record) {
+                            $cost = $record->cost_price;
+                            $selling = $record->selling_price;
+                            if (is_null($cost) || is_null($selling)) {
+                                return 'Missing';
+                            }
+                            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                            $min = $pricing->minSellingPrice((float) $cost);
+                            if ($selling < $min) {
+                                return 'Below Required';
+                            }
+                            return 'OK';
+                        })
+                        ->colors([
+                            'danger' => 'Missing',
+                            'warning' => 'Below Required',
+                            'success' => 'OK',
+                        ]),
+                    Tables\Columns\TextColumn::make('stock_on_hand')
+                        ->label('Stock')
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('images_count')
+                        ->label('Images')
+                        ->badge()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('supplier.name')->label('Supplier')->sortable()->toggleable(),
+                    Tables\Columns\TextColumn::make('defaultFulfillmentProvider.name')
+                        ->label('Fulfillment')
+                        ->sortable()
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('shipping_estimate_days')
+                        ->label('Ship est. (d)')
+                        ->sortable(),
+                    Tables\Columns\TextColumn::make('cj_synced_at')
+                        ->label('Last synced')
+                        ->dateTime()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('cj_last_changed_fields')
+                        ->label('Recent changes')
+                        ->formatStateUsing(fn (Product $record) => self::formatChangedFields($record))
+                        ->toggleable(isToggledHiddenByDefault: true)
+                        ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
+                    Tables\Columns\TextColumn::make('media_status')
+                        ->label('Media status')
+                        ->getStateUsing(fn (Product $record) => self::mediaStatus($record))
+                        ->badge(fn (Product $record) => self::mediaStatusColor($record))
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\IconColumn::make('cj_lock_price')
+                        ->label('Price lock')
+                        ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                        ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\IconColumn::make('cj_lock_description')
+                        ->label('Description lock')
+                        ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                        ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\IconColumn::make('cj_lock_images')
+                        ->label('Images lock')
+                        ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                        ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\IconColumn::make('cj_lock_variants')
+                        ->label('Variants lock')
+                        ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                        ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                ])
+                ->paginated()
+                
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active'),
                 Tables\Filters\Filter::make('cj')

@@ -76,6 +76,74 @@ class CJCatalog extends BasePage implements HasTable
         return $table
             ->records(fn (?string $search, ?string $sortColumn, ?string $sortDirection): array => $this->buildTableRecords($search, $sortColumn, $sortDirection))
             ->headerActions([
+                Action::make('syncListedCjProducts')
+                    ->label('Sync Listed CJ Products')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->action(function (): void {
+                        try {
+                            $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
+                            $resp = $client->listMyProducts([
+                                'pageNum' => 1,
+                                'pageSize' => 100,
+                            ]);
+                            $data = $resp->data ?? [];
+                            // dd($data);
+                            $list = [];
+                            // Normalize response to array of products
+                            if (is_array($data)) {
+                                if (!empty($data['content']) && is_array($data['content'])) {
+                                    foreach ($data['content'] as $entry) {
+                                        if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
+                                            $list = array_merge($list, $entry['productList']);
+                                        } elseif (is_array($entry)) {
+                                            $list[] = $entry;
+                                        }
+                                    }
+                                } elseif (!empty($data['productList']) && is_array($data['productList'])) {
+                                    $list = $data['productList'];
+                                } elseif (!empty($data['content']) && is_array($data['content'])) {
+                                    $list = $data['content'];
+                                } else {
+                                    $numericKeys = array_filter(array_keys($data), 'is_int');
+                                    if ($numericKeys !== []) {
+                                        $list = $data;
+                                    }
+                                }
+                            }
+                            // Filter for listed products only
+                            $listed = array_filter($list, function ($item) {
+                                return is_array($item) && !empty($item['listedShopNum']) && (int)$item['listedShopNum'] > 0;
+                            });
+                            $importer = app(\App\Domain\Products\Services\CjProductImportService::class);
+                            $count = 0;
+                            foreach ($listed as $record) {
+                                $pid = $record['pid'] ?? $record['productId'] ?? $record['id'] ?? null;
+                                if (!$pid) {
+                                    continue;
+                                }
+                                try {
+                                    $product = $importer->importByPid($pid, [
+                                        'respectSyncFlag' => false,
+                                        'defaultSyncEnabled' => true,
+                                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+                                    ]);
+                                } catch (\Throwable $e) {
+                                    \Filament\Notifications\Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                                    continue;
+                                }
+                                if ($product) {
+                                    $count++;
+                                }
+                            }
+                            $message = $count > 0 ? "Imported {$count} listed CJ products." : 'No listed CJ products were imported.';
+                            \Filament\Notifications\Notification::make()->title('Listed Products')->body($message)->success()->send();
+                            $this->recordCommandMessage($message);
+                            $this->fetch();
+                        } catch (\Throwable $e) {
+                            \Filament\Notifications\Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
                 Action::make('setShipTo')
                     ->label('Ship-to Filter')
                     ->icon('heroicon-o-globe-alt')
