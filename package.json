@@ -22,7 +22,6 @@
     },
     "dependencies": {
         "@lottiefiles/dotlottie-vue": "^0.10.12",
-        "vue-i18n": "^11.2.7",
-        "vue-toastification": "^2.0.0-rc.5"
+        "vue-i18n": "^11.2.7"
     }
 }
