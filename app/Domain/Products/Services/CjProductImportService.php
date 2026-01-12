@@ -16,9 +16,10 @@ use Illuminate\Support\Facades\Log;
 class CjProductImportService
 {
     public function __construct(
-        private readonly CJDropshippingClient $client,
+        private readonly CJDropshippingClient  $client,
         private readonly CjProductMediaService $mediaService,
-    ) {
+    )
+    {
     }
 
     public function importByLookup(string $lookupType, string $lookupValue, array $options = []): ?Product
@@ -26,7 +27,7 @@ class CjProductImportService
         $productResp = $this->client->getProductBy([$lookupType => $lookupValue]);
         $productData = $productResp->data ?? null;
 
-        if (! is_array($productData) || $productData === []) {
+        if (!is_array($productData) || $productData === []) {
             return null;
         }
 
@@ -38,7 +39,7 @@ class CjProductImportService
         $productResp = $this->client->getProduct($pid);
         $productData = $productResp->data ?? null;
 
-        if (! is_array($productData) || $productData === []) {
+        if (!is_array($productData) || $productData === []) {
             return null;
         }
 
@@ -52,11 +53,11 @@ class CjProductImportService
             return null;
         }
 
-        $shipTo = strtoupper((string) ($options['shipToCountry'] ?? ''));
+        $shipTo = strtoupper((string)($options['shipToCountry'] ?? ''));
         if ($shipTo !== '') {
             $warehouseCountries = $this->extractWarehouseCountries($productData, $variants);
             // If we can’t infer warehouses, allow import by default to avoid skipping good products.
-            if ($warehouseCountries !== [] && ! in_array($shipTo, $warehouseCountries, true)) {
+            if ($warehouseCountries !== [] && !in_array($shipTo, $warehouseCountries, true)) {
                 Log::info('CJ product skipped due to ship-to country filter', [
                     'pid' => $pid,
                     'ship_to' => $shipTo,
@@ -67,23 +68,23 @@ class CjProductImportService
         }
 
         $product = Product::query()->where('cj_pid', $pid)->first();
-    $isNewProduct = $product === null;
+        $isNewProduct = $product === null;
 
-        $respectSyncFlag = (bool) ($options['respectSyncFlag'] ?? true);
-        $defaultSyncEnabled = (bool) ($options['defaultSyncEnabled'] ?? true);
-        $respectLocks = (bool) ($options['respectLocks'] ?? true);
+        $respectSyncFlag = (bool)($options['respectSyncFlag'] ?? true);
+        $defaultSyncEnabled = (bool)($options['defaultSyncEnabled'] ?? true);
+        $respectLocks = (bool)($options['respectLocks'] ?? true);
         if ($product && $respectSyncFlag && $product->cj_sync_enabled === false) {
             return $product;
         }
 
-        if ($product && ! ($options['updateExisting'] ?? true)) {
+        if ($product && !($options['updateExisting'] ?? true)) {
             return $product;
         }
 
-        $lockPrice = $respectLocks && (bool) ($product?->cj_lock_price);
-        $lockDescription = $respectLocks && (bool) ($product?->cj_lock_description);
-        $lockImages = $respectLocks && (bool) ($product?->cj_lock_images);
-        $lockVariants = $respectLocks && (bool) ($product?->cj_lock_variants);
+        $lockPrice = $respectLocks && (bool)($product?->cj_lock_price);
+        $lockDescription = $respectLocks && (bool)($product?->cj_lock_description);
+        $lockImages = $respectLocks && (bool)($product?->cj_lock_images);
+        $lockVariants = $respectLocks && (bool)($product?->cj_lock_variants);
 
         if ($variants === null) {
             $variantResp = $this->client->getVariantsByPid($pid);
@@ -99,17 +100,17 @@ class CjProductImportService
         if (is_array($variants) && count($variants) > 0) {
             $first = $variants[0];
             if (isset($first['variantSellPrice']) && is_numeric($first['variantSellPrice'])) {
-                $firstVariantPrice = (float) $first['variantSellPrice'];
+                $firstVariantPrice = (float)$first['variantSellPrice'];
             }
         }
         $price = $productData['productSellPrice'] ?? null;
-        $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float) $price : null);
+        $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float)$price : null);
         $incomingDescription = $this->mediaService->cleanDescription(
             $productData['descriptionEn']
-                ?? $productData['productDescriptionEn']
-                ?? $productData['description']
-                ?? $productData['productDescription']
-                ?? null
+            ?? $productData['productDescriptionEn']
+            ?? $productData['description']
+            ?? $productData['productDescription']
+            ?? null
         );
         $description = $lockDescription ? ($product?->description ?? $incomingDescription) : $incomingDescription;
 
@@ -137,10 +138,11 @@ class CjProductImportService
             'attributes' => $attributes,
             'source_url' => $productData['productUrl'] ?? $productData['sourceUrl'] ?? null,
             'cj_synced_at' => now(),
+            'default_fulfillment_provider_id' => 1,
         ];
 
-        $syncVariants = ($options['syncVariants'] ?? true) === true && ! $lockVariants;
-        $syncImages = ($options['syncImages'] ?? true) === true && ! $lockImages;
+        $syncVariants = ($options['syncVariants'] ?? true) === true && !$lockVariants;
+        $syncImages = ($options['syncImages'] ?? true) === true && !$lockImages;
         $imagesUpdated = false;
         $videosUpdated = false;
 
@@ -163,7 +165,7 @@ class CjProductImportService
         $payload['cj_last_payload'] = $productData;
         $payload['cj_last_changed_fields'] = array_values(array_unique($changedFields));
 
-        if (! $product) {
+        if (!$product) {
             $payload['cj_pid'] = $pid;
             $payload['slug'] = $slug;
             $payload['status'] = 'active';
@@ -173,16 +175,16 @@ class CjProductImportService
             $product = Product::create($payload);
         } else {
             $product->fill($payload);
-            if (! $product->slug) {
+            if (!$product->slug) {
                 $product->slug = $slug;
             }
             $product->save();
         }
 
         $shouldGenerateSeo = ($options['generateSeo'] ?? true) === true;
-        if ($shouldGenerateSeo && (! $product->meta_title || ! $product->meta_description)) {
+        if ($shouldGenerateSeo && (!$product->meta_title || !$product->meta_description)) {
             try {
-                GenerateProductSeoJob::dispatch((int) $product->id, 'en', false);
+                GenerateProductSeoJob::dispatch((int)$product->id, 'en', false);
             } catch (\Throwable $e) {
                 Log::warning('Failed to dispatch SEO job', ['product_id' => $product->id, 'error' => $e->getMessage()]);
             }
@@ -233,7 +235,7 @@ class CjProductImportService
         if ($shouldTranslate && $hasTranslatableChange) {
             try {
                 TranslateProductJob::dispatch(
-                    (int) $product->id,
+                    (int)$product->id,
                     $this->resolveTranslationLocales(),
                     $this->resolveTranslationSourceLocale(),
                     false
@@ -251,12 +253,12 @@ class CjProductImportService
 
     public function syncMedia(Product $product, array $options = []): bool
     {
-        if (! $product->cj_pid) {
+        if (!$product->cj_pid) {
             return false;
         }
 
-        $respectSyncFlag = (bool) ($options['respectSyncFlag'] ?? true);
-        $respectLocks = (bool) ($options['respectLocks'] ?? true);
+        $respectSyncFlag = (bool)($options['respectSyncFlag'] ?? true);
+        $respectLocks = (bool)($options['respectLocks'] ?? true);
 
         if ($respectSyncFlag && $product->cj_sync_enabled === false) {
             return false;
@@ -269,7 +271,7 @@ class CjProductImportService
         $productResp = $this->client->getProduct($product->cj_pid);
         $productData = $productResp->data ?? null;
 
-        if (! is_array($productData) || $productData === []) {
+        if (!is_array($productData) || $productData === []) {
             return false;
         }
 
@@ -279,7 +281,7 @@ class CjProductImportService
         $imagesUpdated = $this->mediaService->syncImages($product, $productData, $variants);
         $videosUpdated = $this->mediaService->syncVideos($product, $productData, $variants);
 
-        if (! $imagesUpdated && ! $videosUpdated) {
+        if (!$imagesUpdated && !$videosUpdated) {
             return false;
         }
 
@@ -302,7 +304,7 @@ class CjProductImportService
         return true;
     }
 
-    public function syncMyProducts(int $startPage = 1, int $pageSize = 24, int $maxPages = 50, bool $forceUpdate = false): array
+    public function syncMyProducts(int $startPage = 1, int $pageSize = 100, int $maxPages = 10, bool $forceUpdate = false): array
     {
         $queued = 0;
         $processed = 0;
@@ -322,7 +324,7 @@ class CjProductImportService
             $content = [];
 
             if (is_array($raw)) {
-                if (! empty($raw['content']) && is_array($raw['content'])) {
+                if (!empty($raw['content']) && is_array($raw['content'])) {
                     foreach ($raw['content'] as $entry) {
                         if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
                             $content = array_merge($content, $entry['productList']);
@@ -330,9 +332,9 @@ class CjProductImportService
                             $content[] = $entry;
                         }
                     }
-                } elseif (! empty($raw['productList']) && is_array($raw['productList'])) {
+                } elseif (!empty($raw['productList']) && is_array($raw['productList'])) {
                     $content = $raw['productList'];
-                } elseif (! empty($raw['content']) && is_array($raw['content'])) {
+                } elseif (!empty($raw['content']) && is_array($raw['content'])) {
                     $content = $raw['content'];
                 } else {
                     $numericKeys = array_filter(array_keys($raw), 'is_int');
@@ -342,16 +344,16 @@ class CjProductImportService
                 }
             }
 
-            if (! is_array($content) || $content === []) {
+            if (!is_array($content) || $content === []) {
                 break;
             }
 
             foreach ($content as $item) {
-                if (! is_array($item)) {
+                if (!is_array($item)) {
                     continue;
                 }
 
-                $pid = (string) ($item['pid'] ?? $item['id'] ?? $item['productId'] ?? $item['product_id'] ?? '');
+                $pid = (string)($item['pid'] ?? $item['id'] ?? $item['productId'] ?? $item['product_id'] ?? '');
                 if ($pid === '') {
                     continue;
                 }
@@ -361,7 +363,7 @@ class CjProductImportService
                 // Dispatch import job for each product
                 try {
                     \App\Jobs\ImportCjProductJob::dispatch($pid, [
-                        'respectSyncFlag' => ! $forceUpdate,
+                        'respectSyncFlag' => !$forceUpdate,
                         'defaultSyncEnabled' => true,
                         // 'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
@@ -388,14 +390,14 @@ class CjProductImportService
         if (is_array($variants) && $variants !== []) {
             foreach ($variants as $variant) {
                 try {
-                    if (! is_array($variant)) {
+                    if (!is_array($variant)) {
                         continue;
                     }
 
-                    $vid = (string) ($variant['vid'] ?? '');
+                    $vid = (string)($variant['vid'] ?? '');
                     $sku = $variant['variantSku'] ?? $variant['sku'] ?? null;
 
-                    if (! $sku && ! $vid) {
+                    if (!$sku && !$vid) {
                         continue;
                     }
 
@@ -407,8 +409,8 @@ class CjProductImportService
                         ],
                         [
                             'title' => $variant['variantName'] ?? ($variant['variantKey'] ?? 'Variant'),
-                            'price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->selling_price ?? 0),
-                            'cost_price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float) $variant['variantSellPrice'] : ($product->cost_price ?? 0),
+                            'price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float)$variant['variantSellPrice'] : ($product->selling_price ?? 0),
+                            'cost_price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float)$variant['variantSellPrice'] : ($product->cost_price ?? 0),
                             'currency' => $product->currency ?? 'USD',
                             'metadata' => [
                                 'cj_vid' => $vid,
@@ -424,7 +426,7 @@ class CjProductImportService
             return;
         }
 
-        if (! $product->variants()->exists()) {
+        if (!$product->variants()->exists()) {
             try {
                 $product->variants()->create([
                     'title' => 'Default',
@@ -454,28 +456,28 @@ class CjProductImportService
             $configured = explode(',', $configured);
         }
 
-        if (! is_array($configured)) {
+        if (!is_array($configured)) {
             return ['en', 'fr'];
         }
 
         $normalized = array_values(array_unique(array_filter(array_map(
-            fn ($locale) => strtolower(trim((string) $locale)),
+            fn($locale) => strtolower(trim((string)$locale)),
             $configured
-        ), fn ($locale) => $locale !== '')));
+        ), fn($locale) => $locale !== '')));
 
         return $normalized === [] ? ['en', 'fr'] : $normalized;
     }
 
     private function resolveTranslationSourceLocale(): string
     {
-        $source = strtolower(trim((string) config('services.translation_source_locale', 'en')));
+        $source = strtolower(trim((string)config('services.translation_source_locale', 'en')));
 
         return $source !== '' ? $source : 'en';
     }
 
     private function resolvePid(array $productData): string
     {
-        return (string) ($productData['pid']
+        return (string)($productData['pid']
             ?? $productData['productId']
             ?? $productData['product_id']
             ?? $productData['id']
@@ -498,12 +500,12 @@ class CjProductImportService
         ];
 
         foreach ($lists as $list) {
-            if (! is_array($list)) {
+            if (!is_array($list)) {
                 continue;
             }
 
             foreach ($list as $item) {
-                if (! is_array($item)) {
+                if (!is_array($item)) {
                     continue;
                 }
 
@@ -521,12 +523,12 @@ class CjProductImportService
 
         if (is_array($variants)) {
             foreach ($variants as $variant) {
-                if (! is_array($variant)) {
+                if (!is_array($variant)) {
                     continue;
                 }
 
                 $code = $variant['warehouseCountry'] ?? $variant['warehouseCountryCode'] ?? null;
-                if (! $code) {
+                if (!$code) {
                     $warehouse = $variant['warehouse'] ?? null;
                     if (is_array($warehouse)) {
                         $code = $warehouse['countryCode'] ?? $warehouse['country'] ?? null;
@@ -545,12 +547,12 @@ class CjProductImportService
     private function resolveCategoryFromPayload(array $productData): ?Category
     {
         // Always try to build 3-level hierarchy if possible
-        $oneCategoryId = (string) ($productData['oneCategoryId'] ?? '');
-        $oneCategoryName = (string) ($productData['oneCategoryName'] ?? '');
-        $twoCategoryId = (string) ($productData['twoCategoryId'] ?? '');
-        $twoCategoryName = (string) ($productData['twoCategoryName'] ?? '');
-        $threeCategoryId = (string) ($productData['categoryId'] ?? '');
-        $threeCategoryName = (string) ($productData['threeCategoryName'] ?? '');
+        $oneCategoryId = (string)($productData['oneCategoryId'] ?? '');
+        $oneCategoryName = (string)($productData['oneCategoryName'] ?? '');
+        $twoCategoryId = (string)($productData['twoCategoryId'] ?? '');
+        $twoCategoryName = (string)($productData['twoCategoryName'] ?? '');
+        $threeCategoryId = (string)($productData['categoryId'] ?? '');
+        $threeCategoryName = (string)($productData['threeCategoryName'] ?? '');
 
         // If we have V2 API structure, build hierarchy with proper CJ IDs
         if ($oneCategoryId && $oneCategoryName && $twoCategoryId && $twoCategoryName && $threeCategoryId && $threeCategoryName) {
@@ -562,14 +564,14 @@ class CjProductImportService
         }
 
         // Fallback: Legacy API or string-based categories
-        $categoryId = (string) ($productData['categoryId'] ?? '');
+        $categoryId = (string)($productData['categoryId'] ?? '');
 
         $rawName = $productData['categoryName']
             ?? $productData['categoryNameEn']
             ?? $productData['category_name']
             ?? null;
 
-        if (! is_string($rawName) || $rawName === '') {
+        if (!is_string($rawName) || $rawName === '') {
             return null;
         }
 
@@ -593,7 +595,7 @@ class CjProductImportService
                 ->where('name', $segment)
                 ->where('parent_id', $parent?->id)
                 ->first();
-            if (! $category) {
+            if (!$category) {
                 $category = Category::create([
                     'name' => $segment,
                     'slug' => $slug,
@@ -632,7 +634,7 @@ class CjProductImportService
             }
             // Then try by name and parent
             $category = Category::query()->where('name', $name)->where('parent_id', $parent?->id)->first();
-            if (! $category) {
+            if (!$category) {
                 $slug = Str::slug($parent ? "{$parent->slug} {$name}" : $name);
                 $category = Category::create([
                     'name' => $name,
@@ -656,8 +658,8 @@ class CjProductImportService
             $current = $product->{$field};
 
             if (in_array($field, ['selling_price', 'cost_price'], true)) {
-                $current = $current !== null ? (float) $current : null;
-                $value = $value !== null ? (float) $value : null;
+                $current = $current !== null ? (float)$current : null;
+                $value = $value !== null ? (float)$value : null;
             }
 
             if ($current !== $value) {

@@ -22,6 +22,7 @@ use App\Filament\Resources\OrderResource\RelationManagers\TrackingEventsRelation
 use App\Filament\Resources\OrderResource\RelationManagers\OrderAuditLogsRelationManager;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Jobs\DispatchFulfillmentJob;
+use App\Jobs\DispatchOrderJob;
 use BackedEnum;
 use Filament\Actions\Action as ActionsAction;
 use Filament\Actions\BulkAction as ActionsBulkAction;
@@ -232,22 +233,25 @@ class OrderResource extends Resource
                     )
                     ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
                     ->action(function (Order $record) {
-                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
-                        foreach ($items as $item) {
-                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
-                            $item->update(['fulfillment_status' => 'fulfilling']);
-                            \App\Domain\Orders\Models\OrderAuditLog::create([
-                                'order_id' => $record->id,
-                                'user_id' => auth()->id(),
-                                'action' => 'fulfillment_dispatched',
-                                'note' => 'Dispatched to provider (bulk)',
-                                'payload' => ['order_item_id' => $item->id],
-                            ]);
-                        }
-                        Notification::make()
-                            ->title('All items dispatched')
-                            ->success()
-                            ->send();
+
+                        dispatch(new DispatchOrderJob($record))->onConnection('sync');
+//                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+//                        dd($items);
+//                        foreach ($items as $item) {
+//                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
+//                            $item->update(['fulfillment_status' => 'fulfilling']);
+//                            \App\Domain\Orders\Models\OrderAuditLog::create([
+//                                'order_id' => $record->id,
+//                                'user_id' => auth()->id(),
+//                                'action' => 'fulfillment_dispatched',
+//                                'note' => 'Dispatched to provider (bulk)',
+//                                'payload' => ['order_item_id' => $item->id],
+//                            ]);
+//                        }
+//                        Notification::make()
+//                            ->title('All items dispatched')
+//                            ->success()
+//                            ->send();
                     }),
 
                 ActionsAction::make('pay_cj')
@@ -256,10 +260,10 @@ class OrderResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Pay CJ Balance')
-                    ->modalDescription(fn (Order $record) => 
+                    ->modalDescription(fn (Order $record) =>
                         "This will pay CJ Dropshipping {$record->cj_amount_due} {$record->currency} for order {$record->number}"
                     )
-                    ->visible(fn (Order $record) => 
+                    ->visible(fn (Order $record) =>
                         $record->payment_status === 'paid' &&
                         $record->cj_order_id &&
                         $record->cj_order_status === 'confirmed' &&
@@ -280,10 +284,10 @@ class OrderResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Retry CJ Payment')
-                    ->modalDescription(fn (Order $record) => 
+                    ->modalDescription(fn (Order $record) =>
                         "Attempt #" . ($record->cj_payment_attempts + 1) . ": Retry payment for order {$record->number}"
                     )
-                    ->visible(fn (Order $record) => 
+                    ->visible(fn (Order $record) =>
                         $record->cj_payment_status === 'failed' &&
                         $record->cj_payment_attempts < 5
                     )
