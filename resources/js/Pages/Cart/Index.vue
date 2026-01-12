@@ -56,8 +56,8 @@
               </ul>
             </div>
           </div>
-// Accept appliedPromotions as a prop (array of applied promotions)
-const appliedPromotions = computed(() => Array.isArray(props.appliedPromotions) ? props.appliedPromotions : [])
+ <!-- Accept appliedPromotions as a prop (array of applied promotions) -->
+<!-- const appliedPromotions = computed(() => Array.isArray(props.appliedPromotions) ? props.appliedPromotions : []) -->
 
           <div class="flex items-center justify-between text-sm">
             <span>{{ t('Subtotal') }}</span>
