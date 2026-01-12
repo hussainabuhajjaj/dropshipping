@@ -153,7 +153,7 @@ class CartController extends Controller
 
     public function getCart()
     {
-        $cart = Cart::query()->where('user_id', auth('web')->id())
+        $cart = Cart::query()->where('user_id', auth('customer')->id())
             ->orWhere('session_id', session()->id())
             ->first();
         if (!$cart) {
