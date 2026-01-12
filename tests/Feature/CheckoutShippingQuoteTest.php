@@ -24,7 +24,6 @@ class CheckoutShippingQuoteTest extends TestCase
             'price' => 10.0,
             'currency' => 'USD',
         ]];
-        session(['cart' => $cart]);
 
         $address = [
             'name' => 'John Doe',

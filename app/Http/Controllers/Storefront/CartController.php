@@ -39,7 +39,7 @@ class CartController extends Controller
         // Get applied promotions (not just coupon)
         $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
         $cartContext = [
-            'lines' => $cart_items,
+            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
             'subtotal' => $subtotal,
             'user_id' => auth('customer')->id(),
         ];
@@ -171,12 +171,6 @@ class CartController extends Controller
             ->get();
     }
 
-    private function subtotal($carts): float
-    {
-        return $carts->reduce(function ($sub_total, $item) {
-            return $sub_total + ((float)$item->getSinglePrice() * (int)$item['quantity']);
-        }, 0.0);
-    }
 
     /**
      * Capture abandoned cart from guest checkout (AJAX).
