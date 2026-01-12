@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Storefront;
 use App\Domain\Common\Models\Address;
 use App\Events\Orders\OrderPlaced;
 use App\Http\Controllers\Controller;
+use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -31,38 +32,60 @@ use Inertia\Response;
 
 class CheckoutController extends Controller
 {
-    public function index(): Response|RedirectResponse
+    public function getCartWithItems()
     {
-        $cart = session('cart', []);
-        
-        if (empty($cart)) {
+        $data['cart'] = Cart::query()->where('user_id', \auth('customer')->id())
+            ->orWhere('session_id', session()->id())
+            ->with('items')
+            ->first();
+
+        $data['cart_items'] = $data['cart']?->items;
+        if (!$data['cart'] || !$data['cart_items'] || !$data['cart_items']->count()) {
             return redirect()->route('products.index');
         }
+        return $data;
+    }
 
-        if (!$this->validateStock($cart)) {
-            return back()->withErrors(['cart' => 'One or more items are out of stock. Please adjust your cart.']);
+    public function index(): Response|RedirectResponse
+    {
+
+        $result = $this->getCartWithItems();
+
+        if ($result instanceof RedirectResponse) {
+            return $result;
         }
+        $cart = $result['cart'];
 
-        $subtotal = $this->calculateSubtotal($cart);
+
+//        if (!$this->validateStock($cart)) {
+//            return back()->withErrors(['cart' => 'One or more items are out of stock. Please adjust your cart.']);
+//        }
+
+        $subtotal = $cart->subTotal();
+        $shipping = $cart->calculateShippingFees();
+
+//        $subtotal = $this->calculateSubtotal($cart);
         $customer = $this->getCurrentCustomer();
-        
-        app(AbandonedCartService::class)->capture($cart, $customer?->email, $customer?->id);
-        
+
+//        app(AbandonedCartService::class)->capture($cart, $customer?->email, $customer?->id);
+
         $defaultAddress = $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->first();
-        
+
         $quotePayload = $this->createQuotePayloadFromAddress($defaultAddress);
-        $shippingQuote = $this->quoteShipping($cart, $quotePayload);
-        $shipping = $shippingQuote['shipping_total'] ?? 0;
+//        $shipping = $shippingQuote['shipping_total'] ?? 0;
         $selectedMethod = $shippingQuote['shipping_method'] ?? 'standard';
-        $coupon = session('cart_coupon');
-        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
-        $discount = $discounts['amount'];
+//        $coupon = session('cart_coupon');
+        $coupon = null;
+        $discounts = null;
+//        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
+//        $discount = $discounts['amount'];
+        $discount = 0;
         $settings = SiteSetting::query()->first();
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
-        $taxIncluded = (bool) ($settings?->tax_included ?? false);
+        $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
 
         return Inertia::render('Checkout/Index', [
@@ -70,7 +93,7 @@ class CheckoutController extends Controller
             'shipping' => $shipping,
             'discount' => $discount,
             'coupon' => $coupon,
-            'discount_label' => $discounts['label'],
+            'discount_label' => @$discounts['label'],
             'tax_total' => $taxTotal,
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
@@ -99,11 +122,13 @@ class CheckoutController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $cart = session('cart', []);
-        
-        if (empty($cart)) {
-            return redirect()->route('products.index');
+        $result = $this->getCartWithItems();
+
+        if ($result instanceof RedirectResponse) {
+            return $result;
         }
+        $cart = $result['cart'];
+        $cart_items = $result['cart_items'];
 
         $validatedData = $request->validate([
             'email' => ['required', 'email'],
@@ -122,23 +147,25 @@ class CheckoutController extends Controller
         ]);
 
         $customer = $this->getCurrentCustomer();
-        $subtotal = $this->calculateSubtotal($cart);
-        $shippingQuote = $this->quoteShipping($cart, $validatedData);
+        $subtotal = $cart->subTotal();
+        $shipping = $cart->calculateShippingFees();
+
+
         $coupon = session('cart_coupon');
-        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
-        $discount = $discounts['amount'];
+//        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
+        $discount = @$discounts['amount'] ?? 0;
         $settings = SiteSetting::query()->first();
         $shippingTotal = $this->applyShippingRules(
-            (float) ($shippingQuote['shipping_total'] ?? 0),
+            $shipping,
             $subtotal,
             $discount,
             $settings
         );
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
-        $taxIncluded = (bool) ($settings?->tax_included ?? false);
+        $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $shippingQuote, $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart,$cart_items,  $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
             $customer = Auth::guard('customer')->user();
             $isGuest = !$customer;
 
@@ -185,8 +212,8 @@ class CheckoutController extends Controller
 
             // Create order items
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
-            
-            foreach ($cart as $line) {
+
+            foreach ($cart_items as $line) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_variant_id' => $line['variant_id'],
@@ -194,12 +221,12 @@ class CheckoutController extends Controller
                     'supplier_product_id' => null,
                     'fulfillment_status' => 'pending',
                     'quantity' => $line['quantity'],
-                    'unit_price' => $line['price'],
-                    'total' => $line['price'] * $line['quantity'],
+                    'unit_price' => $line->getSinglePrice(),
+                    'total' => $line->getSinglePrice() * $line['quantity'],
                     'source_sku' => null,
                     'snapshot' => [
-                        'name' => $line['name'],
-                        'variant' => $line['variant'],
+                        'name' => @$line?->product['name'],
+                        'variant' => @$line?->variant['title'],
                     ],
                     'meta' => [
                         'media' => $line['media'] ?? null,
@@ -245,20 +272,20 @@ class CheckoutController extends Controller
                     ['email' => $validatedData['email']],
                     $validatedData['payment_method']
                 );
-                
+
                 $authorizationUrl = $init->data['authorization_url'] ?? null;
-                
+
                 if (!$authorizationUrl) {
                     return back()->withErrors([
                         'payment' => 'Payment provider did not return an authorization link.',
                     ]);
                 }
-                
+
                 session()->forget(['cart', 'cart_coupon']);
                 app(AbandonedCartService::class)->markRecovered();
-                
+
                 return redirect()->away($authorizationUrl);
-                
+
             } catch (\Throwable $e) {
                 Log::error('Payment initialization failed', ['error' => $e->getMessage()]);
                 return back()->withErrors([
@@ -290,7 +317,7 @@ class CheckoutController extends Controller
                 'payment_status' => $order->payment_status,
                 'currency' => $order->currency,
                 'grand_total' => $order->grand_total,
-                'items' => $order->orderItems->map(fn ($item) => [
+                'items' => $order->orderItems->map(fn($item) => [
                     'id' => $item->id,
                     'name' => $item->snapshot['name'] ?? 'Item',
                     'variant' => $item->snapshot['variant'] ?? null,
@@ -313,11 +340,11 @@ class CheckoutController extends Controller
     private function calculateSubtotal(array $cart): float
     {
         $subtotal = 0.0;
-        
+
         foreach ($cart as $line) {
-            $subtotal += ((float) $line['price'] * (int) $line['quantity']);
+            $subtotal += ((float)$line['price'] * (int)$line['quantity']);
         }
-        
+
         return $subtotal;
     }
 
@@ -333,87 +360,6 @@ class CheckoutController extends Controller
         return $number;
     }
 
-    /**
-     * Get shipping quote
-     */
-    private function quoteShipping(array $cart, array $data): array
-    {
-        $fallback = [
-            'shipping_total' => 0.0,
-            'shipping_method' => 'standard',
-        ];
-
-        $providerId = $cart[0]['fulfillment_provider_id'] ?? SiteSetting::query()->value('default_fulfillment_provider_id');
-        
-        if (!$providerId) {
-            return $fallback;
-        }
-
-        $provider = FulfillmentProvider::find($providerId);
-        
-        if (!$provider || $provider->driver_class !== \App\Domain\Fulfillment\Strategies\CJDropshippingFulfillmentStrategy::class) {
-            return $fallback;
-        }
-
-        $destination = [
-            'country' => strtoupper($data['country'] ?? 'CI'),
-            'province' => $data['state'] ?? null,
-            'city' => $data['city'] ?? null,
-            'zip' => $data['postal_code'] ?? null,
-        ];
-
-        $items = [];
-        
-        foreach ($cart as $line) {
-            $variant = ProductVariant::find($line['variant_id']);
-            $product = $variant?->product;
-            
-            $sku = $line['external_sku'] ?? $variant?->sku ?? $line['sku'] ?? '';
-            
-            if ($sku === '') {
-                continue;
-            }
-            
-            $items[] = [
-                'vid' => $line['cj_vid'] ?? $line['vid'] ?? null,
-                'sku' => $sku,
-                'quantity' => (int) $line['quantity'],
-                'warehouse_id' => $product?->cj_warehouse_id,
-            ];
-        }
-
-        if (empty($items)) {
-            return $fallback;
-        }
-
-        try {
-            $warehouseId = collect($items)->pluck('warehouse_id')->filter()->first() 
-                ?? $provider->settings['warehouse_id'] 
-                ?? null;
-            
-            $options = app(CJFreightService::class)->quote($destination, $items, [
-                'warehouseId' => $warehouseId,
-                'logisticsType' => $provider->settings['logistics_type'] ?? null,
-            ]);
-            
-            $firstOption = $options[0] ?? null;
-            
-            if ($firstOption) {
-                return [
-                    'shipping_total' => (float) ($firstOption['price'] ?? 0),
-                    'shipping_method' => $firstOption['logisticName'] ?? ($provider->settings['shipping_method'] ?? 'standard'),
-                ];
-            }
-        } catch (\Throwable $e) {
-            Log::warning('CJ freight quote failed', [
-                'error' => $e->getMessage(),
-                'destination' => $destination,
-                'items_count' => count($items)
-            ]);
-        }
-
-        return $fallback;
-    }
 
     /**
      * Create quote payload from address
@@ -438,16 +384,16 @@ class CheckoutController extends Controller
         }
 
         $subtotal = $this->calculateSubtotal($cart);
-        
-        if (isset($coupon['min_order_total']) && $subtotal < (float) $coupon['min_order_total']) {
+
+        if (isset($coupon['min_order_total']) && $subtotal < (float)$coupon['min_order_total']) {
             return 0.0;
         }
 
         if (($coupon['type'] ?? null) === 'fixed') {
-            return min((float) $coupon['amount'], $subtotal);
+            return min((float)$coupon['amount'], $subtotal);
         }
 
-        return round($subtotal * ((float) ($coupon['amount'] ?? 0) / 100), 2);
+        return round($subtotal * ((float)($coupon['amount'] ?? 0) / 100), 2);
     }
 
     /**
@@ -477,7 +423,7 @@ class CheckoutController extends Controller
     private function getCurrentCustomer(): ?Customer
     {
         $user = Auth::guard('customer')->user();
-        
+
         if (!$user) {
             return null;
         }
@@ -490,8 +436,8 @@ class CheckoutController extends Controller
      */
     private function calculateTax(float $amount, ?SiteSetting $settings): float
     {
-        $rate = (float) ($settings?->tax_rate ?? 0);
-        
+        $rate = (float)($settings?->tax_rate ?? 0);
+
         if ($rate <= 0) {
             return 0.0;
         }
@@ -505,8 +451,8 @@ class CheckoutController extends Controller
     private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
     {
         $eligibleTotal = max(0, $subtotal - $discount);
-        $threshold = (float) ($settings?->free_shipping_threshold ?? 0);
-        $handlingFee = (float) ($settings?->shipping_handling_fee ?? 0);
+        $threshold = (float)($settings?->free_shipping_threshold ?? 0);
+        $handlingFee = (float)($settings?->shipping_handling_fee ?? 0);
 
         if ($threshold > 0 && $eligibleTotal >= $threshold) {
             return 0.0;
@@ -527,7 +473,7 @@ class CheckoutController extends Controller
         foreach ($cart as $line) {
             // Check local stock first
             if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
-                if ((int) $line['stock_on_hand'] < (int) $line['quantity']) {
+                if ((int)$line['stock_on_hand'] < (int)$line['quantity']) {
                     return false;
                 }
                 continue; // local stock sufficient, skip CJ check
@@ -552,7 +498,7 @@ class CheckoutController extends Controller
         foreach ($cart as $line) {
             // Prefer local stock snapshot if present
             if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
-                if ((int) $line['stock_on_hand'] < (int) $line['quantity']) {
+                if ((int)$line['stock_on_hand'] < (int)$line['quantity']) {
                     return false;
                 }
                 continue;
@@ -560,20 +506,20 @@ class CheckoutController extends Controller
 
             try {
                 $response = null;
-                
+
                 if (isset($line['cj_vid'])) {
-                    $response = $client->getStockByVid((string) $line['cj_vid']);
+                    $response = $client->getStockByVid((string)$line['cj_vid']);
                 } elseif (isset($line['sku'])) {
-                    $response = $client->getStockBySku((string) $line['sku']);
+                    $response = $client->getStockBySku((string)$line['sku']);
                 } elseif (isset($line['cj_pid'])) {
-                    $response = $client->getStockByPid((string) $line['cj_pid']);
+                    $response = $client->getStockByPid((string)$line['cj_pid']);
                 } else {
                     continue;
                 }
 
                 $available = $this->sumStorage($response->data ?? null);
-                
-                if ($available < (int) $line['quantity']) {
+
+                if ($available < (int)$line['quantity']) {
                     return false;
                 }
             } catch (ApiException $exception) {
@@ -581,8 +527,8 @@ class CheckoutController extends Controller
                     'error' => $exception->getMessage(),
                     'line' => $line['id'] ?? null
                 ]);
-                
-                if (!$this->fallbackStockCheck($line, (int) $line['quantity'])) {
+
+                if (!$this->fallbackStockCheck($line, (int)$line['quantity'])) {
                     return false;
                 }
             } catch (\Throwable $exception) {
@@ -590,8 +536,8 @@ class CheckoutController extends Controller
                     'error' => $exception->getMessage(),
                     'line' => $line['id'] ?? null
                 ]);
-                
-                if (!$this->fallbackStockCheck($line, (int) $line['quantity'])) {
+
+                if (!$this->fallbackStockCheck($line, (int)$line['quantity'])) {
                     return false;
                 }
             }
@@ -606,7 +552,7 @@ class CheckoutController extends Controller
     private function sumStorage(mixed $payload): int
     {
         if (is_numeric($payload)) {
-            return (int) $payload;
+            return (int)$payload;
         }
 
         if (!is_array($payload)) {
@@ -617,13 +563,13 @@ class CheckoutController extends Controller
 
         // Check for direct storageNum
         if (isset($payload['storageNum']) && is_numeric($payload['storageNum'])) {
-            $total += (int) $payload['storageNum'];
+            $total += (int)$payload['storageNum'];
         }
 
         // Recursively search for storageNum in nested arrays
         array_walk_recursive($payload, function ($value) use (&$total) {
             if (is_numeric($value)) {
-                $total += (int) $value;
+                $total += (int)$value;
             }
         });
 
@@ -636,7 +582,7 @@ class CheckoutController extends Controller
     private function fallbackStockCheck(array $line, int $desiredQty): bool
     {
         if (isset($line['stock_on_hand']) && is_numeric($line['stock_on_hand'])) {
-            return (int) $line['stock_on_hand'] >= $desiredQty;
+            return (int)$line['stock_on_hand'] >= $desiredQty;
         }
 
         // If no local stock data, assume stock is available
