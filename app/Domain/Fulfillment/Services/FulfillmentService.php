@@ -9,8 +9,10 @@ use App\Domain\Fulfillment\DTOs\FulfillmentResult;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Support\Facades\DB;
 use App\Domain\Observability\EventLogger;
 use App\Models\User;
@@ -22,8 +24,9 @@ class FulfillmentService
 {
     public function __construct(
         private readonly FulfillmentSelector $selector,
-        private readonly EventLogger $logger,
-    ) {
+        private readonly EventLogger         $logger,
+    )
+    {
     }
 
     public function dispatchOrderItem(OrderItem $orderItem): FulfillmentJob
@@ -75,13 +78,93 @@ class FulfillmentService
         });
     }
 
+    public function dispatchCjOrder(Order $order, $product_items, $provider): FulfillmentJob
+    {
+        $order->load('shippingAddress');
+        $address = $order->shippingAddress;
+
+        $products = $product_items->map(function ($item) {
+            $productVariant = $item->productVariant;
+            return [
+                "vid" => $productVariant->cj_vid,
+                "quantity" => $item->quantity,
+            ];
+        })->toArray();
+
+//            "orderNumber" => $order->id,
+        $request_body = [
+            "orderNumber" => now()->timestamp,
+            "shippingZip" => @$address['postal_code'],
+            "shippingCountry" => @$address['country'],
+            "shippingCountryCode" => @$address['country'],
+            "shippingProvince" => @$address['state'],
+            "shippingCity" => @$address['city'],
+            'shippingCounty' => null,
+            'shippingPhone' => @$address?->phone,
+            'shippingCustomerName' => @$address?->name,
+            'shippingAddress' => @$address?->line1,
+            'shippingAddress2' => @$address?->line2,
+            'taxId' => null,
+            'remark' => null,
+            'email' => $order?->email,
+            'consigneeID' => null,
+            'payType' => $cj_provider['pay_type'] ?? 3,
+            "shopAmount" => null,
+            "logisticName" => ($provider['shipping_method'] ?? 'PostNL'),
+            "fromCountryCode" => "CN",
+            "products" => $products,
+        ];
+
+
+        return DB::transaction(function () use ($request_body) {
+
+            $client = app(CJDropshippingClient::class);
+
+            // Force refresh and persist into cache via client logic
+            $res = $client->createOrderV2($request_body);
+            dd($res);
+//            $job = FulfillmentJob::create([
+//                'order_item_id' => $orderItem->id,
+//                'fulfillment_provider_id' => $provider->id,
+//                'payload' => $this->buildPayload($requestData),
+//                'status' => 'pending',
+//                'dispatched_at' => now(),
+//            ]);
+//
+//            $result = $strategy->dispatch($requestData);
+//
+//            $this->recordAttempt($job, $requestData, $result);
+//            $this->updateJobStatus($job, $result);
+//            $this->updateOrderItemStatus($orderItem, $result);
+//
+//            $this->logger->fulfillment(
+//                $orderItem,
+//                'dispatch',
+//                $result->status,
+//                $result->rawResponse['error'] ?? null,
+//                $result->rawResponse
+//            );
+//
+//            if ($result->trackingNumber || $result->trackingUrl) {
+//                $this->recordShipment($orderItem, $result);
+//                $this->notifyCustomerShipment($orderItem);
+//            }
+//
+//            if ($result->failed()) {
+//                $this->notifyAdminsIssue($orderItem, $result->rawResponse['error'] ?? 'Fulfillment failed');
+//            }
+//
+//            return $job->refresh();
+        });
+    }
+
     private function resolveProvider(OrderItem $orderItem): FulfillmentProvider
     {
         $provider = $orderItem->fulfillmentProvider
             ?? $orderItem->supplierProduct?->fulfillmentProvider
             ?? $orderItem->productVariant?->product?->defaultFulfillmentProvider;
 
-        if (! $provider) {
+        if (!$provider) {
             throw new FulfillmentException('Missing fulfillment provider for order item.');
         }
 
@@ -145,7 +228,7 @@ class FulfillmentService
 
         if ($orderItem->order) {
             $this->reconcileOrderShipping($orderItem->order);
-            
+
             // Queue CJ payment after shipment recorded
             if ($orderItem->order->cj_order_id) {
                 \App\Jobs\PayCJBalanceJob::dispatch($orderItem->order->id);
@@ -155,8 +238,8 @@ class FulfillmentService
 
     private function reconcileOrderShipping(\App\Domain\Orders\Models\Order $order): void
     {
-        $actual = (float) ($order->shipments()->sum('postage_amount') ?? 0);
-        $estimated = (float) ($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
+        $actual = (float)($order->shipments()->sum('postage_amount') ?? 0);
+        $estimated = (float)($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
         $variance = round($actual - $estimated, 2);
 
         $order->update([

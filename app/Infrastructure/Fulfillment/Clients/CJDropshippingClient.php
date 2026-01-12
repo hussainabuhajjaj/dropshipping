@@ -18,9 +18,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class CJDropshippingClient
-  
+
 {
-   
+
     private string $apiKey;
     private string $baseUrl;
     private int $timeout;
@@ -32,18 +32,19 @@ class CJDropshippingClient
     public function __construct()
     {
         $config = config('services.cj', []);
-        $this->apiKey = (string) ($config['api_key'] ?? '');
-        $this->baseUrl = rtrim((string) ($config['base_url'] ?? ''), '/');
-        $this->timeout = (int) ($config['timeout'] ?? 10);
+        $this->apiKey = (string)($config['api_key'] ?? '');
+        $this->baseUrl = rtrim((string)($config['base_url'] ?? ''), '/');
+        $this->timeout = (int)($config['timeout'] ?? 10);
 
-        if (! $this->apiKey) {
+        if (!$this->apiKey) {
             throw new RuntimeException('CJ API key is not configured.');
         }
 
         $this->client = new ApiClient($this->baseUrl, [], $this->timeout);
     }
 
-  /**
+
+    /**
      * Query order status from CJ Dropshipping API.
      * Endpoint: /v1/shopping/order/getOrderStatus (POST)
      * @param array $payload Should contain 'orderIds' => [array of order IDs]
@@ -60,7 +61,7 @@ class CJDropshippingClient
     }
 
 
- /**
+    /**
      * Calculate freight/shipping cost using CJ API.
      * Endpoint: /v1/freight/calculate (POST)
      * @param array $payload
@@ -68,11 +69,12 @@ class CJDropshippingClient
      */
     public function freightCalculate(array $payload): ApiResponse
     {
+        $client = $this->authClient();
         // You may need to adjust the endpoint or payload according to CJ API docs
-        return $this->client->post('/v1/freight/calculate', $payload);
+        return $client->post('/v1/logistic/freightCalculate', $payload);
     }
-   
-public function getAccessToken()
+
+    public function getAccessToken()
     {
         $setting = new Setting();
         if ($access_token = $setting->valueOf('cj_access_token', null)) {
@@ -109,6 +111,7 @@ public function getAccessToken()
         Setting::setSetting($Cjbody);
         return $Cjbody['cj_access_token'];
     }
+
     public function parseDate(?string $dateString): int
     {
         if (!$dateString) {
@@ -152,6 +155,7 @@ public function getAccessToken()
     {
         return $this->products()->getProduct($pid);
     }
+
     /**
      * Create order using v2 endpoint (with auth token)
      */
@@ -169,7 +173,7 @@ public function getAccessToken()
         $client = $this->authClient();
         return $client->post('/v1/shopping/order/createOrderV3', $payload);
     }
-    
+
     public function getProductBy(array $criteria): ApiResponse
     {
         return $this->products()->getProductBy($criteria);
@@ -308,7 +312,7 @@ public function getAccessToken()
 
     private function ttlFromDate(?string $date, int $fallbackSeconds): int
     {
-        if (! $date) {
+        if (!$date) {
             return $fallbackSeconds;
         }
 

@@ -30,5 +30,6 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(\Database\Seeders\PromotionSeeder::class);
+        $this->call(\Database\Seeders\CJSeeder::class);
     }
 }

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\User\CartResource;
+use App\Models\Cart;
+use App\Models\CartItem;
 use App\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
 use App\Models\Coupon;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,15 +28,18 @@ class CartController extends Controller
 {
     public function index(): Response
     {
-        $cart = $this->cart();
+        $cart = $this->getCart();
+        $cart_items = $this->cart();
         $coupon = session('cart_coupon');
-        $subtotal = $this->subtotal($cart);
-        $discount = $this->discount($cart, $coupon);
+        $subtotal = $cart->subTotal();
+        $discount = $cart->discount($coupon);
+
+        $shipping = $cart->calculateShippingFees();
 
         // Get applied promotions (not just coupon)
         $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
         $cartContext = [
-            'lines' => $cart,
+            'lines' => $cart_items,
             'subtotal' => $subtotal,
             'user_id' => auth('customer')->id(),
         ];
@@ -52,9 +59,10 @@ class CartController extends Controller
         })->values()->all();
 
         return Inertia::render('Cart/Index', [
-            'lines' => $cart,
+            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
             'currency' => $cart[0]['currency'] ?? 'USD',
             'subtotal' => $subtotal,
+            'shipping' => $shipping,
             'discount' => $discount,
             'coupon' => $coupon,
             'appliedPromotions' => $appliedPromotions,
@@ -75,100 +83,101 @@ class CartController extends Controller
             ->findOrFail($data['product_id']);
 
         $variant = null;
-        if (! empty($data['variant_id'])) {
-            $variant = $product->variants->firstWhere('id', (int) $data['variant_id']);
+        if (!empty($data['variant_id'])) {
+            $variant = $product->variants->firstWhere('id', (int)$data['variant_id']);
         }
 
-        $cart = collect($this->cart());
 
-        $existing = $cart->first(function (array $line) use ($product, $variant) {
-            return $line['product_id'] === $product->id
-                && ($line['variant_id'] ?? null) === ($variant?->id);
-        });
+        $cart = $this->cart();
 
-        $incomingQty = (int) ($data['quantity'] ?? 1);
+        $existing = $cart->where('product_id', $product->id)
+            ->when(isset($variant), function ($query) use ($variant) {
+                return $query->where('variant_id', $variant->id);
+            })->first();
+
+
+        $incomingQty = (int)($data['quantity'] ?? 1);
 
         if ($existing) {
             $newQty = $existing['quantity'] + $incomingQty;
-            if (! $this->hasStock($existing, $newQty, $variant)) {
+            if (!$this->hasStock($existing->toArray(), $newQty, $variant)) {
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
 
-            $cart = $cart->map(function (array $line) use ($existing, $incomingQty) {
-                if ($line['id'] === $existing['id']) {
-                    $line['quantity'] += $incomingQty;
-                }
-                return $line;
-            });
+            $existing->update(['quantity' => $newQty]);
         } else {
             $line = $this->buildLine($product, $variant, $incomingQty);
-            if (! $this->hasStock($line, $incomingQty, $variant)) {
+            if (!$this->hasStock($line, $incomingQty, $variant)) {
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
-            $cart->push($line);
+            CartItem::query()->create($line);
         }
 
-        session(['cart' => $cart->values()->all()]);
-
-        $this->captureAbandonedCart($cart->values()->all());
+        $this->captureAbandonedCart($cart);
 
         return back()->with('cart_notice', 'Added to cart');
     }
 
     public function destroy(string $lineId): RedirectResponse
     {
-        $cart = collect($this->cart())
-            ->reject(fn (array $line) => $line['id'] === $lineId)
-            ->values()
-            ->all();
-
-        session(['cart' => $cart]);
-
-        $this->captureAbandonedCart($cart);
-
+        $cart = $this->cart()->where('id', $lineId)->first();
+        if (isset($cart)) {
+            $cart->delete();
+            $this->captureAbandonedCart($cart);
+        }
         return back();
     }
 
     public function update(string $lineId, Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $request->validate([
             'quantity' => ['required', 'integer', 'min:1'],
         ]);
 
-        $cart = collect($this->cart())->map(function (array $line) use ($lineId, $data) {
-            if ($line['id'] === $lineId) {
-                $line['quantity'] = (int) $data['quantity'];
-            }
-            return $line;
-        })->values()->all();
+        $newQty = (int)$request->input('quantity');
 
-        foreach ($cart as $line) {
-            if ($line['id'] === $lineId) {
-                $variant = isset($line['variant_id']) ? ProductVariant::find($line['variant_id']) : null;
-                if (! $this->hasStock($line, $line['quantity'], $variant)) {
-                    return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
-                }
+        $cartItems = $this->cart();
+        $cart = $cartItems->where('id', $lineId)->first();
+
+        if ($cart) {
+            $variant = $cart->variant;
+            if (!$this->hasStock($cart->toArray(), $newQty, $variant)) {
+                return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
+
+            $cart->update(['quantity' => $newQty]);
         }
-
-        session(['cart' => $cart]);
-
         $this->captureAbandonedCart($cart);
-
         return back();
     }
 
-    private function cart(): array
+    public function getCart()
     {
-        return session('cart', []);
+        $cart = Cart::query()->where('user_id', auth('web')->id())
+            ->orWhere('session_id', session()->id())
+            ->first();
+        if (!$cart) {
+            return Cart::createCart();
+        }
+        return $cart;
     }
 
-    private function subtotal(array $cart): float
+    private function cart()
     {
-        return collect($cart)->reduce(function ($carry, $line) {
-            return $carry + ((float) $line['price'] * (int) $line['quantity']);
+        $cart = $this->getCart();
+
+        return CartItem::query()->where('cart_id', @$cart?->id)
+            ->with(['product', 'variant'])
+            ->get();
+    }
+
+    private function subtotal($carts): float
+    {
+        return $carts->reduce(function ($sub_total, $item) {
+            return $sub_total + ((float)$item->getSinglePrice() * (int)$item['quantity']);
         }, 0.0);
     }
+
     /**
      * Capture abandoned cart from guest checkout (AJAX).
      */
@@ -187,43 +196,29 @@ class CartController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
-    private function discount(array $cart, ?array $coupon): float
-    {
-        if (! $coupon) {
-            return 0.0;
-        }
 
-        $subtotal = $this->subtotal($cart);
-        if ($coupon['min_order_total'] && $subtotal < (float) $coupon['min_order_total']) {
-            return 0.0;
-        }
-
-        if ($coupon['type'] === 'fixed') {
-            return min((float) $coupon['amount'], $subtotal);
-        }
-
-        return round($subtotal * ((float) $coupon['amount'] / 100), 2);
-    }
 
     private function buildLine(Product $product, ?ProductVariant $variant, int $quantity): array
     {
+        $cart = $this->getCart();
         $selectedVariant = $variant ?? $product->variants->first();
-
         return [
-            'id' => Str::uuid()->toString(),
+            'cart_id' => @$cart->id,
             'product_id' => $product->id,
             'variant_id' => $selectedVariant?->id,
-            'name' => $product->name,
-            'variant' => $selectedVariant?->title,
-            'quantity' => $quantity,
-            'price' => (float) ($selectedVariant?->price ?? $product->selling_price ?? 0),
-            'currency' => $selectedVariant?->currency ?? $product->currency ?? 'USD',
-            'media' => $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
             'fulfillment_provider_id' => $product->default_fulfillment_provider_id,
-            'sku' => $selectedVariant?->sku,
-            'cj_pid' => $product->attributes['cj_pid'] ?? null,
-            'cj_vid' => $selectedVariant?->metadata['cj_vid'] ?? null,
+            'quantity' => $quantity,
             'stock_on_hand' => $selectedVariant?->stock_on_hand ?? $product->stock_on_hand,
+
+//            'id' => Str::uuid()->toString(),
+//            'name' => $product->name,
+//            'variant' => $selectedVariant?->title,
+//            'price' => (float)($selectedVariant?->price ?? $product->selling_price ?? 0),
+//            'currency' => $selectedVariant?->currency ?? $product->currency ?? 'USD',
+//            'media' => $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
+//            'sku' => $selectedVariant?->sku,
+//            'cj_pid' => $product->attributes['cj_pid'] ?? null,
+//            'cj_vid' => $selectedVariant?->metadata['cj_vid'] ?? null,
         ];
     }
 
@@ -237,11 +232,11 @@ class CartController extends Controller
         $coupon = Coupon::query()
             ->where('code', $data['code'])
             ->where('is_active', true)
-            ->where(fn ($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
-            ->where(fn ($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $now))
+            ->where(fn($query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
+            ->where(fn($query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $now))
             ->first();
 
-        if (! $coupon) {
+        if (!$coupon) {
             return back()->withErrors(['code' => 'Coupon not found or inactive.'])->withInput();
         }
 
@@ -266,35 +261,35 @@ class CartController extends Controller
         return back()->with('cart_notice', 'Coupon removed.');
     }
 
-    private function captureAbandonedCart(array $cart): void
+    private function captureAbandonedCart($cart): void
     {
-        if (empty($cart)) {
-            return;
-        }
-
-        app(AbandonedCartService::class)->capture(
-            $cart,
-            Auth::guard('customer')->user()?->email,
-            Auth::guard('customer')->id()
-        );
+//        if (empty($cart)) {
+//            return;
+//        }
+//
+//        app(AbandonedCartService::class)->capture(
+//            $cart,
+//            Auth::guard('customer')->user()?->email,
+//            Auth::guard('customer')->id()
+//        );
     }
 
     private function hasCjStock(array $line, int $desiredQty): bool
     {
         // Prefer local stock snapshot if available before hitting CJ APIs
         if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
-            return (int) $line['stock_on_hand'] >= $desiredQty;
+            return (int)$line['stock_on_hand'] >= $desiredQty;
         }
 
         $client = app(CJDropshippingClient::class);
 
         try {
             if ($line['cj_vid'] ?? false) {
-                $resp = $client->getStockByVid((string) $line['cj_vid']);
+                $resp = $client->getStockByVid((string)$line['cj_vid']);
             } elseif ($line['sku'] ?? false) {
-                $resp = $client->getStockBySku((string) $line['sku']);
+                $resp = $client->getStockBySku((string)$line['sku']);
             } elseif ($line['cj_pid'] ?? false) {
-                $resp = $client->getStockByPid((string) $line['cj_pid']);
+                $resp = $client->getStockByPid((string)$line['cj_pid']);
             } else {
                 return true;
             }
@@ -315,7 +310,7 @@ class CartController extends Controller
 
         $add = function ($value) use (&$total) {
             if (is_numeric($value)) {
-                $total += (int) $value;
+                $total += (int)$value;
             }
         };
 
@@ -349,7 +344,7 @@ class CartController extends Controller
     {
         // 1. Check local stock_on_hand first (variant or product level)
         if (array_key_exists('stock_on_hand', $line) && is_numeric($line['stock_on_hand'])) {
-            $available = (int) $line['stock_on_hand'];
+            $available = (int)$line['stock_on_hand'];
             if ($available < $desiredQty) {
                 return false;
             }
@@ -364,5 +359,6 @@ class CartController extends Controller
         // 2. Fallback to live CJ API check if no local stock data
         return $this->hasCjStock($line, $desiredQty);
     }
+
 }
 
