@@ -169,7 +169,7 @@ class CjProductImportService
             $payload['cj_pid'] = $pid;
             $payload['slug'] = $slug;
             $payload['status'] = 'active';
-            $payload['is_active'] = true;
+            $payload['is_active'] = false;
             $payload['is_featured'] = false;
             $payload['cj_sync_enabled'] = $defaultSyncEnabled;
             $product = Product::create($payload);

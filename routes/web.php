@@ -70,7 +70,7 @@ Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->
 Route::get('/search', SearchController::class)->name('search');
 
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
-Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
+Route::post('/storecart', [CartController::class, 'store'])->name('cart.store');
 Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
 Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
 Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');

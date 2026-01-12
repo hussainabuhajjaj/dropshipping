@@ -35,7 +35,6 @@ class CartController extends Controller
         $discount = $cart->discount($coupon);
 
         $shipping = $cart->calculateShippingFees();
-
         // Get applied promotions (not just coupon)
         $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
         $cartContext = [
@@ -88,34 +87,77 @@ class CartController extends Controller
         }
 
 
-        $cart = $this->cart();
+        $cartModel = $this->getCart(); // Get the cart model instance
 
-        $existing = $cart->where('product_id', $product->id)
-            ->when(isset($variant), function ($query) use ($variant) {
+        // Find existing cart item directly from DB, always returns a model or null
+        $existing = CartItem::query()
+            ->where('cart_id', $cartModel->id)
+            ->where('product_id', $product->id)
+            ->when($variant, function ($query) use ($variant) {
                 return $query->where('variant_id', $variant->id);
-            })->first();
+            })
+            ->first();
 
 
         $incomingQty = (int)($data['quantity'] ?? 1);
 
+        $toastMessage = 'Added to cart'; // Default message
         if ($existing) {
             $newQty = $existing['quantity'] + $incomingQty;
             if (!$this->hasStock($existing->toArray(), $newQty, $variant)) {
+                // Show toast for insufficient stock
+                session()->flash('toast', [
+                    'type' => 'error',
+                    'message' => 'Insufficient stock for this item.'
+                ]);
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
-
             $existing->update(['quantity' => $newQty]);
+            // Set toast for quantity update
+            $toastMessage = 'Cart quantity updated.';
         } else {
             $line = $this->buildLine($product, $variant, $incomingQty);
             if (!$this->hasStock($line, $incomingQty, $variant)) {
+                // Show toast for insufficient stock
+                session()->flash('toast', [
+                    'type' => 'error',
+                    'message' => 'Insufficient stock for this item.'
+                ]);
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
             CartItem::query()->create($line);
+            // Set toast for new add
+            $toastMessage = 'Added to cart.';
         }
 
-        $this->captureAbandonedCart($cart);
+        $this->captureAbandonedCart($cartModel);
 
-        return back()->with('cart_notice', 'Added to cart');
+        // --- Sync session cart with database cart for dropdown updates ---
+        // Fetch all cart items for the current cart
+        $sessionCart = [];
+        $cartItems = CartItem::query()->where('cart_id', @$cartModel?->id)->with(['product', 'variant'])->get();
+        foreach ($cartItems as $item) {
+            $sessionCart[] = [
+                'product_id' => $item->product_id,
+                'variant_id' => $item->variant_id,
+                'quantity' => $item->quantity,
+                'name' => $item->product?->name,
+                'variant' => $item->variant?->title,
+                'price' => $item->getSinglePrice(),
+                'media' => $item->product?->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
+            ];
+        }
+        // Store the cart array in the session for Inertia shared prop
+        session(['cart' => $sessionCart]);
+        // --- End session sync ---
+
+        // Set toast for all cart actions
+        session()->flash('toast', [
+            'type' => 'success',
+            'message' => $toastMessage
+        ]);
+
+        return back()->with('cart_notice', $toastMessage);
     }
 
     public function destroy(string $lineId): RedirectResponse
@@ -139,16 +181,48 @@ class CartController extends Controller
         $cartItems = $this->cart();
         $cart = $cartItems->where('id', $lineId)->first();
 
+        $toastMessage = '';
         if ($cart) {
             $variant = $cart->variant;
             if (!$this->hasStock($cart->toArray(), $newQty, $variant)) {
+                session()->flash('toast', [
+                    'type' => 'error',
+                    'message' => 'Insufficient stock for this item.'
+                ]);
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
-
             $cart->update(['quantity' => $newQty]);
+            $toastMessage = 'Cart quantity updated.';
+        } else {
+            $toastMessage = 'Cart item not found.';
         }
         $this->captureAbandonedCart($cart);
-        return back();
+
+        // --- Sync session cart with database cart for dropdown updates ---
+        $cartModel = $this->getCart();
+        $sessionCart = [];
+        $cartItems = CartItem::query()->where('cart_id', @$cartModel?->id)->with(['product', 'variant'])->get();
+        foreach ($cartItems as $item) {
+            $sessionCart[] = [
+                'product_id' => $item->product_id,
+                'variant_id' => $item->variant_id,
+                'quantity' => $item->quantity,
+                'name' => $item->product?->name,
+                'variant' => $item->variant?->title,
+                'price' => $item->getSinglePrice(),
+                'media' => $item->product?->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
+            ];
+        }
+        session(['cart' => $sessionCart]);
+        // --- End session sync ---
+
+        // Set toast for all cart actions
+        session()->flash('toast', [
+            'type' => $toastMessage === 'Cart quantity updated.' ? 'success' : 'error',
+            'message' => $toastMessage
+        ]);
+
+        return back()->with('cart_notice', $toastMessage);
     }
 
     public function getCart()
