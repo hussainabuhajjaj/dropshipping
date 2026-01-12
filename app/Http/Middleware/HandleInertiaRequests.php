@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Resources\User\CartResource;
+use App\Models\Cart;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
@@ -12,6 +14,7 @@ use Illuminate\Support\Facades\Schema;
 class HandleInertiaRequests extends Middleware
 {
     use FormatsCategories;
+
     /**
      * The root template that is loaded on the first page visit.
      *
@@ -35,10 +38,19 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $customer = $request->user('customer');
-        $cart = collect($request->session()->get('cart', []));
-        $cartSubtotal = $cart->reduce(function ($carry, $line) {
-            return $carry + ((float) ($line['price'] ?? 0) * (int) ($line['quantity'] ?? 0));
-        }, 0.0);
+        $cart = Cart::query()->where('user_id', auth('web')->id())
+            ->orWhere('session_id', session()->id())
+            ->with('items')
+            ->first();
+
+        $cart_items = isset($cart) ? $cart->items : collect([]);
+        $cart_quantities = isset($cart) ? $cart->items->sum('quantity') : 0;
+        $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
+        $cartSubtotal = isset($cart) ? $cart->subTotal() : 0;
+        //        $cart = collect($request->session()->get('cart', []));
+//        $cartSubtotal = $cart->reduce(function ($carry, $line) {
+//            return $carry + ((float) ($line['price'] ?? 0) * (int) ($line['quantity'] ?? 0));
+//        }, 0.0);
         $site = Schema::hasTable('site_settings')
             ? SiteSetting::query()->first()
             : null;
@@ -54,7 +66,7 @@ class HandleInertiaRequests extends Middleware
                 $translations = $decoded;
             }
         }
-
+//dd(parent::share($request));
         return [
             ...parent::share($request),
             'auth' => [
@@ -68,8 +80,8 @@ class HandleInertiaRequests extends Middleware
                 'status' => $request->session()->get('status'),
             ],
             'cart' => [
-                'lines' => $cart->values()->all(),
-                'count' => $cart->sum(fn ($line) => (int) ($line['quantity'] ?? 0)),
+                'lines' => $cart_items,
+                'count' => $cart_quantities,
                 'subtotal' => $cartSubtotal,
             ],
             'wishlist' => [
