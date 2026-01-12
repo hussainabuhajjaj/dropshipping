@@ -702,16 +702,24 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { usePage, router } from '@inertiajs/vue3'
-import { useToast } from 'vue-toastification'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
+import { DotLottieVue } from '@lottiefiles/dotlottie-vue'
 import { useTranslations } from '@/i18n'
-import { h } from 'vue'
-import ToastMessage from '@/components/ToastMessage.vue'
+import { usePersistentCart } from '@/composables/usePersistentCart.js'
 
-const page = usePage()
-const toast = useToast()
+/** Persistent cart (kept here, remove if unused) */
+const { cart: persistentCart, setCart, addLine, updateLine, removeLine, clearCart } = usePersistentCart()
+
+// --- Multi-currency support ---
+const currencyOptions = ['USD', 'XOF']
+const CURRENCY_KEY = 'dropshipping_currency'
+const selectedCurrency = ref(localStorage.getItem(CURRENCY_KEY) || 'USD')
+function onCurrencyChange() {
+  localStorage.setItem(CURRENCY_KEY, selectedCurrency.value)
+}
 
 // --- App / page ---
+const page = usePage()
 const { t, locale, availableLocales } = useTranslations()
 
 // --- UI state ---

@@ -418,7 +418,7 @@ const form = useForm({
 const submit = () => {
   form.product_id = props.product.id
   form.variant_id = selectedVariantId.value
-  form.post('/storecart', {
+  form.post('/cart', {
     preserveScroll: true,
     onSuccess: () => {
       successMessage.value = t('Added to cart.')
