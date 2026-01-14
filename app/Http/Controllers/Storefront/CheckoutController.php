@@ -231,6 +231,8 @@ class CheckoutController extends Controller
             foreach ($cart->shippings as $shipping) {
                 $shipping = $shipping->toArray();
                 $shipping['order_id'] = $order->id;
+                $shipping['name'] = $shipping['logistic_name'];
+                $shipping['price'] = $shipping['logistic_price'];
                 OrderShipping::query()->create($shipping);
             }
 
