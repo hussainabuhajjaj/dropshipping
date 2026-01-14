@@ -28,6 +28,14 @@
           <span>{{ t('Payment') }}</span>
           <span class="font-semibold text-slate-900">{{ order.payment_status }}</span>
         </div>
+        <div class="mt-2 flex items-center justify-between text-sm">
+          <span>{{ t('Discount') }}</span>
+          <span class="font-semibold text-slate-900">{{ order.currency }} -{{ order.discount_total }}</span>
+        </div>
+        <div class="mt-2 flex items-center justify-between text-sm">
+          <span>{{ t('Total') }}</span>
+          <span class="font-semibold text-slate-900">{{ order.currency }} {{ order.grand_total }}</span>
+        </div>
         <div v-if="order.items?.length" class="mt-4 space-y-2 text-sm text-slate-600">
           <div v-for="item in order.items" :key="item.id" class="flex items-center justify-between">
             <div>
