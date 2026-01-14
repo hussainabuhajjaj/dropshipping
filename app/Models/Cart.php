@@ -18,6 +18,11 @@ class Cart extends Model
         return $this->hasMany(CartItem::class);
     }
 
+    public function shippings()
+    {
+        return $this->hasMany(CartShipping::class);
+    }
+
     public static function createCart(): self
     {
         if (auth('web')->check()) {
@@ -31,7 +36,7 @@ class Cart extends Model
     {
         return $this->items->reduce(function ($carry, $item) {
             return $carry + $item->quantity * $item->getSinglePrice();
-        } , 0);
+        }, 0);
     }
 
     public function discount(?array $coupon): float
@@ -90,6 +95,7 @@ class Cart extends Model
                     if (isset($company)) {
                         CartShipping::query()->create([
                             'cart_id' => $this['id'],
+                            'fulfillment_provider_id' => $provider_id,
                             'logistic_name' => @$company['logisticName'],
                             'logistic_price' => @$company['logisticPrice'],
                             'total_postage_fee' => @$company['totalPostageFee'],
@@ -105,5 +111,12 @@ class Cart extends Model
 
         return CartShipping::query()->where('cart_id', $this->id)->sum('logistic_price');
 
+    }
+
+    public function emptyCart()
+    {
+        $this->items()->delete();
+        $this->shippings()->delete();
+        $this->delete();
     }
 }

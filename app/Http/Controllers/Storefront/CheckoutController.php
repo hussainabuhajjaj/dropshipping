@@ -7,15 +7,14 @@ namespace App\Http\Controllers\Storefront;
 use App\Domain\Common\Models\Address;
 use App\Events\Orders\OrderPlaced;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderShipping;
 use App\Models\Payment;
 use App\Models\SiteSetting;
-use App\Domain\Products\Models\ProductVariant;
-use App\Domain\Fulfillment\Models\FulfillmentProvider;
-use App\Domain\Fulfillment\Services\CJFreightService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +54,7 @@ class CheckoutController extends Controller
             return $result;
         }
         $cart = $result['cart'];
+        $cart_items = $result['cart_items'];
 
 
 //        if (!$this->validateStock($cart)) {
@@ -64,27 +64,25 @@ class CheckoutController extends Controller
         $subtotal = $cart->subTotal();
         $shipping = $cart->calculateShippingFees();
 
-//        $subtotal = $this->calculateSubtotal($cart);
-        $customer = $this->getCurrentCustomer();
+        $customer = auth('customer')->user();
 
-//        app(AbandonedCartService::class)->capture($cart, $customer?->email, $customer?->id);
+        app(AbandonedCartService::class)->capture($cart_items->toArray(), $customer?->email, $customer?->id);
 
-        $defaultAddress = $customer?->addresses()
+        $defaultAddress = isset($customer) ? $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
-            ->first();
+            ->first() : null;
 
         $quotePayload = $this->createQuotePayloadFromAddress($defaultAddress);
-//        $shipping = $shippingQuote['shipping_total'] ?? 0;
+
         $selectedMethod = $shippingQuote['shipping_method'] ?? 'standard';
-//        $coupon = session('cart_coupon');
-        $coupon = null;
-        $discounts = null;
-//        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
-//        $discount = $discounts['amount'];
-        $discount = 0;
+        $coupon = session('cart_coupon');
+        $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
+        $discount = $discounts['amount'];
+
         $settings = SiteSetting::query()->first();
-        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
+
+        $taxTotal = calculateTax(max(0, $subtotal - $discount), @$settings->tax_rate);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
 
@@ -146,26 +144,21 @@ class CheckoutController extends Controller
             'accept_terms' => ['accepted'],
         ]);
 
-        $customer = $this->getCurrentCustomer();
+        $customer = auth('customer')->user();
         $subtotal = $cart->subTotal();
         $shipping = $cart->calculateShippingFees();
 
 
         $coupon = session('cart_coupon');
-//        $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
+        $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
         $discount = @$discounts['amount'] ?? 0;
         $settings = SiteSetting::query()->first();
-        $shippingTotal = $this->applyShippingRules(
-            $shipping,
-            $subtotal,
-            $discount,
-            $settings
-        );
-        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
+        $shippingTotal = $this->applyShippingRules($shipping, $subtotal, $discount, $settings);
+        $taxTotal = calculateTax(max(0, $subtotal - $discount), $settings->tax_rate);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart,$cart_items,  $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
             $customer = Auth::guard('customer')->user();
             $isGuest = !$customer;
 
@@ -185,8 +178,8 @@ class CheckoutController extends Controller
             ]);
 
             // Create order
-            $order = Order::create([
-                'number' => $this->generateOrderNumber(),
+            $order = Order::query()->create([
+                'number' => Order::generateOrderNumber(),
                 'user_id' => null,
                 'customer_id' => $customer?->id,
                 'guest_name' => $isGuest ? trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')) : null,
@@ -233,6 +226,12 @@ class CheckoutController extends Controller
                         'coupon_code' => $coupon['code'] ?? null,
                     ],
                 ]);
+            }
+
+            foreach ($cart->shippings as $shipping) {
+                $shipping = $shipping->toArray();
+                $shipping['order_id'] = $order->id;
+                OrderShipping::query()->create($shipping);
             }
 
             // Create payment
@@ -295,7 +294,8 @@ class CheckoutController extends Controller
         }
 
         // For bank transfer or other offline methods
-        session()->forget(['cart', 'cart_coupon']);
+//        session()->forget(['cart', 'cart_coupon']);
+        $cart->emptyCart();
         app(AbandonedCartService::class)->markRecovered();
 
         return redirect()->route('orders.confirmation', ['number' => $order->number]);
@@ -316,6 +316,7 @@ class CheckoutController extends Controller
                 'status' => $order->status,
                 'payment_status' => $order->payment_status,
                 'currency' => $order->currency,
+                'discount_total' => $order->discount_total,
                 'grand_total' => $order->grand_total,
                 'items' => $order->orderItems->map(fn($item) => [
                     'id' => $item->id,
@@ -334,32 +335,6 @@ class CheckoutController extends Controller
         ]);
     }
 
-    /**
-     * Calculate cart subtotal
-     */
-    private function calculateSubtotal(array $cart): float
-    {
-        $subtotal = 0.0;
-
-        foreach ($cart as $line) {
-            $subtotal += ((float)$line['price'] * (int)$line['quantity']);
-        }
-
-        return $subtotal;
-    }
-
-    /**
-     * Generate unique order number
-     */
-    private function generateOrderNumber(): string
-    {
-        do {
-            $number = 'DS-' . Str::upper(Str::random(8));
-        } while (Order::where('number', $number)->exists());
-
-        return $number;
-    }
-
 
     /**
      * Create quote payload from address
@@ -374,35 +349,15 @@ class CheckoutController extends Controller
         ];
     }
 
-    /**
-     * Calculate discount from coupon
-     */
-    private function calculateDiscount(array $cart, ?array $coupon): float
-    {
-        if (!$coupon) {
-            return 0.0;
-        }
-
-        $subtotal = $this->calculateSubtotal($cart);
-
-        if (isset($coupon['min_order_total']) && $subtotal < (float)$coupon['min_order_total']) {
-            return 0.0;
-        }
-
-        if (($coupon['type'] ?? null) === 'fixed') {
-            return min((float)$coupon['amount'], $subtotal);
-        }
-
-        return round($subtotal * ((float)($coupon['amount'] ?? 0) / 100), 2);
-    }
 
     /**
      * Calculate best discount (coupon vs campaign)
      */
-    private function calculateDiscounts(array $cart, ?array $coupon, ?Customer $customer, float $subtotal): array
+    private function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $customer, float $subtotal): array
     {
-        $couponDiscount = $this->calculateDiscount($cart, $coupon);
-        $campaign = app(CampaignManager::class)->bestForCart($cart, $subtotal, $customer);
+        $couponDiscount = $cart->discount($coupon);
+        $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
+        $campaign = app(CampaignManager::class)->bestForCart($cart_items, $subtotal, $customer);
 
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
@@ -420,30 +375,7 @@ class CheckoutController extends Controller
     /**
      * Get current authenticated customer
      */
-    private function getCurrentCustomer(): ?Customer
-    {
-        $user = Auth::guard('customer')->user();
 
-        if (!$user) {
-            return null;
-        }
-
-        return Customer::find($user->id);
-    }
-
-    /**
-     * Calculate tax amount
-     */
-    private function calculateTax(float $amount, ?SiteSetting $settings): float
-    {
-        $rate = (float)($settings?->tax_rate ?? 0);
-
-        if ($rate <= 0) {
-            return 0.0;
-        }
-
-        return round($amount * ($rate / 100), 2);
-    }
 
     /**
      * Apply shipping rules (free shipping threshold, handling fees)

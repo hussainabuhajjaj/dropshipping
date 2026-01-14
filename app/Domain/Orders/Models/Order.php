@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Str;
 
 class Order extends Model
 {
@@ -201,7 +202,7 @@ class Order extends Model
      */
     public function canBeRefunded(): bool
     {
-        return ! in_array($this->status, ['delivered', 'refunded'], true);
+        return !in_array($this->status, ['delivered', 'refunded'], true);
     }
 
     /**
@@ -251,4 +252,27 @@ class Order extends Model
             $this->customer->notify(new OrderStatusChanged($this, $previousStatus, $newStatus));
         }
     }
+
+    public static function generateOrderNumber(): string
+    {
+        $max = self::query()->selectRaw("
+                MAX(
+                    CAST(
+                        SUBSTRING_INDEX(number, '-', -1) AS UNSIGNED
+                    )
+                ) as max_number
+            ")
+            ->value('max_number');
+
+
+        $next = ($max ?? 0) + 1;
+        return 'DS-' . str_pad((string) $next, 10, '0', STR_PAD_LEFT);
+//
+//        do {
+//            $number = 'DS-' . Str::upper(Str::random(8));
+//        } while (self::where('number', $number)->exists());
+//
+//        return $number;
+    }
+
 }

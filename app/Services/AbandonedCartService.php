@@ -45,7 +45,7 @@ class AbandonedCartService
             return;
         }
 
-        AbandonedCart::where('session_id', $sessionId)
+        AbandonedCart::query()->where('session_id', $sessionId)
             ->update(['recovered_at' => now()]);
     }
 }
