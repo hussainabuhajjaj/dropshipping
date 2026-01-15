@@ -22,12 +22,16 @@ class ProductReview extends Model
         'images',
         'verified_purchase',
         'helpful_count',
+        'external_provider',
+        'external_id',
+        'external_payload',
     ];
 
     protected $casts = [
         'images' => 'array',
         'verified_purchase' => 'boolean',
         'helpful_count' => 'integer',
+        'external_payload' => 'array',
     ];
 
     public function product(): BelongsTo

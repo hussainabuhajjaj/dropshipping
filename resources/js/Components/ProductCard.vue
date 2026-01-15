@@ -58,11 +58,11 @@
       </div>
 
     <div class="flex flex-col gap-2">
-      <div>
+      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <div class="text-lg font-semibold text-slate-900">
           {{ displayPriceFormatted }}
         </div>
-        <div v-if="hasDiscount" class="text-xs text-slate-400 line-through">
+        <div v-if="hasDiscount" class="text-sm text-slate-400 line-through">
           {{ compareAtFormatted }}
         </div>
       </div>
@@ -113,23 +113,61 @@ const wishlistProcessing = ref(false)
 const productPromotion = computed(() => {
   if (!props.promotions?.length) return null
   return props.promotions.find(p =>
-    (p.targets || []).some(t => t.target_type === 'product' && (t.target_id == props.product.id || t.target_value == props.product.name))
+    (p.targets || []).some(t => {
+      if (t.target_type === 'product') return t.target_id == props.product.id
+      if (t.target_type === 'category') return t.target_id == props.product.category_id
+      return false
+    })
   )
 })
 
 // Price logic
-const displayPrice = computed(() => Number(props.product.price ?? 0))
+const promotionPriceDiscountable = computed(() => {
+  const promo = productPromotion.value
+  if (!promo) return false
+  if (promo.value_type !== 'percentage' && promo.value_type !== 'fixed') return false
+  if (Array.isArray(promo.conditions) && promo.conditions.length) return false
+  return true
+})
+
+const basePrice = computed(() => Number(props.product.price ?? 0))
 const compareAt = computed(() => Number(props.product.compare_at_price ?? 0))
-const hasDiscount = computed(() => compareAt.value > displayPrice.value)
+const compareAtForDisplay = computed(() => {
+  if (compareAt.value > 0) return compareAt.value
+  if (promotionPriceDiscountable.value) return basePrice.value
+  return 0
+})
+
+const displayPrice = computed(() => {
+  if (compareAt.value > 0) {
+    return basePrice.value
+  }
+
+  if (!promotionPriceDiscountable.value || basePrice.value <= 0) {
+    return basePrice.value
+  }
+
+  const promo = productPromotion.value
+  if (promo?.value_type === 'percentage') {
+    const pct = Number(promo.value ?? 0)
+    const discounted = basePrice.value * (1 - pct / 100)
+    return Math.max(0, Number(discounted.toFixed(2)))
+  }
+
+  const amount = Number(promo?.value ?? 0)
+  return Math.max(0, Number((basePrice.value - amount).toFixed(2)))
+})
+
+const hasDiscount = computed(() => compareAtForDisplay.value > displayPrice.value)
 const discountPercent = computed(() => {
   if (!hasDiscount.value) return 0
-  return Math.round((1 - displayPrice.value / compareAt.value) * 100)
+  return Math.round((1 - displayPrice.value / compareAtForDisplay.value) * 100)
 })
 const displayPriceFormatted = computed(() =>
   formatCurrency(convertCurrency(displayPrice.value, 'USD', props.currency), props.currency)
 )
 const compareAtFormatted = computed(() =>
-  formatCurrency(convertCurrency(compareAt.value, 'USD', props.currency), props.currency)
+  formatCurrency(convertCurrency(compareAtForDisplay.value, 'USD', props.currency), props.currency)
 )
 const rating = computed(() => props.product.rating ?? null)
 const ratingCount = computed(() => props.product.rating_count ?? null)

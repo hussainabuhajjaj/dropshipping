@@ -76,7 +76,7 @@
             :key="product.id"
             :product="product"
             :currency="currency"
-            :promotions="(page && page.props && page.props.homepagePromotions) ? page.props.homepagePromotions : []"
+            :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
           />
         </div>
         <EmptyState

@@ -12,6 +12,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Services\ProductRecommendationService;
+use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -68,10 +69,15 @@ class ProductController extends Controller
 
         $categories = $this->rootCategoriesTree(['children', 'children.children']);
 
+        $productIds = $products->getCollection()->pluck('id')->all();
+        $categoryIds = $products->getCollection()->pluck('category_id')->filter()->unique()->values()->all();
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+
         return Inertia::render('Products/Index', [
             'products' => $products,
             'currency' => 'USD',
             'categories' => $categories,
+            'promotions' => $promotions,
             'filters' => [
                 'category' => $category,
                 'min_price' => $minPrice,
@@ -153,9 +159,15 @@ class ProductController extends Controller
                 ->map(fn (Product $p) => $this->transformProduct($p));
         }
 
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets(
+            [$product->id],
+            [$product->category_id]
+        );
+
         return Inertia::render('Products/Show', [
             'product' => $this->transformProduct($product, true),
             'currency' => $product->currency ?? 'USD',
+            'promotions' => $promotions,
             'reviews' => $reviews->map(fn (ProductReview $review) => [
                 'id' => $review->id,
                 'rating' => $review->rating,

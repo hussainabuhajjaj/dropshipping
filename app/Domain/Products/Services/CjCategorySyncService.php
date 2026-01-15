@@ -6,6 +6,7 @@ namespace App\Domain\Products\Services;
 
 use App\Domain\Products\Models\Category;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -22,133 +23,262 @@ class CjCategorySyncService
      */
     public function syncCategoryTree(): array
     {
+        $debug = filter_var(env('CJ_DEBUG', false), FILTER_VALIDATE_BOOL);
+        $endpoint = '/v1/product/getCategory';
+        $baseUrl = rtrim((string) config('services.cj.base_url', ''), '/');
+        $url = $baseUrl !== '' ? $baseUrl . $endpoint : $endpoint;
+
+        $synced = 0;
+        $created = 0;
+        $updated = 0;
+        $errors = 0;
+
+        Log::info('CJ category import started');
+
         try {
             $response = $this->client->listCategories();
-            
-            if (!$response->success) {
-                Log::error('CJ category sync failed', ['error' => $response->error ?? 'Unknown']);
+
+            $raw = $response->raw;
+            $requestId = (is_array($raw) && is_scalar($raw['requestId'] ?? null)) ? (string) $raw['requestId'] : null;
+
+            if ($debug) {
+                Log::debug('CJ listCategories response', [
+                    'url' => $url,
+                    'status' => $response->status,
+                    'requestId' => $requestId,
+                ]);
+            }
+
+            if (! $response->ok) {
+                Log::error('CJ category import failed', [
+                    'url' => $url,
+                    'status' => $response->status,
+                    'requestId' => $requestId,
+                    'message' => $response->message,
+                ]);
+
                 return [
                     'synced' => 0,
+                    'created' => 0,
+                    'updated' => 0,
                     'errors' => 1,
-                    'message' => 'CJ API Error: ' . ($response->error ?? 'Unknown error'),
+                    'message' => 'CJ API Error: ' . ($response->message ?? 'Unknown error'),
                 ];
             }
 
-            $cjCategories = $response->data ?? [];
-            
-            if (!is_array($cjCategories)) {
-                $cjCategories = (array) $cjCategories;
+            $firstList = $this->unwrapList($response->data ?? []);
+            $levelCounts = $this->countThreeLevelPayload($firstList);
+
+            if ($debug) {
+                Log::debug('CJ category payload counts', [
+                    'requestId' => $requestId,
+                    'level1' => $levelCounts['level1'],
+                    'level2' => $levelCounts['level2'],
+                    'level3' => $levelCounts['level3'],
+                ]);
             }
 
-            $synced = 0;
-            $errors = 0;
-
-            // Process each root category
-            foreach ($cjCategories as $cjCat) {
+            foreach ($firstList as $first) {
                 try {
-                    $this->createOrUpdateCategory($cjCat);
-                    $synced++;
+                    DB::transaction(function () use (&$created, &$updated, &$synced, $first): void {
+                        $firstId = $this->stringOrEmpty($first['categoryFirstId'] ?? null);
+                        $firstName = $this->stringOrEmpty($first['categoryFirstName'] ?? null);
+                        $firstSlug = Str::slug($firstName);
+
+                        $firstCategory = $this->upsertCategory(
+                            cjId: $firstId,
+                            name: $firstName,
+                            slug: $firstSlug,
+                            parentId: null,
+                            payload: $first,
+                            created: $created,
+                            updated: $updated,
+                        );
+
+                        $secondList = $first['categoryFirstList'] ?? [];
+                        if (! is_array($secondList) || ! $firstCategory) {
+                            $synced++;
+                            return;
+                        }
+
+                        foreach ($secondList as $second) {
+                            if (! is_array($second)) {
+                                continue;
+                            }
+
+                            $secondId = $this->stringOrEmpty($second['categorySecondId'] ?? null);
+                            $secondName = $this->stringOrEmpty($second['categorySecondName'] ?? null);
+                            $secondSlug = Str::slug(trim($firstName . ' ' . $secondName));
+
+                            $secondCategory = $this->upsertCategory(
+                                cjId: $secondId,
+                                name: $secondName,
+                                slug: $secondSlug,
+                                parentId: $firstCategory->id,
+                                payload: $second,
+                                created: $created,
+                                updated: $updated,
+                            );
+
+                            $thirdList = $second['categorySecondList'] ?? [];
+                            if (! is_array($thirdList) || ! $secondCategory) {
+                                continue;
+                            }
+
+                            foreach (array_chunk($thirdList, 250) as $chunk) {
+                                foreach ($chunk as $third) {
+                                    if (! is_array($third)) {
+                                        continue;
+                                    }
+
+                                    $thirdId = $this->stringOrEmpty($third['categoryId'] ?? null);
+                                    $thirdName = $this->stringOrEmpty($third['categoryName'] ?? null);
+                                    $thirdSlug = Str::slug(trim($firstName . ' ' . $secondName . ' ' . $thirdName));
+
+                                    $this->upsertCategory(
+                                        cjId: $thirdId,
+                                        name: $thirdName,
+                                        slug: $thirdSlug,
+                                        parentId: $secondCategory->id,
+                                        payload: $third,
+                                        created: $created,
+                                        updated: $updated,
+                                    );
+                                }
+                            }
+                        }
+
+                        $synced++;
+                    }, 3);
                 } catch (\Throwable $e) {
-                    Log::error('Error syncing CJ category', [
-                        'category' => $cjCat,
+                    $errors++;
+                    Log::error('Error importing CJ category subtree', [
+                        'category' => $first,
                         'error' => $e->getMessage(),
                     ]);
-                    $errors++;
                 }
             }
 
+            Log::info('CJ category import completed', [
+                'synced' => $synced,
+                'created' => $created,
+                'updated' => $updated,
+                'errors' => $errors,
+                'level1' => $levelCounts['level1'],
+                'level2' => $levelCounts['level2'],
+                'level3' => $levelCounts['level3'],
+            ]);
+
             return [
                 'synced' => $synced,
+                'created' => $created,
+                'updated' => $updated,
                 'errors' => $errors,
+                'levels' => $levelCounts,
                 'message' => "Synced {$synced} root categories",
             ];
         } catch (\Throwable $e) {
-            Log::error('CJ category sync exception', ['error' => $e->getMessage()]);
+            Log::error('CJ category import exception', ['error' => $e->getMessage()]);
             return [
                 'synced' => 0,
-                'errors' => 1,
+                'created' => $created,
+                'updated' => $updated,
+                'errors' => max(1, $errors),
                 'message' => 'Exception: ' . $e->getMessage(),
             ];
         }
     }
 
-    /**
-     * Recursively create or update a category and its children
-     */
-    private function createOrUpdateCategory(array $cjCat, ?Category $parent = null): Category
+    private function upsertCategory(
+        string $cjId,
+        string $name,
+        string $slug,
+        ?int $parentId,
+        array $payload,
+        int &$created,
+        int &$updated,
+    ): ?Category
     {
-        $cjId = $this->extractCjId($cjCat);
-        $name = $this->extractName($cjCat);
-
         if ($cjId === '' || $name === '') {
-            throw new \Exception('Invalid CJ category data: missing id or name');
+            return null;
         }
 
-        $slug = Str::slug($name);
-
-        // Find or create by CJ ID (most reliable)
-        $category = Category::query()
-            ->where('cj_id', $cjId)
-            ->first();
-
-        if ($category) {
-            // Update if name or parent changed
-            $updates = [];
-            if ($category->name !== $name) {
-                $updates['name'] = $name;
-                $updates['slug'] = $slug;
-            }
-            if ($category->parent_id !== $parent?->id) {
-                $updates['parent_id'] = $parent?->id;
-            }
-            
-            if (!empty($updates)) {
-                $category->update($updates);
-            }
-        } else {
-            // Create new category
-            $category = Category::create([
-                'cj_id' => $cjId,
-                'name' => $name,
-                'slug' => $slug,
-                'parent_id' => $parent?->id,
-            ]);
+        $category = Category::query()->where('cj_id', $cjId)->first();
+        if (! $category) {
+            $category = new Category();
         }
 
-        // Process children recursively
-        if (isset($cjCat['children']) && is_array($cjCat['children'])) {
-            foreach ($cjCat['children'] as $child) {
-                try {
-                    $this->createOrUpdateCategory($child, $category);
-                } catch (\Throwable $e) {
-                    Log::warning('Error syncing child category', [
-                        'parent' => $name,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
+        $wasNew = ! $category->exists;
+
+        $category->fill([
+            'cj_id' => $cjId,
+            'cj_payload' => $payload,
+            'name' => $name,
+            'slug' => $slug,
+            'parent_id' => $parentId,
+        ]);
+
+        $dirty = $category->isDirty(['cj_payload', 'name', 'slug', 'parent_id', 'cj_id']);
+        $category->save();
+
+        if ($wasNew) {
+            $created++;
+        } elseif ($dirty) {
+            $updated++;
         }
 
         return $category;
     }
 
-    private function extractCjId(array $cjCat): string
+    private function unwrapList(mixed $data): array
     {
-        $id = $cjCat['categoryId']
-            ?? $cjCat['id']
-            ?? $cjCat['cj_id']
-            ?? null;
+        if (! is_array($data)) {
+            return [];
+        }
 
-        return is_scalar($id) ? (string) trim((string) $id) : '';
+        if (array_key_exists('list', $data) && is_array($data['list'])) {
+            $data = $data['list'];
+        }
+
+        if (! array_is_list($data)) {
+            $data = [$data];
+        }
+
+        return array_values(array_filter($data, 'is_array'));
     }
 
-    private function extractName(array $cjCat): string
+    private function countThreeLevelPayload(array $firstList): array
     {
-        $name = $cjCat['categoryName']
-            ?? $cjCat['name']
-            ?? $cjCat['category_name']
-            ?? null;
+        $level1 = 0;
+        $level2 = 0;
+        $level3 = 0;
 
-        return is_scalar($name) ? (string) trim((string) $name) : '';
+        foreach ($firstList as $first) {
+            $level1++;
+
+            $seconds = $first['categoryFirstList'] ?? [];
+            if (! is_array($seconds)) {
+                continue;
+            }
+
+            $level2 += count($seconds);
+            foreach ($seconds as $second) {
+                if (! is_array($second)) {
+                    continue;
+                }
+
+                $thirds = $second['categorySecondList'] ?? [];
+                if (is_array($thirds)) {
+                    $level3 += count($thirds);
+                }
+            }
+        }
+
+        return ['level1' => $level1, 'level2' => $level2, 'level3' => $level3];
+    }
+
+    private function stringOrEmpty(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 }

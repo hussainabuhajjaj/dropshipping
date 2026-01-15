@@ -44,6 +44,7 @@ trait TransformsProducts
             'slug' => $product->slug,
             'name' => $translation?->name ?: $product->name,
             'category' => $product->category?->name,
+            'category_id' => $product->category_id,
             'description' => $translation?->description ?: $product->description,
             'media' => $media,
             'videos' => $product->cj_video_urls ?? [],
