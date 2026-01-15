@@ -73,6 +73,7 @@ class CategoryResource extends BaseResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
+                Tables\Columns\ToggleColumn::make('is_active')->label('Active')->sortable(),
                 Tables\Columns\TextColumn::make('parent.name')->label('Parent')->toggleable()->searchable(),
                 Tables\Columns\TextColumn::make('meta_title')->toggleable(),
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->toggleable(isToggledHiddenByDefault: true),

@@ -40,7 +40,14 @@ class CJDropshippingClient
             throw new RuntimeException('CJ API key is not configured.');
         }
 
-        $this->client = new ApiClient($this->baseUrl, [], $this->timeout);
+        $headers = [];
+        $platformToken = (string)($config['platform_token'] ?? '');
+        if ($platformToken !== '') {
+            // Optional header: only sent when configured.
+            $headers['CJ-Platform-Token'] = $platformToken;
+        }
+
+        $this->client = new ApiClient($this->baseUrl, $headers, $this->timeout);
     }
 
 
@@ -74,20 +81,42 @@ class CJDropshippingClient
         return $client->post('/v1/logistic/freightCalculate', $payload);
     }
 
-    public function getAccessToken()
+    public function getAccessToken(bool $forceRefresh = false): string
     {
-        $setting = new Setting();
-        if ($access_token = $setting->valueOf('cj_access_token', null)) {
-            $access_token_expired_at = $setting->valueOf('cj_access_expiry', null);
-            if ($access_token_expired_at < now()) {
-                return $access_token;
+        if ($forceRefresh) {
+            return $this->generateNewToken();
+        }
+
+        // Prefer cache (fast path).
+        $cachedToken = Cache::get('cj.access_token');
+        if (is_string($cachedToken) && $cachedToken !== '') {
+            $cachedExpiry = Cache::get('cj.access_expiry');
+            $cachedExpiryTs = is_numeric($cachedExpiry) ? (int) $cachedExpiry : null;
+
+            // If expiry missing, treat as valid (caller provided fallback TTL).
+            if ($cachedExpiryTs === null || $cachedExpiryTs > (time() + 60)) {
+                return $cachedToken;
             }
         }
+
+        $setting = new Setting();
+        $accessToken = $setting->valueOf('cj_access_token', null);
+        if (is_string($accessToken) && $accessToken !== '') {
+            $expiresAt = $setting->valueOf('cj_access_expiry', null);
+            $expiresAtTimestamp = is_numeric($expiresAt) ? (int) $expiresAt : null;
+
+            // Refresh 60s early.
+            if ($expiresAtTimestamp === null || $expiresAtTimestamp > (time() + 60)) {
+                $this->cacheAccessToken($accessToken, $expiresAtTimestamp);
+                return $accessToken;
+            }
+        }
+
         return $this->generateNewToken();
     }
 
 
-    public function generateNewToken()
+    public function generateNewToken(): string
     {
         $response = Http::timeout(300)
             ->retry(2, sleepMilliseconds: 200)
@@ -95,12 +124,33 @@ class CJDropshippingClient
                 'apiKey' => $this->apiKey, // Only apiKey is required per docs
             ]);
 
+        if (! $response->successful()) {
+            throw new RuntimeException('CJ token request failed: HTTP ' . $response->status());
+        }
+
         $body = $response->json();
-        $data = $body['data'];
-        // dd($body);
+        if (! is_array($body)) {
+            throw new RuntimeException('CJ token request failed: invalid JSON response');
+        }
+
+        // CJ-style schema: { code, result, message, data }
+        if (array_key_exists('result', $body) && array_key_exists('code', $body)) {
+            $ok = (bool) $body['result'] && ((int) $body['code'] === 200);
+            if (! $ok) {
+                $message = is_string($body['message'] ?? null) ? $body['message'] : 'CJ token request failed';
+                throw new RuntimeException($message);
+            }
+        }
+
+        $data = $body['data'] ?? null;
+        if (! is_array($data) || ! is_string($data['accessToken'] ?? null) || $data['accessToken'] === '') {
+            throw new RuntimeException('CJ token request failed: missing accessToken');
+        }
+
+        $expiresAtTimestamp = $this->parseDate($data['accessTokenExpiryDate'] ?? null);
         $Cjbody = [
             'cj_access_token' => $data['accessToken'],
-            'cj_access_expiry' => $this->parseDate($data['accessTokenExpiryDate'] ?? null),
+            'cj_access_expiry' => $expiresAtTimestamp,
             'cj_refresh_token' => $data['refreshToken'] ?? null,
             'cj_refresh_expiry' => isset($data['refreshTokenExpiryDate']) ?
                 $this->parseDate($data['refreshTokenExpiryDate']) : null,
@@ -109,7 +159,22 @@ class CJDropshippingClient
         ];
 
         Setting::setSetting($Cjbody);
+        $this->cacheAccessToken($Cjbody['cj_access_token'], $expiresAtTimestamp);
         return $Cjbody['cj_access_token'];
+    }
+
+    private function cacheAccessToken(string $token, ?int $expiresAtTimestamp): void
+    {
+        $ttlSeconds = 3600 * 24 * 10; // fallback
+
+        if (is_int($expiresAtTimestamp) && $expiresAtTimestamp > 0) {
+            $ttlSeconds = max(60, $expiresAtTimestamp - time());
+            Cache::put('cj.access_expiry', $expiresAtTimestamp, $ttlSeconds);
+        } else {
+            Cache::forget('cj.access_expiry');
+        }
+
+        Cache::put('cj.access_token', $token, $ttlSeconds);
     }
 
     public function parseDate(?string $dateString): int
@@ -259,9 +324,9 @@ class CJDropshippingClient
         return $this->products()->searchVariants($filters);
     }
 
-    public function getProductReviews(string $pid, int $pageNum = 1, int $pageSize = 20): ApiResponse
+    public function getProductReviews(string $pid, int $pageNum = 1, int $pageSize = 20, ?int $score = null): ApiResponse
     {
-        return $this->products()->getProductReviews($pid, $pageNum, $pageSize);
+        return $this->products()->getProductReviews($pid, $pageNum, $pageSize, $score);
     }
 
     public function createSourcing(string $productUrl, ?string $note = null, ?string $sourceId = null): ApiResponse

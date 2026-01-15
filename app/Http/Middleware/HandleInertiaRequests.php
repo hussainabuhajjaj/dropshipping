@@ -9,6 +9,8 @@ use Inertia\Middleware;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Models\SiteSetting;
 use App\Models\StorefrontSetting;
+use App\Services\Promotions\PromotionHomepageService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class HandleInertiaRequests extends Middleware
@@ -102,6 +104,11 @@ class HandleInertiaRequests extends Middleware
                 'image' => $site?->logo_path ?? null,
             ],
             'categories' => $this->rootCategoriesTree(['children', 'children.children']),
+            'homepagePromotions' => Cache::remember(
+                'storefront.homepagePromotions',
+                now()->addMinutes(5),
+                fn () => app(PromotionHomepageService::class)->getHomepagePromotions()
+            ),
         ];
     }
 }
