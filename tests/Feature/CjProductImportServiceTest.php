@@ -8,6 +8,7 @@ use App\Domain\Products\Services\CjProductImportService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class CjProductImportServiceTest extends TestCase
@@ -26,6 +27,16 @@ class CjProductImportServiceTest extends TestCase
 
     public function test_import_creates_product_with_variants_and_images(): void
     {
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $productData = [
             'pid' => 'CJ-100',
             'productName' => 'CJ T-Shirt',
@@ -42,6 +53,12 @@ class CjProductImportServiceTest extends TestCase
 
         $client = $this->mock(CJDropshippingClient::class);
         $client->shouldReceive('getVariantsByPid')->with('CJ-100')->andReturn(ApiResponse::success($variants));
+        $client->shouldReceive('getProductReviews')->andReturn(ApiResponse::success([
+            'pageNum' => '1',
+            'pageSize' => '50',
+            'total' => '0',
+            'list' => [],
+        ]));
 
         $service = new CjProductImportService($client, app()->make(\App\Domain\Products\Services\CjProductMediaService::class));
 
@@ -50,7 +67,8 @@ class CjProductImportServiceTest extends TestCase
         $this->assertNotNull($product);
         $this->assertSame('CJ-100', $product->cj_pid);
         $this->assertSame('CJ T-Shirt', $product->name);
-        $this->assertSame(12.5, (float) $product->selling_price);
+        $this->assertSame(0.0, (float) $product->selling_price);
+        $this->assertSame(12.5, (float) $product->cost_price);
         $this->assertSame('USD', $product->currency);
 
         // Images created

@@ -8,7 +8,9 @@ use App\Domain\Products\Models\Product;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\CjProductMediaService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\Api\ApiResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\TestCase;
 
@@ -18,10 +20,26 @@ class CjProductImportServiceShipToTest extends TestCase
 
     private function makeService(): CjProductImportService
     {
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $client = Mockery::mock(CJDropshippingClient::class);
-        $client->shouldReceive('getVariantsByPid')->andReturn((object) ['data' => []]);
-        $client->shouldReceive('getProduct')->andReturn((object) ['data' => []]);
-        $client->shouldReceive('getProductBy')->andReturn((object) ['data' => []]);
+        $client->shouldReceive('getVariantsByPid')->andReturn(ApiResponse::success([]));
+        $client->shouldReceive('getProduct')->andReturn(ApiResponse::success([]));
+        $client->shouldReceive('getProductBy')->andReturn(ApiResponse::success([]));
+        $client->shouldReceive('getProductReviews')->andReturn(ApiResponse::success([
+            'pageNum' => '1',
+            'pageSize' => '50',
+            'total' => '0',
+            'list' => [],
+        ]));
 
         $media = Mockery::mock(CjProductMediaService::class);
         $media->shouldReceive('cleanDescription')->andReturnUsing(fn (?string $desc) => $desc);

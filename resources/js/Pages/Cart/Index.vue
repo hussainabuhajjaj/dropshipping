@@ -55,8 +55,8 @@
                                     <span class="ml-1">({{
                                             promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount')
                                         }})</span>
-                                    <span class="ml-2" v-if="promo.value_type === 'percent'">-{{ promo.value }}%</span>
-                                    <span class="ml-2" v-else-if="promo.value_type === 'amount'">-{{
+                                    <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
+                                    <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{
                                             displayPrice(promo.value)
                                         }}</span>
                                 </li>

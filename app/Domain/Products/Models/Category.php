@@ -15,6 +15,8 @@ class Category extends Model
 
     protected $fillable = [
         'cj_id',
+        'cj_payload',
+        'is_active',
         'name',
         'slug',
         'description',
@@ -26,6 +28,11 @@ class Category extends Model
         'meta_title',
         'meta_description',
         'parent_id',
+    ];
+
+    protected $casts = [
+        'cj_payload' => 'array',
+        'is_active' => 'boolean',
     ];
 
     public function products(): HasMany
@@ -46,5 +53,9 @@ class Category extends Model
     public function scopeRoots($query)
     {
         return $query->whereNull('parent_id');
+    }
+       public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

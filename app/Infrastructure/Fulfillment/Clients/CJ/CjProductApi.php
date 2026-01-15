@@ -33,7 +33,7 @@ class CjProductApi extends CjBaseApi
 
     public function listGlobalWarehouses(): ApiResponse
     {
-        return $this->client()->get('/v1/product/globalWarehouseList');
+        return $this->client()->get('/v1/product/globalWarehouse/list');
     }
 
     public function getWarehouseDetail(string $id): ApiResponse
@@ -180,13 +180,14 @@ class CjProductApi extends CjBaseApi
         return $this->client()->get('/v1/product/stock/queryByPid', ['pid' => $pid]);
     }
 
-    public function getProductReviews(string $pid, int $pageNum = 1, int $pageSize = 20): ApiResponse
+    public function getProductReviews(string $pid, int $pageNum = 1, int $pageSize = 20, ?int $score = null): ApiResponse
     {
-        $params = [
+        $params = array_filter([
             'pid' => $pid,
+            'score' => $score,
             'pageNum' => $pageNum,
             'pageSize' => $pageSize,
-        ];
+        ], fn ($v) => $v !== null && $v !== '');
 
         return $this->client()->get('/v1/product/productComments', $params);
     }

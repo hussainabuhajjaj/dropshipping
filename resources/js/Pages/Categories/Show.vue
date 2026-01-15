@@ -129,7 +129,13 @@
 
           <!-- Product grid -->
           <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <ProductCard v-for="product in products" :key="product.id" :product="product" :currency="currency" />
+            <ProductCard
+              v-for="product in products"
+              :key="product.id"
+              :product="product"
+              :currency="currency"
+              :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
+            />
           </div>
 
           <!-- Pagination -->
@@ -249,7 +255,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
@@ -265,6 +271,7 @@ const props = defineProps({
 })
 
 const { t } = useTranslations()
+const page = usePage ? usePage() : null
 
 const form = reactive({
   q: props.filters.q ?? '',
