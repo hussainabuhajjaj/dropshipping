@@ -14,7 +14,11 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderShipping;
 use App\Models\Payment;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
+use App\Models\PromotionUsage;
 use App\Models\SiteSetting;
+use App\Domain\Orders\Models\OrderAuditLog;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +30,8 @@ use App\Infrastructure\Payments\Paystack\PaystackService;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
+use App\Services\Coupons\CouponValidator;
+use App\Services\Promotions\PromotionHomepageService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -79,12 +85,38 @@ class CheckoutController extends Controller
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
         $discount = $discounts['amount'];
+        $coupon = $discounts['coupon'] ?? null;
 
         $settings = SiteSetting::query()->first();
 
-        $taxTotal = calculateTax(max(0, $subtotal - $discount), @$settings->tax_rate);
+        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
+
+        $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
+        $cartContext = [
+            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
+            'subtotal' => $subtotal,
+            'user_id' => $customer?->id,
+        ];
+        $appliedPromotions = $promotionEngine->getApplicablePromotions($cartContext)->map(function ($promo) {
+            return [
+                'id' => $promo->id,
+                'name' => $promo->name,
+                'description' => $promo->description,
+                'type' => $promo->type,
+                'value_type' => $promo->value_type,
+                'value' => $promo->value,
+                'start_at' => $promo->start_at,
+                'end_at' => $promo->end_at,
+                'targets' => $promo->targets,
+                'conditions' => $promo->conditions,
+            ];
+        })->values()->all();
+
+        $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
+        $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
+        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
 
         return Inertia::render('Checkout/Index', [
             'subtotal' => $subtotal,
@@ -92,6 +124,8 @@ class CheckoutController extends Controller
             'discount' => $discount,
             'coupon' => $coupon,
             'discount_label' => @$discounts['label'],
+            'appliedPromotions' => $appliedPromotions,
+            'cartPromotions' => $cartPromotions,
             'tax_total' => $taxTotal,
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
@@ -152,13 +186,17 @@ class CheckoutController extends Controller
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
         $discount = @$discounts['amount'] ?? 0;
+        $coupon = $discounts['coupon'] ?? null;
+        $couponModel = $discounts['coupon_model'] ?? null;
+        $promotionDiscounts = $discounts['promotion_discounts'] ?? [];
+        $discountSource = $discounts['source'] ?? null;
         $settings = SiteSetting::query()->first();
         $shippingTotal = $this->applyShippingRules($shipping, $subtotal, $discount, $settings);
-        $taxTotal = calculateTax(max(0, $subtotal - $discount), $settings->tax_rate);
+        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
             $customer = Auth::guard('customer')->user();
             $isGuest = !$customer;
 
@@ -233,6 +271,9 @@ class CheckoutController extends Controller
                 $shipping['order_id'] = $order->id;
                 OrderShipping::query()->create($shipping);
             }
+
+            $this->recordPromotionUsage($order, $promotionDiscounts);
+            $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);
 
             // Create payment
             $paymentProvider = in_array($validatedData['payment_method'], ['card', 'mobile_money'], true)
@@ -355,20 +396,38 @@ class CheckoutController extends Controller
      */
     private function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $customer, float $subtotal): array
     {
-        $couponDiscount = $cart->discount($coupon);
+        $couponValidator = app(CouponValidator::class);
+        $couponModel = $couponValidator->resolveFromSession($coupon);
+        if ($couponModel) {
+            $error = $couponValidator->validateForCart($couponModel, $cart_items, $subtotal, $customer);
+            if ($error) {
+                session()->forget('cart_coupon');
+                $couponModel = null;
+                $coupon = null;
+            }
+        }
+        $couponDiscount = $couponModel ? $couponValidator->calculateDiscount($couponModel, $subtotal) : 0.0;
         $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
         $campaign = app(CampaignManager::class)->bestForCart($cart_items, $subtotal, $customer);
 
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
                 'amount' => $couponDiscount,
-                'label' => $coupon ? ('Coupon: ' . ($coupon['code'] ?? '')) : null,
+                'label' => $couponModel ? ('Coupon: ' . $couponModel->code) : null,
+                'source' => $couponModel ? 'coupon' : null,
+                'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
+                'coupon_model' => $couponModel,
+                'promotion_discounts' => [],
             ];
         }
 
         return [
             'amount' => $campaign['amount'] ?? 0.0,
             'label' => $campaign['label'] ?? null,
+            'source' => $campaign['source'] ?? null,
+            'coupon' => null,
+            'coupon_model' => null,
+            'promotion_discounts' => $campaign['promotion_discounts'] ?? [],
         ];
     }
 
@@ -395,6 +454,82 @@ class CheckoutController extends Controller
         }
 
         return $shippingTotal;
+    }
+
+    private function serializeCoupon(Coupon $coupon): array
+    {
+        return [
+            'id' => $coupon->id,
+            'code' => $coupon->code,
+            'type' => $coupon->type,
+            'amount' => $coupon->amount,
+            'min_order_total' => $coupon->min_order_total,
+            'description' => $coupon->description,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $promotionDiscounts
+     */
+    private function recordPromotionUsage(Order $order, array $promotionDiscounts): void
+    {
+        if (empty($promotionDiscounts)) {
+            return;
+        }
+
+        $now = now();
+        foreach ($promotionDiscounts as $discount) {
+            if (empty($discount['promotion_id'])) {
+                continue;
+            }
+            PromotionUsage::create([
+                'promotion_id' => $discount['promotion_id'],
+                'user_id' => null,
+                'order_id' => $order->id,
+                'used_at' => $now,
+            ]);
+        }
+
+        OrderAuditLog::create([
+            'order_id' => $order->id,
+            'user_id' => null,
+            'action' => 'promotion_applied',
+            'note' => 'Promotions applied during checkout',
+            'payload' => [
+                'discounts' => $promotionDiscounts,
+            ],
+        ]);
+    }
+
+    private function redeemCoupon(?Coupon $coupon, ?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
+    {
+        if (! $coupon || $discountSource !== 'coupon' || $discountAmount <= 0) {
+            return;
+        }
+
+        $coupon->increment('uses');
+
+        if (! $customer) {
+            return;
+        }
+
+        CouponRedemption::updateOrCreate(
+            ['coupon_id' => $coupon->id, 'customer_id' => $customer->id],
+            [
+                'order_id' => $order->id,
+                'status' => 'redeemed',
+                'redeemed_at' => now(),
+            ]
+        );
+    }
+
+    private function calculateTax(float $taxableAmount, ?SiteSetting $settings): float
+    {
+        if (! $settings || ! $settings->tax_rate) {
+            return 0.0;
+        }
+
+        return round($taxableAmount * ((float) $settings->tax_rate / 100), 2);
     }
 
     /**

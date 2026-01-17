@@ -57,7 +57,7 @@
         </div>
       </div>
 
-    <div class="flex flex-col gap-2">
+      <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <div class="text-lg font-semibold text-slate-900">
           {{ displayPriceFormatted }}
@@ -66,6 +66,9 @@
           {{ compareAtFormatted }}
         </div>
       </div>
+      <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
+        {{ t('Ends in') }} {{ promoCountdown }}
+      </p>
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <Link
@@ -98,6 +101,7 @@ import { computed, ref } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -108,6 +112,7 @@ const props = defineProps({
 const { t } = useTranslations()
 const wishlisted = ref(Boolean(props.product.is_in_wishlist))
 const wishlistProcessing = ref(false)
+const now = usePromoNow()
 
 // Promotion logic
 const productPromotion = computed(() => {
@@ -120,6 +125,7 @@ const productPromotion = computed(() => {
     })
   )
 })
+const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))
 
 // Price logic
 const promotionPriceDiscountable = computed(() => {
