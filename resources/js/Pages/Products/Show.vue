@@ -68,6 +68,9 @@
               <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
               <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }}</span>
             </span>
+            <span v-if="promoCountdown" class="ml-2 text-[10px] font-semibold text-amber-700">
+              {{ t('Ends in') }} {{ promoCountdown }}
+            </span>
           </p>
           <h1 class="text-3xl font-semibold tracking-tight text-slate-900">{{ product.name }}</h1>
           <p class="text-sm text-slate-600">{{ descriptionText }}</p>
@@ -412,6 +415,7 @@ import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -424,6 +428,7 @@ const props = defineProps({
 })
 
 const { t, locale } = useTranslations()
+const now = usePromoNow()
 
 const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
@@ -520,6 +525,7 @@ const activeTab = ref('description')
 const page = usePage()
 const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
 const productPromotion = computed(() => productPromotionForDetails(props.product, activePromotions.value))
+const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))
 
 const authUser = computed(() => page.props.auth?.user ?? null)
 const successMessage = ref(page.props.flash?.cart_notice ?? '')
