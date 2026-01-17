@@ -236,7 +236,7 @@ class FulfillmentService
         }
     }
 
-    private function reconcileOrderShipping(\App\Domain\Orders\Models\Order $order): void
+    private function reconcileOrderShipping(Order $order): void
     {
         $actual = (float)($order->shipments()->sum('postage_amount') ?? 0);
         $estimated = (float)($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
