@@ -23,6 +23,7 @@ class CampaignManager
         $promoDiscounts = $promoResult['discounts'] ?? [];
         $promoTotal = $promoResult['total_discount'] ?? 0.0;
         $promoLabel = collect($promoDiscounts)->pluck('label')->filter()->implode(' + ');
+        $hasShippingSupport = collect($promoDiscounts)->contains(fn ($d) => ($d['intent'] ?? null) === 'shipping_support');
 
         $candidates = array_filter([
             $promoTotal > 0 ? [
@@ -31,8 +32,8 @@ class CampaignManager
                 'source' => 'promotion',
                 'promotion_discounts' => $promoDiscounts,
             ] : null,
-            $this->firstOrderDiscount($customer, $subtotal),
-            $this->highValueThreshold($subtotal),
+            $hasShippingSupport ? null : $this->firstOrderDiscount($customer, $subtotal),
+            $hasShippingSupport ? null : $this->highValueThreshold($subtotal),
         ]);
 
         if (empty($candidates)) {
@@ -55,7 +56,9 @@ class CampaignManager
             return null;
         }
 
+        $cap = (float) (config('promotions.caps.first_order_max_discount') ?? 10.0);
         $amount = round($subtotal * 0.10, 2);
+        $amount = min($amount, $cap);
         return $amount > 0 ? [
             'amount' => $amount,
             'label' => 'First order 10% off',
@@ -69,7 +72,9 @@ class CampaignManager
             return null;
         }
 
+        $cap = (float) (config('promotions.caps.high_value_max_discount') ?? 15.0);
         $amount = round($subtotal * 0.05, 2);
+        $amount = min($amount, $cap);
         return [
             'amount' => $amount,
             'label' => '5% off orders over $50',

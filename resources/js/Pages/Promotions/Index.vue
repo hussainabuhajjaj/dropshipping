@@ -14,17 +14,15 @@
             <span class="font-medium">{{ t('Type') }}:</span> {{ promo.type }}
             <span class="ml-4 font-medium">{{ t('Value') }}:</span> {{ promo.value_type === 'percentage' ? promo.value + '%' : (promo.value_type === 'fixed' ? displayPrice(promo.value) : t('Special')) }}
           </div>
-          <div v-if="promo.targets.length" class="mt-2 text-xs">
+          <div v-if="promo.targets && promo.targets.length" class="mt-2 text-xs">
             <span class="font-medium">{{ t('Applies to') }}:</span>
-            <span v-for="target in promo.targets" :key="target.id" class="ml-2">
+            <span v-for="target in promo.targets" :key="`${target.target_type}-${target.target_id}`" class="ml-2">
               {{ target.target_type }} #{{ target.target_id }}
             </span>
           </div>
-          <div v-if="promo.conditions.length" class="mt-2 text-xs">
+          <div v-if="promo.has_conditions" class="mt-2 text-xs">
             <span class="font-medium">{{ t('Conditions') }}:</span>
-            <span v-for="cond in promo.conditions" :key="cond.id" class="ml-2">
-              {{ cond.condition_type }}: {{ cond.condition_value }}
-            </span>
+            <span class="ml-2">{{ promo.apply_hint || t('Applied at checkout') }}</span>
           </div>
         </div>
       </div>

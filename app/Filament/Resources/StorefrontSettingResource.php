@@ -84,6 +84,50 @@ class StorefrontSettingResource extends BaseResource
                         ->columns(3)
                         ->reorderable(),
                 ]),
+            Section::make('Coming soon')
+                ->schema([
+                    Forms\Components\Toggle::make('coming_soon_enabled')
+                        ->label('Enable coming soon page'),
+                    Forms\Components\TextInput::make('coming_soon_title')
+                        ->maxLength(160)
+                        ->placeholder('We are launching soon'),
+                    Forms\Components\Textarea::make('coming_soon_message')
+                        ->rows(3)
+                        ->placeholder('Leave your email and get notified when we open.'),
+                    Forms\Components\TextInput::make('coming_soon_image')
+                        ->helperText('Optional image URL or storage path'),
+                    Forms\Components\TextInput::make('coming_soon_cta_label')
+                        ->maxLength(80)
+                        ->placeholder('Notify me'),
+                    Forms\Components\TextInput::make('coming_soon_cta_url')
+                        ->placeholder('/'),
+                ])
+                ->columns(2),
+            Section::make('Newsletter popup')
+                ->schema([
+                    Forms\Components\Toggle::make('newsletter_popup_enabled')
+                        ->label('Enable newsletter popup'),
+                    Forms\Components\TextInput::make('newsletter_popup_title')
+                        ->maxLength(160)
+                        ->placeholder('Join the list'),
+                    Forms\Components\Textarea::make('newsletter_popup_body')
+                        ->rows(3)
+                        ->placeholder('Get drop alerts, coupons, and shipping updates.'),
+                    Forms\Components\TextInput::make('newsletter_popup_incentive')
+                        ->maxLength(160)
+                        ->placeholder('Save 10% on your first order'),
+                    Forms\Components\TextInput::make('newsletter_popup_image')
+                        ->helperText('Optional image URL or storage path'),
+                    Forms\Components\TextInput::make('newsletter_popup_delay_seconds')
+                        ->numeric()
+                        ->minValue(0)
+                        ->default(3),
+                    Forms\Components\TextInput::make('newsletter_popup_dismiss_days')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(14),
+                ])
+                ->columns(2),
         ]);
     }
 

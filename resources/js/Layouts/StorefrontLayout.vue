@@ -802,6 +802,9 @@
                 </div>
             </aside>
         </Transition>
+
+        <PopupBannerModal v-if="showStorefrontPopups" :banners="popupBanners" />
+        <NewsletterPopup v-if="showStorefrontPopups" :settings="newsletterPopupSettings" />
     </div>
 </template>
 
@@ -814,6 +817,8 @@ import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useTranslations} from '@/i18n'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
+import PopupBannerModal from '@/Components/PopupBannerModal.vue'
+import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 
 import { toastAlert } from "@/utils/toast";
 
@@ -895,6 +900,11 @@ const notices = computed(() => {
     if (flash.wishlist_notice) entries.push({key: 'wishlist', message: flash.wishlist_notice})
     return entries
 })
+
+const popupBanners = computed(() =>
+    Array.isArray(page.props.popupBanners) ? page.props.popupBanners : []
+)
+const newsletterPopupSettings = computed(() => page.props.storefront ?? {})
 
 // --- Links / footer ---
 const fallbackHeaderLinks = [
@@ -986,6 +996,12 @@ const supportEmail = computed(() => page.props.site?.support_email ?? 'info@simb
 
 // --- SEO ---
 const currentPath = computed(() => (page.url || '').split('?')[0])
+const showStorefrontPopups = computed(() => {
+    const path = currentPath.value || ''
+    if (path.startsWith('/admin') || path.startsWith('/filament')) return false
+    if (path.startsWith('/coming-soon')) return false
+    return true
+})
 const appUrl = computed(() => {
     const configured = page.props.appUrl
     if (configured) return String(configured).replace(/\/$/, '')

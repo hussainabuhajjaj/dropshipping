@@ -84,7 +84,7 @@ class CartController extends Controller
 
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
-        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('cart', $productIds, $categoryIds);
 
         return Inertia::render('Cart/Index', [
             'lines' => (CartResource::collection($cart_items))->jsonSerialize(),

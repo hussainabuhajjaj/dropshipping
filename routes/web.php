@@ -23,6 +23,8 @@ use App\Http\Controllers\Storefront\ReturnRequestController;
 use App\Http\Controllers\Storefront\ReturnLabelController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PromotionController;
+use App\Http\Controllers\Storefront\NewsletterController;
+use App\Http\Controllers\Storefront\NewsletterTrackingController;
 
 // --- Webhook Controllers ---
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
@@ -87,6 +89,17 @@ Route::get('/payments/paystack/callback', PaystackCallbackController::class)->na
 Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::get('/orders/track', TrackingPageController::class)->name('orders.track');
 Route::get('/promotions', [PromotionController::class, 'index'])->name('promotions.index');
+Route::get('/promotions/flash-sales', [PromotionController::class, 'flashSales'])->name('promotions.flash-sales');
+Route::get('/promotions/deals', [PromotionController::class, 'deals'])->name('promotions.deals');
+Route::get('/promotions/products', [PromotionController::class, 'promotedProducts'])->name('promotions.products');
+Route::get('/promotions/categories', [PromotionController::class, 'promotedCategories'])->name('promotions.categories');
+Route::post('/newsletter/subscribe', [NewsletterController::class, 'store'])->name('newsletter.subscribe');
+Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');
+Route::get('/newsletter/track/open/{token}', [NewsletterTrackingController::class, 'open'])->name('newsletter.track.open');
+Route::get('/newsletter/track/click/{token}', [NewsletterTrackingController::class, 'click'])->name('newsletter.track.click');
+Route::get('/coming-soon', function () {
+    return Inertia::render('ComingSoon');
+})->name('coming-soon');
 
 Route::post('/webhooks/payments/{provider}', PaymentWebhookController::class)
     ->middleware(['throttle:30,1', VerifyPaymentWebhookSignature::class, IdempotencyMiddleware::class])
@@ -137,7 +150,7 @@ Route::redirect('/policies/terms', '/legal/terms-of-service', 301);
 Route::redirect('/policies/privacy', '/legal/privacy-policy', 301);
 Route::redirect('/policies/about', '/about', 301);
 
-Route::middleware('auth:customer')->group(function () {
+Route::middleware(['auth:customer', 'verified'])->group(function () {
     Route::get('/account', [AccountController::class, 'index'])->name('account.index');
     Route::get('/account/addresses', [AccountController::class, 'addresses'])->name('account.addresses');
     Route::get('/account/orders', [AccountController::class, 'orders'])->name('account.orders');

@@ -56,6 +56,7 @@ class StorefrontBannerResource extends BaseResource
                             'sidebar' => 'Sidebar',
                             'carousel' => 'Carousel',
                             'strip' => 'Strip Banner',
+                            'popup' => 'Popup Modal',
                         ])
                         ->required(),
                     Forms\Components\FileUpload::make('image_path')

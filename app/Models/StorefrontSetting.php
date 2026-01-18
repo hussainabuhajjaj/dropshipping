@@ -20,6 +20,19 @@ class StorefrontSetting extends Model
         'footer_columns',
         'value_props',
         'social_links',
+        'coming_soon_enabled',
+        'coming_soon_title',
+        'coming_soon_message',
+        'coming_soon_image',
+        'coming_soon_cta_label',
+        'coming_soon_cta_url',
+        'newsletter_popup_enabled',
+        'newsletter_popup_title',
+        'newsletter_popup_body',
+        'newsletter_popup_incentive',
+        'newsletter_popup_image',
+        'newsletter_popup_delay_seconds',
+        'newsletter_popup_dismiss_days',
     ];
 
     protected $casts = [
@@ -27,5 +40,9 @@ class StorefrontSetting extends Model
         'footer_columns' => 'array',
         'value_props' => 'array',
         'social_links' => 'array',
+        'coming_soon_enabled' => 'boolean',
+        'newsletter_popup_enabled' => 'boolean',
+        'newsletter_popup_delay_seconds' => 'int',
+        'newsletter_popup_dismiss_days' => 'int',
     ];
 }

@@ -64,7 +64,7 @@
               v-if="productPromotion"
               class="ml-2 inline-flex items-center gap-1 rounded bg-yellow-200 px-2 py-0.5 font-bold text-yellow-900"
             >
-              {{ productPromotion.name }}
+              {{ productPromotion.badge_text || productPromotion.name }}
               <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
               <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }}</span>
             </span>
@@ -82,6 +82,9 @@
           </span>
           <span v-if="compareAtForDisplay" class="text-sm text-slate-400 line-through">
             {{ currency }} {{ Number(compareAtForDisplay).toFixed(2) }}
+          </span>
+          <span v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-xs text-slate-500">
+            {{ productPromotion.apply_hint }}
           </span>
           <span v-if="stockBadge.label" :class="stockBadge.class" class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
             <span class="h-2 w-2 rounded-full" :class="stockBadge.dot" />
@@ -400,13 +403,15 @@
 // Promotion logic for product details
 function productPromotionForDetails(product, promotions) {
   if (!promotions?.length) return null
-  return promotions.find(p =>
+  const targeted = promotions.find(p =>
     (p.targets || []).some(t => {
       if (t.target_type === 'product') return t.target_id == product.id
       if (t.target_type === 'category') return t.target_id == product.category_id
       return false
     })
   )
+  if (targeted) return targeted
+  return promotions.find(p => p.is_sitewide) ?? null
 }
 
 import { computed, ref } from 'vue'
@@ -434,7 +439,7 @@ const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
   if (!promo) return false
   if (promo.value_type !== 'percentage' && promo.value_type !== 'fixed') return false
-  if (Array.isArray(promo.conditions) && promo.conditions.length) return false
+  if (promo.has_conditions || promo.is_sitewide) return false
   return true
 })
 

@@ -9,6 +9,11 @@ use App\Models\User;
 
 class ProductPolicy
 {
+    private function canManage(User $user): bool
+    {
+        return in_array($user->role, ['admin', 'staff'], true) || $user->tokenCan('*');
+    }
+
     /**
      * Determine if the user can view any products.
      */
@@ -32,8 +37,8 @@ class ProductPolicy
      */
     public function create(User $user): bool
     {
-        // Check if user's token has products:create ability
-        return $user->tokenCan('products:create') || $user->tokenCan('*');
+        // Allow admin/staff sessions or token-based API access
+        return $this->canManage($user) || $user->tokenCan('products:create');
     }
 
     /**
@@ -41,8 +46,8 @@ class ProductPolicy
      */
     public function update(User $user, Product $product): bool
     {
-        // Check if user's token has products:update ability
-        return $user->tokenCan('products:update') || $user->tokenCan('*');
+        // Allow admin/staff sessions or token-based API access
+        return $this->canManage($user) || $user->tokenCan('products:update');
     }
 
     /**
@@ -50,8 +55,8 @@ class ProductPolicy
      */
     public function delete(User $user, Product $product): bool
     {
-        // Check if user's token has products:delete ability
-        if (!($user->tokenCan('products:delete') || $user->tokenCan('*'))) {
+        // Allow admin/staff sessions or token-based API access
+        if (! ($this->canManage($user) || $user->tokenCan('products:delete'))) {
             return false;
         }
 
@@ -68,7 +73,7 @@ class ProductPolicy
      */
     public function restore(User $user, Product $product): bool
     {
-        return $user->tokenCan('products:restore') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('products:restore');
     }
 
     /**
@@ -76,6 +81,6 @@ class ProductPolicy
      */
     public function forceDelete(User $user, Product $product): bool
     {
-        return $user->tokenCan('products:force-delete') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('products:force-delete');
     }
 }

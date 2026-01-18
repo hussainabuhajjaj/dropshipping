@@ -12,6 +12,9 @@ use Illuminate\Support\Collection;
 
 class MessageTemplateService
 {
+    // NOTE: Legacy service in Orders domain. The active implementation lives under
+    // App\\Domain\\Messaging\\Services\\MessageTemplateService and Messaging models.
+    // This class is currently not referenced; keep for backward compatibility only.
     /**
      * Send a template to a customer.
      */
