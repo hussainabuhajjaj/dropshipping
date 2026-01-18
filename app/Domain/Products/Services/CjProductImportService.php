@@ -10,6 +10,9 @@ use App\Domain\Products\Models\ProductVariant;
 use App\Jobs\GenerateProductSeoJob;
 use App\Jobs\TranslateProductJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Models\ProductReview;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -248,6 +251,22 @@ class CjProductImportService
             }
         }
 
+        $shouldSyncReviews = ($options['syncReviews'] ?? true) === true;
+        if ($shouldSyncReviews) {
+            try {
+                $this->syncReviews($product, [
+                    'throwOnFailure' => false,
+                    'score' => $options['reviewScore'] ?? null,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to sync CJ product reviews after import', [
+                    'product_id' => $product->id,
+                    'pid' => $product->cj_pid,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return $product;
     }
 
@@ -302,6 +321,187 @@ class CjProductImportService
         ]);
 
         return true;
+    }
+
+    /**
+     * Import CJ product reviews (comments) into product_reviews with no data loss.
+     *
+     * @return array{created:int,updated:int,fetched:int}
+     */
+    public function syncReviews(Product $product, array $options = []): array
+    {
+        if (! $product->cj_pid) {
+            return ['created' => 0, 'updated' => 0, 'fetched' => 0];
+        }
+
+        $pageSize = (int) ($options['pageSize'] ?? 50);
+        $pageSize = $pageSize > 0 ? min($pageSize, 100) : 50;
+        $maxPages = (int) ($options['maxPages'] ?? 50);
+        $maxPages = $maxPages > 0 ? $maxPages : 50;
+        $score = isset($options['score']) ? (int) $options['score'] : null;
+        $throwOnFailure = (bool) ($options['throwOnFailure'] ?? true);
+
+        $created = 0;
+        $updated = 0;
+        $fetched = 0;
+
+        $page = 1;
+        $total = null;
+
+        while ($page <= $maxPages) {
+            $resp = $this->client->getProductReviews($product->cj_pid, $page, $pageSize, $score);
+
+            if (! $resp->ok) {
+                $message = $resp->message ?: 'CJ productComments request failed';
+
+                if ($throwOnFailure) {
+                    throw new \RuntimeException($message);
+                }
+
+                Log::warning('CJ product reviews request failed', [
+                    'pid' => $product->cj_pid,
+                    'page' => $page,
+                    'pageSize' => $pageSize,
+                    'score' => $score,
+                    'message' => $message,
+                    'requestId' => $resp->requestId ?? null,
+                ]);
+
+                break;
+            }
+
+            $data = is_array($resp->data) ? $resp->data : [];
+            $list = $data['list'] ?? [];
+
+            if ($total === null && isset($data['total'])) {
+                $total = is_numeric($data['total']) ? (int) $data['total'] : null;
+            }
+
+            if (! is_array($list) || $list === []) {
+                break;
+            }
+
+            $rows = [];
+            $externalIds = [];
+
+            foreach ($list as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $externalId = (string) ($entry['commentId'] ?? '');
+                if ($externalId === '') {
+                    continue;
+                }
+
+                $externalIds[] = $externalId;
+
+                $ratingRaw = $entry['score'] ?? null;
+                $rating = is_numeric($ratingRaw) ? (int) $ratingRaw : 5;
+                $rating = max(1, min(5, $rating));
+
+                $body = trim((string) ($entry['comment'] ?? ''));
+                if ($body === '') {
+                    $body = '[No comment]';
+                }
+
+                $title = trim((string) ($entry['commentUser'] ?? ''));
+                $title = $title !== '' ? $title : null;
+
+                $images = [];
+                if (isset($entry['commentUrls']) && is_array($entry['commentUrls'])) {
+                    $images = array_values(array_filter(array_map('strval', $entry['commentUrls'])));
+                }
+
+                $createdAt = now();
+                if (! empty($entry['commentDate'])) {
+                    try {
+                        $createdAt = Carbon::parse((string) $entry['commentDate']);
+                    } catch (\Throwable) {
+                        // Keep fallback.
+                    }
+                }
+
+                $rows[] = [
+                    'product_id' => $product->id,
+                    'customer_id' => null,
+                    'order_id' => null,
+                    'order_item_id' => null,
+                    'rating' => $rating,
+                    'title' => $title,
+                    'body' => $body,
+                    'status' => 'approved',
+                    'images' => $images === [] ? null : json_encode($images, JSON_UNESCAPED_SLASHES),
+                    'verified_purchase' => false,
+                    'helpful_count' => 0,
+                    'external_provider' => 'CJ',
+                    'external_id' => $externalId,
+                    'external_payload' => json_encode($entry, JSON_UNESCAPED_SLASHES),
+                    'created_at' => $createdAt,
+                    'updated_at' => now(),
+                ];
+            }
+
+            if ($rows === []) {
+                break;
+            }
+
+            $existing = ProductReview::query()
+                ->where('external_provider', 'CJ')
+                ->whereIn('external_id', $externalIds)
+                ->pluck('external_id')
+                ->map(fn ($id) => (string) $id)
+                ->all();
+
+            $existingMap = array_fill_keys($existing, true);
+
+            foreach ($externalIds as $id) {
+                if (isset($existingMap[$id])) {
+                    $updated++;
+                } else {
+                    $created++;
+                }
+            }
+
+            DB::transaction(function () use ($rows): void {
+                ProductReview::query()->upsert(
+                    $rows,
+                    ['external_provider', 'external_id'],
+                    [
+                        'product_id',
+                        'rating',
+                        'title',
+                        'body',
+                        'status',
+                        'images',
+                        'verified_purchase',
+                        'helpful_count',
+                        'external_payload',
+                        'updated_at',
+                    ]
+                );
+            });
+
+            $fetched += count($rows);
+
+            if ((bool) env('CJ_DEBUG', false)) {
+                Log::debug('CJ reviews synced', [
+                    'pid' => $product->cj_pid,
+                    'page' => $page,
+                    'fetched' => count($rows),
+                    'total' => $total,
+                    'requestId' => $resp->requestId ?? null,
+                ]);
+            }
+
+            if ($total !== null && $fetched >= $total) {
+                break;
+            }
+
+            $page++;
+        }
+
+        return ['created' => $created, 'updated' => $updated, 'fetched' => $fetched];
     }
 
     public function syncMyProducts(int $startPage = 1, int $pageSize = 100, int $maxPages = 10, bool $forceUpdate = false): array
@@ -546,108 +746,27 @@ class CjProductImportService
 
     private function resolveCategoryFromPayload(array $productData): ?Category
     {
-        // Always try to build 3-level hierarchy if possible
-        $oneCategoryId = (string)($productData['oneCategoryId'] ?? '');
-        $oneCategoryName = (string)($productData['oneCategoryName'] ?? '');
-        $twoCategoryId = (string)($productData['twoCategoryId'] ?? '');
-        $twoCategoryName = (string)($productData['twoCategoryName'] ?? '');
-        $threeCategoryId = (string)($productData['categoryId'] ?? '');
-        $threeCategoryName = (string)($productData['threeCategoryName'] ?? '');
+        // Categories are pre-synced from CJ; never create categories here.
+        // Prefer the deepest CJ category id (level 3), then fall back to level 2/1 ids.
+        $candidateIds = [
+            (string)($productData['categoryId'] ?? ''),
+            (string)($productData['twoCategoryId'] ?? ''),
+            (string)($productData['oneCategoryId'] ?? ''),
+        ];
 
-        // If we have V2 API structure, build hierarchy with proper CJ IDs
-        if ($oneCategoryId && $oneCategoryName && $twoCategoryId && $twoCategoryName && $threeCategoryId && $threeCategoryName) {
-            return $this->buildCategoryHierarchy([
-                ['id' => $oneCategoryId, 'name' => $oneCategoryName, 'parent' => null],
-                ['id' => $twoCategoryId, 'name' => $twoCategoryName, 'parent' => $oneCategoryId],
-                ['id' => $threeCategoryId, 'name' => $threeCategoryName, 'parent' => $twoCategoryId],
-            ]);
-        }
-
-        // Fallback: Legacy API or string-based categories
-        $categoryId = (string)($productData['categoryId'] ?? '');
-
-        $rawName = $productData['categoryName']
-            ?? $productData['categoryNameEn']
-            ?? $productData['category_name']
-            ?? null;
-
-        if (!is_string($rawName) || $rawName === '') {
-            return null;
-        }
-
-        // Handle both "/" and ">" separators used by different CJ APIs
-        $rawName = str_replace(' > ', '/', $rawName);
-        $segments = array_filter(array_map('trim', explode('/', $rawName)));
-        if (count($segments) < 3) {
-            // Not enough segments for 3 levels
-            return null;
-        }
-
-        $parent = null;
-        $category = null;
-        foreach ($segments as $position => $segment) {
-            if ($segment === '') {
+        foreach ($candidateIds as $cjId) {
+            $cjId = trim($cjId);
+            if ($cjId === '') {
                 continue;
             }
-            $slug = Str::slug($parent ? "{$parent->slug} {$segment}" : $segment);
-            // Search by name and parent_id
-            $category = Category::query()
-                ->where('name', $segment)
-                ->where('parent_id', $parent?->id)
-                ->first();
-            if (!$category) {
-                $category = Category::create([
-                    'name' => $segment,
-                    'slug' => $slug,
-                    'parent_id' => $parent?->id,
-                ]);
-            }
-            $parent = $category;
-        }
-        // Assign CJ ID to the deepest category if available
-        if ($categoryId !== '' && $category && $category->cj_id !== $categoryId) {
-            $category->update(['cj_id' => $categoryId]);
-        }
-        return $category;
-    }
 
-    private function buildCategoryHierarchy(array $levels): ?Category
-    {
-        $parent = null;
-        $category = null;
-        foreach ($levels as $level) {
-            if ($level === null) {
-                continue;
+            $category = Category::query()->where('cj_id', $cjId)->first();
+            if ($category) {
+                return $category;
             }
-            $cjId = $level['id'] ?? null;
-            $name = $level['name'] ?? '';
-            if ($name === '') {
-                continue;
-            }
-            // Try to find by CJ ID first
-            if ($cjId) {
-                $category = Category::query()->where('cj_id', $cjId)->where('name', $name)->where('parent_id', $parent?->id)->first();
-                if ($category) {
-                    $parent = $category;
-                    continue;
-                }
-            }
-            // Then try by name and parent
-            $category = Category::query()->where('name', $name)->where('parent_id', $parent?->id)->first();
-            if (!$category) {
-                $slug = Str::slug($parent ? "{$parent->slug} {$name}" : $name);
-                $category = Category::create([
-                    'name' => $name,
-                    'slug' => $slug,
-                    'parent_id' => $parent?->id,
-                    'cj_id' => $cjId,
-                ]);
-            } elseif ($cjId && $category->cj_id !== $cjId) {
-                $category->update(['cj_id' => $cjId]);
-            }
-            $parent = $category;
         }
-        return $category;
+
+        return null;
     }
 
     private function diffFields(Product $product, array $incoming): array

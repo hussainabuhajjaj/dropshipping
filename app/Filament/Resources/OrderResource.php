@@ -34,7 +34,6 @@ use Filament\Forms\Form;
 use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -169,7 +168,7 @@ class OrderResource extends Resource
                     ->relationship('orderItems.fulfillmentProvider', 'name'),
 
                 Tables\Filters\Filter::make('customer_email')
-                    ->form([
+                    ->schema([
                         Forms\Components\TextInput::make('value')
                             ->label('Customer Email')
                             ->placeholder('example@domain.com'),
@@ -184,7 +183,7 @@ class OrderResource extends Resource
                     ->relationship('shippingAddress', 'country'),
 
                 Tables\Filters\Filter::make('product_sku')
-                    ->form([
+                    ->schema([
                         Forms\Components\TextInput::make('value')
                             ->label('Product SKU')
                             ->placeholder('SKU...'),
@@ -207,7 +206,7 @@ class OrderResource extends Resource
                     ->query(fn ($query) => $query->where('grand_total', '>=', 500)),
 
                 Tables\Filters\Filter::make('placed_at')
-                    ->form([
+                    ->schema([
                         Forms\Components\DatePicker::make('from')->label('From'),
                         Forms\Components\DatePicker::make('until')->label('Until'),
                     ])
@@ -217,7 +216,7 @@ class OrderResource extends Resource
                             ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('placed_at', '<=', $date));
                     }),
             ])
-            ->actions([
+            ->recordActions([
                 ViewAction::make()
                     ->label('View Details')
                     ->icon('heroicon-o-eye'),
