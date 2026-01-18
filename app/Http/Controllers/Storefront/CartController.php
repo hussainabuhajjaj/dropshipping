@@ -14,6 +14,9 @@ use App\Models\Coupon;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
+use App\Services\CampaignManager;
+use App\Services\Coupons\CouponValidator;
+use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
@@ -32,14 +35,35 @@ class CartController extends Controller
         $cart_items = $this->cart();
         $coupon = session('cart_coupon');
         $subtotal = $cart->subTotal();
-        $discount = $cart->discount($coupon);
+        $customer = auth('customer')->user();
+        $cartPayload = (CartResource::collection($cart_items))->jsonSerialize();
+        $couponValidator = app(CouponValidator::class);
+        $couponModel = $couponValidator->resolveFromSession($coupon);
+        if ($couponModel) {
+            $error = $couponValidator->validateForCart($couponModel, $cart_items, $subtotal, $customer);
+            if ($error) {
+                session()->forget('cart_coupon');
+                $coupon = null;
+                $couponModel = null;
+            }
+        }
+
+        $campaign = app(CampaignManager::class)->bestForCart($cartPayload, $subtotal, $customer);
+        $couponDiscount = $couponModel ? $couponValidator->calculateDiscount($couponModel, $subtotal) : 0.0;
+        if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
+            $discount = $couponDiscount;
+            $discountLabel = $coupon ? ('Coupon: ' . ($coupon['code'] ?? '')) : null;
+        } else {
+            $discount = $campaign['amount'] ?? 0.0;
+            $discountLabel = $campaign['label'] ?? null;
+        }
 
         $shipping = $cart->calculateShippingFees();
 
         // Get applied promotions (not just coupon)
         $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
         $cartContext = [
-            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
+            'lines' => $cartPayload,
             'subtotal' => $subtotal,
             'user_id' => auth('customer')->id(),
         ];
@@ -58,14 +82,20 @@ class CartController extends Controller
             ];
         })->values()->all();
 
+        $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
+        $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
+        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+
         return Inertia::render('Cart/Index', [
             'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
             'currency' => $cart[0]['currency'] ?? 'USD',
             'subtotal' => $subtotal,
             'shipping' => $shipping,
             'discount' => $discount,
+            'discount_label' => $discountLabel ?? null,
             'coupon' => $coupon,
             'appliedPromotions' => $appliedPromotions,
+            'cartPromotions' => $cartPromotions,
         ]);
     }
 
@@ -234,6 +264,16 @@ class CartController extends Controller
             return back()->withErrors(['code' => 'Coupon not found or inactive.'])->withInput();
         }
 
+        $cart = $this->getCart();
+        $cart_items = $this->cart();
+        $subtotal = $cart->subTotal();
+        $customer = auth('customer')->user();
+        $couponValidator = app(CouponValidator::class);
+        $error = $couponValidator->validateForCart($coupon, $cart_items, $subtotal, $customer);
+        if ($error) {
+            return back()->withErrors(['code' => $error])->withInput();
+        }
+
         session(['cart_coupon' => [
             'id' => $coupon->id,
             'code' => $coupon->code,
@@ -355,4 +395,3 @@ class CartController extends Controller
     }
 
 }
-

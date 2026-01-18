@@ -9,6 +9,7 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Domain\Products\Models\Category;
 use App\Models\Product;
 use App\Services\Storefront\ProductMetaExtractor;
+use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -71,6 +72,10 @@ class CategoryController extends Controller
             ->appends($filters)
             ->through(fn (Product $product) => $this->transformProduct($product));
 
+        $productIds = $products->getCollection()->pluck('id')->all();
+        $categoryIds = $products->getCollection()->pluck('category_id')->filter()->unique()->values()->all();
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+
         $heroImage = $category->hero_image;
         if ($heroImage && !str_starts_with($heroImage, 'http://') && !str_starts_with($heroImage, 'https://')) {
             $heroImage = Storage::url($heroImage);
@@ -92,6 +97,7 @@ class CategoryController extends Controller
             ],
             'products' => $products,
             'currency' => 'USD',
+            'promotions' => $promotions,
             'filters' => $filters,
             'attributes' => $attributeDefs,
         ]);

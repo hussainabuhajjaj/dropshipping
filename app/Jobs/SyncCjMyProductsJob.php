@@ -16,10 +16,9 @@ use Illuminate\Support\Facades\Log;
 
 class SyncCjMyProductsJob implements ShouldQueue
 
-    // Key for tracking imported count in cache (shared with UI)
-    protected string $importedCountCacheKey = 'cj_my_products_imported_count';
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    protected string $importedCountCacheKey = 'cj_my_products_imported_count';
 
     public int $pageNum;
     public int $pageSize;
