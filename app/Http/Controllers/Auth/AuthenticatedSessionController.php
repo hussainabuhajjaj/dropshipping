@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Cart;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,9 +30,19 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+
+
+        $cart = Cart::query()->where('user_id', \auth('customer')->id())
+            ->orWhere('session_id', session()->id())
+            ->first();
+
         $request->authenticate();
 
         $request->session()->regenerate();
+
+        if (isset($cart)){
+            $cart->moveToUser();
+        }
 
         return redirect()->intended(route('account.index', absolute: false));
     }
