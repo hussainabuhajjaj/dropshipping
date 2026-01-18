@@ -119,4 +119,12 @@ class Cart extends Model
         $this->shippings()->delete();
         $this->delete();
     }
+
+    public function moveToUser()
+    {
+        return $this->update([
+            'user_id' => auth('customer')->id(),
+            'session_id' => null,
+        ]);
+    }
 }
