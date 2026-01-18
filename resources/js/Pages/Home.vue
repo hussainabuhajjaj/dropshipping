@@ -3,10 +3,12 @@
     <div class="noon-home">
 
       <!-- Homepage Guide for Promotions/Discounts -->
-      <section v-if="homepagePromotions && homepagePromotions.length" class="promo-guide mb-6">
+      <section v-if="logisticsSupportPromo" class="promo-guide mb-6">
         <div class="promo-guide-content">
-          <span class="promo-guide-badge">{{ t('Deals & Discounts') }}</span>
-          <span class="promo-guide-text">{{ t('Check out today\'s promotions and discounts!') }}</span>
+          <span class="promo-guide-badge">{{ logisticsSupportPromo.badge_text || t('Logistics Support') }}</span>
+          <span class="promo-guide-text">
+            {{ logisticsSupportPromo.name || t('Logistics support applied at checkout for qualifying orders.') }}
+          </span>
           <Link href="/promotions" class="promo-guide-link">{{ t('See all promotions') }}</Link>
         </div>
       </section>
@@ -109,13 +111,13 @@
             <p class="section-kicker">{{ t('Top categories') }}</p>
             <h2 class="section-title">{{ t('Browse by category') }}</h2>
           </div>
-          <Link href="/products" class="section-link">{{ t('View all') }}</Link>
+          <Link href="/promotions/categories" class="section-link">{{ t('View all') }}</Link>
         </div>
         <div class="rail-track">
           <Link
             v-for="(category, index) in categoryTiles"
             :key="category.name"
-            :href="`/products?category=${encodeURIComponent(category.name)}`"
+            :href="`/products?category=${encodeURIComponent(category.slug || category.name)}`"
             class="rail-item"
             :style="{ animationDelay: `${index * 60}ms` }"
           >
@@ -136,15 +138,17 @@
             <p class="section-kicker">{{ t('Flash deals') }}</p>
             <h2 class="section-title">{{ t('Limited-time drops') }}</h2>
           </div>
-          <Link href="/products" class="section-link">{{ t('Shop deals') }}</Link>
+          <Link href="/promotions/flash-sales" class="section-link">{{ t('Shop deals') }}</Link>
         </div>
         <div class="deal-grid">
           <div v-for="(deal, index) in featuredDeals" :key="deal.id" class="deal-card">
             <div class="deal-head">
               <span class="deal-badge">{{ deal.category || 'Simbazu' }}</span>
-              <span class="deal-timer">{{ t('Ends in :time', { time: dealTimers[index % dealTimers.length] }) }}</span>
-            </div>
-            <ProductCard :product="deal" :currency="currency" />
+            <span v-if="dealCountdown(deal)" class="deal-timer">
+              {{ t('Ends in :time', { time: dealCountdown(deal) }) }}
+            </span>
+          </div>
+            <ProductCard :product="deal" :currency="currency" :promotions="homepagePromotions" />
           </div>
         </div>
       </section>
@@ -194,7 +198,7 @@
 
 
       <!-- Homepage Promotions Section -->
-      <section v-if="homepagePromotions && homepagePromotions.length" class="section-block">
+      <section v-if="featuredPromotions.length" class="section-block">
         <div class="section-head">
           <div>
             <p class="section-kicker">{{ t('Featured Promotions') }}</p>
@@ -202,23 +206,22 @@
           </div>
           <Link href="/promotions" class="section-link">{{ t('See all promotions') }}</Link>
         </div>
-        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="promo in homepagePromotions" :key="promo.id" class="promotion-card reveal">
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
+          <div v-for="promo in featuredPromotions" :key="promo.id" class="promotion-card reveal">
             <div class="promotion-header">
-              <span class="promotion-type" :class="promo.type">{{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }}</span>
-              <span v-if="promo.end_at" class="promotion-timer">{{ t('Ends at') }} {{ new Date(promo.end_at).toLocaleString() }}</span>
+              <span class="promotion-badge">{{ promo.badge_text || (promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount')) }}</span>
+              <span v-if="promoCountdown(promo)" class="promotion-timer">{{ t('Ends in :time', { time: promoCountdown(promo) }) }}</span>
             </div>
             <h3 class="promotion-title">{{ promo.name }}</h3>
-            <p class="promotion-desc">{{ promo.description }}</p>
+            <p v-if="promo.description" class="promotion-desc">{{ promo.description }}</p>
             <div class="promotion-meta">
-              <span v-if="promo.value_type === 'percent'">{{ promo.value }}% {{ t('off') }}</span>
-              <span v-else-if="promo.value_type === 'amount'">-{{ displayPrice(promo.value) }}</span>
+              <span class="promotion-value">{{ promoValue(promo) }}</span>
+              <span class="promotion-scope">{{ promoScope(promo) }}</span>
             </div>
-            <div v-if="promo.targets && promo.targets.length" class="promotion-targets">
-              <span v-for="target in promo.targets" :key="target.id" class="promotion-target">
-                {{ target.target_type === 'product' ? t('Product') : t('Category') }}: {{ target.target_value }}
-              </span>
-            </div>
+            <p v-if="promo.apply_hint" class="promotion-hint">{{ promo.apply_hint }}</p>
+            <Link :href="promoCta(promo).href" class="promotion-cta">
+              {{ promoCta(promo).label }}
+            </Link>
           </div>
         </div>
       </section>
@@ -233,9 +236,6 @@
         </div>
       </section>
 
-
-const homepagePromotions = computed(() => Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : [])
-
       <section class="value-grid">
         <div v-for="item in valueProps" :key="item.title" class="value-card">
           <h3>{{ item.title }}</h3>
@@ -247,6 +247,17 @@ const homepagePromotions = computed(() => Array.isArray(page.props.homepagePromo
 </template>
 
 <script setup>
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
+import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import ProductCard from '@/Components/ProductCard.vue'
+import BannerHero from '@/Components/BannerHero.vue'
+import BannerCarousel from '@/Components/BannerCarousel.vue'
+import BannerStrip from '@/Components/BannerStrip.vue'
+import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { formatCurrency } from '@/utils/currency.js'
+
 // Helper: Highlight banners with promotion info if any promotion is active
 function highlightBannerWithPromotion(banner, promotions) {
   if (!promotions || !promotions.length) return banner
@@ -268,18 +279,19 @@ function highlightBannerWithPromotion(banner, promotions) {
 // Helper: Check if a category is targeted by any promotion
 function categoryHasPromotion(category, promotions) {
   if (!promotions || !promotions.length) return false
+  const categoryId = category?.id ?? null
+  const categorySlug = category?.slug ?? null
+  const categoryName = category?.name ?? null
   return promotions.some(p =>
-    (p.targets || []).some(t => t.target_type === 'category' && (t.target_value === category.name || t.target_id == category.id))
+    (p.targets || []).some(t => {
+      if (t.target_type !== 'category') return false
+      if (categoryId && t.target_id == categoryId) return true
+      if (categorySlug && t.target_value == categorySlug) return true
+      if (categoryName && t.target_value == categoryName) return true
+      return false
+    })
   )
 }
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
-import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
-import ProductCard from '@/Components/ProductCard.vue'
-import BannerHero from '@/Components/BannerHero.vue'
-import BannerCarousel from '@/Components/BannerCarousel.vue'
-import BannerStrip from '@/Components/BannerStrip.vue'
-import { useTranslations } from '@/i18n'
 
 const props = defineProps({
   featured: { type: Array, required: true },
@@ -293,6 +305,16 @@ const props = defineProps({
 
 const page = usePage()
 const { t } = useTranslations()
+const now = usePromoNow()
+const homepagePromotions = computed(() =>
+  Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : []
+)
+
+const displayPrice = (amount) => formatCurrency(Number(amount ?? 0), props.currency)
+
+const logisticsSupportPromo = computed(() => {
+  return homepagePromotions.value.find((promo) => promo.intent === 'shipping_support') ?? null
+})
 
 const fallbackSlides = [
   {
@@ -390,6 +412,8 @@ const categoryTiles = computed(() => {
   const source = props.categoryHighlights.length ? props.categoryHighlights : fallbackCategories
   return source.map((category) => ({
     ...category,
+    id: category.id ?? null,
+    slug: category.slug ?? null,
     short: buildShort(String(category.name)),
   }))
 })
@@ -408,7 +432,77 @@ const formatCount = (count) => {
 }
 
 const featuredDeals = computed(() => props.featured.slice(0, 6))
-const dealTimers = ['03:18:22', '01:09:45', '05:33:10', '00:42:08', '04:15:19', '02:28:31']
+const promotionForProduct = (product) => {
+  if (!product || homepagePromotions.value.length === 0) return null
+  return homepagePromotions.value.find(p =>
+    (p.targets || []).some(t => {
+      if (t.target_type === 'product') return t.target_id == product.id
+      if (t.target_type === 'category') return t.target_id == product.category_id
+      return false
+    })
+  )
+}
+
+const dealCountdown = (product) => {
+  const promo = promotionForProduct(product)
+  if (!promo?.end_at) return ''
+  return formatCountdown(promo.end_at, now.value) ?? ''
+}
+
+const promoCountdown = (promo) => {
+  if (!promo?.end_at) return ''
+  return formatCountdown(promo.end_at, now.value) ?? ''
+}
+
+const featuredPromotions = computed(() => {
+  const promos = homepagePromotions.value ?? []
+  if (!promos.length) return []
+  const intentOrder = {
+    urgency: 0,
+    cart_growth: 1,
+    shipping_support: 2,
+    acquisition: 3,
+    other: 4,
+  }
+  return [...promos]
+    .sort((a, b) => {
+      const intentDiff = (intentOrder[a.intent] ?? 9) - (intentOrder[b.intent] ?? 9)
+      if (intentDiff !== 0) return intentDiff
+      const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0)
+      if (priorityDiff !== 0) return priorityDiff
+      return (b.value ?? 0) - (a.value ?? 0)
+    })
+    .slice(0, 4)
+})
+
+const promoValue = (promo) => {
+  if (!promo) return ''
+  if (promo.value_type === 'percentage') return `${promo.value}% ${t('off')}`
+  if (promo.value_type === 'fixed') return `-${displayPrice(promo.value)}`
+  if (promo.value_type === 'free_shipping') return t('Free shipping')
+  return t('Special offer')
+}
+
+const promoScope = (promo) => {
+  if (!promo?.targets || promo.targets.length === 0) return t('Sitewide')
+  const hasProduct = promo.targets.some(t => t.target_type === 'product')
+  const hasCategory = promo.targets.some(t => t.target_type === 'category')
+  if (hasProduct && hasCategory) return t('Products + categories')
+  if (hasProduct) return t('Product deals')
+  if (hasCategory) return t('Category deals')
+  return t('Limited offer')
+}
+
+const promoCta = (promo) => {
+  if (!promo?.targets || promo.targets.length === 0) {
+    return { label: t('View deals'), href: '/promotions/deals' }
+  }
+  const hasProduct = promo.targets.some(t => t.target_type === 'product')
+  if (hasProduct) {
+    return { label: t('Shop promoted products'), href: '/promotions/products' }
+  }
+  return { label: t('Browse promoted categories'), href: '/promotions/categories' }
+}
 
 const topStrip = computed(() => {
   if (props.homeContent?.top_strip?.length) {
@@ -810,6 +904,110 @@ const valueProps = computed(() => {
 .rail-item:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.promotion-card {
+  border-radius: 18px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #e7edf4;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.promotion-card::before {
+  content: "";
+  position: absolute;
+  inset: -60px -60px auto auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(41, 171, 135, 0.35), rgba(41, 171, 135, 0));
+  opacity: 0.6;
+}
+
+.promotion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.promotion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.promotion-timer {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.promotion-title {
+  margin-top: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.promotion-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+  min-height: 32px;
+}
+
+.promotion-meta {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.promotion-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.promotion-scope {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.promotion-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.promotion-cta {
+  display: inline-flex;
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #29ab87;
 }
 
 .rail-icon {

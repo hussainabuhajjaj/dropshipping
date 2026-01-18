@@ -26,6 +26,8 @@ class HomeController extends Controller
 
     public function index(PromotionHomepageService $promotionHomepageService): Response
     {
+        // NOTE: Home page data assembly is duplicated in Api\\Storefront\\HomeController.
+        // Keep in sync if you change sections, ordering, or limits.
         $baseQuery = Product::query()
             ->where('is_active', true)
             ->with(['images', 'category', 'variants', 'translations'])
@@ -69,19 +71,8 @@ class HomeController extends Controller
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
 
-        $categoryHighlights = Cache::remember('home:category-highlights', now()->addMinutes(15), function () {
-            return Category::query()
-                ->withCount('products')
-                ->orderByDesc('products_count')
-                ->take(8)
-                ->get()
-                ->map(fn (Category $category) => [
-                    'name' => $category->name,
-                    'count' => $category->products_count,
-                ]);
-        });
-
         $homeContent = HomePageSetting::query()->latest()->first();
+        $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
         $heroSlides = $homeContent?->hero_slides ?? [];
         if (is_array($heroSlides)) {
             $heroSlides = collect($heroSlides)->map(function (array $slide) {
@@ -93,6 +84,9 @@ class HomeController extends Controller
             })->values()->all();
         }
 
+        $homepagePromotions = $promotionHomepageService->getHomepagePromotions();
+        $promotionBanners = $this->buildPromotionBanners($homepagePromotions);
+
         // Fetch active banners
         $stripBanner = StorefrontBanner::active()
             ->byDisplayType('strip')
@@ -100,44 +94,48 @@ class HomeController extends Controller
                 $query->where('target_type', 'none')
                     ->orWhereNull('target_type');
             })
+            ->with(['product.images', 'category'])
             ->orderBy('display_order')
             ->first();
 
-        $banners = [
-            'hero' => StorefrontBanner::active()
+        $heroBanners = StorefrontBanner::active()
                 ->byDisplayType('hero')
                 ->where(function ($query) {
                     $query->where('target_type', 'none')
                         ->orWhereNull('target_type');
                 })
+                ->with(['product.images', 'category'])
                 ->orderBy('display_order')
                 ->get()
                 ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
                 ->values()
-                ->toArray(),
-            'carousel' => StorefrontBanner::active()
+                ->toArray();
+
+        $carouselBanners = StorefrontBanner::active()
                 ->byDisplayType('carousel')
                 ->where(function ($query) {
                     $query->where('target_type', 'none')
                         ->orWhereNull('target_type');
                 })
+                ->with(['product.images', 'category'])
                 ->orderBy('display_order')
                 ->get()
                 ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
                 ->values()
-                ->toArray(),
+                ->toArray();
+
+        if (empty($heroBanners) && ! empty($promotionBanners)) {
+            $heroBanners = [array_shift($promotionBanners)];
+        }
+
+        if (! empty($promotionBanners)) {
+            $carouselBanners = array_values(array_merge($carouselBanners, $promotionBanners));
+        }
+
+        $banners = [
+            'hero' => $heroBanners,
+            'carousel' => $carouselBanners,
             'strip' => $stripBanner ? $this->transformBanner($stripBanner) : null,
-            'sidebar' => StorefrontBanner::active()
-                ->byDisplayType('sidebar')
-                ->where(function ($query) {
-                    $query->where('target_type', 'none')
-                        ->orWhereNull('target_type');
-                })
-                ->orderBy('display_order')
-                ->get()
-                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
-                ->values()
-                ->toArray(),
         ];
 
         return Inertia::render('Home', [
@@ -154,8 +152,60 @@ class HomeController extends Controller
                 'rail_cards' => $homeContent->rail_cards,
                 'banner_strip' => $homeContent->banner_strip,
             ] : null,
-            'homepagePromotions' => $promotionHomepageService->getHomepagePromotions(),
+            'homepagePromotions' => $homepagePromotions,
         ]);
+    }
+
+    private function resolveCategoryHighlights(?HomePageSetting $homeContent)
+    {
+        $configured = $homeContent?->category_highlights ?? [];
+        if (is_array($configured) && $configured !== []) {
+            $categoryIds = collect($configured)
+                ->map(fn ($entry) => (int) ($entry['category_id'] ?? 0))
+                ->filter()
+                ->unique()
+                ->values();
+
+            $categories = Category::query()
+                ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+                ->whereIn('id', $categoryIds)
+                ->get()
+                ->keyBy('id');
+
+            return collect($configured)
+                ->map(function ($entry) use ($categories) {
+                    $categoryId = (int) ($entry['category_id'] ?? 0);
+                    $category = $categories->get($categoryId);
+                    if (! $category || ($category->products_count ?? 0) <= 0) {
+                        return null;
+                    }
+                    return [
+                        'id' => $category->id,
+                        'slug' => $category->slug,
+                        'name' => $category->name,
+                        'count' => $category->products_count,
+                        'views' => $category->view_count ?? 0,
+                    ];
+                })
+                ->filter()
+                ->values();
+        }
+
+        return Category::query()
+            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->where('is_active', true)
+            ->whereHas('products', fn ($q) => $q->where('is_active', true))
+            ->orderByDesc('view_count')
+            ->orderByDesc('products_count')
+            ->take(8)
+            ->get()
+            ->map(fn (Category $category) => [
+                'id' => $category->id,
+                'slug' => $category->slug,
+                'name' => $category->name,
+                'count' => $category->products_count,
+                'views' => $category->view_count ?? 0,
+            ]);
     }
 
     private function transformBanner(StorefrontBanner $banner): array
@@ -166,7 +216,7 @@ class HomeController extends Controller
             'description' => $banner->description,
             'type' => $banner->type,
             'displayType' => $banner->display_type,
-            'imagePath' => $banner->image_path ? Storage::url($banner->image_path) : null,
+            'imagePath' => $this->resolveBannerImage($banner),
             'backgroundColor' => $banner->background_color,
             'textColor' => $banner->text_color,
             'badgeText' => $banner->badge_text,
@@ -174,6 +224,121 @@ class HomeController extends Controller
             'ctaText' => $banner->cta_text,
             'ctaUrl' => $banner->getCtaUrl(),
         ];
+    }
+
+    private function resolveBannerImage(StorefrontBanner $banner): ?string
+    {
+        $image = $banner->image_path;
+        if ($image) {
+            return $this->resolveImagePath($image);
+        }
+
+        if ($banner->target_type === 'product' && $banner->product) {
+            return $this->resolveProductImage($banner->product);
+        }
+
+        if ($banner->target_type === 'category' && $banner->category) {
+            return $this->resolveCategoryImage($banner->category);
+        }
+
+        return null;
+    }
+
+    private function resolveProductImage(Product $product): ?string
+    {
+        $image = $product->images?->first()?->url ?? null;
+        return $this->resolveImagePath($image);
+    }
+
+    private function resolveCategoryImage(Category $category): ?string
+    {
+        return $this->resolveImagePath($category->hero_image ?? null);
+    }
+
+    private function resolveImagePath(?string $path): ?string
+    {
+        // NOTE: Image URL normalization is duplicated in HandleInertiaRequests
+        // and the API HomeController. Keep in sync if URL handling changes.
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return Storage::url($path);
+    }
+
+    private function buildPromotionBanners(array $promotions): array
+    {
+        if (empty($promotions)) {
+            return [];
+        }
+
+        $targets = collect($promotions)->flatMap(fn ($promo) => $promo['targets'] ?? []);
+        $productIds = $targets->filter(fn ($t) => ($t['target_type'] ?? null) === 'product')
+            ->pluck('target_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $categoryIds = $targets->filter(fn ($t) => ($t['target_type'] ?? null) === 'category')
+            ->pluck('target_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $products = Product::query()
+            ->with('images')
+            ->whereIn('id', $productIds)
+            ->get()
+            ->keyBy('id');
+
+        $categories = Category::query()
+            ->whereIn('id', $categoryIds)
+            ->get()
+            ->keyBy('id');
+
+        return collect($promotions)
+            ->filter(fn ($promo) => ! empty($promo['targets']))
+            ->map(function (array $promo) use ($products, $categories) {
+                $targets = $promo['targets'] ?? [];
+                $productTarget = collect($targets)->firstWhere('target_type', 'product');
+                $categoryTarget = collect($targets)->firstWhere('target_type', 'category');
+
+                $image = null;
+                $ctaUrl = '/promotions';
+
+                if ($productTarget && $products->has($productTarget['target_id'])) {
+                    $product = $products->get($productTarget['target_id']);
+                    $image = $this->resolveProductImage($product);
+                    $ctaUrl = route('products.show', $product);
+                } elseif ($categoryTarget && $categories->has($categoryTarget['target_id'])) {
+                    $category = $categories->get($categoryTarget['target_id']);
+                    $image = $this->resolveCategoryImage($category);
+                    $ctaUrl = route('categories.show', $category);
+                }
+
+                return [
+                    'id' => 'promo-' . $promo['id'],
+                    'title' => $promo['name'] ?? 'Promotion',
+                    'description' => $promo['description'] ?? null,
+                    'type' => 'promotion',
+                    'displayType' => 'carousel',
+                    'imagePath' => $image,
+                    'backgroundColor' => '#111827',
+                    'textColor' => '#ffffff',
+                    'badgeText' => $promo['badge_text'] ?? 'Promotion',
+                    'badgeColor' => '#f59e0b',
+                    'ctaText' => 'Shop now',
+                    'ctaUrl' => $ctaUrl,
+                    'promotion' => $promo,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function topSellingProductIds(): array

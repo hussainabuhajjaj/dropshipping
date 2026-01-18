@@ -9,28 +9,33 @@ use App\Models\User;
 
 class CustomerPolicy
 {
+    private function canManage(User $user): bool
+    {
+        return in_array($user->role, ['admin', 'staff'], true) || $user->tokenCan('*');
+    }
+
     public function viewAny(User $user): bool
     {
-        return $user->tokenCan('customers:list') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('customers:list');
     }
 
     public function view(User $user, Customer $customer): bool
     {
-        return $user->tokenCan('customers:view') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('customers:view');
     }
 
     public function create(User $user): bool
     {
-        return $user->tokenCan('customers:create') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('customers:create');
     }
 
     public function update(User $user, Customer $customer): bool
     {
-        return $user->tokenCan('customers:update') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('customers:update');
     }
 
     public function delete(User $user, Customer $customer): bool
     {
-        return $user->tokenCan('customers:delete') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('customers:delete');
     }
 }

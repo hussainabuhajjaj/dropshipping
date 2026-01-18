@@ -21,6 +21,8 @@ class HomeController extends Controller
     use TransformsProducts;
     public function __invoke(): JsonResponse
     {
+        // NOTE: Home page data assembly is duplicated in Storefront\\HomeController.
+        // Keep in sync if you change sections, ordering, or limits.
         $baseQuery = Product::query()
             ->where('is_active', true)
             ->with(['images', 'category', 'variants', 'translations'])
@@ -63,8 +65,11 @@ class HomeController extends Controller
             ->get();
 
         $categories = Category::query()
-            ->withCount('products')
+            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
             ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->whereHas('products', fn ($q) => $q->where('is_active', true))
+            ->orderByDesc('view_count')
             ->orderByDesc('products_count')
             ->take(8)
             ->get()
@@ -186,6 +191,8 @@ class HomeController extends Controller
 
     private function formatImage(?string $image): ?string
     {
+        // NOTE: Image URL normalization is duplicated in Storefront HomeController
+        // and HandleInertiaRequests. Keep in sync if URL handling changes.
         if (! $image) {
             return null;
         }

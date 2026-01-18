@@ -10,7 +10,7 @@
           loading="lazy"
         />
         <span v-if="productPromotion" class="badge-accent absolute right-3 top-3">
-          {{ productPromotion.name }}
+          {{ productPromotion.badge_text || productPromotion.name }}
           <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
           <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }} {{ currency }}</span>
         </span>
@@ -69,6 +69,9 @@
       <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
         {{ t('Ends in') }} {{ promoCountdown }}
       </p>
+      <p v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-[0.65rem] text-slate-500">
+        {{ productPromotion.apply_hint }}
+      </p>
       <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <Link
@@ -117,13 +120,15 @@ const now = usePromoNow()
 // Promotion logic
 const productPromotion = computed(() => {
   if (!props.promotions?.length) return null
-  return props.promotions.find(p =>
+  const targeted = props.promotions.find(p =>
     (p.targets || []).some(t => {
       if (t.target_type === 'product') return t.target_id == props.product.id
       if (t.target_type === 'category') return t.target_id == props.product.category_id
       return false
     })
   )
+  if (targeted) return targeted
+  return props.promotions.find(p => p.is_sitewide) ?? null
 })
 const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))
 
@@ -132,7 +137,7 @@ const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
   if (!promo) return false
   if (promo.value_type !== 'percentage' && promo.value_type !== 'fixed') return false
-  if (Array.isArray(promo.conditions) && promo.conditions.length) return false
+  if (promo.has_conditions || promo.is_sitewide) return false
   return true
 })
 

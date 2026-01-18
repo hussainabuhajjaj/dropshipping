@@ -17,6 +17,7 @@ class Category extends Model
         'cj_id',
         'cj_payload',
         'is_active',
+        'view_count',
         'name',
         'slug',
         'description',
@@ -33,6 +34,7 @@ class Category extends Model
     protected $casts = [
         'cj_payload' => 'array',
         'is_active' => 'boolean',
+        'view_count' => 'int',
     ];
 
     public function products(): HasMany

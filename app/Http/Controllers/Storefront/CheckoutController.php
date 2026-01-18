@@ -116,7 +116,7 @@ class CheckoutController extends Controller
 
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
-        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
 
         return Inertia::render('Checkout/Index', [
             'subtotal' => $subtotal,
@@ -272,7 +272,7 @@ class CheckoutController extends Controller
                 OrderShipping::query()->create($shipping);
             }
 
-            $this->recordPromotionUsage($order, $promotionDiscounts);
+            $this->recordPromotionUsage($order, $promotionDiscounts, $subtotal, $discountSource);
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);
 
             // Create payment
@@ -471,7 +471,7 @@ class CheckoutController extends Controller
     /**
      * @param array<int, array<string, mixed>> $promotionDiscounts
      */
-    private function recordPromotionUsage(Order $order, array $promotionDiscounts): void
+    private function recordPromotionUsage(Order $order, array $promotionDiscounts, float $subtotal, ?string $campaignSource): void
     {
         if (empty($promotionDiscounts)) {
             return;
@@ -486,17 +486,37 @@ class CheckoutController extends Controller
                 'promotion_id' => $discount['promotion_id'],
                 'user_id' => null,
                 'order_id' => $order->id,
+                'discount_amount' => $discount['amount'] ?? null,
                 'used_at' => $now,
+                'meta' => [
+                    'promotion_intent' => $discount['intent'] ?? null,
+                    'pre_discount_subtotal' => $subtotal,
+                    'discount_breakdown' => $promotionDiscounts,
+                    'chosen_campaign_source' => $campaignSource,
+                ],
             ]);
         }
+
+        $intents = collect($promotionDiscounts)->pluck('intent')->filter()->unique()->values();
+        $intentLabels = $intents->map(function ($intent) {
+            return match ($intent) {
+                'shipping_support' => 'Logistics support applied',
+                'cart_growth' => 'Cart growth discount applied',
+                'urgency' => 'Flash deal applied',
+                'acquisition' => 'Acquisition offer applied',
+                default => 'Promotion applied',
+            };
+        })->unique()->values()->all();
 
         OrderAuditLog::create([
             'order_id' => $order->id,
             'user_id' => null,
             'action' => 'promotion_applied',
-            'note' => 'Promotions applied during checkout',
+            'note' => $intentLabels ? implode(' | ', $intentLabels) : 'Promotions applied during checkout',
             'payload' => [
                 'discounts' => $promotionDiscounts,
+                'pre_discount_subtotal' => $subtotal,
+                'chosen_campaign_source' => $campaignSource,
             ],
         ]);
     }

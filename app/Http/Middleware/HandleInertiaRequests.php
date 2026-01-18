@@ -10,8 +10,9 @@ use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Models\SiteSetting;
 use App\Models\StorefrontSetting;
 use App\Services\Promotions\PromotionHomepageService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use App\Models\StorefrontBanner;
+use Illuminate\Support\Facades\Storage;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -49,7 +50,10 @@ class HandleInertiaRequests extends Middleware
         $cart_quantities = isset($cart) ? $cart->items->sum('quantity') : 0;
         $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
         $cartSubtotal = isset($cart) ? $cart->subTotal() : 0;
-        //        $cart = collect($request->session()->get('cart', []));
+        // Legacy session-cart logic kept for reference only.
+        // The canonical cart source is the Cart model + CartResource above.
+        // If you reintroduce session carts, update both totals + line serialization.
+//        $cart = collect($request->session()->get('cart', []));
 //        $cartSubtotal = $cart->reduce(function ($carry, $line) {
 //            return $carry + ((float) ($line['price'] ?? 0) * (int) ($line['quantity'] ?? 0));
 //        }, 0.0);
@@ -104,11 +108,64 @@ class HandleInertiaRequests extends Middleware
                 'image' => $site?->logo_path ?? null,
             ],
             'categories' => $this->rootCategoriesTree(['children', 'children.children']),
-            'homepagePromotions' => Cache::remember(
-                'storefront.homepagePromotions',
-                now()->addMinutes(5),
-                fn () => app(PromotionHomepageService::class)->getHomepagePromotions()
-            ),
+            'homepagePromotions' => app(PromotionHomepageService::class)->getHomepagePromotions(),
+            'popupBanners' => $this->popupBanners(),
         ];
+    }
+
+    private function popupBanners(): array
+    {
+        $banners = StorefrontBanner::active()
+            ->byDisplayType('popup')
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+
+        return $banners->map(function (StorefrontBanner $banner) {
+            return [
+                'id' => $banner->id,
+                'title' => $banner->title,
+                'description' => $banner->description,
+                'imagePath' => $this->resolveBannerImage($banner),
+                'badgeText' => $banner->badge_text,
+                'ctaText' => $banner->cta_text,
+                'ctaUrl' => $banner->getCtaUrl(),
+                'ends_at' => $banner->ends_at,
+                'promotion' => null,
+            ];
+        })->values()->all();
+    }
+
+    private function resolveBannerImage(StorefrontBanner $banner): ?string
+    {
+        if ($banner->image_path) {
+            return $this->resolveImagePath($banner->image_path);
+        }
+
+        if ($banner->target_type === 'product' && $banner->product) {
+            $image = $banner->product->images?->first()?->url ?? null;
+            return $this->resolveImagePath($image);
+        }
+
+        if ($banner->target_type === 'category' && $banner->category) {
+            return $this->resolveImagePath($banner->category->hero_image ?? null);
+        }
+
+        return null;
+    }
+
+    private function resolveImagePath(?string $path): ?string
+    {
+        // NOTE: Image URL normalization is duplicated in HomeController + API controller.
+        // Keep in sync if URL handling changes.
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return Storage::url($path);
     }
 }

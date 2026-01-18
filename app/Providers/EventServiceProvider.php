@@ -28,6 +28,8 @@ use App\Listeners\Customers\SendWelcomeNotification;
 use App\Listeners\Auth\LogAdminLogin;
 use App\Domain\Products\Models\Product;
 use App\Observers\ProductObserver;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -41,6 +43,9 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         Login::class => [
             LogAdminLogin::class,
+        ],
+        Registered::class => [
+            SendEmailVerificationNotification::class,
         ],
         OrderPlaced::class => [
             SendOrderConfirmedNotification::class,

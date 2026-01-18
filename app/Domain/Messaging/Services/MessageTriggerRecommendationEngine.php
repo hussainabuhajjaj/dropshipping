@@ -13,6 +13,8 @@ use Illuminate\Support\Collection;
  */
 class MessageTriggerRecommendationEngine
 {
+    // NOTE: Currently not referenced. Kept for future rule-based recommendations.
+    // If reintroduced, align with MessageTemplateService condition matching.
     protected MessageTemplateService $service;
 
     public function __construct(MessageTemplateService $service)

@@ -9,6 +9,11 @@ use App\Models\User;
 
 class CategoryPolicy
 {
+    private function canManage(User $user): bool
+    {
+        return in_array($user->role, ['admin', 'staff'], true) || $user->tokenCan('*');
+    }
+
     /**
      * Determine if the user can view any categories.
      */
@@ -30,7 +35,7 @@ class CategoryPolicy
      */
     public function create(User $user): bool
     {
-        return $user->tokenCan('categories:create') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('categories:create');
     }
 
     /**
@@ -38,7 +43,7 @@ class CategoryPolicy
      */
     public function update(User $user, Category $category): bool
     {
-        return $user->tokenCan('categories:update') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('categories:update');
     }
 
     /**
@@ -54,6 +59,6 @@ class CategoryPolicy
             return false;
         }
 
-        return $user->tokenCan('categories:delete') || $user->tokenCan('*');
+        return $this->canManage($user) || $user->tokenCan('categories:delete');
     }
 }

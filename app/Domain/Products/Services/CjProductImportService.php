@@ -120,12 +120,18 @@ class CjProductImportService
         $payloadAttributes = is_array($productData['attributes'] ?? null) ? $productData['attributes'] : [];
         $existingAttributes = is_array($product?->attributes) ? $product->attributes : [];
 
+        $variantPayload = is_array($variants) ? $variants : ($existingAttributes['cj_variants'] ?? []);
+        if (! is_array($variantPayload)) {
+            $variantPayload = [];
+        }
+
         $attributes = array_merge(
             $existingAttributes,
             $payloadAttributes,
             [
                 'cj_pid' => $pid,
                 'cj_payload' => $productData,
+                'cj_variants' => $variantPayload,
             ]
         );
 

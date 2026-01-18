@@ -12,6 +12,7 @@ class HomePageSetting extends Model
         'top_strip',
         'hero_slides',
         'rail_cards',
+        'category_highlights',
         'banner_strip',
     ];
 
@@ -19,6 +20,7 @@ class HomePageSetting extends Model
         'top_strip' => 'array',
         'hero_slides' => 'array',
         'rail_cards' => 'array',
+        'category_highlights' => 'array',
         'banner_strip' => 'array',
     ];
 }

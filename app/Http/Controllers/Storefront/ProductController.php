@@ -71,7 +71,7 @@ class ProductController extends Controller
 
         $productIds = $products->getCollection()->pluck('id')->all();
         $categoryIds = $products->getCollection()->pluck('category_id')->filter()->unique()->values()->all();
-        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('product', $productIds, $categoryIds);
 
         return Inertia::render('Products/Index', [
             'products' => $products,
@@ -159,7 +159,8 @@ class ProductController extends Controller
                 ->map(fn (Product $p) => $this->transformProduct($p));
         }
 
-        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets(
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForPlacement(
+            'product',
             [$product->id],
             [$product->category_id]
         );

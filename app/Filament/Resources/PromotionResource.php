@@ -6,6 +6,7 @@ use App\Filament\Resources\PromotionResource\Pages;
 use App\Models\Promotion;
 use BackedEnum;
 use Filament\Forms;
+use Filament\Forms\Components\Placeholder;
 use Filament\Resources\Form;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -13,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Carbon;
 use UnitEnum;
 
 class PromotionResource extends Resource
@@ -43,6 +45,78 @@ class PromotionResource extends Resource
                 Forms\Components\TextInput::make('value')->numeric()->required(),
                 Forms\Components\DateTimePicker::make('start_at'),
                 Forms\Components\DateTimePicker::make('end_at'),
+                Forms\Components\Select::make('promotion_intent')
+                    ->label('Intent')
+                    ->options([
+                        'shipping_support' => 'Shipping support',
+                        'cart_growth' => 'Cart growth',
+                        'urgency' => 'Urgency',
+                        'acquisition' => 'Acquisition',
+                        'other' => 'Other',
+                    ])
+                    ->default('other')
+                    ->required(),
+                Forms\Components\Select::make('display_placements')
+                    ->label('Display placements')
+                    ->multiple()
+                    ->options([
+                        'home' => 'Homepage',
+                        'category' => 'Category page',
+                        'product' => 'Product page',
+                        'cart' => 'Cart',
+                        'checkout' => 'Checkout',
+                    ])
+                    ->helperText('Leave empty to allow display on all placements.'),
+                Placeholder::make('duration_warning')
+                    ->label('Timing warning')
+                    ->content(function (callable $get): string {
+                        $start = $get('start_at');
+                        $end = $get('end_at');
+
+                        if (! $start || ! $end) {
+                            return 'Set both start and end times to validate duration.';
+                        }
+
+                        try {
+                            $startAt = Carbon::parse($start);
+                            $endAt = Carbon::parse($end);
+                        } catch (\Throwable) {
+                            return 'Unable to read start/end times.';
+                        }
+
+                        if ($endAt->lte($startAt)) {
+                            return 'End time must be after start time.';
+                        }
+
+                        $diffSeconds = $endAt->diffInSeconds($startAt);
+                        if ($diffSeconds < 300) {
+                            return 'Promotion duration is under 5 minutes. Short windows are easy to miss and may not display as expected.';
+                        }
+
+                        return 'Duration looks OK.';
+                    })
+                    ->visible(function (callable $get): bool {
+                        $start = $get('start_at');
+                        $end = $get('end_at');
+
+                        if (! $start || ! $end) {
+                            return true;
+                        }
+
+                        try {
+                            $startAt = Carbon::parse($start);
+                            $endAt = Carbon::parse($end);
+                        } catch (\Throwable) {
+                            return true;
+                        }
+
+                        if ($endAt->lte($startAt)) {
+                            return true;
+                        }
+
+                        return $endAt->diffInSeconds($startAt) < 300;
+                    })
+                    ->extraAttributes(['class' => 'text-sm text-amber-600']),
                 Forms\Components\TextInput::make('priority')->numeric()->default(0),
                 Forms\Components\Toggle::make('is_active')->default(true),
                 Forms\Components\Select::make('stacking_rule')
@@ -101,13 +175,15 @@ class PromotionResource extends Resource
                             Forms\Components\Select::make('condition_type')
                                 ->options([
                                     'min_cart_value' => 'Minimum Cart Value',
+                                    'max_discount' => 'Maximum Discount',
+                                    'first_order_only' => 'First Order Only',
                                 ])
                                 ->required()
                                 ->label('Condition Type'),
                             Forms\Components\TextInput::make('condition_value')
                                 ->numeric()
                                 ->label('Value')
-                                ->helperText('For minimum cart value, enter the minimum subtotal required.'),
+                                ->helperText('For first-order-only, leave blank. For max discount, enter the cap amount.'),
                         ])
                         ->label('Promotion Conditions')
                         ->createItemButtonLabel('Add Condition'),

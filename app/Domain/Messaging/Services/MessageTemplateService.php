@@ -79,9 +79,21 @@ class MessageTemplateService
     private function sendEmail(MessageLog $log): void
     {
         try {
-            // TODO: Implement email sending
-            // Mail::to($log->recipient)->send(new \App\Mail\CustomerMessageMail($log));
-            $log->update(['status' => 'sent']);
+            if (! $log->recipient) {
+                $log->update([
+                    'status' => 'failed',
+                    'error_message' => 'Missing email recipient.',
+                ]);
+                return;
+            }
+
+            Mail::to($log->recipient)->send(new \App\Mail\MessageLogMail($log));
+
+            $log->update([
+                'status' => 'sent',
+                'sent_at' => now(),
+                'error_message' => null,
+            ]);
         } catch (\Exception $e) {
             $log->update([
                 'status' => 'failed',

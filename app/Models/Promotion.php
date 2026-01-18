@@ -8,7 +8,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Promotion extends Model
 {
     protected $fillable = [
-        'name', 'description', 'type', 'value_type', 'value', 'start_at', 'end_at', 'priority', 'is_active', 'stacking_rule',
+        'name',
+        'description',
+        'type',
+        'value_type',
+        'value',
+        'start_at',
+        'end_at',
+        'priority',
+        'is_active',
+        'stacking_rule',
+        'promotion_intent',
+        'display_placements',
     ];
 
     protected $casts = [
@@ -16,6 +27,7 @@ class Promotion extends Model
         'start_at' => 'datetime',
         'end_at' => 'datetime',
         'value' => 'float',
+        'display_placements' => 'array',
     ];
 
     public function targets(): HasMany

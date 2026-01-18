@@ -146,7 +146,7 @@
 </template>
 
 <script setup>
-import { toRefs, watch } from 'vue'
+import { computed, toRefs, watch } from 'vue'
 import { usePersistentCart } from '@/composables/usePersistentCart.js'
 import { useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
