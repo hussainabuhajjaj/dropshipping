@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cart;
 use App\Models\Customer;
 use App\Events\Customers\CustomerRegistered;
 use Illuminate\Auth\Events\Registered;
@@ -33,7 +34,7 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:'.Customer::class,
+            'email' => 'required|string|lowercase|email|max:255|unique:' . Customer::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
@@ -51,8 +52,15 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
         event(new CustomerRegistered($user));
 
+        $cart = Cart::query()->where('user_id', $user->id)
+            ->orWhere('session_id', session()->id())
+            ->first();
+
         Auth::guard('customer')->login($user);
 
+        if (isset($cart)){
+            $cart->moveToUser();
+        }
         return redirect(route('account.index', absolute: false));
     }
 }
