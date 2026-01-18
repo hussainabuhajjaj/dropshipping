@@ -461,15 +461,21 @@
                 >
                     <div
                         v-if="megaMenuOpen && selectedCategory"
-                        class="absolute left-0 right-0 top-full z-40 border-t border-slate-200 bg-white shadow-2xl"
+                        class="absolute left-0 right-0 top-full z-40 border-t border-slate-200 bg-white/75 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 relative"
                         @mouseenter="cancelMegaMenuClose"
                         @mouseleave="scheduleMegaMenuClose"
                     >
-                        <div class="container mx-auto px-4 py-8">
+                        <div aria-hidden="true" class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+                            <div class="absolute -top-28 left-[-7rem] h-80 w-80 rounded-full bg-[var(--brand-primary)] opacity-20 blur-3xl"/>
+                            <div class="absolute -top-32 right-[-7rem] h-80 w-80 rounded-full bg-[var(--brand-primary-2)] opacity-15 blur-3xl"/>
+                            <div class="absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-[var(--brand-primary)] opacity-10 blur-3xl"/>
+                        </div>
+
+                        <div class="container mx-auto px-4 py-8 relative z-10">
                             <div class="grid grid-cols-1 gap-8 lg:grid-cols-5">
                                 <!-- 4 Columns of Links -->
                                 <div v-for="(section, idx) in selectedCategory.sections" :key="'section-' + idx"
-                                     class="space-y-3">
+                                      class="space-y-3">
                                     <h3 class="text-sm font-bold uppercase tracking-wider text-[#0f172a]">
                                         {{ section.title }}
                                     </h3>
@@ -487,31 +493,49 @@
 
                                 <!-- Subcategories -->
                                 <div v-if="selectedCategory.children && selectedCategory.children.length"
-                                     class="space-y-3">
-                                    <h3 class="text-sm font-bold uppercase tracking-wider text-[#0f172a]">
-                                        <!-- {{ t('Subcategories') }} -->
-                                    </h3>
-                                    <ul class="space-y-2">
+                                     class="space-y-4 lg:col-span-4 lg:max-h-[60vh] lg:overflow-y-auto lg:pr-3">
+                                    <ul class="grid grid-cols-2 gap-4">
                                         <li v-for="child in selectedCategory.children" :key="child.slug || child.name"
-                                            class="flex items-center gap-2">
-                                            <img
-                                                v-if="child.image"
-                                                :src="child.image"
-                                                alt=""
-                                                class="h-7 w-7 rounded-md object-cover border border-slate-200 bg-white"
-                                            />
-                                            <img
-                                                v-else
-                                                src="/images/category-default.png"
-                                                alt=""
-                                                class="h-7 w-7 rounded-md object-cover border border-slate-200 bg-white"
-                                            />
+                                            class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 transition hover:bg-white">
                                             <Link
                                                 :href="categoryHref(child)"
-                                                class="block text-sm text-slate-600 transition hover:text-[#2563eb]"
+                                                class="flex items-center gap-3"
                                             >
-                                                {{ child.name }}
+                                                <img
+                                                    v-if="child.image"
+                                                    :src="child.image"
+                                                    alt=""
+                                                    class="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
+                                                />
+                                                <img
+                                                    v-else
+                                                    src="/images/category-default.png"
+                                                    alt=""
+                                                    class="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
+                                                />
+                                                <span
+                                                    class="min-w-0 truncate text-sm font-semibold text-slate-800 transition hover:text-[#2563eb]"
+                                                >
+                                                    {{ child.name }}
+                                                </span>
                                             </Link>
+
+                                            <ul
+                                                v-if="child.children && child.children.length"
+                                                class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-200 pt-3"
+                                            >
+                                                <li
+                                                    v-for="grandChild in child.children"
+                                                    :key="grandChild.slug || grandChild.name"
+                                                >
+                                                    <Link
+                                                        :href="categoryHref(grandChild)"
+                                                        class="block text-xs leading-5 text-slate-600 transition hover:text-[#2563eb]"
+                                                    >
+                                                        {{ grandChild.name }}
+                                                    </Link>
+                                                </li>
+                                            </ul>
                                         </li>
                                     </ul>
                                 </div>
@@ -651,16 +675,28 @@
                                     {{ category.name }}
                                 </Link>
 
-                                <div v-if="category.children?.length" class="space-y-1 pl-8 text-xs text-slate-600">
-                                    <Link
-                                        v-for="child in category.children"
-                                        :key="child.slug || child.name"
-                                        :href="categoryHref(child)"
-                                        class="block rounded-lg text-xs font-semibold text-slate-600 transition hover:text-slate-900"
-                                        @click="mobileOpen = false"
-                                    >
-                                        {{ child.name }}
-                                    </Link>
+                                <div v-if="category.children?.length" class="space-y-2 pl-8 text-xs text-slate-600">
+                                    <div v-for="child in category.children" :key="child.slug || child.name" class="space-y-1">
+                                        <Link
+                                            :href="categoryHref(child)"
+                                            class="block rounded-lg text-xs font-semibold text-slate-600 transition hover:text-slate-900"
+                                            @click="mobileOpen = false"
+                                        >
+                                            {{ child.name }}
+                                        </Link>
+
+                                        <div v-if="child.children?.length" class="space-y-1 pl-4">
+                                            <Link
+                                                v-for="grandChild in child.children"
+                                                :key="grandChild.slug || grandChild.name"
+                                                :href="categoryHref(grandChild)"
+                                                class="block rounded-lg text-[0.7rem] font-medium text-slate-500 transition hover:text-slate-900"
+                                                @click="mobileOpen = false"
+                                            >
+                                                {{ grandChild.name }}
+                                            </Link>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

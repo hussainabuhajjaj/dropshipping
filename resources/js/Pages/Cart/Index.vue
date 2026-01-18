@@ -13,6 +13,7 @@
                         :key="line.id"
                         :line="line"
                         :currency="currency"
+                        :promotions="displayPromotions"
                         @remove="removeLine(line.id)"
                         @update="updateQty"
                     />
@@ -47,18 +48,21 @@
                         </p>
 
                         <!--             Applied Promotions (not just coupon) -->
-                        <div v-if="appliedPromotions && appliedPromotions.length" class="applied-promotions">
+                        <div v-if="displayPromotions && displayPromotions.length" class="applied-promotions">
                             <div class="text-xs font-semibold text-green-700 mb-1">{{ t('Promotions applied:') }}</div>
                             <ul class="space-y-1">
-                                <li v-for="promo in appliedPromotions" :key="promo.id" class="text-xs text-slate-700">
+                                <li v-for="promo in displayPromotions" :key="promo.id" class="text-xs text-slate-700">
                                     <span class="font-semibold">{{ promo.name }}</span>
                                     <span class="ml-1">({{
                                             promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount')
                                         }})</span>
-                                    <span class="ml-2" v-if="promo.value_type === 'percent'">-{{ promo.value }}%</span>
-                                    <span class="ml-2" v-else-if="promo.value_type === 'amount'">-{{
+                                    <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
+                                    <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{
                                             displayPrice(promo.value)
                                         }}</span>
+                                    <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
+                                        {{ t('Ends in') }} {{ promoCountdown(promo) }}
+                                    </span>
                                 </li>
                             </ul>
                         </div>
@@ -71,7 +75,10 @@
                         <span class="font-semibold text-slate-900">{{ displayPrice(subtotal) }}</span>
                     </div>
                     <div class="flex items-center justify-between text-sm text-green-700" v-if="discount > 0">
-                        <span>{{ t('Discount') }}</span>
+                        <span>
+                            {{ t('Discount') }}
+                            <span v-if="discountLabel" class="text-xs text-slate-500">({{ discountLabel }})</span>
+                        </span>
                         <span>- {{ displayPrice(discount) }}</span>
                     </div>
                     <div class="flex items-center justify-between text-sm text-slate-600">
@@ -117,6 +124,7 @@ import EmptyState from '@/Components/EmptyState.vue'
 import {ref, computed} from 'vue'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
     lines: {type: Array, required: true},
@@ -124,11 +132,20 @@ const props = defineProps({
     subtotal: {type: Number, default: 0},
     shipping: {type: Number, default: 0},
     discount: {type: Number, default: 0},
+    discount_label: {type: String, default: null},
     coupon: {type: Object, default: null},
+    appliedPromotions: {type: Array, default: () => []},
+    cartPromotions: {type: Array, default: () => []},
     user: {type: Object, default: null},
 })
 
 const {t} = useTranslations()
+const now = usePromoNow()
+const discountLabel = computed(() => props.discount_label)
+const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
+const displayPromotions = computed(() =>
+    props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
+)
 
 const couponCode = ref('')
 

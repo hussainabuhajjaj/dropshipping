@@ -489,6 +489,33 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             ->success()
                             ->send();
                     }),
+                Action::make('importReviews')
+                    ->label('Import reviews')
+                    ->icon('heroicon-o-star')
+                    ->requiresConfirmation()
+                    ->visible(fn (Product $record) => filled($record->cj_pid))
+                    ->action(function (Product $record): void {
+                        $importer = app(CjProductImportService::class);
+
+                        try {
+                            $result = $importer->syncReviews($record, [
+                                'throwOnFailure' => true,
+                            ]);
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->title('Error importing reviews')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Reviews imported')
+                            ->body("Fetched {$result['fetched']} | Created {$result['created']} | Updated {$result['updated']}")
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('translate')
                     ->label('Translate')
                     ->icon('heroicon-o-language')
@@ -634,6 +661,40 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             Notification::make()
                                 ->title('CJ sync complete')
                                 ->body("Synced {$synced} product(s), skipped {$skipped}, errors {$errors}.")
+                                 ->success()
+                                 ->send();
+                         }),
+                    BulkAction::make('importReviews')
+                        ->label('Import reviews')
+                        ->icon('heroicon-o-star')
+                        ->requiresConfirmation()
+                        ->action(function (Collection $records): void {
+                            $importer = app(CjProductImportService::class);
+
+                            $targets = $records->filter(fn (Product $record) => (bool) $record->cj_pid);
+                            $created = 0;
+                            $updated = 0;
+                            $fetched = 0;
+                            $errors = 0;
+
+                            foreach ($targets as $record) {
+                                try {
+                                    $result = $importer->syncReviews($record, [
+                                        'throwOnFailure' => true,
+                                    ]);
+                                } catch (\Throwable) {
+                                    $errors++;
+                                    continue;
+                                }
+
+                                $created += (int) ($result['created'] ?? 0);
+                                $updated += (int) ($result['updated'] ?? 0);
+                                $fetched += (int) ($result['fetched'] ?? 0);
+                            }
+
+                            Notification::make()
+                                ->title('Review import complete')
+                                ->body("Products {$targets->count()} | Fetched {$fetched} | Created {$created} | Updated {$updated} | Errors {$errors}")
                                 ->success()
                                 ->send();
                         }),

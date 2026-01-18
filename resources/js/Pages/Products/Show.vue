@@ -60,7 +60,17 @@
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.2em] text-slate-400">
             {{ product.category ?? 'Simbazu' }}
-            <span v-if="productPromotion" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
+            <span
+              v-if="productPromotion"
+              class="ml-2 inline-flex items-center gap-1 rounded bg-yellow-200 px-2 py-0.5 font-bold text-yellow-900"
+            >
+              {{ productPromotion.name }}
+              <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
+              <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }}</span>
+            </span>
+            <span v-if="promoCountdown" class="ml-2 text-[10px] font-semibold text-amber-700">
+              {{ t('Ends in') }} {{ promoCountdown }}
+            </span>
           </p>
           <h1 class="text-3xl font-semibold tracking-tight text-slate-900">{{ product.name }}</h1>
           <p class="text-sm text-slate-600">{{ descriptionText }}</p>
@@ -70,8 +80,8 @@
           <span class="text-2xl font-semibold text-slate-900">
             {{ currency }} {{ displayPrice.toFixed(2) }}
           </span>
-          <span v-if="selectedVariant?.compare_at_price" class="text-sm text-slate-400 line-through">
-            {{ currency }} {{ Number(selectedVariant.compare_at_price).toFixed(2) }}
+          <span v-if="compareAtForDisplay" class="text-sm text-slate-400 line-through">
+            {{ currency }} {{ Number(compareAtForDisplay).toFixed(2) }}
           </span>
           <span v-if="stockBadge.label" :class="stockBadge.class" class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
             <span class="h-2 w-2 rounded-full" :class="stockBadge.dot" />
@@ -371,7 +381,13 @@
         <Link href="/products" class="btn-ghost">{{ t('Browse all') }}</Link>
       </div>
       <div v-if="relatedProducts.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ProductCard v-for="item in relatedProducts" :key="item.id" :product="item" :currency="currency" :promotions="page.props.homepagePromotions || []" />
+        <ProductCard
+          v-for="item in relatedProducts"
+          :key="item.id"
+          :product="item"
+          :currency="currency"
+          :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
+        />
       </div>
       <div v-else class="card-muted p-5 text-sm text-slate-600">
         {{ t('Explore more products with predictable delivery and upfront customs details.') }}
@@ -385,17 +401,21 @@
 function productPromotionForDetails(product, promotions) {
   if (!promotions?.length) return null
   return promotions.find(p =>
-    (p.targets || []).some(t => t.target_type === 'product' && (t.target_id == product.id || t.target_value == product.name))
+    (p.targets || []).some(t => {
+      if (t.target_type === 'product') return t.target_id == product.id
+      if (t.target_type === 'category') return t.target_id == product.category_id
+      return false
+    })
   )
 }
 
-const productPromotion = computed(() => productPromotionForDetails(props.product, page.props.homepagePromotions || []))
 import { computed, ref } from 'vue'
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -408,6 +428,15 @@ const props = defineProps({
 })
 
 const { t, locale } = useTranslations()
+const now = usePromoNow()
+
+const promotionPriceDiscountable = computed(() => {
+  const promo = productPromotion.value
+  if (!promo) return false
+  if (promo.value_type !== 'percentage' && promo.value_type !== 'fixed') return false
+  if (Array.isArray(promo.conditions) && promo.conditions.length) return false
+  return true
+})
 
 const form = useForm({
   product_id: props.product.id,
@@ -432,8 +461,33 @@ const selectedVariant = computed(() => {
   return props.product.variants?.find((variant) => variant.id === selectedVariantId.value) ?? null
 })
 
+const basePriceForDisplay = computed(() => Number(selectedVariant.value?.price ?? props.product.price ?? 0))
+
+const compareAtForDisplay = computed(() => {
+  const compareAt = selectedVariant.value?.compare_at_price
+  if (compareAt) return compareAt
+  if (promotionPriceDiscountable.value) return basePriceForDisplay.value
+  return null
+})
+
 const displayPrice = computed(() => {
-  return selectedVariant.value?.price ?? Number(props.product.price ?? 0)
+  const base = basePriceForDisplay.value
+  if (!promotionPriceDiscountable.value || base <= 0) {
+    return base
+  }
+  if (selectedVariant.value?.compare_at_price) {
+    return base
+  }
+
+  const promo = productPromotion.value
+  if (promo?.value_type === 'percentage') {
+    const pct = Number(promo.value ?? 0)
+    const discounted = base * (1 - pct / 100)
+    return Math.max(0, Number(discounted.toFixed(2)))
+  }
+
+  const amount = Number(promo?.value ?? 0)
+  return Math.max(0, Number((base - amount).toFixed(2)))
 })
 
 const selectVariant = (id) => {
@@ -469,6 +523,10 @@ const selectedImage = ref(props.product.media?.[0] ?? null)
 const activeTab = ref('description')
 
 const page = usePage()
+const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
+const productPromotion = computed(() => productPromotionForDetails(props.product, activePromotions.value))
+const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))
+
 const authUser = computed(() => page.props.auth?.user ?? null)
 const successMessage = ref(page.props.flash?.cart_notice ?? '')
 const reviewNotice = ref(page.props.flash?.review_notice ?? '')

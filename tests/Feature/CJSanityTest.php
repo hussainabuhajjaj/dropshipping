@@ -6,7 +6,9 @@ namespace Tests\Feature;
 
 use App\Domain\Products\Services\CjProductImportService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\Api\ApiResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\TestCase;
 
@@ -20,15 +22,31 @@ class CJSanityTest extends TestCase
      */
     public function test_cheap_item_import_payload_correctness(): void
     {
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $client = Mockery::mock(CJDropshippingClient::class);
-        $client->shouldReceive('getVariantsByPid')->andReturn((object) ['data' => [
+        $client->shouldReceive('getVariantsByPid')->andReturn(ApiResponse::success([
             [
                 'vid' => 'V123',
                 'variantSku' => 'SKU-CHEAP-1',
                 'variantName' => 'Color: Red',
                 'variantSellPrice' => 5.99,
             ],
-        ]]);
+        ]));
+        $client->shouldReceive('getProductReviews')->andReturn(ApiResponse::success([
+            'pageNum' => '1',
+            'pageSize' => '50',
+            'total' => '0',
+            'list' => [],
+        ]));
 
         $media = Mockery::mock(\App\Domain\Products\Services\CjProductMediaService::class);
         $media->shouldReceive('cleanDescription')->andReturnUsing(fn ($desc) => $desc);
@@ -60,7 +78,7 @@ class CJSanityTest extends TestCase
         $this->assertNotNull($product, 'Cheap item should import successfully');
         $this->assertDatabaseHas('products', [
             'cj_pid' => 'CHEAP001',
-            'selling_price' => 5.99,
+            'cost_price' => 5.99,
         ]);
         $this->assertDatabaseHas('product_variants', [
             'sku' => 'SKU-CHEAP-1',
@@ -74,8 +92,18 @@ class CJSanityTest extends TestCase
      */
     public function test_variant_heavy_item_import(): void
     {
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $client = Mockery::mock(CJDropshippingClient::class);
-        $client->shouldReceive('getVariantsByPid')->andReturn((object) ['data' => [
+        $client->shouldReceive('getVariantsByPid')->andReturn(ApiResponse::success([
             [
                 'vid' => 'V201',
                 'variantSku' => 'SIZE-S',
@@ -100,7 +128,13 @@ class CJSanityTest extends TestCase
                 'variantName' => 'Size: XL',
                 'variantSellPrice' => 28.00,
             ],
-        ]]);
+        ]));
+        $client->shouldReceive('getProductReviews')->andReturn(ApiResponse::success([
+            'pageNum' => '1',
+            'pageSize' => '50',
+            'total' => '0',
+            'list' => [],
+        ]));
 
         $media = Mockery::mock(\App\Domain\Products\Services\CjProductMediaService::class);
         $media->shouldReceive('cleanDescription')->andReturnUsing(fn ($desc) => $desc);
@@ -139,8 +173,24 @@ class CJSanityTest extends TestCase
      */
     public function test_warehouse_filtered_item_import(): void
     {
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $client = Mockery::mock(CJDropshippingClient::class);
-        $client->shouldReceive('getVariantsByPid')->andReturn((object) ['data' => []]);
+        $client->shouldReceive('getVariantsByPid')->andReturn(ApiResponse::success([]));
+        $client->shouldReceive('getProductReviews')->andReturn(ApiResponse::success([
+            'pageNum' => '1',
+            'pageSize' => '50',
+            'total' => '0',
+            'list' => [],
+        ]));
 
         $media = Mockery::mock(\App\Domain\Products\Services\CjProductMediaService::class);
         $media->shouldReceive('cleanDescription')->andReturnUsing(fn ($desc) => $desc);

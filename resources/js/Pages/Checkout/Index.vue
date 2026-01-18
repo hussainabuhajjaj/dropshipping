@@ -94,8 +94,25 @@
             <span class="font-semibold text-slate-900">{{ currency }} {{ subtotal.toFixed(2) }}</span>
           </div>
           <div v-if="discount > 0" class="flex items-center justify-between text-sm text-green-700">
-            <span>{{ t('Discount') }} <span v-if="coupon?.code">({{ coupon.code }})</span></span>
+            <span>
+              {{ t('Discount') }}
+              <span v-if="discount_label" class="text-xs text-slate-500">({{ discount_label }})</span>
+            </span>
             <span>- {{ currency }} {{ discount.toFixed(2) }}</span>
+          </div>
+          <div v-if="displayPromotions.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-slate-700">
+            <div class="mb-1 font-semibold text-amber-700">{{ t('Promotions applied:') }}</div>
+            <ul class="space-y-1">
+              <li v-for="promo in displayPromotions" :key="promo.id">
+                <span class="font-semibold">{{ promo.name }}</span>
+                <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
+                <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
+                <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ currency }} {{ Number(promo.value).toFixed(2) }}</span>
+                <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
+                  {{ t('Ends in') }} {{ promoCountdown(promo) }}
+                </span>
+              </li>
+            </ul>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span>
@@ -135,6 +152,7 @@ import { useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
 import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
@@ -142,7 +160,10 @@ const props = defineProps({
   currency: { type: String, default: 'USD' },
   shipping_method: { type: String, default: 'standard' },
   discount: { type: Number, default: 0 },
+  discount_label: { type: String, default: null },
   coupon: { type: Object, default: null },
+  appliedPromotions: { type: Array, default: () => [] },
+  cartPromotions: { type: Array, default: () => [] },
   tax_total: { type: Number, default: 0 },
   tax_label: { type: String, default: 'Tax' },
   tax_included: { type: Boolean, default: false },
@@ -155,6 +176,11 @@ const props = defineProps({
 
 const { t } = useTranslations()
 const { subtotal, total, currency, shipping_method, discount, coupon, tax_total, tax_label, tax_included, shipping } = toRefs(props)
+const now = usePromoNow()
+const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
+const displayPromotions = computed(() =>
+  props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
+)
 
 const form = useForm({
   email: props.user?.email || '',

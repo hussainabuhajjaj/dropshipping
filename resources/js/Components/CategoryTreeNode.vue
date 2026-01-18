@@ -18,7 +18,10 @@
         </span>
         <span v-else class="text-slate-500">→</span>
         {{ category.name }}
-        <span v-if="categoryHasPromotion(category, promotions)" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
+        <span v-if="categoryPromotion(category)" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
+        <span v-if="categoryCountdown(category)" class="text-[10px] font-semibold text-amber-700">
+          {{ t('Ends in') }} {{ categoryCountdown(category) }}
+        </span>
       </Link>
 
       <!-- Nested children -->
@@ -26,6 +29,7 @@
         v-if="category.children && category.children.length"
         :categories="category.children"
         :level="level + 1"
+        :promotions="promotions"
       />
     </div>
   </div>
@@ -33,6 +37,8 @@
 
 <script setup>
 import { Link } from '@inertiajs/vue3'
+import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   categories: { type: Array, default: () => [] },
@@ -40,11 +46,19 @@ const props = defineProps({
   promotions: { type: Array, default: () => [] },
 })
 
-function categoryHasPromotion(category, promotions) {
-  if (!promotions || !promotions.length) return false
-  return promotions.some(p =>
-    (p.targets || []).some(t => t.target_type === 'category' && (t.target_value === category.name || t.target_id == category.id))
+const { t } = useTranslations()
+const now = usePromoNow()
+
+function categoryPromotion(category) {
+  if (!props.promotions || !props.promotions.length) return null
+  return props.promotions.find(p =>
+    (p.targets || []).some(t => t.target_type === 'category' && (t.target_id == category.id))
   )
+}
+
+function categoryCountdown(category) {
+  const promo = categoryPromotion(category)
+  return formatCountdown(promo?.end_at, now.value)
 }
 
 const categoryHref = (category) => {
