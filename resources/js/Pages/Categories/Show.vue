@@ -18,6 +18,17 @@
             <span>{{ t('Tracked delivery') }}</span>
             <span>{{ t('Customs clarity') }}</span>
           </div>
+          <div v-if="categoryPromotion" class="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            <span>{{ categoryPromotion.badge_text || categoryPromotion.name }}</span>
+            <span v-if="categoryPromotion.value_type === 'percentage'">-{{ categoryPromotion.value }}%</span>
+            <span v-else-if="categoryPromotion.value_type === 'fixed'">-{{ categoryPromotion.value }}</span>
+            <span v-if="categoryPromotion.apply_hint" class="text-[11px] font-medium text-amber-800">
+              {{ categoryPromotion.apply_hint }}
+            </span>
+            <span v-if="categoryPromoCountdown" class="text-[11px] font-semibold text-amber-700">
+              {{ t('Ends in') }} {{ categoryPromoCountdown }}
+            </span>
+          </div>
           <Link
             v-if="category.hero_cta_label && category.hero_cta_link"
             :href="category.hero_cta_link"
@@ -260,6 +271,7 @@ import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import { useTranslations } from '@/i18n'
+import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   category: { type: Object, required: true },
@@ -272,6 +284,22 @@ const props = defineProps({
 
 const { t } = useTranslations()
 const page = usePage ? usePage() : null
+const now = usePromoNow()
+
+const activePromotions = computed(() => {
+  return (page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []
+})
+
+const categoryPromotion = computed(() => {
+  if (!activePromotions.value.length) return null
+  return activePromotions.value.find((promo) => {
+    const targets = promo.targets || []
+    if (targets.length === 0) return promo.is_sitewide
+    return targets.some((target) => target.target_type === 'category' && target.target_id == props.category.id)
+  }) ?? null
+})
+
+const categoryPromoCountdown = computed(() => formatCountdown(categoryPromotion.value?.end_at, now.value))
 
 const form = reactive({
   q: props.filters.q ?? '',

@@ -34,7 +34,7 @@ class OrderItem extends DomainOrderItem
 
     public function shipments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(\App\Domain\Fulfillment\Models\Shipment::class);
+        return $this->hasMany(\App\Domain\Orders\Models\Shipment::class);
     }
 
     public function fulfillmentEvents(): \Illuminate\Database\Eloquent\Relations\HasMany

@@ -3,8 +3,7 @@
 namespace App\Services\Promotions;
 
 use App\Models\Promotion;
-use App\Models\PromotionTarget;
-use App\Models\PromotionCondition;
+use App\Models\Customer;
 use Illuminate\Support\Collection;
 
 class PromotionEngine
@@ -16,6 +15,8 @@ class PromotionEngine
      */
     public function getApplicablePromotions(array $cart): Collection
     {
+        // NOTE: This active/dated promotion query is duplicated in PromotionDisplayService
+        // and PromotionController::activePromotions(). Keep filters aligned when changing.
         $now = now();
         $promotions = Promotion::where('is_active', true)
             ->where(function ($q) use ($now) {
@@ -32,8 +33,9 @@ class PromotionEngine
         $productIds = $lines->pluck('product_id')->filter()->unique();
         $categoryIds = $lines->pluck('category_id')->filter()->unique();
         $subtotal = (float) ($cart['subtotal'] ?? 0);
+        $userId = $cart['user_id'] ?? null;
 
-        return $promotions->filter(function ($promotion) use ($productIds, $categoryIds, $subtotal) {
+        return $promotions->filter(function ($promotion) use ($productIds, $categoryIds, $subtotal, $userId) {
             $targets = $promotion->targets ?? collect();
             if ($targets->count() > 0) {
                 $matched = $targets->contains(function ($target) use ($productIds, $categoryIds) {
@@ -53,7 +55,13 @@ class PromotionEngine
             // Check conditions
             foreach ($promotion->conditions as $condition) {
                 if ($condition->condition_type === 'min_cart_value') {
-                    if ($subtotal < (float)$condition->condition_value) {
+                    if ($subtotal < (float) $condition->condition_value) {
+                        return false;
+                    }
+                }
+
+                if ($condition->condition_type === 'first_order_only') {
+                    if (! $this->isFirstOrderEligible($userId)) {
                         return false;
                     }
                 }
@@ -84,19 +92,28 @@ class PromotionEngine
             return 0.0;
         };
 
+        $urgencyExclusive = $applicable->filter(fn ($promo) => ($promo->promotion_intent ?? 'other') === 'urgency' && $promo->stacking_rule === 'exclusive');
         $exclusive = $applicable->where('stacking_rule', 'exclusive');
-        $promotionsToApply = $exclusive->isNotEmpty()
-            ? collect([$exclusive->sortByDesc(fn ($promo) => $discountForPromotion($promo))->first()])
-            : $applicable;
+
+        if ($urgencyExclusive->isNotEmpty()) {
+            $promotionsToApply = collect([$urgencyExclusive->sortByDesc(fn ($promo) => $discountForPromotion($promo))->first()]);
+        } elseif ($exclusive->isNotEmpty()) {
+            $promotionsToApply = collect([$exclusive->sortByDesc(fn ($promo) => $discountForPromotion($promo))->first()]);
+        } else {
+            $promotionsToApply = $applicable;
+        }
 
         foreach ($promotionsToApply as $promotion) {
             $discount = min($subtotal, max(0.0, $discountForPromotion($promotion)));
+            $discount = $this->applyMaxDiscount($promotion, $discount);
             $discounts[] = [
                 'promotion_id' => $promotion->id,
                 'label' => $promotion->name,
                 'amount' => $discount,
                 'value_type' => $promotion->value_type,
                 'value' => $promotion->value,
+                'intent' => $promotion->promotion_intent ?? 'other',
+                'stacking_rule' => $promotion->stacking_rule,
             ];
             $totalDiscount += $discount;
         }
@@ -106,5 +123,34 @@ class PromotionEngine
             'discounts' => $discounts,
             'total_discount' => $totalDiscount,
         ];
+    }
+
+    private function applyMaxDiscount(Promotion $promotion, float $discount): float
+    {
+        $conditions = $promotion->conditions ?? collect();
+        $caps = $conditions->where('condition_type', 'max_discount')->map(function ($condition) {
+            return is_numeric($condition->condition_value) ? (float) $condition->condition_value : null;
+        })->filter()->values();
+
+        if ($caps->isEmpty()) {
+            return $discount;
+        }
+
+        $cap = (float) $caps->min();
+        return min($discount, $cap);
+    }
+
+    private function isFirstOrderEligible(?int $customerId): bool
+    {
+        if (! $customerId) {
+            return true;
+        }
+
+        $customer = Customer::query()->find($customerId);
+        if (! $customer) {
+            return true;
+        }
+
+        return ! $customer->orders()->where('payment_status', 'paid')->exists();
     }
 }

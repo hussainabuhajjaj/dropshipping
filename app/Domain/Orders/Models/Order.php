@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Order extends Model
@@ -149,6 +150,16 @@ class Order extends Model
     public function shipments(): HasManyThrough
     {
         return $this->hasManyThrough(Shipment::class, OrderItem::class, 'order_id', 'order_item_id');
+    }
+
+    public function linehaulShipment(): HasOne
+    {
+        return $this->hasOne(LinehaulShipment::class);
+    }
+
+    public function lastMileDelivery(): HasOne
+    {
+        return $this->hasOne(LastMileDelivery::class);
     }
 
     public function shippingAddress(): BelongsTo

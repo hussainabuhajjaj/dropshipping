@@ -21,6 +21,8 @@ class CategoryController extends Controller
 
     public function show(Request $request, Category $category, ProductMetaExtractor $metaExtractor): Response
     {
+        $category->increment('view_count');
+
         $perPage = 18;
         $filters = $this->getFilters($request);
 
@@ -74,7 +76,7 @@ class CategoryController extends Controller
 
         $productIds = $products->getCollection()->pluck('id')->all();
         $categoryIds = $products->getCollection()->pluck('category_id')->filter()->unique()->values()->all();
-        $promotions = app(PromotionHomepageService::class)->getPromotionsForTargets($productIds, $categoryIds);
+        $promotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('category', $productIds, $categoryIds);
 
         $heroImage = $category->hero_image;
         if ($heroImage && !str_starts_with($heroImage, 'http://') && !str_starts_with($heroImage, 'https://')) {

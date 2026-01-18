@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\HomePageSettingResource\Pages;
 use App\Models\HomePageSetting;
+use App\Models\Category;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction as ActionsEditAction;
@@ -75,6 +76,19 @@ class HomePageSettingResource extends BaseResource
                         ])
                         ->columns(2)
                         ->minItems(1)
+                        ->reorderable(),
+                ]),
+            Section::make('Category highlights')
+                ->schema([
+                    Forms\Components\Repeater::make('category_highlights')
+                        ->schema([
+                            Forms\Components\Select::make('category_id')
+                                ->label('Category')
+                                ->options(fn () => Category::query()->orderBy('name')->pluck('name', 'id'))
+                                ->searchable()
+                                ->required(),
+                        ])
+                        ->columns(1)
                         ->reorderable(),
                 ]),
             Section::make('Banner strip')

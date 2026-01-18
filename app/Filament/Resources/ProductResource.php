@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Jobs\TranslateProductJob;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup as ActionsBulkActionGroup;
 use Filament\Actions\DeleteBulkAction as ActionsDeleteBulkAction;
@@ -30,12 +31,18 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Infolists\Components\TextEntry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class ProductResource extends BaseResource
 {
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\UnitEnum|null $navigationGroup = 'Catalog';
+    protected static ?int $navigationSort = 10;
+
+    private const CJ_SYNC_STALE_HOURS = 24;
     // Livewire property for imported products count (read from cache)
     public static function getImportedCount(): int
     {
@@ -58,11 +65,7 @@ class ProductResource extends BaseResource
     }
     protected static ?string $model = Product::class;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string|\UnitEnum|null $navigationGroup = 'Catalog';
-    protected static ?int $navigationSort = 10;
-
-    private const CJ_SYNC_STALE_HOURS = 24;
+    
 
     public static function getEloquentQuery(): Builder
     {
@@ -105,11 +108,11 @@ class ProductResource extends BaseResource
                    Placeholder::make('pricing_guide')
                         ->label('Pricing hierarchy')
                         ->content(
-                            '<div class="text-sm text-slate-600 space-y-1">'
+                            htmlspecialchars('<div class="text-sm text-slate-600 space-y-1">'
                             . '<p><strong>Product price:</strong> default for all variants.</p>'
                             . '<p><strong>Variant price:</strong> overrides product price when set.</p>'
                             . '<p><strong>Margin:</strong> calculated from cost; must meet minimum threshold.</p>'
-                            . '</div>'
+                            . '</div>') 
                         ),
                    TextInput::make('selling_price')
                         ->label('Selling price')
@@ -217,6 +220,62 @@ class ProductResource extends BaseResource
                 ])
                 ->columns(2)
                 ->visible(fn ($record) => filled($record?->cj_pid)),
+            Section::make('CJ Payload Details')
+                ->schema([
+                    Placeholder::make('cj_payload_product_type')
+                        ->label('Product type')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'productType'))),
+                    Placeholder::make('cj_payload_supplier_name')
+                        ->label('Supplier name')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'supplierName'))),
+                    Placeholder::make('cj_payload_discount_price')
+                        ->label('Discount price')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'discountPrice'))),
+                    Placeholder::make('cj_payload_discount_rate')
+                        ->label('Discount rate')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'discountPriceRate'))),
+                    Placeholder::make('cj_payload_add_mark_status')
+                        ->label('Add mark status')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'addMarkStatus'))),
+                    Placeholder::make('cj_payload_is_video')
+                        ->label('Is video')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'isVideo'))),
+                    Placeholder::make('cj_payload_warehouse_inventory_num')
+                        ->label('Warehouse inventory')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'warehouseInventoryNum'))),
+                    Placeholder::make('cj_payload_total_verified_inventory')
+                        ->label('Total verified inventory')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'totalVerifiedInventory'))),
+                    Placeholder::make('cj_payload_total_unverified_inventory')
+                        ->label('Total unverified inventory')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'totalUnVerifiedInventory'))),
+                    Placeholder::make('cj_payload_delivery_cycle')
+                        ->label('Delivery cycle')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'deliveryCycle'))),
+                    Placeholder::make('cj_payload_video_list')
+                        ->label('Video list')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'videoList')))
+                        ->columnSpanFull(),
+                    Placeholder::make('cj_payload_verified_warehouses')
+                        ->label('Verified warehouses')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'verifiedWarehouses')))
+                        ->columnSpanFull(),
+                    Placeholder::make('cj_payload_my_product')
+                        ->label('My product')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'myProduct')))
+                        ->columnSpanFull(),
+                    Placeholder::make('cj_payload_inventory_info')
+                        ->label('Inventory info')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'inventoryInfo')))
+                        ->columnSpanFull(),
+                    Placeholder::make('cj_payload_variant_inventories')
+                        ->label('Variant inventories')
+                        ->content(fn ($record) => self::formatCjPayloadValue(self::cjVariantInventories($record)))
+                        ->columnSpanFull(),
+                ])
+                ->columns(2)
+                ->collapsible()
+                ->visible(fn ($record) => $record === null || filled($record?->cj_pid)),
             Section::make('CJ Audit')
                 ->schema([
                     Placeholder::make('cj_synced_at')
@@ -425,6 +484,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
             ])
             ->recordActions([
                 ActionGroup::make([
+                ViewAction::make(),
  ActionsEditAction::make(),
                 Action::make('quickEdit')
                     ->label('Quick edit')
@@ -886,12 +946,88 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
             ]);
     }
 
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema->schema([
+            Section::make('CJ Payload Details')
+                ->schema([
+                    TextEntry::make('cj_payload_product_type')
+                        ->label('Product type')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'productType'))),
+                    TextEntry::make('cj_payload_supplier_name')
+                        ->label('Supplier name')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'supplierName'))),
+                    TextEntry::make('cj_payload_discount_price')
+                        ->label('Discount price')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'discountPrice'))),
+                    TextEntry::make('cj_payload_discount_rate')
+                        ->label('Discount rate')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'discountPriceRate'))),
+                    TextEntry::make('cj_payload_add_mark_status')
+                        ->label('Add mark status')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'addMarkStatus'))),
+                    TextEntry::make('cj_payload_is_video')
+                        ->label('Is video')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'isVideo'))),
+                    TextEntry::make('cj_payload_warehouse_inventory_num')
+                        ->label('Warehouse inventory')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'warehouseInventoryNum'))),
+                    TextEntry::make('cj_payload_total_verified_inventory')
+                        ->label('Total verified inventory')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'totalVerifiedInventory'))),
+                    TextEntry::make('cj_payload_total_unverified_inventory')
+                        ->label('Total unverified inventory')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'totalUnVerifiedInventory'))),
+                    TextEntry::make('cj_payload_delivery_cycle')
+                        ->label('Delivery cycle')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'deliveryCycle'))),
+                    TextEntry::make('cj_payload_video_list')
+                        ->label('Video list')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'videoList')))
+                        ->columnSpanFull(),
+                    TextEntry::make('cj_payload_verified_warehouses')
+                        ->label('Verified warehouses')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'verifiedWarehouses')))
+                        ->columnSpanFull(),
+                    TextEntry::make('cj_payload_my_product')
+                        ->label('My product')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'myProduct')))
+                        ->columnSpanFull(),
+                    TextEntry::make('cj_payload_inventory_info')
+                        ->label('Inventory info')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjPayloadValue($record, 'inventoryInfo')))
+                        ->columnSpanFull(),
+                    TextEntry::make('cj_payload_variant_inventories')
+                        ->label('Variant inventories')
+                        ->state(fn (Product $record) => self::formatCjPayloadValue(self::cjVariantInventories($record)))
+                        ->columnSpanFull(),
+                ])
+                ->columns(3)
+                ->visible(fn (Product $record) => filled($record->cj_pid)),
+            Section::make('CJ Raw Payload')
+                ->schema([
+                    TextEntry::make('cj_payload_raw')
+                        ->label('CJ payload (raw)')
+                        ->state(fn (Product $record) => self::formatJson(self::cjPayload($record)))
+                        ->columnSpanFull(),
+                    TextEntry::make('cj_variants_raw')
+                        ->label('CJ variants (raw)')
+                        ->state(fn (Product $record) => self::formatJson(self::cjVariants($record)))
+                        ->columnSpanFull(),
+                ])
+                ->columns(1)
+                ->collapsible()
+                ->visible(fn (Product $record) => filled($record->cj_pid)),
+        ]);
+    }
+
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListProducts::route('/'),
             'create' => Pages\CreateProduct::route('/create'),
             'edit' => Pages\EditProduct::route('/{record}/edit'),
+            'view' => Pages\ViewProduct::route('/{record}'),
         ];
     }
 
@@ -967,6 +1103,101 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
     private static function mediaStatusColor(Product $record): string
     {
         return $record->images->isNotEmpty() ? 'success' : 'warning';
+    }
+
+    private static function cjPayload(?Product $record): array
+    {
+        if (! $record) {
+            return [];
+        }
+
+        $attributes = $record->getAttribute('attributes');
+        if (is_array($attributes)) {
+            $payload = $attributes['cj_payload'] ?? null;
+            if (is_array($payload)) {
+                return $payload;
+            }
+        }
+
+        return is_array($record->cj_last_payload) ? $record->cj_last_payload : [];
+    }
+
+    private static function cjPayloadValue(?Product $record, string $key): mixed
+    {
+        $payload = self::cjPayload($record);
+
+        return $payload[$key] ?? null;
+    }
+
+    private static function cjVariants(?Product $record): array
+    {
+        if (! $record) {
+            return [];
+        }
+
+        $attributes = $record->getAttribute('attributes');
+        if (is_array($attributes)) {
+            $variants = $attributes['cj_variants'] ?? null;
+            if (is_array($variants)) {
+                return $variants;
+            }
+        }
+
+        return [];
+    }
+
+    private static function cjVariantInventories(?Product $record): array
+    {
+        $variants = self::cjVariants($record);
+        if ($variants === []) {
+            return [];
+        }
+
+        $summary = [];
+        foreach ($variants as $variant) {
+            if (! is_array($variant)) {
+                continue;
+            }
+
+            $inventories = $variant['inventories'] ?? null;
+            if (! is_array($inventories) || $inventories === []) {
+                continue;
+            }
+
+            $summary[] = [
+                'vid' => $variant['vid'] ?? $variant['variantId'] ?? null,
+                'variantKey' => $variant['variantKey'] ?? $variant['variantNameEn'] ?? null,
+                'inventories' => $inventories,
+            ];
+        }
+
+        return $summary;
+    }
+
+    private static function formatJson(mixed $value): string
+    {
+        if (! is_array($value) || $value === []) {
+            return '--';
+        }
+
+        return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '--';
+    }
+
+    private static function formatCjPayloadValue(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '--';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_array($value)) {
+            return json_encode($value, JSON_UNESCAPED_SLASHES) ?: '--';
+        }
+
+        return (string) $value;
     }
 }
 
