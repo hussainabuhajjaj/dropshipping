@@ -84,7 +84,7 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('customer_name')
                     ->label('Customer')
                     ->searchable(['guest_name', 'email'])
-                    ->state(fn (Order $record) => $record->is_guest
+                    ->state(fn(Order $record) => $record->is_guest
                         ? ($record->guest_name . ' (Guest)')
                         : ($record->shippingAddress?->name ?? '—')
                     ),
@@ -96,7 +96,7 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->label('Fulfillment')
                     ->badge()
-                    ->color(fn (?string $state) => match ($state) {
+                    ->color(fn(?string $state) => match ($state) {
                         'pending' => 'gray',
                         'paid' => 'info',
                         'fulfilling' => 'warning',
@@ -105,7 +105,7 @@ class OrderResource extends Resource
                         'refunded' => 'danger',
                         default => 'secondary',
                     })
-                    ->icon(fn (?string $state) => match ($state) {
+                    ->icon(fn(?string $state) => match ($state) {
                         'fulfilled' => 'heroicon-o-check-badge',
                         'cancelled' => 'heroicon-o-x-circle',
                         'refunded' => 'heroicon-o-arrow-uturn-left',
@@ -116,13 +116,13 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('payment_status')
                     ->label('Payment')
                     ->badge()
-                    ->color(fn (?string $state) => match ($state) {
+                    ->color(fn(?string $state) => match ($state) {
                         'paid' => 'success',
                         'unpaid' => 'danger',
                         'refunded' => 'warning',
                         default => 'secondary',
                     })
-                    ->icon(fn (?string $state) => match ($state) {
+                    ->icon(fn(?string $state) => match ($state) {
                         'paid' => 'heroicon-o-currency-dollar',
                         'refunded' => 'heroicon-o-arrow-uturn-left',
                         default => null,
@@ -131,7 +131,7 @@ class OrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('grand_total')
                     ->label('Total')
-                    ->money(fn (Order $record) => $record->currency)
+                    ->money(fn(Order $record) => $record->currency)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('placed_at')
@@ -173,9 +173,9 @@ class OrderResource extends Resource
                             ->label('Customer Email')
                             ->placeholder('example@domain.com'),
                     ])
-                    ->query(fn ($query, array $data) => $query->when(
+                    ->query(fn($query, array $data) => $query->when(
                         filled($data['value'] ?? null),
-                        fn ($q) => $q->where('email', 'like', '%' . $data['value'] . '%')
+                        fn($q) => $q->where('email', 'like', '%' . $data['value'] . '%')
                     )),
 
                 Tables\Filters\SelectFilter::make('shipping_country')
@@ -188,22 +188,22 @@ class OrderResource extends Resource
                             ->label('Product SKU')
                             ->placeholder('SKU...'),
                     ])
-                    ->query(fn ($query, array $data) => $query->when(
+                    ->query(fn($query, array $data) => $query->when(
                         filled($data['value'] ?? null),
-                        fn ($q) => $q->whereHas('orderItems', fn ($qq) => $qq->where('sku', 'like', '%' . $data['value'] . '%'))
+                        fn($q) => $q->whereHas('orderItems', fn($qq) => $qq->where('sku', 'like', '%' . $data['value'] . '%'))
                     )),
 
                 Tables\Filters\Filter::make('recent')
                     ->label('Last 7 Days')
-                    ->query(fn ($query) => $query->where('placed_at', '>=', now()->subDays(7))),
+                    ->query(fn($query) => $query->where('placed_at', '>=', now()->subDays(7))),
 
                 Tables\Filters\Filter::make('unfulfilled')
                     ->label('Unfulfilled')
-                    ->query(fn ($query) => $query->where('status', '!=', 'fulfilled')),
+                    ->query(fn($query) => $query->where('status', '!=', 'fulfilled')),
 
                 Tables\Filters\Filter::make('high_value')
                     ->label('High Value')
-                    ->query(fn ($query) => $query->where('grand_total', '>=', 500)),
+                    ->query(fn($query) => $query->where('grand_total', '>=', 500)),
 
                 Tables\Filters\Filter::make('placed_at')
                     ->schema([
@@ -212,8 +212,8 @@ class OrderResource extends Resource
                     ])
                     ->query(function ($query, array $data) {
                         return $query
-                            ->when($data['from'] ?? null, fn ($q, $date) => $q->whereDate('placed_at', '>=', $date))
-                            ->when($data['until'] ?? null, fn ($q, $date) => $q->whereDate('placed_at', '<=', $date));
+                            ->when($data['from'] ?? null, fn($q, $date) => $q->whereDate('placed_at', '>=', $date))
+                            ->when($data['until'] ?? null, fn($q, $date) => $q->whereDate('placed_at', '<=', $date));
                     }),
             ])
             ->recordActions([
@@ -227,13 +227,12 @@ class OrderResource extends Resource
                     ->color('primary')
                     ->requiresConfirmation()
                     ->modalHeading('Dispatch All Order Items')
-                    ->modalDescription(fn (Order $record) =>
-                        "This will dispatch all items in order {$record->number} to their fulfillment providers."
+                    ->modalDescription(fn(Order $record) => "This will dispatch all items in order {$record->number} to their fulfillment providers."
                     )
-                    ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
+                    ->visible(fn(Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
                     ->action(function (Order $record) {
 
-                        dispatch(new DispatchOrderJob($record))->onConnection('sync');
+                        dispatch(new DispatchOrderJob($record));//->onConnection('sync');
 //                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
 //                        dd($items);
 //                        foreach ($items as $item) {
@@ -247,10 +246,10 @@ class OrderResource extends Resource
 //                                'payload' => ['order_item_id' => $item->id],
 //                            ]);
 //                        }
-//                        Notification::make()
-//                            ->title('All items dispatched')
-//                            ->success()
-//                            ->send();
+                        Notification::make()
+                            ->title('All items dispatched')
+                            ->success()
+                            ->send();
                     }),
 
                 ActionsAction::make('pay_cj')
@@ -259,11 +258,9 @@ class OrderResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Pay CJ Balance')
-                    ->modalDescription(fn (Order $record) =>
-                        "This will pay CJ Dropshipping {$record->cj_amount_due} {$record->currency} for order {$record->number}"
+                    ->modalDescription(fn(Order $record) => "This will pay CJ Dropshipping {$record->cj_amount_due} {$record->currency} for order {$record->number}"
                     )
-                    ->visible(fn (Order $record) =>
-                        $record->payment_status === 'paid' &&
+                    ->visible(fn(Order $record) => $record->payment_status === 'paid' &&
                         $record->cj_order_id &&
                         $record->cj_order_status === 'confirmed' &&
                         $record->cj_payment_status !== 'paid'
@@ -283,11 +280,9 @@ class OrderResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Retry CJ Payment')
-                    ->modalDescription(fn (Order $record) =>
-                        "Attempt #" . ($record->cj_payment_attempts + 1) . ": Retry payment for order {$record->number}"
+                    ->modalDescription(fn(Order $record) => "Attempt #" . ($record->cj_payment_attempts + 1) . ": Retry payment for order {$record->number}"
                     )
-                    ->visible(fn (Order $record) =>
-                        $record->cj_payment_status === 'failed' &&
+                    ->visible(fn(Order $record) => $record->cj_payment_status === 'failed' &&
                         $record->cj_payment_attempts < 5
                     )
                     ->action(function (Order $record) {
@@ -301,20 +296,20 @@ class OrderResource extends Resource
                             ->send();
                     }),
 
-               ActionsAction::make('refund')
+                ActionsAction::make('refund')
                     ->label('Refund')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn (Order $record) => $record->payment_status === 'paid' && $record->status !== 'refunded')
-                    ->action(fn (Order $record) => $record->refund()),
+                    ->visible(fn(Order $record) => $record->payment_status === 'paid' && $record->status !== 'refunded')
+                    ->action(fn(Order $record) => $record->refund()),
 
                 ActionsAction::make('mark_fulfilled')
                     ->label('Mark as Fulfilled')
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
-                    ->visible(fn (Order $record) => $record->status !== 'fulfilled')
-                    ->action(fn (Order $record) => $record->markAsFulfilled()),
+                    ->visible(fn(Order $record) => $record->status !== 'fulfilled')
+                    ->action(fn(Order $record) => $record->markAsFulfilled()),
             ])
             ->headerActions([
                 // PageExportAction::make()
@@ -323,21 +318,21 @@ class OrderResource extends Resource
             ])
             ->toolbarActions([
                 ActionsBulkActionGroup::make([
-                  ActionsDeleteBulkAction::make(),
+                    ActionsDeleteBulkAction::make(),
 
-                   ActionsBulkAction::make('bulk_mark_fulfilled')
+                    ActionsBulkAction::make('bulk_mark_fulfilled')
                         ->label('Mark as Fulfilled')
                         ->icon('heroicon-o-check-badge')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->action(fn ($records) => $records->each->markAsFulfilled()),
+                        ->action(fn($records) => $records->each->markAsFulfilled()),
 
                     ActionsBulkAction::make('bulk_refund')
                         ->label('Refund')
                         ->icon('heroicon-o-arrow-uturn-left')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->action(fn ($records) => $records->each->refund()),
+                        ->action(fn($records) => $records->each->refund()),
                 ]),
             ]);
     }
@@ -350,14 +345,14 @@ class OrderResource extends Resource
                     TextEntry::make('number')->label('Order #')->copyable(),
                     TextEntry::make('status')->badge(),
                     TextEntry::make('payment_status')->badge(),
-                    TextEntry::make('grand_total')->money(fn (Order $record) => $record->currency),
+                    TextEntry::make('grand_total')->money(fn(Order $record) => $record->currency),
                     TextEntry::make('placed_at')->dateTime(),
                     TextEntry::make('payment_method')->label('Payment Method'),
                     TextEntry::make('shipping_method')->label('Shipping Method'),
                     TextEntry::make('order_notes')->label('Order Notes'),
                     TextEntry::make('tags')
                         ->label('Tags')
-                        ->state(fn (Order $record) => collect($record->tags ?? [])->implode(', ')),
+                        ->state(fn(Order $record) => collect($record->tags ?? [])->implode(', ')),
                     TextEntry::make('internal_comments')->label('Internal Comments'),
                 ])
                 ->columns(5),
@@ -366,7 +361,7 @@ class OrderResource extends Resource
                 ->schema([
                     TextEntry::make('guest_or_customer_name')
                         ->label('Name')
-                        ->state(fn (Order $record) => $record->is_guest
+                        ->state(fn(Order $record) => $record->is_guest
                             ? ($record->guest_name . ' (Guest)')
                             : ($record->shippingAddress?->name ?? '—')
                         ),
@@ -374,7 +369,7 @@ class OrderResource extends Resource
                     TextEntry::make('phone_number')
                         ->label('Phone')
                         ->copyable()
-                        ->state(fn (Order $record) => $record->is_guest
+                        ->state(fn(Order $record) => $record->is_guest
                             ? $record->guest_phone
                             : ($record->shippingAddress?->phone ?? '—')
                         ),
@@ -410,8 +405,8 @@ class OrderResource extends Resource
                 ->schema([
                     TextEntry::make('order_items_summary')
                         ->label('Items')
-                        ->state(fn (Order $record) => collect($record->orderItems)
-                            ->map(fn ($item) => $item->sku . ' × ' . $item->quantity)
+                        ->state(fn(Order $record) => collect($record->orderItems)
+                            ->map(fn($item) => $item->sku . ' × ' . $item->quantity)
                             ->implode(', ')
                         ),
                 ])
@@ -421,7 +416,7 @@ class OrderResource extends Resource
                 ->schema([
                     TextEntry::make('status_history')
                         ->label('Status History')
-                        ->state(fn (Order $record) => collect($record->status_history ?? [])->implode(' → ')),
+                        ->state(fn(Order $record) => collect($record->status_history ?? [])->implode(' → ')),
                 ])
                 ->columns(1),
         ]);

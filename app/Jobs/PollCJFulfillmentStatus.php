@@ -27,7 +27,7 @@ class PollCJFulfillmentStatus implements ShouldQueue
 
     public function handle(): void
     {
-        $job = FulfillmentJob::with(['orderItem.order', 'provider'])
+        $job = FulfillmentJob::with(['orderItem.order', 'order', 'provider'])
             ->find($this->fulfillmentJobId);
 
         if (! $job || ! $job->external_reference) {
@@ -40,6 +40,7 @@ class PollCJFulfillmentStatus implements ShouldQueue
         }
 
         $response = $this->client->orderStatus(['orderIds' => [$job->external_reference]]);
+        dd($response);
         $body = is_array($response) ? $response : (isset($response->data) ? $response->data : []);
         $data = Arr::get($body, '0');
 
