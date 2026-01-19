@@ -12,12 +12,15 @@ use App\Domain\Products\Models\SupplierProduct;
 class FulfillmentRequestData
 {
     public function __construct(
-        public OrderItem $orderItem,
+        public ?int                    $order_id,
+        public ?array              $order_items = [],
+        public ?OrderItem          $orderItem = null,
         public FulfillmentProvider $provider,
-        public ?SupplierProduct $supplierProduct = null,
-        public ?Address $shippingAddress = null,
-        public ?Address $billingAddress = null,
-        public array $options = [],
-    ) {
+        public ?SupplierProduct    $supplierProduct = null,
+        public ?Address            $shippingAddress = null,
+        public ?Address            $billingAddress = null,
+        public array               $options = [],
+    )
+    {
     }
 }
