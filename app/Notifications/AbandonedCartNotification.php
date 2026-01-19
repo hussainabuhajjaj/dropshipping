@@ -35,7 +35,7 @@ class AbandonedCartNotification extends Notification implements ShouldQueue
         })->implode("\n");
 
         return (new MailMessage())
-            ->subject('You left items in your cart')
+            ->subject('You left items in your cart 😢')
             ->greeting('Complete your purchase')
             ->line('You have items waiting in your cart. We saved them for you:')
             ->line($lines !== '' ? $lines : 'Items saved for you.')
