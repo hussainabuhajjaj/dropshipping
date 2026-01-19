@@ -49,18 +49,19 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        event(new Registered($user));
-        event(new CustomerRegistered($user));
+        $session_id = session()->id();
+        try {
+            event(new Registered($user));
+            event(new CustomerRegistered($user));
+        } catch (\Exception $exception) {
 
-        $cart = Cart::query()->where('user_id', $user->id)
-            ->orWhere('session_id', session()->id())
-            ->first();
+        }
+
 
         Auth::guard('customer')->login($user);
 
-        if (isset($cart)){
-            $cart->moveToUser();
-        }
+        Cart::mergeCartAfterLogin($session_id);
+
         return redirect(route('account.index', absolute: false));
     }
 }

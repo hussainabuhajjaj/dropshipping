@@ -31,18 +31,13 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request): RedirectResponse
     {
 
-
-        $cart = Cart::query()->where('user_id', \auth('customer')->id())
-            ->orWhere('session_id', session()->id())
-            ->first();
+        $session_id = session()->id();
 
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        if (isset($cart)){
-            $cart->moveToUser();
-        }
+        Cart::mergeCartAfterLogin($session_id);
 
         return redirect()->intended(route('account.index', absolute: false));
     }
