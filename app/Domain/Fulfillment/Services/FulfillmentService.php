@@ -78,6 +78,60 @@ class FulfillmentService
         });
     }
 
+    public function dispatchOrderV2(Order $order, $product_items, $provider): FulfillmentJob
+    {
+        $first_item = $product_items->first();
+        $strategy = $this->selector->resolveForOrderItem($first_item);
+
+        $requestData = new FulfillmentRequestData(
+            order_id: $order->id,
+            order_items: $product_items->toArray(),
+            orderItem: null,
+            provider: $provider,
+            shippingAddress: $order?->shippingAddress,
+            billingAddress: $order?->billingAddress,
+            options: ['currency' => $order?->currency],
+        );
+
+        return DB::transaction(function () use ($order, $product_items, $provider, $strategy, $requestData) {
+            $job = FulfillmentJob::query()->create([
+                'order_id' => $order->id,
+                'fulfillment_provider_id' => $provider->id,
+                'payload' => $this->buildPayloadForOrder($requestData),
+                'status' => 'pending',
+                'dispatched_at' => now(),
+            ]);
+
+            $result = $strategy->dispatch($requestData);
+
+            $this->recordOrderAttempt($job, $requestData, $result);
+            $this->updateJobStatus($job, $result);
+            $this->updateOrderItemsStatus($product_items, $result);
+
+
+            foreach ($product_items as $orderItem) {
+                $this->logger->fulfillment(
+                    $orderItem,
+                    'dispatch',
+                    $result->status,
+                    $result->rawResponse['error'] ?? null,
+                    $result->rawResponse
+                );
+            }
+
+            if ($result->trackingNumber || $result->trackingUrl) {
+                $this->recordShipment($orderItem, $result);
+                $this->notifyCustomerShipment($orderItem);
+            }
+
+            if ($result->failed()) {
+                $this->notifyAdminsIssue($orderItem, $result->rawResponse['error'] ?? 'Fulfillment failed');
+            }
+
+            return $job->refresh();
+        });
+    }
+
     public function dispatchCjOrder(Order $order, $product_items, $provider): FulfillmentJob
     {
         $order->load('shippingAddress');
@@ -183,11 +237,34 @@ class FulfillmentService
         ];
     }
 
+    private function buildPayloadForOrder(FulfillmentRequestData $requestData): array
+    {
+        return [
+            'order_id' => $requestData->order_id,
+            'provider_code' => $requestData->provider->code,
+            'supplier_product_id' => $requestData->supplierProduct?->id,
+            'shipping_address' => $requestData->shippingAddress?->toArray(),
+            'billing_address' => $requestData->billingAddress?->toArray(),
+            'options' => $requestData->options,
+        ];
+    }
+
     private function recordAttempt(FulfillmentJob $job, FulfillmentRequestData $data, FulfillmentResult $result): void
     {
         $job->attempts()->create([
             'attempt_no' => $job->attempts()->count() + 1,
             'request_payload' => $this->buildPayload($data),
+            'response_payload' => $result->rawResponse,
+            'status' => $result->succeeded() ? 'success' : 'failed',
+            'error_message' => $result->failed() ? ($result->rawResponse['error'] ?? null) : null,
+        ]);
+    }
+
+    private function recordOrderAttempt(FulfillmentJob $job, FulfillmentRequestData $data, FulfillmentResult $result): void
+    {
+        $job->attempts()->create([
+            'attempt_no' => $job->attempts()->count() + 1,
+            'request_payload' => $this->buildPayloadForOrder($data),
             'response_payload' => $result->rawResponse,
             'status' => $result->succeeded() ? 'success' : 'failed',
             'error_message' => $result->failed() ? ($result->rawResponse['error'] ?? null) : null,
@@ -207,6 +284,13 @@ class FulfillmentService
     {
         $orderItem->fulfillment_status = $result->status === 'succeeded' ? 'fulfilled' : $result->status;
         $orderItem->save();
+    }
+
+    private function updateOrderItemsStatus($product_items, FulfillmentResult $result): void
+    {
+        foreach ($product_items as $product_item) {
+            $product_item->update(['fulfillment_status' => ($result->status === 'succeeded' ? 'fulfilled' : $result->status)]);
+        }
     }
 
     private function recordShipment(OrderItem $orderItem, FulfillmentResult $result): void

@@ -10,6 +10,7 @@ use App\Domain\Orders\Models\OrderEvent;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\OrderAuditLog;
 use App\Enums\RefundReasonEnum;
+use App\Models\OrderShipping;
 use App\Notifications\OrderStatusChanged;
 use App\Notifications\RefundApproved;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -95,6 +96,11 @@ class Order extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(\App\Models\User::class);
+    }
+
+    public function orderShippings()
+    {
+        return $this->hasMany(OrderShipping::class);
     }
 
     public function customer(): BelongsTo
@@ -277,7 +283,7 @@ class Order extends Model
 
 
         $next = ($max ?? 0) + 1;
-        return 'DS-' . str_pad((string) $next, 10, '0', STR_PAD_LEFT);
+        return 'DS-' . str_pad((string)$next, 10, '0', STR_PAD_LEFT);
 //
 //        do {
 //            $number = 'DS-' . Str::upper(Str::random(8));
