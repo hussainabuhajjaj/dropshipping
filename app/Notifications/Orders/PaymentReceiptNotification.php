@@ -35,6 +35,7 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
             'currency' => $this->payment->currency,
             'payment_method' => $this->payment->method,
             'paid_at' => $this->payment->paid_at,
+            'order_url' => url("/orders/track?number={$this->order->number}&email={$this->order->email}"),
         ];
     }
 
