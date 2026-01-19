@@ -69,9 +69,11 @@ class Cart extends Model
             if ($provider_id == 1) {
                 //  cj check shipping cost
                 $client = app(CJDropshippingClient::class);
+                $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
+
                 $payload = [
                     'startCountryCode' => 'CN',
-                    'endCountryCode' => 'CN',
+                    'endCountryCode' => @$default_warehouse->country??"CN",
                     "products" => $items->map(function ($item) {
                         $vid = null;
                         if (isset($item['variant_id'])) {
