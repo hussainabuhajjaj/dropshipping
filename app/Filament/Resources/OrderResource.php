@@ -231,21 +231,29 @@ class OrderResource extends Resource
                     )
                     ->visible(fn(Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
                     ->action(function (Order $record) {
+                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+
+                        if (!$items->count()) {
+                            Notification::make()
+                                ->title('All items already dispatched')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
 
                         dispatch(new DispatchOrderJob($record));//->onConnection('sync');
-//                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
-//                        dd($items);
-//                        foreach ($items as $item) {
-//                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
-//                            $item->update(['fulfillment_status' => 'fulfilling']);
-//                            \App\Domain\Orders\Models\OrderAuditLog::create([
-//                                'order_id' => $record->id,
-//                                'user_id' => auth()->id(),
-//                                'action' => 'fulfillment_dispatched',
-//                                'note' => 'Dispatched to provider (bulk)',
-//                                'payload' => ['order_item_id' => $item->id],
-//                            ]);
-//                        }
+
+
+                        foreach ($items as $item) {
+                            $item->update(['fulfillment_status' => 'fulfilling']);
+                            \App\Domain\Orders\Models\OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'fulfillment_dispatched',
+                                'note' => 'Dispatched to provider (bulk)',
+                                'payload' => ['order_item_id' => $item->id],
+                            ]);
+                        }
                         Notification::make()
                             ->title('All items dispatched')
                             ->success()

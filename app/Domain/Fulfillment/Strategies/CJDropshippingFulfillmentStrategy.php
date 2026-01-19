@@ -11,6 +11,7 @@ use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Models\LocalWareHouse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
@@ -49,21 +50,22 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         $fromCountry = @$product?->cj_warehouse_id ? $this->getCountryFromWarehouse($product->cj_warehouse_id) : ($providerSettings['from_country'] ?? 'CN');
 
 
-        $address = $data->shippingAddress;
+//        $address = $data->shippingAddress;
 
+        $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
         $shipping = $order->orderShippings->where('fulfillment_provider_id', @$data?->provider?->id)->first();
         $payload = [
-            "orderNumber" => now()->timestamp,
-            "shippingZip" => @$address['postal_code'],
-            "shippingCountry" => @$address['country'],
-            "shippingCountryCode" => @$address['country'],
-            "shippingProvince" => @$address['state'],
-            "shippingCity" => @$address['city'],
+            "orderNumber" => $order?->number,
+            "shippingZip" => @$default_warehouse['postal_code'],
+            "shippingCountry" => @$default_warehouse['country'],
+            "shippingCountryCode" => @$default_warehouse['country'],
+            "shippingProvince" => @$default_warehouse['state'],
+            "shippingCity" => @$default_warehouse['city'],
             'shippingCounty' => null,
-            'shippingPhone' => @$address?->phone,
-            'shippingCustomerName' => @$address?->name,
-            'shippingAddress' => @$address?->line1,
-            'shippingAddress2' => @$address?->line2,
+            'shippingPhone' => @$default_warehouse?->phone,
+            'shippingCustomerName' => @$default_warehouse?->name,
+            'shippingAddress' => @$default_warehouse?->line1,
+            'shippingAddress2' => @$default_warehouse?->line2,
             'taxId' => null,
             'remark' => null,
             'email' => $order?->email,
@@ -103,6 +105,7 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         $trackingNumber = @$body['trackingNumber'];
         $trackingUrl = @$body['trackingUrl'];
         $postageAmount = @$body['postageAmount'];
+//        dd($body , $postageAmount);
 //        $currency = @$body['currency'];
 //        $success = Arr::get($body, 'result') === true || Arr::get($body, 'code') === 200;
 //        $externalId = Arr::get($body, 'data.orderId') ?? Arr::get($body, 'data.orderNumber');
