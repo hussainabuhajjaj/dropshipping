@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Domain\Orders\Models;
 
 use App\Enums\ShipmentExceptionCode;
+use App\Events\Orders\CustomsUpdated;
+use App\Events\Orders\FulfillmentDelayed;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Order as AppOrder;
 
 class Shipment extends Model
 {
@@ -45,6 +48,44 @@ class Shipment extends Model
         'exception_code' => ShipmentExceptionCode::class,
         'is_at_risk' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::updated(function (Shipment $shipment): void {
+            if (! $shipment->wasChanged('exception_code')) {
+                return;
+            }
+
+            $exception = $shipment->exception_code;
+            if (! $exception instanceof ShipmentExceptionCode) {
+                return;
+            }
+
+            $order = $shipment->orderItem?->order;
+            if (! $order) {
+                return;
+            }
+
+            // Ensure we dispatch events with App\Models\Order (listeners expect it).
+            $appOrder = $order instanceof AppOrder
+                ? $order
+                : AppOrder::query()->find($order->id);
+
+            if (! $appOrder) {
+                return;
+            }
+
+            $reason = $shipment->exception_reason ?: $exception->label();
+
+            if ($exception->isCustomsIssue()) {
+                event(new CustomsUpdated($appOrder, $reason));
+            }
+
+            if ($exception->isTrackingIssue()) {
+                event(new FulfillmentDelayed($appOrder, null, $reason));
+            }
+        });
+    }
 
     public function orderItem(): BelongsTo
     {
@@ -146,4 +187,3 @@ class Shipment extends Model
     }
 
 }
-

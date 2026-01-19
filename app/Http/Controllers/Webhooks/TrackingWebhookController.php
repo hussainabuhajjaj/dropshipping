@@ -76,6 +76,11 @@ class TrackingWebhookController extends Controller
             $trackingService->syncFromWebhook($shipment, $events);
         }
 
+        $customerStatus = $this->resolveCustomerStatus($events);
+        if ($customerStatus) {
+            $order->updateCustomerStatus($customerStatus);
+        }
+
         if ($shipment->delivered_at) {
             $orderItem->update(['fulfillment_status' => 'fulfilled']);
             $allDelivered = $order->orderItems()->where('fulfillment_status', '!=', 'fulfilled')->doesntExist();
@@ -101,5 +106,28 @@ class TrackingWebhookController extends Controller
             'tracking_number' => $shipment->tracking_number,
             'provider' => $provider,
         ]);
+    }
+
+    private function resolveCustomerStatus(array $events): ?string
+    {
+        if ($events === []) {
+            return null;
+        }
+
+        $statusCodes = collect($events)
+            ->map(fn ($event) => strtolower((string) ($event['status_code'] ?? '')))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (in_array('out_for_delivery', $statusCodes, true)) {
+            return 'out_for_delivery';
+        }
+
+        if (in_array('in_transit', $statusCodes, true)) {
+            return 'in_transit';
+        }
+
+        return null;
     }
 }

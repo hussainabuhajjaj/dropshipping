@@ -8,6 +8,7 @@ use App\Console\Commands\CjSyncCatalog;
 use App\Console\Commands\TranslateProducts;
 use App\Console\Commands\SyncCjVariants;
 use App\Jobs\CheckLowStockJob;
+use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
 use App\Jobs\RequestProductReviewJob;
 use App\Jobs\SendAbandonedCartReminders;
@@ -50,6 +51,9 @@ class Kernel extends ConsoleKernel
 
         // Auto-approve pending CJ fulfillment items (every 10 minutes)
         $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
+
+        // Flag shipments that have no tracking updates for too long
+        $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
     }
 
     protected function commands(): void

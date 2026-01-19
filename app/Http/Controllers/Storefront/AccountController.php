@@ -653,6 +653,24 @@ class AccountController extends Controller
         if (str_contains($type, 'CustomerShipmentNotification')) {
             return "Shipment update for #{$data['order_number']}";
         }
+        if (str_contains($type, 'OrderCancellationConfirmedNotification')) {
+            return "Order #{$data['order_number']} cancelled";
+        }
+        if (str_contains($type, 'PaymentReceiptNotification')) {
+            return "Payment received for #{$data['order_number']}";
+        }
+        if (str_contains($type, 'ReturnApprovedNotification')) {
+            return "Return approved for #{$data['order_number']}";
+        }
+        if (str_contains($type, 'ReturnRejectedNotification')) {
+            return "Return update for #{$data['order_number']}";
+        }
+        if (str_contains($type, 'InTransitNotification')) {
+            return "Order #{$data['order_number']} is on the way";
+        }
+        if (str_contains($type, 'OrderStatusChanged')) {
+            return "Order #{$data['order_number']} updated";
+        }
 
         return $data['title'] ?? 'Notification';
     }
@@ -680,6 +698,31 @@ class AccountController extends Controller
         if (str_contains($type, 'CustomerShipmentNotification')) {
             $tracking = $data['tracking_number'] ?? null;
             return $tracking ? "Tracking: {$tracking}" : 'Shipment update received.';
+        }
+        if (str_contains($type, 'OrderCancellationConfirmedNotification')) {
+            $refund = $data['refund_amount'] ?? null;
+            return $refund ? "Refund: {$refund}" : 'Your order was cancelled.';
+        }
+        if (str_contains($type, 'PaymentReceiptNotification')) {
+            $method = $data['payment_method'] ?? null;
+            $amount = isset($data['amount']) ? "{$data['currency']} {$data['amount']}" : null;
+            return trim(implode(' · ', array_filter([
+                $amount ? "Paid {$amount}" : null,
+                $method ? ucfirst(str_replace('_', ' ', (string) $method)) : null,
+            ]))) ?: 'Payment received.';
+        }
+        if (str_contains($type, 'ReturnApprovedNotification')) {
+            return $data['return_label_url'] ? 'Return approved · label ready' : 'Return approved · ship item back';
+        }
+        if (str_contains($type, 'ReturnRejectedNotification')) {
+            return $data['rejection_reason'] ?? 'Return request rejected.';
+        }
+        if (str_contains($type, 'InTransitNotification')) {
+            $tracking = $data['tracking_number'] ?? null;
+            return $tracking ? "Tracking: {$tracking}" : 'Your order is in transit.';
+        }
+        if (str_contains($type, 'OrderStatusChanged')) {
+            return $data['status_label'] ?? 'Order status updated.';
         }
 
         return $data['body'] ?? 'You have a new notification.';
