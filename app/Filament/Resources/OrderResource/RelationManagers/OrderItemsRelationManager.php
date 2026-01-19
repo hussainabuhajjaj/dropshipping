@@ -112,6 +112,15 @@ class OrderItemsRelationManager extends RelationManager
                         if ($record->fulfillment_status !== 'fulfilled') {
                             $record->update(['fulfillment_status' => 'fulfilled']);
                         }
+                        if ($record->order && ! in_array($record->order->status, ['fulfilled', 'cancelled', 'refunded'], true)) {
+                            $record->order->update(['status' => 'fulfilling']);
+                            event(new \App\Events\Orders\OrderShipped(
+                                $record->order,
+                                $data['tracking_number'] ?? null,
+                                $data['carrier'] ?? null,
+                                $data['tracking_url'] ?? null
+                            ));
+                        }
                         OrderAuditLog::create([
                             'order_id' => $record->order_id,
                             'user_id' => auth()->id(),
@@ -154,6 +163,10 @@ class OrderItemsRelationManager extends RelationManager
                             'location' => $data['location'] ?? null,
                             'occurred_at' => $data['occurred_at'],
                         ]);
+                        $statusCode = strtolower((string) ($data['status_code'] ?? ''));
+                        if ($record->order && in_array($statusCode, ['in_transit', 'out_for_delivery'], true)) {
+                            $record->order->updateCustomerStatus($statusCode);
+                        }
                         OrderAuditLog::create([
                             'order_id' => $record->order_id,
                             'user_id' => auth()->id(),

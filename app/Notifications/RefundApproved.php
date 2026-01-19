@@ -27,11 +27,11 @@ class RefundApproved extends Notification implements ShouldQueue
         $reasonLabel = $this->order->refund_reason?->label() ?? 'Refund';
 
         return (new MailMessage())
-            ->subject("Refund Approved for Order {$this->order->order_number}")
+            ->subject("Refund Approved for Order {$this->order->number}")
             ->greeting("Hello {$notifiable->first_name},")
             ->line("We're sorry for the inconvenience. Your refund has been approved.")
             ->line('')
-            ->line("**Order Number:** #{$this->order->order_number}")
+            ->line("**Order Number:** #{$this->order->number}")
             ->line("**Refund Amount:** \$" . $refundAmount)
             ->line("**Reason:** $reasonLabel")
             ->line('')
@@ -41,7 +41,7 @@ class RefundApproved extends Notification implements ShouldQueue
                 return $message->line("**Note:** {$this->order->refund_notes}");
             })
             ->line('')
-            ->action('View Order Details', route('customer.orders.show', $this->order->id))
+            ->action('View Order Details', $this->trackingLink())
             ->line('If you have any questions, feel free to reach out to our support team.')
             ->salutation('Thank you for your understanding');
     }
@@ -50,9 +50,14 @@ class RefundApproved extends Notification implements ShouldQueue
     {
         return [
             'order_id' => $this->order->id,
-            'order_number' => $this->order->order_number,
+            'order_number' => $this->order->number,
             'refund_amount' => $this->order->refund_amount,
             'refund_reason' => $this->order->refund_reason?->value,
         ];
+    }
+
+    private function trackingLink(): string
+    {
+        return url("/orders/track?number={$this->order->number}&email={$this->order->email}");
     }
 }

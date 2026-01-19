@@ -22,7 +22,7 @@ class OrderStatusChanged extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -32,9 +32,9 @@ class OrderStatusChanged extends Notification implements ShouldQueue
 
         $message = new MailMessage();
         $message
-            ->subject("Order {$this->order->order_number}: $statusLabel")
+            ->subject("Order {$this->order->number}: $statusLabel")
             ->greeting("Hello {$notifiable->first_name},")
-            ->line("Your order **#{$this->order->order_number}** has been updated.")
+            ->line("Your order **#{$this->order->number}** has been updated.")
             ->line('')
             ->line("**Status:** $statusLabel")
             ->line("**Update:** $statusExplanation")
@@ -69,7 +69,7 @@ class OrderStatusChanged extends Notification implements ShouldQueue
 
         $message
             ->line('')
-            ->action('View Order', route('customer.orders.show', $this->order->id))
+            ->action('View Order', $this->trackingLink())
             ->line('Thank you for your purchase!')
             ->salutation('Best regards');
 
@@ -80,9 +80,15 @@ class OrderStatusChanged extends Notification implements ShouldQueue
     {
         return [
             'order_id' => $this->order->id,
-            'order_number' => $this->order->order_number,
+            'order_number' => $this->order->number,
             'status' => $this->newStatus,
             'status_label' => $this->order->getCustomerStatusLabel(),
+            'order_url' => $this->trackingLink(),
         ];
+    }
+
+    private function trackingLink(): string
+    {
+        return url("/orders/track?number={$this->order->number}&email={$this->order->email}");
     }
 }
