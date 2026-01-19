@@ -41,10 +41,11 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $customer = $request->user('customer');
-        $cart = Cart::query()->where('user_id', auth('web')->id())
-            ->orWhere('session_id', session()->id())
-            ->with('items')
-            ->first();
+        $cart = Cart::GetCustomerOrGuestCart();
+//        $cart = Cart::query()->where('user_id', auth('web')->id())
+//            ->orWhere('session_id', session()->id())
+//            ->with('items')
+//            ->first();
 
         $cart_items = isset($cart) ? $cart->items : collect([]);
         $cart_quantities = isset($cart) ? $cart->items->sum('quantity') : 0;
