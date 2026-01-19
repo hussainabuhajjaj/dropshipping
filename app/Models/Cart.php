@@ -5,6 +5,7 @@ namespace App\Models;
 //use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Cart extends Model
 {
@@ -120,11 +121,66 @@ class Cart extends Model
         $this->delete();
     }
 
-    public function moveToUser()
+    public static function GetCustomerOrGuestCart()
     {
-        return $this->update([
-            'user_id' => auth('customer')->id(),
-            'session_id' => null,
-        ]);
+        return self::query()->where('user_id', auth('customer')->id())
+            ->orWhere('session_id', session()->id())
+            ->with('items')
+            ->first();
+    }
+    public static function GetGuestCart()
+    {
+        return self::query()
+            ->orWhere('session_id', session()->id())
+            ->with('items')
+            ->first();
+    }
+
+    public static function mergeCartAfterLogin($session_id)
+    {
+        $userId = auth('customer')->id();
+
+        DB::transaction(function () use ($session_id, $userId) {
+
+            // 1️⃣ Get session cart
+            $sessionCart = Cart::with('items')
+                ->where('session_id', $session_id)
+                ->whereNull('user_id')
+                ->first();
+
+            if (!$sessionCart) {
+                return;
+            }
+
+            // 2️⃣ Get user cart or create one
+            $userCart = Cart::firstOrCreate(
+                ['user_id' => $userId],
+                ['session_id' => null]
+            );
+
+            // 3️⃣ Merge items
+            foreach ($sessionCart->items as $item) {
+
+                $existingItem = $userCart->items()
+                    ->where('product_id', $item->product_id)
+                    ->where('variant_id', $item->variant_id)
+                    ->where('fulfillment_provider_id', $item->fulfillment_provider_id)
+                    ->first();
+
+                if ($existingItem) {
+                    // Increase quantity
+                    $existingItem->increment('qty', $item->qty);
+                } else {
+                    // Move item
+                    $item->update([
+                        'cart_id' => $userCart->id
+                    ]);
+                }
+            }
+
+            // 4️⃣ Delete session cart
+            $sessionCart->items()->delete();
+            $sessionCart->delete();
+        });
     }
 }
