@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Domain\Orders\Models\Order;
+use App\Events\Orders\RefundProcessed;
 use App\Enums\RefundReasonEnum;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
@@ -17,6 +18,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Support\Enums\Width;
+use Illuminate\Support\Facades\Event;
 
 class ProcessRefund extends Page implements HasForms
 {
@@ -161,6 +163,8 @@ class ProcessRefund extends Page implements HasForms
                 $refundAmount,
                 $data['refund_notes'] ?? ''
             );
+
+            Event::dispatch(new RefundProcessed($this->record, (float) $refundAmount, $this->record->currency, $data['refund_notes'] ?? null));
 
             Notification::make()
                 ->success()

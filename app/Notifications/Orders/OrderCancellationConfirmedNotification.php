@@ -31,6 +31,7 @@ class OrderCancellationConfirmedNotification extends Notification implements Sho
             'order_number' => $this->order->number,
             'cancelled_at' => now(),
             'refund_amount' => $this->refundAmount,
+            'order_url' => url("/orders/track?number={$this->order->number}&email={$this->order->email}"),
         ];
     }
 

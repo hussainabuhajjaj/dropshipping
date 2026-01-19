@@ -266,6 +266,18 @@ class Order extends Model
 
         // Notify customer of status change
         if ($this->customer) {
+            if (in_array($newStatus, ['in_transit', 'out_for_delivery'], true)) {
+                $appOrder = $this instanceof \App\Models\Order
+                    ? $this
+                    : \App\Models\Order::query()->find($this->id);
+
+                if ($appOrder) {
+                    $this->customer->notify(new \App\Notifications\Orders\InTransitNotification($appOrder));
+                }
+
+                return;
+            }
+
             $this->customer->notify(new OrderStatusChanged($this, $previousStatus, $newStatus));
         }
     }
