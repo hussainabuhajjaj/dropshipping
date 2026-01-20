@@ -23,6 +23,7 @@
                         class="w-full"
                     >
                         <option value="customers">Customers</option>
+                        <option value="newsletter">Newsletter subscribers</option>
                         <option value="admins">Admins & staff</option>
                         <option value="both">Customers + admins</option>
                     </x-filament::input.select>
