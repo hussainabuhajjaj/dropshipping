@@ -283,7 +283,7 @@ Artisan::command('categories:fix {--force}', function () {
         $this->warn('  1. Sync CJ category tree');
         $this->warn('  2. Merge duplicate categories');
         $this->warn('  3. Update all products with correct categories');
-        
+
         if (! $this->confirm('Continue?')) {
             $this->info('Cancelled.');
             return;
@@ -314,6 +314,6 @@ Schedule::call(function () {
         ->pluck('id');
 
     foreach ($cjJobs as $jobId) {
-        dispatch(new PollCJFulfillmentStatus($jobId))->onQueue('default');
+        dispatch(new PollCJFulfillmentStatus($jobId))->onConnection('database')->onQueue('default');
     }
-})->hourly()->name('cj:poll-fulfillment');
+})->everyMinute()->name('cj:poll-fulfillment');
