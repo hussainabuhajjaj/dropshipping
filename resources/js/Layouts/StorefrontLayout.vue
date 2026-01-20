@@ -223,7 +223,13 @@
                                         </Link>
                                         <Link v-if="authUser" href="/account/notifications"
                                               class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Notifications') }}
+                      <span class="flex items-center justify-between">
+                        <span>{{ t('Notifications') }}</span>
+                        <span v-if="unreadNotifications"
+                              class="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
+                          {{ unreadNotifications }}
+                        </span>
+                      </span>
                                         </Link>
                                         <Link v-if="authUser" href="/orders"
                                               class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
@@ -728,7 +734,14 @@
                                 {{ t('Overview') }}
                             </Link>
                             <Link href="/account/notifications" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">{{ t('Notifications') }}
+                                  @click="mobileOpen = false">
+                <span class="inline-flex items-center gap-2">
+                  {{ t('Notifications') }}
+                  <span v-if="unreadNotifications"
+                        class="rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
+                    {{ unreadNotifications }}
+                  </span>
+                </span>
                             </Link>
                             <Link href="/orders" class="block hover:text-slate-900" @click="mobileOpen = false">
                                 {{ t('Orders') }}
@@ -887,6 +900,13 @@ const cartSubtotal = computed(() => Number(cartSummary.value.subtotal ?? 0))
 const cartCurrency = computed(() => cartLines.value[0]?.currency ?? 'USD')
 
 const wishlistCount = computed(() => Number(page.props.wishlist?.count ?? 0))
+const unreadNotifications = computed(() => {
+    const prop = page.props.notifications
+    if (prop && !Array.isArray(prop) && typeof prop === 'object' && 'unreadCount' in prop) {
+        return Number(prop.unreadCount ?? 0)
+    }
+    return Number(page.props.unreadCount ?? 0)
+})
 
 const localeOptions = computed(() => {
     const entries = Object.entries(availableLocales.value ?? {})

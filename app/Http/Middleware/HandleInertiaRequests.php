@@ -41,6 +41,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $customer = $request->user('customer');
+        $authUser = $customer ?? $request->user();
         $cart = Cart::query()->where('user_id', auth('web')->id())
             ->orWhere('session_id', session()->id())
             ->with('items')
@@ -50,6 +51,9 @@ class HandleInertiaRequests extends Middleware
         $cart_quantities = isset($cart) ? $cart->items->sum('quantity') : 0;
         $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
         $cartSubtotal = isset($cart) ? $cart->subTotal() : 0;
+        $unreadNotifications = $authUser && method_exists($authUser, 'unreadNotifications')
+            ? $authUser->unreadNotifications()->count()
+            : 0;
         // Legacy session-cart logic kept for reference only.
         // The canonical cart source is the Cart model + CartResource above.
         // If you reintroduce session carts, update both totals + line serialization.
@@ -76,7 +80,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $customer ?? $request->user(),
+                'user' => $authUser,
             ],
             'flash' => [
                 'cart_notice' => $request->session()->get('cart_notice'),
@@ -93,6 +97,10 @@ class HandleInertiaRequests extends Middleware
             'wishlist' => [
                 'count' => count($request->session()->get('wishlist', [])),
             ],
+            'notifications' => [
+                'unreadCount' => $unreadNotifications,
+            ],
+            'unreadCount' => $unreadNotifications,
             'site' => $site,
             'storefront' => $storefront,
             'appUrl' => rtrim(config('app.url'), '/'),
