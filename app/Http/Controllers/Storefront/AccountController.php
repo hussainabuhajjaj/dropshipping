@@ -671,6 +671,15 @@ class AccountController extends Controller
         if (str_contains($type, 'OrderStatusChanged')) {
             return "Order #{$data['order_number']} updated";
         }
+        if (str_contains($type, 'WelcomeNotification')) {
+            return 'Welcome to our store';
+        }
+        if (str_contains($type, 'AbandonedCartNotification')) {
+            return 'You left items in your cart';
+        }
+        if (str_contains($type, 'ReviewRequestNotification')) {
+            return "Review your purchase";
+        }
 
         return $data['title'] ?? 'Notification';
     }
@@ -723,6 +732,16 @@ class AccountController extends Controller
         }
         if (str_contains($type, 'OrderStatusChanged')) {
             return $data['status_label'] ?? 'Order status updated.';
+        }
+        if (str_contains($type, 'WelcomeNotification')) {
+            return 'Your account is ready. Start shopping now.';
+        }
+        if (str_contains($type, 'AbandonedCartNotification')) {
+            return $data['body'] ?? 'Items are waiting in your cart.';
+        }
+        if (str_contains($type, 'ReviewRequestNotification')) {
+            $product = $data['product_name'] ?? null;
+            return $product ? "How was your {$product}?" : 'Tell us about your purchase.';
         }
 
         return $data['body'] ?? 'You have a new notification.';

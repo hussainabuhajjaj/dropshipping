@@ -25,12 +25,18 @@ class AdminFulfillmentIssue extends Notification implements ShouldQueue
 
     public function toArray(object $notifiable): array
     {
+        $orderUrl = url("/admin/orders/{$this->orderItem->order_id}");
+
         return [
+            'title' => 'Fulfillment issue',
+            'body' => $this->message,
             'order_number' => $this->orderItem->order?->number,
             'order_item_id' => $this->orderItem->id,
             'status' => $this->orderItem->fulfillment_status,
             'provider' => $this->orderItem->fulfillmentProvider?->code ?? 'unknown',
             'message' => $this->message,
+            'action_url' => $orderUrl,
+            'action_label' => 'View order',
         ];
     }
 

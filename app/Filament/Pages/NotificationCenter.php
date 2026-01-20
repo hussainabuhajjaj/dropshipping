@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Filament\Pages;
 
 use App\Models\Customer;
+use App\Models\NewsletterSubscriber;
 use App\Models\User;
 use App\Notifications\Channels\WhatsAppChannel;
 use App\Notifications\System\ManualNotification;
+use App\Services\NewsletterCampaignService;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use App\Filament\Pages\BasePage;
@@ -42,13 +44,18 @@ class NotificationCenter extends BasePage
             'body' => ['required', 'string', 'max:1000'],
             'actionUrl' => ['nullable', 'url', 'max:500'],
             'actionLabel' => ['nullable', 'string', 'max:80'],
-            'audience' => ['required', 'in:customers,admins,both'],
+            'audience' => ['required', 'in:customers,admins,both,newsletter'],
             'recipientEmails' => ['nullable', 'string', 'max:2000'],
             'sendDatabase' => ['boolean'],
             'sendPush' => ['boolean'],
             'sendMail' => ['boolean'],
             'sendWhatsApp' => ['boolean'],
         ]);
+
+        if ($this->audience === 'newsletter') {
+            $this->sendNewsletterCampaign();
+            return;
+        }
 
         $channels = $this->buildChannels();
         if (empty($channels)) {
@@ -143,6 +150,59 @@ class NotificationCenter extends BasePage
         }
 
         return $recipients->unique('email')->values();
+    }
+
+    private function sendNewsletterCampaign(): void
+    {
+        if (! $this->sendMail) {
+            Notification::make()
+                ->title('Newsletter requires Email channel')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        $emails = collect(preg_split('/[\s,]+/', $this->recipientEmails ?? '', -1, PREG_SPLIT_NO_EMPTY))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $query = NewsletterSubscriber::query()
+            ->whereNotNull('email')
+            ->whereNull('unsubscribed_at');
+
+        if ($emails->isNotEmpty()) {
+            $query->whereIn('email', $emails);
+        } elseif (! $this->sendToAll) {
+            Notification::make()
+                ->title('No recipients selected')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        if (! $query->exists()) {
+            Notification::make()
+                ->title('No newsletter subscribers found')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign([
+            'subject' => $this->notificationTitle,
+            'body_markdown' => $this->body,
+            'action_url' => $this->actionUrl,
+            'action_label' => $this->actionLabel,
+        ], $query, auth()->user(), false);
+
+        $this->reset(['notificationTitle', 'body', 'actionUrl', 'actionLabel', 'recipientEmails']);
+
+        Notification::make()
+            ->title('Newsletter campaign queued')
+            ->body("Queued for {$campaign->total_subscribers} subscribers.")
+            ->success()
+            ->send();
     }
 }
 
