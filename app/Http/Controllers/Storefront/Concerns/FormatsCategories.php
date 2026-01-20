@@ -11,6 +11,7 @@ trait FormatsCategories
 {
     protected function categoryTree(Category $category): array
     {
+        $locale = app()->getLocale();
         $children = $category->children
             ->sortBy('name')
             ->map(fn (Category $child) => $this->categoryTree($child))
@@ -26,7 +27,7 @@ trait FormatsCategories
 
         return [
             'id' => $category->id,
-            'name' => $category->name,
+            'name' => $category->translatedValue('name', $locale),
             'slug' => $category->slug,
             'children' => $children,
         ];
@@ -34,28 +35,32 @@ trait FormatsCategories
 
     protected function rootCategoriesTree(array $load = ['children']): array
     {
-        $cacheKey = 'categories-tree:active-products:' . md5(json_encode($load));
+        $locale = app()->getLocale();
+        $cacheKey = 'categories-tree:active-products:' . md5(json_encode([$load, $locale]));
 
-        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($load) {
+        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($load, $locale) {
             $query = Category::query()
                 ->whereNull('parent_id')
                 ->orderBy('name')
-                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)]);
+                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
 
             $loadChildren = in_array('children', $load, true) || in_array('children.children', $load, true);
             $loadGrandchildren = in_array('children.children', $load, true);
 
             if ($loadChildren) {
-                $query->with(['children' => function ($childQuery) use ($loadGrandchildren) {
+                $query->with(['children' => function ($childQuery) use ($loadGrandchildren, $locale) {
                     $childQuery
                         ->orderBy('name')
-                        ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)]);
+                        ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                        ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
 
                     if ($loadGrandchildren) {
-                        $childQuery->with(['children' => function ($grandQuery) {
+                        $childQuery->with(['children' => function ($grandQuery) use ($locale) {
                             $grandQuery
                                 ->orderBy('name')
-                                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)]);
+                                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
                         }]);
                     }
                 }]);

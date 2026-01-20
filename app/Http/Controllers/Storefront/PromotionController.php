@@ -97,6 +97,7 @@ class PromotionController extends Controller
 
     public function promotedCategories(Request $request)
     {
+        $locale = app()->getLocale();
         $promotions = $this->activePromotions()->get();
         $categoryIds = $promotions->flatMap(fn (Promotion $promo) => $promo->targets)
             ->filter(fn ($target) => $target->target_type === 'category')
@@ -108,10 +109,11 @@ class PromotionController extends Controller
         $categories = Category::query()
             ->whereIn('id', $categoryIds)
             ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
             ->orderByDesc('view_count')
             ->orderByDesc('products_count')
             ->get()
-            ->map(function (Category $category) {
+            ->map(function (Category $category) use ($locale) {
                 $image = $category->hero_image;
                 if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
                     $image = Storage::url($image);
@@ -119,7 +121,7 @@ class PromotionController extends Controller
 
                 return [
                     'id' => $category->id,
-                    'name' => $category->name,
+                    'name' => $category->translatedValue('name', $locale),
                     'slug' => $category->slug,
                     'count' => $category->products_count ?? 0,
                     'image' => $image,
