@@ -158,6 +158,7 @@ class HomeController extends Controller
 
     private function resolveCategoryHighlights(?HomePageSetting $homeContent)
     {
+        $locale = app()->getLocale();
         $configured = $homeContent?->category_highlights ?? [];
         if (is_array($configured) && $configured !== []) {
             $categoryIds = collect($configured)
@@ -168,12 +169,13 @@ class HomeController extends Controller
 
             $categories = Category::query()
                 ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
                 ->whereIn('id', $categoryIds)
                 ->get()
                 ->keyBy('id');
 
             return collect($configured)
-                ->map(function ($entry) use ($categories) {
+                ->map(function ($entry) use ($categories, $locale) {
                     $categoryId = (int) ($entry['category_id'] ?? 0);
                     $category = $categories->get($categoryId);
                     if (! $category || ($category->products_count ?? 0) <= 0) {
@@ -182,7 +184,7 @@ class HomeController extends Controller
                     return [
                         'id' => $category->id,
                         'slug' => $category->slug,
-                        'name' => $category->name,
+                        'name' => $category->translatedValue('name', $locale),
                         'count' => $category->products_count,
                         'views' => $category->view_count ?? 0,
                     ];
@@ -193,6 +195,7 @@ class HomeController extends Controller
 
         return Category::query()
             ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
             ->where('is_active', true)
             ->whereHas('products', fn ($q) => $q->where('is_active', true))
             ->orderByDesc('view_count')
@@ -202,7 +205,7 @@ class HomeController extends Controller
             ->map(fn (Category $category) => [
                 'id' => $category->id,
                 'slug' => $category->slug,
-                'name' => $category->name,
+                'name' => $category->translatedValue('name', $locale),
                 'count' => $category->products_count,
                 'views' => $category->view_count ?? 0,
             ]);

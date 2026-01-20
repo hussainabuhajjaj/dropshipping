@@ -66,6 +66,7 @@ class HomeController extends Controller
 
         $categories = Category::query()
             ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
+            ->with(['translations' => fn ($q) => $q->where('locale', app()->getLocale())])
             ->whereNull('parent_id')
             ->where('is_active', true)
             ->whereHas('products', fn ($q) => $q->where('is_active', true))
@@ -94,10 +95,11 @@ class HomeController extends Controller
     private function mapCategoryCard(Category $category, int $index): array
     {
         $image = $this->formatImage($category->hero_image);
+        $locale = app()->getLocale();
 
         return [
             'id' => $category->id,
-            'name' => $category->name,
+            'name' => $category->translatedValue('name', $locale),
             'slug' => $category->slug,
             'count' => $category->products_count ?? 0,
             'image' => $image,

@@ -64,7 +64,22 @@ class Category extends Model
             return null;
         }
 
-        return $this->translations->firstWhere('locale', $locale);
+        if ($this->relationLoaded('translations')) {
+            return $this->translations->firstWhere('locale', $locale);
+        }
+
+        return $this->translations()->where('locale', $locale)->first();
+    }
+
+    public function translatedValue(string $field, ?string $locale): ?string
+    {
+        $value = $locale ? $this->translationForLocale($locale)?->{$field} : null;
+
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        return $this->{$field} ?? null;
     }
 
     public function scopeRoots($query)
