@@ -47,7 +47,14 @@ class DispatchOrderJob implements ShouldQueue
             if ($provider->code == "cj") {
                 $cj_provider = $provider;
                 $cj_items = $items->where('fulfillment_provider_id', $provider->id);
-                $fulfillmentService->dispatchCjOrder($order, $cj_items, $cj_provider);
+                $providerRetryLimit = $provider?->retry_limit ?? $this->tries;
+
+                if ($this->attempts() > $providerRetryLimit) {
+                    $this->fail(new \RuntimeException('Exceeded fulfillment retry limit for provider.'));
+                    return;
+                }
+//                $fulfillmentService->dispatchCjOrder($order, $cj_items, $cj_provider);
+                $fulfillmentService->dispatchOrderV2($order, $cj_items, $cj_provider);
             }
         }
 
