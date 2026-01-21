@@ -8,61 +8,22 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\Category;
 use App\Models\HomePageSetting;
-use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\StorefrontBanner;
+use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class HomeController extends Controller
 {
     use TransformsProducts;
-    public function __invoke(): JsonResponse
+    public function __invoke(HomeBuilderService $homeBuilder): JsonResponse
     {
         // NOTE: Home page data assembly is duplicated in Storefront\\HomeController.
         // Keep in sync if you change sections, ordering, or limits.
-        $baseQuery = Product::query()
-            ->where('is_active', true)
-            ->with(['images', 'category', 'variants', 'translations'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews');
-
-        $featured = (clone $baseQuery)
-            ->where('is_featured', true)
-            ->latest()
-            ->take(6)
-            ->get();
-
-        if ($featured->isEmpty()) {
-            $featured = (clone $baseQuery)
-                ->latest()
-                ->take(6)
-                ->get();
-        }
-
-        $bestSellerIds = $this->topSellingProductIds();
-        $bestSellersQuery = (clone $baseQuery);
-        if (! empty($bestSellerIds)) {
-            $bestSellersQuery
-                ->whereIn('products.id', $bestSellerIds)
-                ->orderByRaw('FIELD(products.id, ' . implode(',', $bestSellerIds) . ')');
-        } else {
-            $bestSellersQuery->orderByDesc('selling_price');
-        }
-        $bestSellers = $bestSellersQuery
-            ->take(6)
-            ->get();
-
-        $recommendedQuery = clone $baseQuery;
-        if ($featured->isNotEmpty()) {
-            $recommendedQuery->whereNotIn('id', $featured->pluck('id'));
-        }
-        $recommended = $recommendedQuery
-            ->inRandomOrder()
-            ->take(6)
-            ->get();
+        $sections = $homeBuilder->buildProductSections(6);
+        $featured = $sections['featured'];
+        $bestSellers = $sections['bestSellers'];
+        $recommended = $sections['recommended'];
 
         $categories = Category::query()
             ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
@@ -74,7 +35,7 @@ class HomeController extends Controller
             ->orderByDesc('products_count')
             ->take(8)
             ->get()
-            ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index))
+            ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder))
             ->values()
             ->all();
 
@@ -82,7 +43,7 @@ class HomeController extends Controller
 
         return response()->json([
             'currency' => 'USD',
-            'hero' => $this->mapHeroSlides($homeContent),
+            'hero' => $this->mapHeroSlides($homeContent, $homeBuilder),
             'categories' => $categories,
             'flashDeals' => $featured->map(fn (Product $product) => $this->transformProduct($product))->values()->all(),
             'trending' => $bestSellers->map(fn (Product $product) => $this->transformProduct($product))->values()->all(),
@@ -92,9 +53,9 @@ class HomeController extends Controller
         ]);
     }
 
-    private function mapCategoryCard(Category $category, int $index): array
+    private function mapCategoryCard(Category $category, int $index, HomeBuilderService $homeBuilder): array
     {
-        $image = $this->formatImage($category->hero_image);
+        $image = $homeBuilder->normalizeImage($category->hero_image);
         $locale = app()->getLocale();
 
         return [
@@ -107,15 +68,15 @@ class HomeController extends Controller
         ];
     }
 
-    private function mapHeroSlides(?HomePageSetting $homeContent): array
+    private function mapHeroSlides(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder): array
     {
         $slides = $homeContent?->hero_slides ?? [];
         if (! is_array($slides) || empty($slides)) {
-            return $this->mapHeroFromBanners();
+            return $this->mapHeroFromBanners($homeBuilder);
         }
 
         return collect($slides)->map(function (array $slide, int $index) {
-            $image = $this->formatImage($slide['image'] ?? null);
+            $image = $homeBuilder->normalizeImage($slide['image'] ?? null);
 
             return [
                 'id' => $slide['id'] ?? 'hero-' . $index,
@@ -130,7 +91,7 @@ class HomeController extends Controller
         })->values()->all();
     }
 
-    private function mapHeroFromBanners(): array
+    private function mapHeroFromBanners(HomeBuilderService $homeBuilder): array
     {
         $banners = StorefrontBanner::active()
             ->byDisplayType('hero')
@@ -149,7 +110,7 @@ class HomeController extends Controller
                 'subtitle' => $banner->description ?? '',
                 'cta' => $banner->cta_text ?? 'Shop now',
                 'href' => $banner->getCtaUrl(),
-                'image' => $banner->image_path ? Storage::url($banner->image_path) : null,
+                'image' => $homeBuilder->normalizeImage($banner->image_path),
                 'tone' => $banner->background_color ?? $this->toneForIndex($index),
             ];
         })->values()->all();
@@ -191,20 +152,6 @@ class HomeController extends Controller
         ];
     }
 
-    private function formatImage(?string $image): ?string
-    {
-        // NOTE: Image URL normalization is duplicated in Storefront HomeController
-        // and HandleInertiaRequests. Keep in sync if URL handling changes.
-        if (! $image) {
-            return null;
-        }
-
-        if (! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
-            return Storage::url($image);
-        }
-
-        return $image;
-    }
 
     private function accentForIndex(int $seed): string
     {
@@ -236,19 +183,4 @@ class HomeController extends Controller
         return $tones[$index];
     }
 
-    private function topSellingProductIds(): array
-    {
-        return Cache::remember('home:top-selling-product-ids', now()->addMinutes(8), function () {
-            return OrderItem::query()
-                ->select('product_variants.product_id', DB::raw('SUM(order_items.quantity) as units'))
-                ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')
-                ->groupBy('product_variants.product_id')
-                ->orderByDesc('units')
-                ->limit(6)
-                ->pluck('product_variants.product_id')
-                ->map(fn ($value) => (int) $value)
-                ->values()
-                ->all();
-        });
-    }
 }

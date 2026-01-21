@@ -2,12 +2,13 @@
 
 namespace App\Services\Promotions;
 
-use App\Models\Promotion;
 use App\Models\Customer;
 use Illuminate\Support\Collection;
+use App\Services\Promotions\Concerns\BuildsActivePromotionQuery;
 
 class PromotionEngine
 {
+    use BuildsActivePromotionQuery;
     /**
      * Get all applicable promotions for a given cart context.
      * @param array $cart ['lines' => [...], 'subtotal' => float, 'user_id' => int|null]
@@ -15,16 +16,8 @@ class PromotionEngine
      */
     public function getApplicablePromotions(array $cart): Collection
     {
-        // NOTE: This active/dated promotion query is duplicated in PromotionDisplayService
-        // and PromotionController::activePromotions(). Keep filters aligned when changing.
-        $now = now();
-        $promotions = Promotion::where('is_active', true)
-            ->where(function ($q) use ($now) {
-                $q->whereNull('start_at')->orWhere('start_at', '<=', $now);
-            })
-            ->where(function ($q) use ($now) {
-                $q->whereNull('end_at')->orWhere('end_at', '>=', $now);
-            })
+        // NOTE: Base active/dated filters are centralized via BuildsActivePromotionQuery.
+        $promotions = $this->activePromotionsQuery()
             ->orderByDesc('priority')
             ->with(['targets', 'conditions'])
             ->get();

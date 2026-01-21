@@ -14,16 +14,17 @@ class SendReturnApprovedNotification
     {
         $returnRequest = $event->returnRequest;
         $customer = $returnRequest->customer;
+        $locale = $returnRequest->order?->notificationLocale() ?? config('app.locale', 'en');
 
         if ($customer) {
             Notification::send(
                 $customer,
-                new ReturnApprovedNotification($returnRequest, $event->returnLabelUrl)
+                (new ReturnApprovedNotification($returnRequest, $event->returnLabelUrl))->locale($locale)
             );
         } else {
             // Send to order email if no customer account
             Notification::route('mail', $returnRequest->order->email)
-                ->notify(new ReturnApprovedNotification($returnRequest, $event->returnLabelUrl));
+                ->notify((new ReturnApprovedNotification($returnRequest, $event->returnLabelUrl))->locale($locale));
         }
     }
 }

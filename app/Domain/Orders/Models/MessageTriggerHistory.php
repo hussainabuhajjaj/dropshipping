@@ -1,9 +1,12 @@
 <?php
-
-// This file is kept for backwards compatibility.
-// The actual implementation is in App\Domain\Messaging\Models\MessageTriggerHistory.
-// Orders\\Services\\MessageTemplateService is legacy and currently unused.
-
-// If you encounter this file, please update your imports to use:
-// use App\Domain\Messaging\Models\MessageTriggerHistory;
+/**
+ * @deprecated Use App\Domain\Messaging\Models\MessageTriggerHistory instead.
+ *
+ * This file is kept for backwards compatibility.
+ * The actual implementation is in App\Domain\Messaging\Models\MessageTriggerHistory.
+ * Orders\\Services\\MessageTemplateService is legacy and currently unused.
+ *
+ * If you encounter this file, please update your imports to use:
+ * use App\Domain\Messaging\Models\MessageTriggerHistory;
+ */
 

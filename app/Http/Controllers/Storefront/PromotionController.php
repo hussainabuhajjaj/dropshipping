@@ -8,8 +8,10 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Services\Storefront\HomeBuilderService;
 use App\Services\Promotions\PromotionDisplayService;
 use App\Services\Promotions\PromotionHomepageService;
+use App\Services\Promotions\Concerns\BuildsActivePromotionQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -18,6 +20,7 @@ class PromotionController extends Controller
 {
     use TransformsProducts;
     use FormatsCategories;
+    use BuildsActivePromotionQuery;
 
     public function index(Request $request)
     {
@@ -74,16 +77,25 @@ class PromotionController extends Controller
             ->values()
             ->all();
 
-        $products = Product::query()
-            ->whereIn('id', $productIds)
-            ->where('is_active', true)
-            ->with(['images', 'category', 'variants', 'translations'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
-            ->get()
-            ->map(fn (Product $product) => $this->transformProduct($product))
-            ->values()
-            ->all();
+        if (empty($productIds)) {
+            $sections = app(HomeBuilderService::class)->buildProductSections(12);
+            $products = $sections['featured']
+                ->map(fn (Product $product) => $this->transformProduct($product))
+                ->values()
+                ->all();
+            $productIds = collect($products)->pluck('id')->filter()->values()->all();
+        } else {
+            $products = Product::query()
+                ->whereIn('id', $productIds)
+                ->where('is_active', true)
+                ->with(['images', 'category', 'variants', 'translations'])
+                ->withAvg('reviews', 'rating')
+                ->withCount('reviews')
+                ->get()
+                ->map(fn (Product $product) => $this->transformProduct($product))
+                ->values()
+                ->all();
+        }
 
         $categoryIds = collect($products)->pluck('category_id')->filter()->unique()->values()->all();
         $displayPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('product', $productIds, $categoryIds);
@@ -140,17 +152,7 @@ class PromotionController extends Controller
 
     private function activePromotions()
     {
-        // NOTE: This active/dated promotion query is duplicated in PromotionEngine
-        // and PromotionDisplayService. Keep filters aligned when changing.
-        $now = now();
-        return Promotion::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($now) {
-                $q->whereNull('start_at')->orWhere('start_at', '<=', $now);
-            })
-            ->where(function ($q) use ($now) {
-                $q->whereNull('end_at')->orWhere('end_at', '>=', $now);
-            })
+        return $this->activePromotionsQuery()
             ->with(['targets', 'conditions']);
     }
 
