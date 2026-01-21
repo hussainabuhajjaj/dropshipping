@@ -16,6 +16,12 @@
             :stripe-key="stripeKey"
             :paystack-key="paystackKey"
           />
+          <PaymentBadges
+            class="mt-3"
+            :label="t('Accepted payments')"
+            :show-stripe="Boolean(stripeKey)"
+            :show-paystack="Boolean(paystackKey)"
+          />
 
           <form class="space-y-6" @submit.prevent="submit">
           <p v-if="form.errors.payment" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -136,6 +142,10 @@
             <span>{{ t('Total') }}</span>
             <span>{{ currency }} {{ total.toFixed(2) }}</span>
           </div>
+          <div class="space-y-4 pt-2">
+            <DeliveryTimeline compact />
+            <TrustBadges compact />
+          </div>
           <p class="text-xs text-slate-500">
             {{ t('Delivery estimates and customs details are emailed after payment. Tracking updates within 24 to 48 hours post fulfillment.') }}
           </p>
@@ -151,6 +161,9 @@ import { usePersistentCart } from '@/composables/usePersistentCart.js'
 import { useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
+import TrustBadges from '@/Components/TrustBadges.vue'
+import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
+import PaymentBadges from '@/Components/PaymentBadges.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 

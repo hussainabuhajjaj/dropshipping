@@ -1,4 +1,4 @@
-<?php
+x`<?php
 
 namespace App\Services\Providers\CJ;
 
