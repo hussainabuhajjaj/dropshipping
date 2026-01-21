@@ -49,8 +49,7 @@
         </Head>
 
         <!-- Marketplace Header -->
-        <header class="sticky top-0 z-50 shadow-md"
-                style="background:linear-gradient(90deg,rgba(240,236,214,1) 0%,rgba(246,225,109,1) 50%,rgba(245,149,15,1) 100%);">
+        <header class="sticky top-0 z-50 shadow-md bg-brand-header">
             <!-- Top row -->
             <div class="container mx-auto px-4">
                 <div class="flex items-center gap-3 py-3">
@@ -181,11 +180,17 @@
                         <div ref="accountRef" class="relative z-[100]">
                             <button
                                 type="button"
-                                class="inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"
+                                class="relative inline-flex h-10 w-10 items-center justify-center overflow-visible text-white transition hover:text-[#f59e0b]"
                                 aria-label="Account"
                                 :aria-expanded="accountOpen"
                                 @click.stop="toggleAccount"
                             >
+                                <span
+                                    v-if="unreadNotifications"
+                                    class="absolute -right-1 -top-1 z-10 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[0.55rem] font-semibold text-white shadow"
+                                >
+                                    {{ unreadNotifications > 99 ? '99+' : unreadNotifications }}
+                                </span>
                                 <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor"
                                      stroke-width="2">
                                     <path
@@ -223,7 +228,7 @@
                                         </Link>
                                         <Link v-if="authUser" href="/account/notifications"
                                               class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                      <span class="flex items-center justify-between">
+                      <span class="flex w-full items-center justify-between">
                         <span>{{ t('Notifications') }}</span>
                         <span v-if="unreadNotifications"
                               class="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
@@ -600,6 +605,7 @@
                     <div class="text-xs text-slate-500">
                         {{ t('Support: :email', {email: supportEmail}) }}
                     </div>
+                    <PaymentBadges :label="t('Accepted payments')" />
                 </div>
 
                 <div v-for="column in footerColumns" :key="column.title" class="space-y-2 text-sm text-slate-600">
@@ -735,7 +741,7 @@
                             </Link>
                             <Link href="/account/notifications" class="block hover:text-slate-900"
                                   @click="mobileOpen = false">
-                <span class="inline-flex items-center gap-2">
+                <span class="inline-flex w-full items-center justify-between gap-2">
                   {{ t('Notifications') }}
                   <span v-if="unreadNotifications"
                         class="rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
@@ -832,6 +838,7 @@ import {useTranslations} from '@/i18n'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
+import PaymentBadges from '@/Components/PaymentBadges.vue'
 
 import { toastAlert } from "@/utils/toast";
 

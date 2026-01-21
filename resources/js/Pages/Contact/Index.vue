@@ -107,7 +107,20 @@
           {{ t('Fill out the form below and we\'ll get back to you as soon as possible.') }}
         </p>
 
-        <form class="space-y-4">
+        <div
+          v-if="contactNotice"
+          class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
+          {{ contactNotice }}
+        </div>
+        <div
+          v-if="form.errors.contact"
+          class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+        >
+          {{ form.errors.contact }}
+        </div>
+
+        <form class="space-y-4" @submit.prevent="submit">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label for="name" class="block text-sm font-medium text-slate-700 mb-1">
@@ -116,9 +129,11 @@
               <input
                 type="text"
                 id="name"
+                v-model="form.name"
                 class="w-full rounded-md border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                 :placeholder="t('Your name')"
               />
+              <p v-if="form.errors.name" class="mt-1 text-xs text-rose-600">{{ form.errors.name }}</p>
             </div>
             <div>
               <label for="email" class="block text-sm font-medium text-slate-700 mb-1">
@@ -127,9 +142,11 @@
               <input
                 type="email"
                 id="email"
+                v-model="form.email"
                 class="w-full rounded-md border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
                 :placeholder="t('your@email.com')"
               />
+              <p v-if="form.errors.email" class="mt-1 text-xs text-rose-600">{{ form.errors.email }}</p>
             </div>
           </div>
 
@@ -140,9 +157,11 @@
             <input
               type="text"
               id="subject"
+              v-model="form.subject"
               class="w-full rounded-md border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
               :placeholder="t('What is this regarding?')"
             />
+            <p v-if="form.errors.subject" class="mt-1 text-xs text-rose-600">{{ form.errors.subject }}</p>
           </div>
 
           <div>
@@ -152,16 +171,19 @@
             <textarea
               id="message"
               rows="6"
+              v-model="form.message"
               class="w-full rounded-md border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
               :placeholder="t('Tell us more...')"
             ></textarea>
+            <p v-if="form.errors.message" class="mt-1 text-xs text-rose-600">{{ form.errors.message }}</p>
           </div>
 
           <button
             type="submit"
-            class="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-orange-600 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-700 transition-colors"
+            :disabled="form.processing"
+            class="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-orange-600 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-700 transition-colors disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {{ t('Send Message') }}
+            {{ form.processing ? t('Sending...') : t('Send Message') }}
           </button>
         </form>
       </div>
@@ -170,12 +192,14 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useForm, usePage } from '@inertiajs/vue3';
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue';
 
 const { t } = useI18n();
 
-defineProps({
+const props = defineProps({
   supportEmail: {
     type: String,
     default: null,
@@ -201,4 +225,28 @@ defineProps({
     default: 'Get in touch with our customer support team.',
   },
 });
+
+const page = usePage();
+const authUser = page?.props?.auth?.user ?? null;
+const initialName = authUser
+  ? [authUser.first_name, authUser.last_name].filter(Boolean).join(' ') || authUser.name || ''
+  : '';
+
+const form = useForm({
+  name: initialName,
+  email: authUser?.email ?? '',
+  subject: '',
+  message: '',
+});
+
+const contactNotice = computed(() => page?.props?.flash?.contact_notice ?? null);
+
+const submit = () => {
+  form.post('/contact', {
+    preserveScroll: true,
+    onSuccess: () => {
+      form.reset('subject', 'message');
+    },
+  });
+};
 </script>

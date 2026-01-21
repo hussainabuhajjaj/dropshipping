@@ -103,6 +103,11 @@
                             t("Delivery to Cote d'Ivoire with transparent customs. Expect tracking within 24 to 48 hours after fulfillment.")
                         }}
                     </p>
+                    <div class="space-y-4 border-t border-slate-200 pt-4">
+                        <PaymentBadges :label="t('Accepted payments')" />
+                        <TrustBadges compact />
+                        <DeliveryTimeline compact />
+                    </div>
                 </aside>
             </div>
         </div>
@@ -121,6 +126,9 @@ import {Link, router} from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CartLineItem from '@/Components/CartLineItem.vue'
 import EmptyState from '@/Components/EmptyState.vue'
+import TrustBadges from '@/Components/TrustBadges.vue'
+import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
+import PaymentBadges from '@/Components/PaymentBadges.vue'
 import {ref, computed} from 'vue'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'

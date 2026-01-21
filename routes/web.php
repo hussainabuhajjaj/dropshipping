@@ -140,6 +140,7 @@ Route::get('/legal/privacy-policy', [PageController::class, 'privacyPolicy'])->n
 Route::get('/legal/terms-of-service', [PageController::class, 'termsOfService'])->name('legal.terms');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
+Route::post('/contact', [PageController::class, 'submitContact'])->name('contact.submit');
 Route::inertia('/support', 'Support/Index')->name('support');
 Route::inertia('/faq', 'Faq/Index')->name('faq');
 

@@ -61,12 +61,15 @@ class CJDropshippingClient
     {
         $client = $this->authClient();
         // CJ API expects orderIds as an array in the payload
-        // Adjust endpoint if your API docs specify differently
         $response = $client->post('/v1/shopping/order/getOrderStatus', $payload);
         // Optionally, you can return $response->data or the full response
         return $response;
     }
-
+    public function getOrderList(array $payload){
+            $client = $this->authClient();
+            $response = $client->get('/v1/shopping/order/list', $payload);
+            return $response;
+            }
 
     /**
      * Calculate freight/shipping cost using CJ API.

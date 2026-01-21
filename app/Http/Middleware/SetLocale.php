@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 class SetLocale
@@ -18,9 +19,16 @@ class SetLocale
             $sessionLocale = $request->session()->get('locale');
         }
 
-        $locale = $sessionLocale
-            ?? $request->cookie('locale')
-            ?? $this->resolveFromHeader($request->header('Accept-Language', ''));
+        $cookieLocale = $request->cookie('locale');
+        $headerLocale = $this->resolveFromHeader($request->header('Accept-Language', ''));
+
+        $locale = $headerLocale
+            ?? $sessionLocale
+            ?? $cookieLocale;
+
+        if (! in_array($locale, self::SUPPORTED_LOCALES, true)) {
+            $locale = $headerLocale;
+        }
 
         if (! in_array($locale, self::SUPPORTED_LOCALES, true)) {
             $locale = config('app.locale', 'en');
@@ -28,7 +36,22 @@ class SetLocale
 
         App::setLocale($locale);
 
-        return $next($request);
+        $response = $next($request);
+
+        if ($request->hasSession() && $sessionLocale !== $locale) {
+            $request->session()->put('locale', $locale);
+        }
+
+        if ($cookieLocale !== $locale) {
+            $response->headers->setCookie(Cookie::forever('locale', $locale));
+        }
+
+        $customer = $request->user('customer');
+        if ($customer && (! $customer->locale)) {
+            $customer->forceFill(['locale' => $locale])->save();
+        }
+
+        return $response;
     }
 
     private function resolveFromHeader(string $header): ?string

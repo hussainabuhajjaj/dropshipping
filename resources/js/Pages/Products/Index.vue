@@ -11,6 +11,17 @@
         </div>
         <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
           <span>{{ t(':count items', { count: products.length }) }}</span>
+          <div class="ml-auto flex items-center gap-2">
+            <span class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Sort') }}</span>
+            <select v-model="form.sort" class="input-base !py-1.5 !text-xs" @change="applyFilters">
+              <option value="">{{ t('Newest') }}</option>
+              <option value="price_asc">{{ t('Price: low to high') }}</option>
+              <option value="price_desc">{{ t('Price: high to low') }}</option>
+              <option value="rating">{{ t('Top rated') }}</option>
+              <option value="popularity">{{ t('Most reviewed') }}</option>
+              <option value="featured">{{ t('Featured') }}</option>
+            </select>
+          </div>
           <button
             type="button"
             class="btn-secondary px-3 py-2 text-xs lg:hidden"
@@ -63,6 +74,27 @@
                 <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
               </div>
             </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-600">{{ t('Minimum rating') }}</label>
+              <select v-model="form.rating" class="input-base">
+                <option value="">{{ t('Any rating') }}</option>
+                <option value="4">4+ {{ t('stars') }}</option>
+                <option value="3">3+ {{ t('stars') }}</option>
+                <option value="2">2+ {{ t('stars') }}</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-slate-600">{{ t('Featured') }}</label>
+              <select v-model="form.is_featured" class="input-base">
+                <option value="">{{ t('Any') }}</option>
+                <option value="1">{{ t('Featured only') }}</option>
+                <option value="0">{{ t('Standard') }}</option>
+              </select>
+            </div>
+            <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <input v-model="form.in_stock" type="checkbox" />
+              <span>{{ t('In stock only') }}</span>
+            </label>
             <div class="flex gap-2">
               <button type="submit" class="btn-secondary flex-1">{{ t('Apply') }}</button>
               <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
@@ -163,6 +195,38 @@
               <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
             </div>
           </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-slate-600">{{ t('Sort') }}</label>
+            <select v-model="form.sort" class="input-base">
+              <option value="">{{ t('Newest') }}</option>
+              <option value="price_asc">{{ t('Price: low to high') }}</option>
+              <option value="price_desc">{{ t('Price: high to low') }}</option>
+              <option value="rating">{{ t('Top rated') }}</option>
+              <option value="popularity">{{ t('Most reviewed') }}</option>
+              <option value="featured">{{ t('Featured') }}</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-slate-600">{{ t('Minimum rating') }}</label>
+            <select v-model="form.rating" class="input-base">
+              <option value="">{{ t('Any rating') }}</option>
+              <option value="4">4+ {{ t('stars') }}</option>
+              <option value="3">3+ {{ t('stars') }}</option>
+              <option value="2">2+ {{ t('stars') }}</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-slate-600">{{ t('Featured') }}</label>
+            <select v-model="form.is_featured" class="input-base">
+              <option value="">{{ t('Any') }}</option>
+              <option value="1">{{ t('Featured only') }}</option>
+              <option value="0">{{ t('Standard') }}</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <input v-model="form.in_stock" type="checkbox" />
+            <span>{{ t('In stock only') }}</span>
+          </label>
           <div class="flex gap-2">
             <button type="submit" class="btn-secondary flex-1" @click="filtersOpen = false">{{ t('Apply') }}</button>
             <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
@@ -197,10 +261,23 @@ const form = reactive({
   category: props.filters.category ?? '',
   min_price: props.filters.min_price ?? '',
   max_price: props.filters.max_price ?? '',
+  rating: props.filters.rating ?? '',
+  in_stock: Boolean(props.filters.in_stock),
+  is_featured: props.filters.is_featured ?? '',
+  sort: props.filters.sort ?? '',
   page: props.filters.page ?? 1,
 })
 
 const filtersOpen = ref(false)
+
+const sortLabels = {
+  newest: t('Newest'),
+  price_asc: t('Price: low to high'),
+  price_desc: t('Price: high to low'),
+  rating: t('Top rated'),
+  popularity: t('Most reviewed'),
+  featured: t('Featured'),
+}
 
 const activeFilters = computed(() => {
   const items = []
@@ -218,6 +295,23 @@ const activeFilters = computed(() => {
   if (form.max_price) {
     items.push({ key: 'max_price', label: t('Max: :value', { value: form.max_price }) })
   }
+  if (form.rating) {
+    items.push({ key: 'rating', label: t('Rating: :value+', { value: form.rating }) })
+  }
+  if (form.in_stock) {
+    items.push({ key: 'in_stock', label: t('In stock only') })
+  }
+  if (form.is_featured !== '') {
+    items.push({
+      key: 'is_featured',
+      label: form.is_featured === '1' || form.is_featured === 1 || form.is_featured === true
+        ? t('Featured only')
+        : t('Standard'),
+    })
+  }
+  if (form.sort && sortLabels[form.sort]) {
+    items.push({ key: 'sort', label: t('Sort: :value', { value: sortLabels[form.sort] }) })
+  }
   return items
 })
 
@@ -232,13 +326,21 @@ const resetFilters = () => {
   form.category = ''
   form.min_price = ''
   form.max_price = ''
+  form.rating = ''
+  form.in_stock = false
+  form.is_featured = ''
+  form.sort = ''
   filtersOpen.value = false
   form.page = 1
   applyFilters()
 }
 
 const clearFilter = (key) => {
-  form[key] = ''
+  if (typeof form[key] === 'boolean') {
+    form[key] = false
+  } else {
+    form[key] = ''
+  }
   form.page = 1
   applyFilters()
 }

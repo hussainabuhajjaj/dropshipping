@@ -16,7 +16,8 @@ class SendDeliveryConfirmedNotification
     {
         $order = $event->order;
         $notifiable = $order->customer ?? $order->user;
-        $notification = new DeliveryConfirmedNotification($order, $event->deliveredAt);
+        $locale = $order->notificationLocale();
+        $notification = (new DeliveryConfirmedNotification($order, $event->deliveredAt))->locale($locale);
 
         if ($notifiable) {
             Notification::send($notifiable, $notification);

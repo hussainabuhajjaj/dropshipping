@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+.bg-brand-header {
+    background: linear-gradient(
+        90deg,
+        rgba(245, 149, 15, 1) 0%,
+        rgba(246, 225, 109, 1) 50%,
+        rgba(240, 236, 214, 1) 100%
+    );
+}
+
+.brand-theme,
+.brand-theme * {
+    font-family: "Big Shoulders", sans-serif !important;
+    font-optical-sizing: auto;
+    font-weight: 700;
+    font-style: normal;
+}
+
+.brand-theme {
+    font-size: 1.5rem;
+}
+
 @layer base {
     :root {
         --accent: #f59e0b;

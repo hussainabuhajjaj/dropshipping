@@ -46,6 +46,7 @@ class RegisteredUserController extends Controller
             'first_name' => $firstName,
             'last_name' => $lastName,
             'email' => $request->email,
+            'locale' => app()->getLocale(),
             'password' => Hash::make($request->password),
         ]);
 

@@ -12,9 +12,11 @@ use App\Domain\Payments\PaymentService;
 use App\Events\Orders\RefundProcessed;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Infrastructure\Payments\Paystack\PaystackRefundService;
+use App\Notifications\Orders\OrderPendingPaymentNotification;
 use App\Services\Api\ApiException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Js;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
@@ -31,173 +33,205 @@ class ViewOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('dispatch_all')
-                ->label('Dispatch All')
-                ->icon('heroicon-o-paper-airplane')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->modalHeading('Dispatch All Order Items')
-                ->modalDescription(fn (Order $record) =>
-                    "This will dispatch all items in order {$record->number} to their fulfillment providers."
-                )
-                ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
-                ->action(function (Order $record) {
-                    $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
-                    foreach ($items as $item) {
-                        \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
-                        $item->update(['fulfillment_status' => 'fulfilling']);
-                        \App\Domain\Orders\Models\OrderAuditLog::create([
-                            'order_id' => $record->id,
-                            'user_id' => auth()->id(),
-                            'action' => 'fulfillment_dispatched',
-                            'note' => 'Dispatched to provider (bulk)',
-                            'payload' => ['order_item_id' => $item->id],
-                        ]);
-                    }
-                    Notification::make()
-                        ->title('All items dispatched')
-                        ->success()
-                        ->send();
-                }),
-            Actions\Action::make('copyShipping')
-                ->label('Copy Shipping Info')
-                ->color('gray')
-                ->icon('heroicon-o-clipboard')
-                ->alpineClickHandler(function (Order $record): string {
-                    $text = implode(', ', array_filter([
-                        $record->shippingAddress?->name,
-                        $record->shippingAddress?->line1,
-                        $record->shippingAddress?->line2,
-                        $record->shippingAddress?->city,
-                        $record->shippingAddress?->state,
-                        $record->shippingAddress?->postal_code,
-                        $record->shippingAddress?->country,
-                        $record->shippingAddress?->phone,
-                    ]));
+            Actions\ActionGroup::make([
+                Actions\Action::make('resend_pending_payment')
+                    ->label('Resend Pending Payment Email')
+                    ->icon('heroicon-o-envelope')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('Resend pending payment email')
+                    ->modalDescription(fn (Order $record) => "Send payment reminder for order {$record->number}.")
+                    ->visible(fn (Order $record) => $record->payment_status === 'unpaid' && (bool) $record->email)
+                    ->action(function (Order $record): void {
+                        $notification = (new OrderPendingPaymentNotification($record))
+                            ->locale($record->notificationLocale());
 
-                    return 'navigator.clipboard.writeText(' . Js::from($text)->toHtml() . ')';
-                }),
-            Actions\Action::make('overrideStatus')
-                ->label('Manual Status Override')
-                ->icon('heroicon-o-adjustments-vertical')
-                ->color('warning')
-                ->schema([
-                    Select::make('status')->label('Order Status')->options([
-                        'pending' => 'Pending',
-                        'paid' => 'Paid',
-                        'fulfilling' => 'Fulfilling',
-                        'fulfilled' => 'Fulfilled',
-                        'cancelled' => 'Cancelled',
-                        'refunded' => 'Refunded',
-                    ])->required(),
-                    Select::make('payment_status')->label('Payment Status')->options([
-                        'unpaid' => 'Unpaid',
-                        'paid' => 'Paid',
-                        'refunded' => 'Refunded',
-                    ])->required(),
-                    Textarea::make('note')->rows(3)->required(),
-                ])
-                ->action(function (Order $record, array $data): void {
-                    $record->update([
-                        'status' => $data['status'],
-                        'payment_status' => $data['payment_status'],
-                    ]);
-                    OrderAuditLog::create([
-                        'order_id' => $record->id,
-                        'user_id' => auth()->id(),
-                        'action' => 'order_override',
-                        'note' => $data['note'],
-                        'payload' => $data,
-                    ]);
-                    app(EventLogger::class)->order(
-                        $record,
-                        'override',
-                        $data['status'],
-                        $data['note'],
-                        ['payment_status' => $data['payment_status']]
-                    );
-                }),
-            Actions\Action::make('refund')
-                ->label('Initiate Refund')
-                ->icon('heroicon-o-banknotes')
-                ->color('danger')
-                ->schema([
-                    TextInput::make('amount')->numeric()->required(),
-                    TextInput::make('currency')->default(fn (Order $record) => $record->currency)->required(),
-                    Textarea::make('reason')->rows(3)->required(),
-                    Toggle::make('force')->label('Force after delivery')->default(false),
-                ])
-                ->action(function (Order $record, array $data): void {
-                    $delivered = $record->orderItems()->whereHas('shipments', fn ($q) => $q->whereNotNull('delivered_at'))->exists();
-                    if ($delivered && ! $data['force']) {
-                        Notification::make()
-                            ->title('Cannot refund after delivery without force.')
-                            ->danger()
-                            ->send();
-                        return;
-                    }
-                    DB::transaction(function () use ($record, $data) {
-                        $record->payments()->update(['status' => 'refunded']);
-                        $record->update(['payment_status' => 'refunded', 'status' => 'refunded']);
+                        if ($record->customer) {
+                            $record->customer->notify($notification);
+                        } else {
+                            NotificationFacade::route('mail', $record->email)->notify($notification);
+                        }
 
                         OrderAuditLog::create([
                             'order_id' => $record->id,
                             'user_id' => auth()->id(),
-                            'action' => 'refund_initiated',
-                            'note' => $data['reason'],
-                            'payload' => ['amount' => $data['amount'], 'force' => $data['force']],
+                            'action' => 'pending_payment_email_resent',
+                            'note' => 'Pending payment email resent from admin.',
+                            'payload' => ['email' => $record->email],
                         ]);
 
+                        Notification::make()
+                            ->title('Pending payment email sent')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('dispatch_all')
+                    ->label('Dispatch All')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->modalHeading('Dispatch All Order Items')
+                    ->modalDescription(fn (Order $record) =>
+                        "This will dispatch all items in order {$record->number} to their fulfillment providers."
+                    )
+                    ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
+                    ->action(function (Order $record) {
+                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+                        foreach ($items as $item) {
+                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
+                            $item->update(['fulfillment_status' => 'fulfilling']);
+                            \App\Domain\Orders\Models\OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'fulfillment_dispatched',
+                                'note' => 'Dispatched to provider (bulk)',
+                                'payload' => ['order_item_id' => $item->id],
+                            ]);
+                        }
+                        Notification::make()
+                            ->title('All items dispatched')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('copyShipping')
+                    ->label('Copy Shipping Info')
+                    ->color('gray')
+                    ->icon('heroicon-o-clipboard')
+                    ->alpineClickHandler(function (Order $record): string {
+                        $text = implode(', ', array_filter([
+                            $record->shippingAddress?->name,
+                            $record->shippingAddress?->line1,
+                            $record->shippingAddress?->line2,
+                            $record->shippingAddress?->city,
+                            $record->shippingAddress?->state,
+                            $record->shippingAddress?->postal_code,
+                            $record->shippingAddress?->country,
+                            $record->shippingAddress?->phone,
+                        ]));
+
+                        return 'navigator.clipboard.writeText(' . Js::from($text)->toHtml() . ')';
+                    }),
+                Actions\Action::make('overrideStatus')
+                    ->label('Manual Status Override')
+                    ->icon('heroicon-o-adjustments-vertical')
+                    ->color('warning')
+                    ->schema([
+                        Select::make('status')->label('Order Status')->options([
+                            'pending' => 'Pending',
+                            'paid' => 'Paid',
+                            'fulfilling' => 'Fulfilling',
+                            'fulfilled' => 'Fulfilled',
+                            'cancelled' => 'Cancelled',
+                            'refunded' => 'Refunded',
+                        ])->required(),
+                        Select::make('payment_status')->label('Payment Status')->options([
+                            'unpaid' => 'Unpaid',
+                            'paid' => 'Paid',
+                            'refunded' => 'Refunded',
+                        ])->required(),
+                        Textarea::make('note')->rows(3)->required(),
+                    ])
+                    ->action(function (Order $record, array $data): void {
+                        $record->update([
+                            'status' => $data['status'],
+                            'payment_status' => $data['payment_status'],
+                        ]);
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'order_override',
+                            'note' => $data['note'],
+                            'payload' => $data,
+                        ]);
                         app(EventLogger::class)->order(
                             $record,
-                            'refund',
-                            'refunded',
-                            $data['reason'],
-                            ['amount' => $data['amount'], 'force' => $data['force']]
+                            'override',
+                            $data['status'],
+                            $data['note'],
+                            ['payment_status' => $data['payment_status']]
                         );
-                    });
+                    }),
+                Actions\Action::make('refund')
+                    ->label('Initiate Refund')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('danger')
+                    ->schema([
+                        TextInput::make('amount')->numeric()->required(),
+                        TextInput::make('currency')->default(fn (Order $record) => $record->currency)->required(),
+                        Textarea::make('reason')->rows(3)->required(),
+                        Toggle::make('force')->label('Force after delivery')->default(false),
+                    ])
+                    ->action(function (Order $record, array $data): void {
+                        $delivered = $record->orderItems()->whereHas('shipments', fn ($q) => $q->whereNotNull('delivered_at'))->exists();
+                        if ($delivered && ! $data['force']) {
+                            Notification::make()
+                                ->title('Cannot refund after delivery without force.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        DB::transaction(function () use ($record, $data) {
+                            $record->payments()->update(['status' => 'refunded']);
+                            $record->update(['payment_status' => 'refunded', 'status' => 'refunded']);
 
-                    Event::dispatch(new RefundProcessed($record, (float) $data['amount'], $data['currency'], $data['reason']));
-                }),
-            Actions\Action::make('processPaystackRefund')
-                ->label('Process Paystack Refund')
-                ->icon('heroicon-o-arrow-uturn-left')
-                ->color('danger')
-                ->visible(function (Order $record) {
-                    $payment = $record->payments()
-                        ->where('provider', 'paystack')
-                        ->where('status', 'paid')
-                        ->first();
-                    return $payment && ($payment->refunded_amount < $payment->amount);
-                })
-                ->requiresConfirmation()
-                ->modalHeading('Process Paystack Refund')
-                ->modalDescription('This will process a real refund through Paystack API.')
-                ->schema([
-                    TextInput::make('amount')
-                        ->label('Refund Amount')
-                        ->numeric()
-                        ->required()
-                        ->prefix(function (Order $record): string { return $record->currency; })
-                        ->default(function (Order $record): float {
-                            $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
-                            return $payment ? ($payment->amount - $payment->refunded_amount) : 0;
-                        })
-                        ->helperText(function (Order $record): string {
-                            $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
-                            if ($payment) {
-                                $available = $payment->amount - $payment->refunded_amount;
-                                return "Available to refund: {$available} {$payment->currency}";
-                            }
-                            return '';
-                        }),
-                    Textarea::make('reason')
-                        ->label('Refund Reason')
-                        ->required()
-                        ->rows(3)
-                        ->placeholder('Customer request, damaged goods, etc.'),
-                ])
-                ->action(function (Order $record, array $data): void {
+                            OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'refund_initiated',
+                                'note' => $data['reason'],
+                                'payload' => ['amount' => $data['amount'], 'force' => $data['force']],
+                            ]);
+
+                            app(EventLogger::class)->order(
+                                $record,
+                                'refund',
+                                'refunded',
+                                $data['reason'],
+                                ['amount' => $data['amount'], 'force' => $data['force']]
+                            );
+                        });
+
+                        Event::dispatch(new RefundProcessed($record, (float) $data['amount'], $data['currency'], $data['reason']));
+                    }),
+                Actions\Action::make('processPaystackRefund')
+                    ->label('Process Paystack Refund')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(function (Order $record) {
+                        $payment = $record->payments()
+                            ->where('provider', 'paystack')
+                            ->where('status', 'paid')
+                            ->first();
+                        return $payment && ($payment->refunded_amount < $payment->amount);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Process Paystack Refund')
+                    ->modalDescription('This will process a real refund through Paystack API.')
+                    ->schema([
+                        TextInput::make('amount')
+                            ->label('Refund Amount')
+                            ->numeric()
+                            ->required()
+                            ->prefix(function (Order $record): string { return $record->currency; })
+                            ->default(function (Order $record): float {
+                                $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                                return $payment ? ($payment->amount - $payment->refunded_amount) : 0;
+                            })
+                            ->helperText(function (Order $record): string {
+                                $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                                if ($payment) {
+                                    $available = $payment->amount - $payment->refunded_amount;
+                                    return "Available to refund: {$available} {$payment->currency}";
+                                }
+                                return '';
+                            }),
+                        Textarea::make('reason')
+                            ->label('Refund Reason')
+                            ->required()
+                            ->rows(3)
+                            ->placeholder('Customer request, damaged goods, etc.'),
+                    ])
+                    ->action(function (Order $record, array $data): void {
                     try {
                         $payment = $record->payments()
                             ->where('provider', 'paystack')
@@ -361,6 +395,10 @@ class ViewOrder extends ViewRecord
                         ->body($lines ? implode("\n", $lines) : 'No items to check.')
                         ->send();
                 }),
+            ])
+                ->label('Order Actions')
+                ->icon('heroicon-o-ellipsis-horizontal')
+                ->color('gray'),
         ];
     }
 
