@@ -254,6 +254,7 @@ class OrderResource extends Resource
                                 'payload' => ['order_item_id' => $item->id],
                             ]);
                         }
+
                         Notification::make()
                             ->title('All items dispatched')
                             ->success()

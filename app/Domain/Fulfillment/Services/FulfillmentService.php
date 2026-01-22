@@ -28,7 +28,7 @@ class FulfillmentService
     )
     {
     }
-
+ 
     public function dispatchOrderItem(OrderItem $orderItem): FulfillmentJob
     {
         $provider = $this->resolveProvider($orderItem);
