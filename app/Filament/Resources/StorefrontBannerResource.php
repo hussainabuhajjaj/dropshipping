@@ -12,8 +12,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms;
-use Filament\Forms\Get;
 use Filament\Schemas\Components\Utilities\Get as SchemaGet;
+use Illuminate\Support\Str;
 use App\Filament\Resources\StorefrontBannerResource\Pages;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -59,6 +59,15 @@ class StorefrontBannerResource extends BaseResource
                             'popup' => 'Popup Modal',
                         ])
                         ->required(),
+                    Forms\Components\Select::make('targeting.image_mode')
+                        ->label('Carousel image layout')
+                        ->options([
+                            'split' => 'Split (text + image)',
+                            'cover' => 'Full image + text overlay',
+                            'image_only' => 'Full image only',
+                        ])
+                        ->default('split')
+                        ->helperText('Controls how the carousel slide displays the image.'),
                     Forms\Components\FileUpload::make('image_path')
                         ->label('Banner Image')
                         ->image()
@@ -128,9 +137,10 @@ class StorefrontBannerResource extends BaseResource
                         ->placeholder('Shop Now')
                         ->label('Button Text'),
                     Forms\Components\TextInput::make('cta_url')
-                        ->url()
-                        ->placeholder('https://example.com/summer-sale')
-                        ->label('Button URL'),
+                        ->label('Button URL')
+                        ->placeholder('/collections')
+                        ->helperText('Use a relative path (e.g. /products).')
+                        ->dehydrateStateUsing(fn (?string $state): ?string => self::normalizeRelativeUrl($state)),
                 ])->columns(2),
 
             Section::make('Live Preview')
@@ -227,5 +237,25 @@ class StorefrontBannerResource extends BaseResource
             'create' => Pages\CreateStorefrontBanner::route('/create'),
             'edit' => Pages\EditStorefrontBanner::route('/{record}/edit'),
         ];
+    }
+
+    private static function normalizeRelativeUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $trimmed = trim($url);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (Str::startsWith($trimmed, ['http://', 'https://'])) {
+            $relativePath = parse_url($trimmed, PHP_URL_PATH) ?? '';
+            $query = parse_url($trimmed, PHP_URL_QUERY);
+            $trimmed = $relativePath . ($query ? ('?' . $query) : '');
+        }
+
+        return '/' . ltrim($trimmed, '/');
     }
 }

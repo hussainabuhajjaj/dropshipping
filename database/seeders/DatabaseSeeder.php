@@ -29,10 +29,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $this->call(\Database\Seeders\PromotionSeeder::class);
-        $this->call(\Database\Seeders\CJSeeder::class);
-        $this->call(\Database\Seeders\LocalWareHouseSeeder::class);
+        // $this->call(\Database\Seeders\CJSeeder::class);
+        // $this->call(\Database\Seeders\LocalWareHouseSeeder::class);
         $this->call(\Database\Seeders\HomePageSettingSeeder::class);
-        $this->call(\Database\Seeders\StorefrontBannerSeeder::class);
+        $this->call(\Database\Seeders\StorefrontSeasonalSeeder::class);
+        $this->call(\Database\Seeders\PromotionSeeder::class);
     }
 }

@@ -118,6 +118,35 @@
         </div>
       </section>
 
+      <section v-if="seasonalDrops.length" class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">{{ t('Seasonal drops') }}</p>
+            <h2 class="section-title">{{ t('Limited edits and festive drops') }}</h2>
+          </div>
+          <Link href="/collections" class="section-link">{{ t('View all') }}</Link>
+        </div>
+        <div class="seasonal-grid">
+          <Link
+            v-for="drop in seasonalDrops"
+            :key="drop.id"
+            :href="drop.href"
+            class="seasonal-card"
+          >
+            <div class="seasonal-media">
+              <img v-if="drop.image" :src="drop.image" :alt="drop.title" loading="lazy" />
+              <div v-else class="seasonal-fallback">{{ drop.kicker?.slice(0, 2) || 'SD' }}</div>
+              <span v-if="drop.tag" class="seasonal-tag">{{ drop.tag }}</span>
+            </div>
+            <div class="seasonal-body">
+              <p class="seasonal-kicker">{{ drop.kicker }}</p>
+              <h3>{{ drop.title }}</h3>
+              <p class="seasonal-subtitle">{{ drop.subtitle }}</p>
+            </div>
+          </Link>
+        </div>
+      </section>
+
       <section class="category-rail">
         <div class="section-head">
           <div>
@@ -316,6 +345,7 @@ const props = defineProps({
   currency: { type: String, default: 'USD' },
   homeContent: { type: Object, default: () => ({}) },
   banners: { type: Object, default: () => ({}) },
+  seasonalDrops: { type: Array, default: () => [] },
 })
 
 const page = usePage()
@@ -1024,6 +1054,92 @@ const valueProps = computed(() => {
   font-size: 12px;
   font-weight: 700;
   color: #29ab87;
+}
+
+.seasonal-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.seasonal-card {
+  border-radius: 22px;
+  border: 1px solid #eef2f7;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.seasonal-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.seasonal-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.seasonal-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.seasonal-fallback {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: #b45309;
+  background: var(--Simbazu-cream);
+}
+
+.seasonal-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.seasonal-body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seasonal-kicker {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.seasonal-body h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.seasonal-subtitle {
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .rail-icon {

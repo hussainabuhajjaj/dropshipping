@@ -11,7 +11,10 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\Category;
 use App\Models\HomePageSetting;
 use App\Models\Product;
+use App\Models\StorefrontCampaign;
 use App\Models\StorefrontBanner;
+use App\Models\StorefrontCollection;
+use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,6 +26,7 @@ class HomeController extends Controller
 
     public function index(PromotionHomepageService $promotionHomepageService, HomeBuilderService $homeBuilder): Response
     {
+        $locale = app()->getLocale();
         $sections = $homeBuilder->buildProductSections(6);
         $featured = $sections['featured'];
         $bestSellers = $sections['bestSellers'];
@@ -45,6 +49,10 @@ class HomeController extends Controller
 
         $homepagePromotions = $promotionHomepageService->getHomepagePromotions();
         $promotionBanners = $this->buildPromotionBanners($homepagePromotions);
+        $campaignPlacements = app(CampaignPlacementService::class);
+        $campaignHeroBanners = $campaignPlacements->placementBanners('home_hero', $locale, 1);
+        $campaignCarouselBanners = $campaignPlacements->placementBanners('home_carousel', $locale);
+        $campaignStripBanners = $campaignPlacements->placementBanners('home_strip', $locale, 1);
 
         // Fetch active banners
         $stripBanner = StorefrontBanner::active()
@@ -80,8 +88,10 @@ class HomeController extends Controller
                 ->orderBy('display_order')
                 ->get()
                 ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
-                ->values()
-                ->toArray();
+            ->values()
+            ->toArray();
+
+        $stripPayload = $stripBanner ? $this->transformBanner($stripBanner) : null;
 
         if (empty($heroBanners) && ! empty($promotionBanners)) {
             $heroBanners = [array_shift($promotionBanners)];
@@ -91,11 +101,25 @@ class HomeController extends Controller
             $carouselBanners = array_values(array_merge($carouselBanners, $promotionBanners));
         }
 
+        if (! empty($campaignHeroBanners)) {
+            $heroBanners = $campaignHeroBanners;
+        }
+
+        if (! empty($campaignCarouselBanners)) {
+            $carouselBanners = array_values(array_merge($campaignCarouselBanners, $carouselBanners));
+        }
+
+        if (! empty($campaignStripBanners)) {
+            $stripPayload = $campaignStripBanners[0];
+        }
+
         $banners = [
             'hero' => $heroBanners,
             'carousel' => $carouselBanners,
-            'strip' => $stripBanner ? $this->transformBanner($stripBanner) : null,
+            'strip' => $stripPayload,
         ];
+
+        $seasonalDrops = $this->buildSeasonalDrops($locale, $homeBuilder);
 
         return Inertia::render('Home', [
             'featured' => $featured->map(fn (Product $product) => $this->transformProduct($product)),
@@ -105,6 +129,7 @@ class HomeController extends Controller
             'categoryHighlights' => $categoryHighlights,
             'currency' => 'USD',
             'banners' => $banners,
+            'seasonalDrops' => $seasonalDrops,
             'homeContent' => $homeContent ? [
                 'top_strip' => $homeContent->top_strip,
                 'hero_slides' => $heroSlides,
@@ -113,6 +138,55 @@ class HomeController extends Controller
             ] : null,
             'homepagePromotions' => $homepagePromotions,
         ]);
+    }
+
+    private function buildSeasonalDrops(string $locale, HomeBuilderService $homeBuilder): array
+    {
+        $campaigns = StorefrontCampaign::query()
+            ->where('is_active', true)
+            ->orderByDesc('priority')
+            ->orderByDesc('starts_at')
+            ->get()
+            ->filter(fn (StorefrontCampaign $campaign) => $campaign->isActiveForLocale($locale))
+            ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true))
+            ->take(4);
+
+        $collections = StorefrontCollection::query()
+            ->orderBy('display_order')
+            ->get()
+            ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale))
+            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true))
+            ->take(6);
+
+        $items = [];
+
+        foreach ($campaigns as $campaign) {
+            $items[] = [
+                'id' => 'campaign-' . $campaign->id,
+                'kind' => 'campaign',
+                'kicker' => $campaign->localizedValue('hero_kicker', $locale) ?? strtoupper($campaign->type),
+                'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
+                'subtitle' => $campaign->localizedValue('hero_subtitle', $locale) ?? '',
+                'image' => $homeBuilder->normalizeImage($campaign->hero_image),
+                'href' => '/campaigns/' . $campaign->slug,
+                'tag' => $campaign->stacking_mode === 'exclusive' ? 'Exclusive' : 'Drop',
+            ];
+        }
+
+        foreach ($collections as $collection) {
+            $items[] = [
+                'id' => 'collection-' . $collection->id,
+                'kind' => 'collection',
+                'kicker' => $collection->localizedValue('hero_kicker', $locale) ?? strtoupper($collection->type),
+                'title' => $collection->localizedValue('title', $locale) ?? $collection->title,
+                'subtitle' => $collection->localizedValue('description', $locale) ?? '',
+                'image' => $homeBuilder->normalizeImage($collection->hero_image),
+                'href' => '/collections/' . $collection->slug,
+                'tag' => $collection->type === 'guide' ? 'Guide' : 'Collection',
+            ];
+        }
+
+        return array_slice($items, 0, 6);
     }
 
     private function resolveCategoryHighlights(?HomePageSetting $homeContent)
@@ -172,6 +246,8 @@ class HomeController extends Controller
 
     private function transformBanner(StorefrontBanner $banner): array
     {
+        $targeting = is_array($banner->targeting ?? null) ? $banner->targeting : [];
+
         return [
             'id' => $banner->id,
             'title' => $banner->title,
@@ -185,6 +261,7 @@ class HomeController extends Controller
             'badgeColor' => $banner->badge_color,
             'ctaText' => $banner->cta_text,
             'ctaUrl' => $banner->getCtaUrl(),
+            'imageMode' => $targeting['image_mode'] ?? 'split',
         ];
     }
 
@@ -261,11 +338,11 @@ class HomeController extends Controller
                 if ($productTarget && $products->has($productTarget['target_id'])) {
                     $product = $products->get($productTarget['target_id']);
                     $image = $this->resolveProductImage($product);
-                    $ctaUrl = route('products.show', $product);
+                    $ctaUrl = route('products.show', $product, false);
                 } elseif ($categoryTarget && $categories->has($categoryTarget['target_id'])) {
                     $category = $categories->get($categoryTarget['target_id']);
                     $image = $this->resolveCategoryImage($category);
-                    $ctaUrl = route('categories.show', $category);
+                    $ctaUrl = route('categories.show', $category, false);
                 }
 
                 return [

@@ -69,6 +69,9 @@ Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');
+Route::get('/collections', [\App\Http\Controllers\Storefront\CollectionController::class, 'index'])->name('collections.index');
+Route::get('/collections/{collection:slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
+Route::get('/campaigns/{campaign:slug}', [\App\Http\Controllers\Storefront\CampaignController::class, 'show'])->name('campaigns.show');
 Route::get('/search', SearchController::class)->name('search');
 
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');

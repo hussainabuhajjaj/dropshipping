@@ -11,8 +11,9 @@ use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Jobs\SyncCjProductsJob;
 use App\Services\Api\ApiException;
 use BackedEnum;
-// use Filament\Tables\Actions\Action;
 use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Contracts\HasTable;
@@ -20,8 +21,8 @@ use Filament\Tables\Table;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Notifications\Notification;
 use App\Filament\Pages\BasePage;
-use Filament\Actions\Action;
 use Illuminate\Support\Str;
+use Illuminate\Support\Collection;
 use UnitEnum;
 
 class CJCatalog extends BasePage implements HasTable
@@ -85,7 +86,7 @@ class CJCatalog extends BasePage implements HasTable
                             $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
                             $resp = $client->listMyProducts([
                                 'pageNum' => 1,
-                                'pageSize' => 100,
+                                'pageSize' => 200,
                             ]);
                             $data = $resp->data ?? [];
                             // dd($data);
@@ -264,7 +265,25 @@ class CJCatalog extends BasePage implements HasTable
                     ->openUrlInNewTab()
                     ->visible(fn (array $record): bool => $this->recordEditUrl($record) !== null),
             ])
+            ->bulkActions([
+                BulkAction::make('importSelected')
+                    ->label('Import selected')
+                    ->icon('heroicon-o-cloud-arrow-down')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->action(function (Collection $records): void {
+                        $this->importSelected($records);
+                    }),
+                BulkAction::make('addSelected')
+                    ->label('Add selection to My Products')
+                    ->icon('heroicon-o-plus')
+                    ->color('secondary')
+                    ->action(function (Collection $records): void {
+                        $this->addSelectedToMyProducts($records);
+                    }),
+            ])
             ->striped()
+            ->selectable()
             ->paginated(false)
             ->defaultKeySort(false)
             ->emptyStateHeading('No CJ products found')
@@ -670,39 +689,14 @@ class CJCatalog extends BasePage implements HasTable
 
     public function importDisplayedProducts(): void
     {
-        $importer = app(CjProductImportService::class);
-        $imported = 0;
         $batch = array_slice($this->items, 0, 15);
+        $pids = collect($batch)
+            ->map(fn ($record) => $this->recordPid($record))
+            ->filter()
+            ->values()
+            ->all();
 
-        foreach ($batch as $record) {
-            $pid = $this->recordPid($record);
-            if ($pid === '') {
-                continue;
-            }
-
-            try {
-                $product = $importer->importByPid($pid, [
-                    'respectSyncFlag' => false,
-                    'defaultSyncEnabled' => true,
-                    'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-                ]);
-            } catch (ApiException $e) {
-                Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                continue;
-            } catch (\Throwable $e) {
-                Notification::make()->title('Error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                continue;
-            }
-
-            if ($product) {
-                $imported++;
-            }
-        }
-
-        $message = $imported > 0 ? "Imported {$imported} products from this page." : 'No new products were imported.';
-        Notification::make()->title('Bulk import')->body($message)->success()->send();
-        $this->recordCommandMessage($message);
-        $this->fetch();
+        $this->bulkImportByPids($pids, 'from this page');
     }
 
     public function queueSyncJob(): void
@@ -757,6 +751,23 @@ class CJCatalog extends BasePage implements HasTable
         } catch (\Throwable $e) {
             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
         }
+    }
+
+    public function importSelected(Collection $records): void
+    {
+        $pids = $this->selectedPids($records);
+        $this->bulkImportByPids($pids, 'from your selection');
+    }
+
+    public function addSelectedToMyProducts(Collection $records): void
+    {
+        $pids = $this->selectedPids($records);
+        if ($pids === []) {
+            Notification::make()->title('Bulk add')->body('No CJ products selected.')->warning()->send();
+            return;
+        }
+
+        $this->bulkAddToMyProducts($pids);
     }
 
     private function hydrateResults(bool $append = false): void
@@ -1180,6 +1191,86 @@ class CJCatalog extends BasePage implements HasTable
     {
         $this->lastCommandMessage = $message;
         $this->lastCommandAt = Carbon::now()->toDateTimeString();
+    }
+
+    private function selectedPids(Collection $records): array
+    {
+        return $records
+            ->map(fn ($record) => $this->recordPid((array) $record))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function bulkImportByPids(array $pids, string $context): void
+    {
+        if ($pids === []) {
+            Notification::make()->title('Bulk import')->body('No CJ products selected.')->warning()->send();
+            return;
+        }
+
+        $importer = app(CjProductImportService::class);
+        $imported = 0;
+
+        foreach ($pids as $pid) {
+            try {
+                $product = $importer->importByPid($pid, [
+                    'respectSyncFlag' => false,
+                    'defaultSyncEnabled' => true,
+                    'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+                ]);
+            } catch (ApiException $e) {
+                Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                continue;
+            } catch (\Throwable $e) {
+                Notification::make()->title('Error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                continue;
+            }
+
+            if ($product) {
+                $imported++;
+            }
+        }
+
+        $message = $imported > 0
+            ? "Imported {$imported} CJ products {$context}."
+            : 'No new products were imported.';
+
+        Notification::make()->title('Bulk import')->body($message)->success()->send();
+        $this->recordCommandMessage($message);
+        $this->fetch();
+    }
+
+    private function bulkAddToMyProducts(array $pids): void
+    {
+        if ($pids === []) {
+            Notification::make()->title('Bulk add')->body('No CJ products selected.')->warning()->send();
+            return;
+        }
+
+        $client = app(CJDropshippingClient::class);
+        $added = 0;
+
+        foreach ($pids as $pid) {
+            try {
+                $client->addToMyProducts($pid);
+            } catch (ApiException $e) {
+                Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                continue;
+            } catch (\Throwable $e) {
+                Notification::make()->title('Error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                continue;
+            }
+            $added++;
+        }
+
+        $message = $added > 0
+            ? "Added {$added} CJ products to My Products."
+            : 'No CJ products were added.';
+
+        Notification::make()->title('Bulk add')->body($message)->success()->send();
+        $this->recordCommandMessage($message);
     }
 
     private function resolveCatalogPayload(array $payload): array
