@@ -6,6 +6,7 @@ namespace App\Console;
 
 use App\Console\Commands\CjSyncCatalog;
 use App\Console\Commands\TranslateProducts;
+use App\Console\Commands\TranslateCategories;
 use App\Console\Commands\SyncCjVariants;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
@@ -26,6 +27,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         CjSyncCatalog::class,
         TranslateProducts::class,
+        TranslateCategories::class,
         \App\Console\Commands\CjCleanupWebhooks::class,
         \App\Console\Commands\CjRefreshToken::class,
         SyncCjVariants::class,

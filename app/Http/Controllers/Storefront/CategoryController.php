@@ -21,6 +21,8 @@ class CategoryController extends Controller
 
     public function show(Request $request, Category $category, ProductMetaExtractor $metaExtractor): Response
     {
+        $locale = app()->getLocale();
+        $category->loadMissing(['translations' => fn ($q) => $q->where('locale', $locale)]);
         $category->increment('view_count');
 
         $perPage = 18;
@@ -86,16 +88,16 @@ class CategoryController extends Controller
         return Inertia::render('Categories/Show', [
             'category' => [
                 'id' => $category->id,
-                'name' => $category->name,
+                'name' => $category->translatedValue('name', $locale),
                 'slug' => $category->slug,
-                'description' => $category->description,
-                'hero_title' => $category->hero_title,
-                'hero_subtitle' => $category->hero_subtitle,
+                'description' => $category->translatedValue('description', $locale),
+                'hero_title' => $category->translatedValue('hero_title', $locale),
+                'hero_subtitle' => $category->translatedValue('hero_subtitle', $locale),
                 'hero_image' => $heroImage,
-                'hero_cta_label' => $category->hero_cta_label,
+                'hero_cta_label' => $category->translatedValue('hero_cta_label', $locale),
                 'hero_cta_link' => $category->hero_cta_link,
-                'meta_title' => $category->meta_title,
-                'meta_description' => $category->meta_description,
+                'meta_title' => $category->translatedValue('meta_title', $locale),
+                'meta_description' => $category->translatedValue('meta_description', $locale),
             ],
             'products' => $products,
             'currency' => 'USD',

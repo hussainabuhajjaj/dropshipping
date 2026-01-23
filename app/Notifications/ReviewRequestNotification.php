@@ -20,7 +20,21 @@ class ReviewRequestNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        $product = $this->orderItem->productVariant?->product;
+        $orderNumber = $this->orderItem->order?->number;
+        $reviewUrl = route('products.show', ['product' => $product?->id]) . '#reviews';
+
+        return [
+            'order_number' => $orderNumber,
+            'product_name' => $product?->name,
+            'action_url' => $reviewUrl,
+            'action_label' => 'Write a review',
+        ];
     }
 
     public function toMail(object $notifiable): MailMessage

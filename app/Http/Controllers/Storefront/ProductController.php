@@ -29,6 +29,10 @@ class ProductController extends Controller
         $minPrice = $request->query('min_price');
         $maxPrice = $request->query('max_price');
         $query = $request->query('q');
+        $sort = $request->query('sort');
+        $rating = $request->query('rating');
+        $inStock = filter_var($request->query('in_stock'), FILTER_VALIDATE_BOOLEAN);
+        $featured = $request->query('is_featured');
 
         $productQuery = Product::query()
             ->where('is_active', true)
@@ -61,9 +65,44 @@ class ProductController extends Controller
             });
         }
 
+        if ($rating !== null && is_numeric($rating)) {
+            $productQuery->having('reviews_avg_rating', '>=', (float) $rating);
+        }
+
+        if ($inStock) {
+            $productQuery->where('stock_on_hand', '>', 0);
+        }
+
+        if ($featured !== null && $featured !== '') {
+            if ($featured === '1' || $featured === 1 || $featured === true || $featured === 'true') {
+                $productQuery->where('is_featured', true);
+            } elseif ($featured === '0' || $featured === 0 || $featured === false || $featured === 'false') {
+                $productQuery->where('is_featured', false);
+            }
+        }
+
+        $sortable = [
+            'price_asc' => ['selling_price', 'asc'],
+            'price_desc' => ['selling_price', 'desc'],
+            'newest' => ['created_at', 'desc'],
+            'rating' => ['reviews_avg_rating', 'desc'],
+            'popularity' => ['reviews_count', 'desc'],
+            'featured' => ['is_featured', 'desc'],
+        ];
+
+        if ($sort && isset($sortable[$sort])) {
+            [$field, $direction] = $sortable[$sort];
+            $productQuery->orderBy($field, $direction);
+
+            if ($sort === 'featured') {
+                $productQuery->orderBy('created_at', 'desc');
+            }
+        } else {
+            $productQuery->orderBy('created_at', 'desc');
+        }
+
         $perPage = 18;
         $products = $productQuery
-            ->latest()
             ->paginate($perPage)
             ->through(fn (Product $product) => $this->transformProduct($product));
 
@@ -83,6 +122,10 @@ class ProductController extends Controller
                 'min_price' => $minPrice,
                 'max_price' => $maxPrice,
                 'q' => $query,
+                'sort' => $sort,
+                'rating' => $rating,
+                'in_stock' => $inStock,
+                'is_featured' => $featured,
                 'page' => $products->currentPage(),
             ],
         ]);

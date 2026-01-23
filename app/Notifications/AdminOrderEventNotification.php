@@ -27,14 +27,22 @@ class AdminOrderEventNotification extends Notification implements ShouldQueue
 
     public function toArray(object $notifiable): array
     {
+        $title = $this->event;
+        $body = $this->detail;
+        $orderUrl = url("/admin/orders/{$this->order->id}");
+
         return [
+            'title' => $title,
+            'body' => $body,
             'event' => $this->event,
             'order_id' => $this->order->id,
             'order_number' => $this->order->number,
             'status' => $this->order->status,
             'payment_status' => $this->order->payment_status,
             'detail' => $this->detail,
-            'admin_url' => url("/admin/orders/{$this->order->id}"),
+            'action_url' => $orderUrl,
+            'action_label' => 'View order',
+            'admin_url' => $orderUrl,
         ];
     }
 }

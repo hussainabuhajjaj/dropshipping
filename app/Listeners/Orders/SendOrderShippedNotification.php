@@ -14,13 +14,14 @@ class SendOrderShippedNotification
     {
         $order = $event->order;
         $notifiable = $order->customer ?? $order->user;
+        $locale = $order->notificationLocale();
 
-        $notification = new OrderShippedNotification(
+        $notification = (new OrderShippedNotification(
             $order,
             $event->trackingNumber,
             $event->carrier,
             $event->trackingUrl
-        );
+        ))->locale($locale);
 
         if ($notifiable) {
             Notification::send($notifiable, $notification);

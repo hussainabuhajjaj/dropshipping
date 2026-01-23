@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Resources\RelationManagers\RelationManagerConfiguration;
 use Filament\Tables;
 
 class CustomerProfileRelationManager extends RelationManager
@@ -13,9 +12,9 @@ class CustomerProfileRelationManager extends RelationManager
     {
         return 'Customer Profile';
     }
-    public function getTable(): Tables\Table
+    public function table(Tables\Table $table): Tables\Table
     {
-        return Tables\Table::make()
+        return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name'),
                 Tables\Columns\TextColumn::make('email'),

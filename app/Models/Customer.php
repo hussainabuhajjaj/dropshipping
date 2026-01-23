@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,7 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Domain\Common\Models\Address;
 
-class Customer extends Authenticatable implements MustVerifyEmail
+class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePreference
 {
     use HasFactory;
     use SoftDeletes;
@@ -20,6 +21,7 @@ class Customer extends Authenticatable implements MustVerifyEmail
         'first_name',
         'last_name',
         'email',
+        'locale',
         'phone',
         'country_code',
         'city',
@@ -113,5 +115,10 @@ class Customer extends Authenticatable implements MustVerifyEmail
                 // Swallow exceptions to avoid blocking registration flow
             }
         });
+    }
+
+    public function preferredLocale(): string
+    {
+        return $this->locale ?: app()->getLocale();
     }
 }

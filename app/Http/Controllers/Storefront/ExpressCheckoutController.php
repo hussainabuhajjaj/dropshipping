@@ -138,6 +138,7 @@ class ExpressCheckoutController extends Controller
                 $couponModel = $discounts['coupon_model'] ?? null;
                 $promotionDiscounts = $discounts['promotion_discounts'] ?? [];
                 $discountSource = $discounts['source'] ?? null;
+                $locale = app()->getLocale();
                 
                 $settings = SiteSetting::query()->first();
                 $shippingTotal = (float) ($shippingQuote['shipping_total'] ?? 0);
@@ -161,6 +162,10 @@ class ExpressCheckoutController extends Controller
                 ]);
 
                 // Create order
+                if ($customer && $customer->locale !== $locale) {
+                    $customer->update(['locale' => $locale]);
+                }
+
                 $order = Order::create([
                     'number' => $this->generateNumber(),
                     'user_id' => null,
@@ -169,6 +174,7 @@ class ExpressCheckoutController extends Controller
                     'guest_phone' => $customer ? null : $data['phone'],
                     'is_guest' => ! $customer,
                     'email' => $data['email'],
+                    'locale' => $locale,
                     'status' => 'pending',
                     'payment_status' => 'unpaid',
                     'currency' => $cart[0]['currency'] ?? 'USD',

@@ -16,7 +16,8 @@ class SendCustomsInfoNotification
     {
         $order = $event->order;
         $notifiable = $order->customer ?? $order->user;
-        $notification = new CustomsInfoNotification($order, $event->note);
+        $locale = $order->notificationLocale();
+        $notification = (new CustomsInfoNotification($order, $event->note))->locale($locale);
 
         if ($notifiable) {
             Notification::send($notifiable, $notification);

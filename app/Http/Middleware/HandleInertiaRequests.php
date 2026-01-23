@@ -41,6 +41,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $customer = $request->user('customer');
+        $authUser = $customer ?? $request->user();
         $cart = Cart::GetCustomerOrGuestCart();
 //        $cart = Cart::query()->where('user_id', auth('web')->id())
 //            ->orWhere('session_id', session()->id())
@@ -58,6 +59,9 @@ class HandleInertiaRequests extends Middleware
 //        $cartSubtotal = $cart->reduce(function ($carry, $line) {
 //            return $carry + ((float) ($line['price'] ?? 0) * (int) ($line['quantity'] ?? 0));
 //        }, 0.0);
+        $unreadNotifications = $authUser && method_exists($authUser, 'unreadNotifications')
+            ? $authUser->unreadNotifications()->count()
+            : 0;
         $site = Schema::hasTable('site_settings')
             ? SiteSetting::query()->first()
             : null;
@@ -77,13 +81,14 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $customer ?? $request->user(),
+                'user' => $authUser,
             ],
             'flash' => [
                 'cart_notice' => $request->session()->get('cart_notice'),
                 'review_notice' => $request->session()->get('review_notice'),
                 'return_notice' => $request->session()->get('return_notice'),
                 'wishlist_notice' => $request->session()->get('wishlist_notice'),
+                'contact_notice' => $request->session()->get('contact_notice'),
                 'status' => $request->session()->get('status'),
             ],
             'cart' => [
@@ -94,6 +99,10 @@ class HandleInertiaRequests extends Middleware
             'wishlist' => [
                 'count' => count($request->session()->get('wishlist', [])),
             ],
+            'notifications' => [
+                'unreadCount' => $unreadNotifications,
+            ],
+            'unreadCount' => $unreadNotifications,
             'site' => $site,
             'storefront' => $storefront,
             'appUrl' => rtrim(config('app.url'), '/'),

@@ -105,6 +105,19 @@
         </div>
       </section>
 
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">{{ t('Trust & delivery') }}</p>
+            <h2 class="section-title">{{ t('Confidence at every step') }}</h2>
+          </div>
+        </div>
+        <div class="grid gap-6 lg:grid-cols-[1.1fr,1fr]">
+          <TrustBadges />
+          <DeliveryTimeline />
+        </div>
+      </section>
+
       <section class="category-rail">
         <div class="section-head">
           <div>
@@ -138,7 +151,7 @@
             <p class="section-kicker">{{ t('Flash deals') }}</p>
             <h2 class="section-title">{{ t('Limited-time drops') }}</h2>
           </div>
-          <Link href="/promotions/flash-sales" class="section-link">{{ t('Shop deals') }}</Link>
+          <Link :href="limitedTimeDealsLink" class="section-link">{{ t('Shop deals') }}</Link>
         </div>
         <div class="deal-grid">
           <div v-for="(deal, index) in featuredDeals" :key="deal.id" class="deal-card">
@@ -254,6 +267,8 @@ import ProductCard from '@/Components/ProductCard.vue'
 import BannerHero from '@/Components/BannerHero.vue'
 import BannerCarousel from '@/Components/BannerCarousel.vue'
 import BannerStrip from '@/Components/BannerStrip.vue'
+import TrustBadges from '@/Components/TrustBadges.vue'
+import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { formatCurrency } from '@/utils/currency.js'
@@ -309,6 +324,7 @@ const now = usePromoNow()
 const homepagePromotions = computed(() =>
   Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : []
 )
+const limitedTimeDealsLink = computed(() => '/promotions/products')
 
 const displayPrice = (amount) => formatCurrency(Number(amount ?? 0), props.currency)
 

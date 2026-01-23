@@ -33,6 +33,7 @@ class Order extends Model
         'guest_phone',
         'is_guest',
         'email',
+        'locale',
         'status',
         'customer_status',
         'payment_status',
@@ -176,6 +177,13 @@ class Order extends Model
     public function billingAddress(): BelongsTo
     {
         return $this->belongsTo(Address::class, 'billing_address_id');
+    }
+
+    public function notificationLocale(): string
+    {
+        return $this->locale
+            ?? $this->customer?->locale
+            ?? config('app.locale', 'en');
     }
 
     /**
