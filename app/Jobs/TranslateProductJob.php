@@ -19,6 +19,9 @@ class TranslateProductJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    public ?int $timeout = 2000;
+    public int $tries = 3;
+
     /**
      * @param array<int, string> $locales
      */
