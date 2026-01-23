@@ -265,14 +265,14 @@ class CjProductImportService
 
         if ($shouldTranslate && $hasTranslatableChange) {
             try {
-                TranslateProductJob::dispatch(
-                    (int)$product->id,
+                TranslateProductJob::dispatchSync(
+                    (int) $product->id,
                     $this->resolveTranslationLocales(),
                     $this->resolveTranslationSourceLocale(),
                     false
                 );
             } catch (\Throwable $e) {
-                Log::warning('Failed to dispatch translation job after CJ import', [
+                Log::warning('Translation failed during CJ import', [
                     'product_id' => $product->id,
                     'error' => $e->getMessage(),
                 ]);
