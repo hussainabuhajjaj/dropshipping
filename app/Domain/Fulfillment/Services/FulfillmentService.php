@@ -13,6 +13,7 @@ use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Notifications\CustomerShipmentOrderNotification;
 use Illuminate\Support\Facades\DB;
 use App\Domain\Observability\EventLogger;
 use App\Models\User;
@@ -28,7 +29,7 @@ class FulfillmentService
     )
     {
     }
- 
+
     public function dispatchOrderItem(OrderItem $orderItem): FulfillmentJob
     {
         $provider = $this->resolveProvider($orderItem);
@@ -108,7 +109,7 @@ class FulfillmentService
             $this->updateJobStatus($job, $result);
             $this->updateOrderItemsStatus($product_items, $result);
 
-
+            $fulfillment_status = null;
             foreach ($product_items as $orderItem) {
                 $this->logger->fulfillment(
                     $orderItem,
@@ -117,11 +118,14 @@ class FulfillmentService
                     $result->rawResponse['error'] ?? null,
                     $result->rawResponse
                 );
+
+                $fulfillment_status = $orderItem->fulfillment_status;
             }
 
             if ($result->trackingNumber || $result->trackingUrl) {
-                $this->recordShipment($orderItem, $result);
-                $this->notifyCustomerShipment($orderItem);
+                $shipment = $this->recordShipmentForOrder($order, $product_items, $result);
+                $customer = $order->customer;
+                $this->notifyCustomerShipmentOrder($customer, $shipment, $fulfillment_status);
             }
 
             if ($result->failed()) {
@@ -295,7 +299,7 @@ class FulfillmentService
 
     private function recordShipment(OrderItem $orderItem, FulfillmentResult $result): void
     {
-        Shipment::updateOrCreate(
+        Shipment::query()->updateOrCreate(
             ['order_item_id' => $orderItem->id, 'tracking_number' => $result->trackingNumber],
             [
                 'carrier' => $orderItem->meta['carrier'] ?? null,
@@ -320,6 +324,39 @@ class FulfillmentService
         }
     }
 
+    private function recordShipmentForOrder(Order $order, $order_items, FulfillmentResult $result)
+    {
+        $shipment = Shipment::query()->updateOrCreate(
+            ['order_id' => $order->id, 'tracking_number' => $result->trackingNumber],
+            [
+                'carrier' => $orderItem->meta['carrier'] ?? null,
+                'tracking_url' => $result->trackingUrl,
+                'logistic_name' => $result->logisticName,
+                'cj_order_id' => $result->cjOrderId,
+                'shipment_order_id' => $result->shipmentOrderId,
+                'postage_amount' => $result->postageAmount,
+                'currency' => $result->currency ?? $orderItem->order?->currency,
+                'shipped_at' => now(),
+                'raw_events' => $result->rawResponse['events'] ?? null,
+            ]
+        );
+
+        $shipment->items()->delete();
+        foreach ($order_items as $order_item) {
+            $shipment->items->push($order_item->id);
+        }
+
+        if ($orderItem->order) {
+            $this->reconcileOrderShipping($orderItem->order);
+
+            // Queue CJ payment after shipment recorded
+            if ($orderItem->order->cj_order_id) {
+                \App\Jobs\PayCJBalanceJob::dispatch($orderItem->order->id);
+            }
+        }
+        return $shipment;
+    }
+
     private function reconcileOrderShipping(Order $order): void
     {
         $actual = (float)($order->shipments()->sum('postage_amount') ?? 0);
@@ -338,6 +375,13 @@ class FulfillmentService
         $recipients = User::query()->whereIn('role', ['admin', 'staff'])->get();
         if ($recipients->isNotEmpty()) {
             Notification::send($recipients, new AdminFulfillmentIssue($orderItem, $message));
+        }
+    }
+
+    private function notifyCustomerShipmentOrder($customer, $shipment, $fulfillment_status): void
+    {
+        if ($customer) {
+            $customer->notify(new CustomerShipmentOrderNotification($shipment, $fulfillment_status));
         }
     }
 
