@@ -20,7 +20,17 @@ class AbandonedCartNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'title' => 'You left items in your cart',
+            'body' => 'Complete your purchase before items sell out.',
+            'action_url' => url('/cart'),
+            'action_label' => 'Resume checkout',
+        ];
     }
 
     public function toMail(object $notifiable): MailMessage

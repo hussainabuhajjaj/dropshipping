@@ -32,8 +32,12 @@ class SendAbandonedCartReminders implements ShouldQueue
 
         foreach ($firstReminders as $cart) {
             try {
-                Notification::route('mail', $cart->email)
-                    ->notify(new AbandonedCartNotification($cart));
+                if ($cart->customer) {
+                    Notification::send($cart->customer, new AbandonedCartNotification($cart));
+                } else {
+                    Notification::route('mail', $cart->email)
+                        ->notify(new AbandonedCartNotification($cart));
+                }
                 
                 $cart->update(['reminder_sent_at' => now()]);
                 
@@ -62,8 +66,12 @@ class SendAbandonedCartReminders implements ShouldQueue
 
         foreach ($secondReminders as $cart) {
             try {
-                Notification::route('mail', $cart->email)
-                    ->notify(new AbandonedCartNotification($cart));
+                if ($cart->customer) {
+                    Notification::send($cart->customer, new AbandonedCartNotification($cart));
+                } else {
+                    Notification::route('mail', $cart->email)
+                        ->notify(new AbandonedCartNotification($cart));
+                }
                 
                 Log::info('Sent second abandoned cart reminder', [
                     'cart_id' => $cart->id,

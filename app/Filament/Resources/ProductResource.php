@@ -65,7 +65,7 @@ class ProductResource extends BaseResource
     }
     protected static ?string $model = Product::class;
 
-    
+
 
     public static function getEloquentQuery(): Builder
     {
@@ -112,7 +112,7 @@ class ProductResource extends BaseResource
                             . '<p><strong>Product price:</strong> default for all variants.</p>'
                             . '<p><strong>Variant price:</strong> overrides product price when set.</p>'
                             . '<p><strong>Margin:</strong> calculated from cost; must meet minimum threshold.</p>'
-                            . '</div>') 
+                            . '</div>')
                         ),
                    TextInput::make('selling_price')
                         ->label('Selling price')
@@ -323,7 +323,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->label('Image')
                         ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
                         ->square(),
-                    Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
+                    Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(10),
                     Tables\Columns\TextColumn::make('source')
                         ->label('Source')
                         ->getStateUsing(fn (Product $record) => $record->cj_pid ? 'CJ' : 'Local')
@@ -432,7 +432,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 ])
                 ->paginated()
-                
+
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active'),
                 Tables\Filters\Filter::make('cj')
@@ -649,7 +649,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     ->icon('heroicon-o-power')
                     ->action(fn (Product $record) => $record->update(['is_active' => ! $record->is_active])),
                 ])
-               
+
             ])
             ->toolbarActions([
                 ActionsBulkActionGroup::make([

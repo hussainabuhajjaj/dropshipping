@@ -16,8 +16,9 @@ class SendShippingDelayNotification
     {
         $order = $event->order;
         $notifiable = $order->customer ?? $order->user;
+        $locale = $order->notificationLocale();
 
-        $notification = new ShippingDelayNotification($order, $event->eta, $event->reason);
+        $notification = (new ShippingDelayNotification($order, $event->eta, $event->reason))->locale($locale);
 
         if ($notifiable) {
             Notification::send($notifiable, $notification);

@@ -31,8 +31,12 @@ class ProcessAbandonedCartsJob implements ShouldQueue
             ->limit(50)
             ->get()
             ->each(function (AbandonedCart $cart) {
-                $notifiable = Notification::route('mail', $cart->email);
-                $notifiable->notify(new AbandonedCartNotification($cart));
+                if ($cart->customer) {
+                    Notification::send($cart->customer, new AbandonedCartNotification($cart));
+                } else {
+                    $notifiable = Notification::route('mail', $cart->email);
+                    $notifiable->notify(new AbandonedCartNotification($cart));
+                }
 
                 $cart->update(['reminder_sent_at' => now()]);
             });

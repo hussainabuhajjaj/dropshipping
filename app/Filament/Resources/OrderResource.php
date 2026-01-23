@@ -415,9 +415,39 @@ class OrderResource extends Resource
                     TextEntry::make('order_items_summary')
                         ->label('Items')
                         ->state(fn(Order $record) => collect($record->orderItems)
-                            ->map(fn($item) => $item->sku . ' × ' . $item->quantity)
-                            ->implode(', ')
-                        ),
+                            ->map(function ($item) use ($record) {
+                                $snapshot = $item->snapshot ?? [];
+                                $name = $snapshot['name']
+                                    ?? $item->productVariant?->product?->name
+                                    ?? 'Item';
+                                $variant = $snapshot['variant']
+                                    ?? $item->productVariant?->title
+                                    ?? null;
+                                $sku = $item->productVariant?->sku ?? $item->sku ?? null;
+                                $qty = (int) ($item->quantity ?? 1);
+                                $unit = number_format((float) ($item->unit_price ?? 0), 2);
+                                $total = number_format((float) ($item->total ?? 0), 2);
+                                $currency = $record->currency ?? 'USD';
+                                $status = $item->fulfillment_status ?? 'pending';
+
+                                $line = '<div style="margin-bottom:8px;">';
+                                $line .= '<strong>' . e($name) . '</strong>';
+                                if ($variant) {
+                                    $line .= ' <span style="color:#64748b;">(' . e($variant) . ')</span>';
+                                }
+                                $line .= '<br>';
+                                $line .= 'SKU: ' . e($sku ?? '—');
+                                $line .= ' · Qty: ' . $qty;
+                                $line .= ' · Unit: ' . e($currency) . ' ' . $unit;
+                                $line .= ' · Total: ' . e($currency) . ' ' . $total;
+                                $line .= ' · Status: ' . e($status);
+                                $line .= '</div>';
+
+                                return $line;
+                            })
+                            ->implode('')
+                        )
+                        ->html(),
                 ])
                 ->columns(1),
 

@@ -16,12 +16,13 @@ class SendRefundProcessedNotification
     {
         $order = $event->order;
         $notifiable = $order->customer ?? $order->user;
-        $notification = new RefundProcessedNotification(
+        $locale = $order->notificationLocale();
+        $notification = (new RefundProcessedNotification(
             $order,
             $event->amount,
             $event->currency,
             $event->reason
-        );
+        ))->locale($locale);
 
         if ($notifiable) {
             Notification::send($notifiable, $notification);

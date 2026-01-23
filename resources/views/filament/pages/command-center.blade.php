@@ -293,6 +293,9 @@
                                 <option value="warehouseDetail">Warehouse detail</option>
                             </optgroup>
                         </x-filament::input.select>
+                        <p class="text-xs text-gray-500">
+                            Actions marked “legacy” are kept for reference and may not be supported in the current flow.
+                        </p>
                     </div>
                     <div class="space-y-1 md:col-span-2">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Payload JSON</label>
