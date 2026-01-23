@@ -7,6 +7,7 @@ namespace App\Domain\Orders\Models;
 use App\Enums\ShipmentExceptionCode;
 use App\Events\Orders\CustomsUpdated;
 use App\Events\Orders\FulfillmentDelayed;
+use App\Models\ShipmentItem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,7 @@ class Shipment extends Model
     use HasFactory;
 
     protected $fillable = [
+        'order_id',
         'order_item_id',
         'cj_order_id',
         'shipment_order_id',
@@ -52,17 +54,17 @@ class Shipment extends Model
     protected static function booted(): void
     {
         static::updated(function (Shipment $shipment): void {
-            if (! $shipment->wasChanged('exception_code')) {
+            if (!$shipment->wasChanged('exception_code')) {
                 return;
             }
 
             $exception = $shipment->exception_code;
-            if (! $exception instanceof ShipmentExceptionCode) {
+            if (!$exception instanceof ShipmentExceptionCode) {
                 return;
             }
 
             $order = $shipment->orderItem?->order;
-            if (! $order) {
+            if (!$order) {
                 return;
             }
 
@@ -71,7 +73,7 @@ class Shipment extends Model
                 ? $order
                 : AppOrder::query()->find($order->id);
 
-            if (! $appOrder) {
+            if (!$appOrder) {
                 return;
             }
 
@@ -87,9 +89,19 @@ class Shipment extends Model
         });
     }
 
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
     public function orderItem(): BelongsTo
     {
         return $this->belongsTo(OrderItem::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(ShipmentItem::class);
     }
 
     public function trackingEvents(): HasMany
@@ -127,12 +139,12 @@ class Shipment extends Model
 
     public function hasException(): bool
     {
-        return ! is_null($this->exception_code);
+        return !is_null($this->exception_code);
     }
 
     public function isResolved(): bool
     {
-        return ! is_null($this->resolved_at);
+        return !is_null($this->resolved_at);
     }
 
     public function isAtRisk(): bool
