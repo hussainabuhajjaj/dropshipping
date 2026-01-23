@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\CategoryTranslation;
 
 class Category extends Model
 {
@@ -50,6 +51,35 @@ class Category extends Model
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function translations(): HasMany
+    {
+        return $this->hasMany(CategoryTranslation::class);
+    }
+
+    public function translationForLocale(?string $locale): ?CategoryTranslation
+    {
+        if (! $locale) {
+            return null;
+        }
+
+        if ($this->relationLoaded('translations')) {
+            return $this->translations->firstWhere('locale', $locale);
+        }
+
+        return $this->translations()->where('locale', $locale)->first();
+    }
+
+    public function translatedValue(string $field, ?string $locale): ?string
+    {
+        $value = $locale ? $this->translationForLocale($locale)?->{$field} : null;
+
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        return $this->{$field} ?? null;
     }
 
     public function scopeRoots($query)

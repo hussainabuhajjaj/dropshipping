@@ -179,6 +179,7 @@ class CheckoutController extends Controller
         ]);
 
         $customer = auth('customer')->user();
+        $locale = app()->getLocale();
         $subtotal = $cart->subTotal();
         $shipping = $cart->calculateShippingFees();
 
@@ -196,9 +197,12 @@ class CheckoutController extends Controller
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $subtotal, $shippingTotal, $taxTotal, $grandTotal) {
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $subtotal, $shippingTotal, $taxTotal, $grandTotal, $locale) {
             $customer = Auth::guard('customer')->user();
             $isGuest = !$customer;
+            if ($customer && $customer->locale !== $locale) {
+                $customer->update(['locale' => $locale]);
+            }
 
             // Create shipping address
             $shippingAddress = Address::create([
@@ -224,6 +228,7 @@ class CheckoutController extends Controller
                 'guest_phone' => $isGuest ? $validatedData['phone'] : null,
                 'is_guest' => $isGuest,
                 'email' => $validatedData['email'],
+                'locale' => $locale,
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
                 'currency' => $cart[0]['currency'] ?? 'USD',

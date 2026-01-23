@@ -40,11 +40,17 @@ class CJPaymentFailedNotification extends Notification implements ShouldQueue
 
     public function toArray(object $notifiable): array
     {
+        $orderUrl = route('filament.admin.resources.orders.view', $this->order);
+
         return [
+            'title' => "CJ payment failed: Order #{$this->order->number}",
+            'body' => $this->error,
             'order_id' => $this->order->id,
             'order_number' => $this->order->number,
             'error' => $this->error,
             'attempts' => $this->order->cj_payment_attempts,
+            'action_url' => $orderUrl,
+            'action_label' => 'View order',
         ];
     }
 }

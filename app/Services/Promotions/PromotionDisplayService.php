@@ -6,9 +6,11 @@ namespace App\Services\Promotions;
 
 use App\Models\Promotion;
 use Illuminate\Support\Collection;
+use App\Services\Promotions\Concerns\BuildsActivePromotionQuery;
 
 class PromotionDisplayService
 {
+    use BuildsActivePromotionQuery;
     /**
      * Get promotions for a specific placement with optional product/category context.
      *
@@ -18,21 +20,12 @@ class PromotionDisplayService
      */
     public function getForPlacement(string $placement, array $productIds = [], array $categoryIds = [], int $limit = 5): array
     {
-        // NOTE: Active/dated promotion query is duplicated in PromotionEngine and
-        // PromotionController::activePromotions(). Keep filters aligned when changing.
-        $now = now();
+        // NOTE: Base active/dated filters are centralized via BuildsActivePromotionQuery.
         $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds))));
         $categoryIds = array_values(array_unique(array_filter(array_map('intval', $categoryIds))));
         $displayEnabled = (bool) (config('promotions.display.enabled') ?? true);
 
-        $promotions = Promotion::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($now) {
-                $q->whereNull('start_at')->orWhere('start_at', '<=', $now);
-            })
-            ->where(function ($q) use ($now) {
-                $q->whereNull('end_at')->orWhere('end_at', '>=', $now);
-            })
+        $promotions = $this->activePromotionsQuery()
             ->when(! $displayEnabled && $placement === 'home', fn ($q) => $q->whereIn('type', ['flash_sale', 'auto_discount']))
             ->with(['targets', 'conditions'])
             ->orderByDesc('priority')
