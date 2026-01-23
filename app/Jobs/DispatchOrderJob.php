@@ -53,41 +53,10 @@ class DispatchOrderJob implements ShouldQueue
                     $this->fail(new \RuntimeException('Exceeded fulfillment retry limit for provider.'));
                     return;
                 }
-//                $fulfillmentService->dispatchCjOrder($order, $cj_items, $cj_provider);
                 $fulfillmentService->dispatchOrderV2($order, $cj_items, $cj_provider);
             }
         }
 
-
-//        dd($ite/**/ms);
-//        $products = [];
-//
-//        foreach ($items as $item) {
-//            $productVariant = $item->productVariant;
-//
-//            $products[] = [
-//                "vid" => $productVariant->cj_vid,
-//                "quantity" => $item->quantity,
-//            ];
-//
-//        }
-//
-//        dd($products);
-//        dd($this->order);
-//        $orderItem = OrderItem::with([
-//            'order.shippingAddress',
-//            'order.billingAddress',
-//            'productVariant.product.defaultFulfillmentProvider',
-//            'fulfillmentProvider',
-//            'supplierProduct.fulfillmentProvider',
-//        ])->findOrFail($this->orderItemId);
-//
-//        $providerRetryLimit = $orderItem->fulfillmentProvider?->retry_limit ?? $this->tries;
-//
-//        if ($this->attempts() > $providerRetryLimit) {
-//            $this->fail(new \RuntimeException('Exceeded fulfillment retry limit for provider.'));
-//            return;
-//        }
 
     }
 
