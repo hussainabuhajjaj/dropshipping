@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Products\Models;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Models\ProductMarginLog;
 use App\Models\ProductTranslation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -114,6 +115,11 @@ class Product extends Model
         return $this->hasMany(ProductTranslation::class);
     }
 
+    public function marginLogs(): HasMany
+    {
+        return $this->hasMany(ProductMarginLog::class, 'product_id');
+    }
+
     public function translationForLocale(?string $locale): ?ProductTranslation
     {
         if (! $locale) {
@@ -143,4 +149,3 @@ class Product extends Model
         });
     }
 }
-
