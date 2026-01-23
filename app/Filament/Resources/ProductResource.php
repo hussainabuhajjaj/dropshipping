@@ -35,6 +35,7 @@ use Filament\Infolists\Components\TextEntry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use App\Services\ProductMarginLogger;
 
 class ProductResource extends BaseResource
 {
@@ -820,28 +821,66 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             $skipped = 0;
                             $variantUpdated = 0;
                             $variantSkipped = 0;
+                            $logger = app(ProductMarginLogger::class);
 
-                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped): void {
+                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, $logger): void {
                                 if (! is_numeric($record->cost_price)) {
                                     $skipped++;
                                     return;
                                 }
 
+                                $oldSelling = $record->selling_price;
+                                $oldStatus = $record->status;
+                                $oldActive = $record->is_active;
+                                $newSelling = round(((float) $record->cost_price) * (1 + $margin / 100), 2);
+
                                 $record->update([
-                                    'selling_price' => round(((float) $record->cost_price) * (1 + $margin / 100), 2),
+                                    'selling_price' => $newSelling,
+                                    'is_active' => true,
+                                    'status' => 'active',
                                 ]);
                                 $updated++;
 
+                                $logger->logProduct($record, [
+                                    'event' => 'margin_updated',
+                                    'source' => 'manual',
+                                    'old_selling_price' => $oldSelling,
+                                    'new_selling_price' => $newSelling,
+                                    'old_status' => $oldStatus,
+                                    'new_status' => 'active',
+                                    'notes' => "Margin set to {$margin}%",
+                                ]);
+
+                                if (! $oldActive) {
+                                    $logger->logProduct($record, [
+                                        'event' => 'activated',
+                                        'source' => 'manual',
+                                        'old_selling_price' => $oldSelling,
+                                        'new_selling_price' => $newSelling,
+                                        'old_status' => $oldStatus,
+                                        'new_status' => 'active',
+                                        'notes' => 'Product activated after margin adjustment',
+                                    ]);
+                                }
+
                                 if ($applyVariants) {
-                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped): void {
+                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped, $logger): void {
                                         if (! is_numeric($variant->cost_price)) {
                                             $variantSkipped++;
                                             return;
                                         }
+                                        $oldVariantPrice = $variant->price;
                                         $variant->update([
                                             'price' => round(((float) $variant->cost_price) * (1 + $margin / 100), 2),
                                         ]);
                                         $variantUpdated++;
+                                        $logger->logVariant($variant, [
+                                            'event' => 'variant_margin_updated',
+                                            'source' => 'manual',
+                                            'old_selling_price' => $oldVariantPrice,
+                                            'new_selling_price' => $variant->price,
+                                            'notes' => "Margin set to {$margin}% for variant",
+                                        ]);
                                     });
                                 }
                             });
@@ -1036,6 +1075,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
         return [
             \App\Filament\Resources\ProductResource\RelationManagers\ProductVariantsRelationManager::class,
             \App\Filament\Resources\ProductResource\RelationManagers\ProductImagesRelationManager::class,
+            \App\Filament\Resources\ProductResource\RelationManagers\MarginLogsRelationManager::class,
         ];
     }
 
@@ -1200,4 +1240,3 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
         return (string) $value;
     }
 }
-

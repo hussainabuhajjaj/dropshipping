@@ -936,6 +936,8 @@ const newsletterPopupSettings = computed(() => page.props.storefront ?? {})
 // --- Links / footer ---
 const fallbackHeaderLinks = [
     {label: t('Shop'), href: '/products'},
+    {label: t('Collections'), href: '/collections'},
+    {label: t('Promotions'), href: '/promotions'},
     {label: t('Track order'), href: '/orders/track'},
     {label: t('Support'), href: '/support'},
     {label: t('FAQ'), href: '/faq'},

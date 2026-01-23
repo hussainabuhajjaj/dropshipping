@@ -6,14 +6,17 @@
           v-for="(banner, index) in banners"
           :key="banner.id"
           class="carousel-slide"
-          :class="{ active: index === currentIndex }"
+          :class="[{ active: index === currentIndex, 'is-cover': isCoverMode(banner), 'is-image-only': isImageOnly(banner) }]"
           :style="{
             backgroundColor: banner.backgroundColor || '#ec4899',
-            color: banner.textColor || '#ffffff'
+            color: banner.textColor || '#ffffff',
           }"
         >
-          <div class="carousel-content">
-            <div class="carousel-text">
+          <div v-if="isCoverMode(banner) && banner.imagePath" class="carousel-cover">
+            <img :src="banner.imagePath" :alt="banner.title" />
+          </div>
+          <div class="carousel-content" :class="{ 'is-cover': isCoverMode(banner), 'is-image-only': isImageOnly(banner) }">
+            <div v-if="!isImageOnly(banner)" class="carousel-text">
               <span v-if="banner.badgeText" 
                 class="carousel-badge"
                 :style="{ backgroundColor: banner.badgeColor || '#ef4444' }"
@@ -32,7 +35,7 @@
                 {{ banner.ctaText }}
               </Link>
             </div>
-            <div v-if="banner.imagePath" class="carousel-image">
+            <div v-if="banner.imagePath && !isCoverMode(banner)" class="carousel-image">
               <img :src="banner.imagePath" :alt="banner.title" />
             </div>
           </div>
@@ -133,6 +136,10 @@ const resumeAutoplay = () => {
   isPaused.value = false;
 };
 
+const imageMode = (banner) => banner?.imageMode || banner?.image_mode || 'split';
+const isCoverMode = (banner) => imageMode(banner) === 'cover' || imageMode(banner) === 'image_only';
+const isImageOnly = (banner) => imageMode(banner) === 'image_only';
+
 onMounted(() => {
   startAutoplay();
 });
@@ -165,11 +172,20 @@ onBeforeUnmount(() => {
   transition: opacity 0.5s ease;
   pointer-events: none;
   padding: 3rem 2rem;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .carousel-slide.active {
   opacity: 1;
   pointer-events: auto;
+}
+
+.carousel-slide.is-cover,
+.carousel-slide.is-image-only {
+  padding: 0;
+  overflow: hidden;
 }
 
 .carousel-content {
@@ -178,6 +194,48 @@ onBeforeUnmount(() => {
   align-items: center;
   grid-template-columns: 1fr;
   height: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.carousel-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.carousel-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.carousel-slide.is-image-only .carousel-cover {
+  filter: none;
+}
+
+.carousel-slide.is-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.15));
+  z-index: 1;
+}
+
+.carousel-slide.is-image-only::before {
+  background: transparent;
+}
+
+.carousel-content.is-cover {
+  grid-template-columns: 1fr;
+}
+
+.carousel-content.is-image-only {
+  grid-template-columns: 1fr;
+}
+
+.carousel-content.is-image-only .carousel-text {
+  display: none;
 }
 
 .carousel-text {
@@ -290,6 +348,10 @@ onBeforeUnmount(() => {
 @media (min-width: 768px) {
   .carousel-content {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .carousel-content.is-cover {
+    grid-template-columns: 1fr;
   }
 
   .carousel-slide {
