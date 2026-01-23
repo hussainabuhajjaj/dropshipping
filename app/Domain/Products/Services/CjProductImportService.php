@@ -11,6 +11,7 @@ use App\Jobs\GenerateProductSeoJob;
 use App\Jobs\TranslateProductJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Models\ProductReview;
+use App\Services\ProductMarginLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -177,8 +178,8 @@ class CjProductImportService
         if (!$product) {
             $payload['cj_pid'] = $pid;
             $payload['slug'] = $slug;
-            $payload['status'] = 'active';
-            $payload['is_active'] = true;
+            $payload['status'] = 'draft';
+            $payload['is_active'] = false;
             $payload['is_featured'] = false;
             $payload['cj_sync_enabled'] = $defaultSyncEnabled;
             $product = Product::create($payload);
@@ -188,6 +189,27 @@ class CjProductImportService
                 $product->slug = $slug;
             }
             $product->save();
+        }
+
+        $logger = app(ProductMarginLogger::class);
+        $product->refresh();
+        $logger->logProduct($product, [
+            'event' => 'imported',
+            'source' => 'cj',
+            'old_selling_price' => $product->getOriginal('selling_price'),
+            'new_selling_price' => $product->selling_price,
+            'old_status' => $product->getOriginal('status'),
+            'new_status' => $product->status,
+            'notes' => "CJ import {$pid}",
+        ]);
+
+        $product->loadMissing('variants');
+        foreach ($product->variants as $variant) {
+            $logger->logVariant($variant, [
+                'event' => 'variant_imported',
+                'source' => 'cj',
+                'notes' => "Imported variant for {$pid}",
+            ]);
         }
 
         $shouldGenerateSeo = ($options['generateSeo'] ?? true) === true;

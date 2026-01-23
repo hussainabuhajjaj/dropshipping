@@ -119,11 +119,11 @@ class StorefrontBanner extends Model
         }
 
         if ($this->target_type === 'product' && $this->product) {
-            return $this->product->url ?? route('product.show', $this->product);
+            return route('products.show', $this->product, false);
         }
 
         if ($this->target_type === 'category' && $this->category) {
-            return route('category.show', $this->category);
+            return route('categories.show', $this->category, false);
         }
 
         return $this->external_url;

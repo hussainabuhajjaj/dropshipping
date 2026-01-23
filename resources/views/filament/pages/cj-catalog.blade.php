@@ -96,8 +96,7 @@
             heading="Detailed Statistics"
             description="Complete overview of catalog metrics"
             icon="heroicon-o-chart-bar"
-            :collapsible="true"
-            collapsed="true"
+            :collapsible="false"
         >
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($this->getStatsData() as $stat)
@@ -293,6 +292,48 @@
                 </div>
             </x-filament::section>
 
+            <x-filament::section
+                heading="Imported Catalog Matches"
+                description="Products already synced to your store from this catalog batch"
+                icon="heroicon-o-check-badge"
+                :collapsible="true"
+                :collapsed="false"
+            >
+                <div class="space-y-2">
+                    @if ($existingCatalog)
+                        @foreach (array_slice($existingCatalog, 0, 6) as $pid => $entry)
+                            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                                <div>
+                                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        PID {{ $pid }}
+                                        @if (! empty($entry['synced_at']))
+                                            • Synced {{ $entry['synced_at'] }}
+                                        @endif
+                                    </p>
+                                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ $entry['name'] }}</p>
+                                </div>
+                                <a
+                                    href="{{ \App\Filament\Resources\ProductResource::getUrl('edit', ['record' => $entry['id']]) }}"
+                                    target="_blank"
+                                    class="text-xs font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+                                >
+                                    Open
+                                </a>
+                            </div>
+                        @endforeach
+                        @if (count($existingCatalog) > 6)
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                Showing first 6 of {{ count($existingCatalog) }} imported matches.
+                            </p>
+                        @endif
+                    @else
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            No imported products detected in this catalog batch yet.
+                        </p>
+                    @endif
+                </div>
+            </x-filament::section>
+
             {{-- Quick Actions --}}
             <x-filament::section
                 heading="Quick Actions"
@@ -346,6 +387,20 @@
                             @endif
                         </div>
                     @endif
+                    <div class="flex flex-wrap gap-2 pt-3 text-xs">
+                        <span class="rounded-full border border-gray-200 bg-white px-3 py-1 font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900">
+                            Batch {{ $pageNum }} / {{ $totalPagesKnown ? $totalPages : '--' }}
+                        </span>
+                        <span class="rounded-full border border-gray-200 bg-white px-3 py-1 font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900">
+                            Loaded {{ number_format($loaded) }}
+                        </span>
+                        <span class="rounded-full border border-gray-200 bg-white px-3 py-1 font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900">
+                            Latest batch {{ $lastBatchCount }} items
+                        </span>
+                        <span class="rounded-full border border-gray-200 bg-white px-3 py-1 font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900">
+                            Inventory {{ number_format($inventoryTotal) }}
+                        </span>
+                    </div>
                 </div>
             </x-filament::section>
         </div>
