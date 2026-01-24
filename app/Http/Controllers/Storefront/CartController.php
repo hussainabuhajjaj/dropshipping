@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Coupon;
 use App\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
