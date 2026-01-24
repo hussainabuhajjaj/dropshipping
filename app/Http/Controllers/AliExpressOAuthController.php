@@ -70,7 +70,8 @@ class AliExpressOAuthController extends Controller
             $params = [
                 'app_key'     => $appKey,
                 'code'        => $code,
-                'grant_type'=> 'authorization_code',
+                'grant_type'  => 'authorization_code',
+                'sign_method' => 'sha256',
                 'timestamp' => round(microtime(true) * 1000),
             ];
 
