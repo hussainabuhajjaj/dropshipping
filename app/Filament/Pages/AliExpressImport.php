@@ -29,7 +29,7 @@ class AliExpressImport extends Page implements HasForms
         return true; // Allow all authenticated admin users to access
     }
 
-    public function getTitle(): string | Htmlable
+    public function getTitle(): string|Htmlable
     {
         return 'AliExpress Integration';
     }
@@ -183,13 +183,13 @@ class AliExpressImport extends Page implements HasForms
             $query = http_build_query($params);
             $url = 'https://api-sg.aliexpress.com/rest/' . $apiPath . '?' . $query;
             $response = \Illuminate\Support\Facades\Http::get($url);
-    /**
-     * Get current UTC timestamp in milliseconds
-     */
-     function getAliExpressTimestampMillis(): string
-    {
-        return (string) round(microtime(true) * 1000);
-    }
+            /**
+             * Get current UTC timestamp in milliseconds
+             */
+            function getAliExpressTimestampMillis(): string
+            {
+                return (string)round(microtime(true) * 1000);
+            }
 
             $data = $response->json();
             if (!isset($data['access_token'])) {
@@ -218,7 +218,7 @@ class AliExpressImport extends Page implements HasForms
         }
     }
 
-    public function getToken(): ?AliExpressToken
+    public function getToken()
     {
         try {
             $setting = new \App\Models\Setting();
@@ -228,14 +228,14 @@ class AliExpressImport extends Page implements HasForms
             if (!$accessToken) {
                 return null;
             }
-            return (object) [
+            return (object)[
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'expires_at' => $expiresAt ? \Carbon\Carbon::parse($expiresAt) : null,
-                'isExpired' => function() use ($expiresAt) {
+                'isExpired' => function () use ($expiresAt) {
                     return $expiresAt && \Carbon\Carbon::parse($expiresAt)->isPast();
                 },
-                'canRefresh' => function() use ($refreshToken, $expiresAt) {
+                'canRefresh' => function () use ($refreshToken, $expiresAt) {
                     return $refreshToken && (!$expiresAt || \Carbon\Carbon::parse($expiresAt)->isFuture());
                 }
             ];
