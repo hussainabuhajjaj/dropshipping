@@ -13,12 +13,12 @@ class AliExpressOAuthController extends Controller
     public function redirect()
     {
         $query = http_build_query([
-            'response_type' => 'code',
-            "force_auth" => true,
-            'redirect_uri' => config('ali_express.redirect_uri'),
             'client_id' => config('ali_express.client_id'),
-//            'state' => csrf_token(),
+            'redirect_uri' => config('ali_express.redirect_uri'),
+            'response_type' => 'code',
+            'force_auth' => true,
             'sp' => 'ae', // Important for AliExpress
+//            'state' => csrf_token(),
         ]);
         $url = config('ali_express.base_url') . '/oauth/authorize?' . $query;
         return redirect()->away($url);

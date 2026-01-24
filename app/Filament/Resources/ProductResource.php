@@ -70,7 +70,9 @@ class ProductResource extends BaseResource
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->withCount(['images', 'variants'])->with('images');
+        return parent::getEloquentQuery()
+            ->withCount(['images', 'variants', 'reviews'])
+            ->with('images');
     }
 
     public static function form(Schema $schema): Schema
@@ -385,6 +387,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\TextColumn::make('images_count')
                         ->label('Images')
                         ->badge()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('reviews_count')
+                        ->label('Reviews')
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('supplier.name')->label('Supplier')->sortable()->toggleable(),
