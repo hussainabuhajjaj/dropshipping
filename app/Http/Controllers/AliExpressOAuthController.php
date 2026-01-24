@@ -13,17 +13,18 @@ class AliExpressOAuthController extends Controller
     public function redirect()
     {
         $query = http_build_query([
-            'client_id' => config('ali_express.client_id'),
-            // 'appkey' => config('ali_express.client_id'),
-            'redirect_uri' => config('ali_express.redirect_uri'),
-            'state' => csrf_token(),
-            'site' => 'aliexpress',
             'response_type' => 'code',
-            "force_auth" => true
+            "force_auth" => true,
+            'redirect_uri' => config('ali_express.redirect_uri'),
+            'client_id' => config('ali_express.client_id'),
+            'sp' => 'ae', // Important for AliExpress
+            'view' => 'web'
         ]);
-       //response_type=code&force_auth=true&redirect_uri=${callback-url}&client_id=${appkey}
-        return redirect('https://api-sg.aliexpress.com/oauth/authorize?' . $query);
+        $url = 'https://oauth.aliexpress.com/authorize?' . $query;
+        return redirect()->away($url);
+//        return redirect('https://api-sg.aliexpress.com/oauth/authorize?' . $query);
     }
+
     public function createSystemToken(Request $request)
     {
         $code = $request->input('code');
@@ -36,12 +37,14 @@ class AliExpressOAuthController extends Controller
         $result = $client->createToken($code);
         return response()->json($result);
     }
+
     public function callback(Request $request)
     {
+        dd($request->all());
         try {
             $code = $request->input('code');
             $state = $request->input('state');
-            
+
             if (!$code) {
                 Log::error('AliExpress OAuth callback missing code');
                 return response('Missing authorization code', 400);
@@ -96,7 +99,7 @@ class AliExpressOAuthController extends Controller
     {
         try {
             $token = AliExpressToken::getLatestToken();
-            
+
             if (!$token) {
                 Log::error('No AliExpress token found for refresh');
                 return response()->json(['error' => 'No token found'], 400);
