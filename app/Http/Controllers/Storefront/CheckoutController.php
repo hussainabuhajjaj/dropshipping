@@ -24,13 +24,16 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Infrastructure\Payments\Paystack\PaystackService;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
+use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
+use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -49,6 +52,15 @@ class CheckoutController extends Controller
             return redirect()->route('products.index');
         }
         return $data;
+    }
+
+    protected function buildCartContext(Collection $cartItems, float $subtotal): array
+    {
+        return [
+            'lines' => (CartResource::collection($cartItems))->jsonSerialize(),
+            'subtotal' => $subtotal,
+            'user_id' => auth('customer')->id(),
+        ];
     }
 
     public function index(): Response|RedirectResponse
@@ -86,6 +98,7 @@ class CheckoutController extends Controller
         $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
         $discount = $discounts['amount'];
         $coupon = $discounts['coupon'] ?? null;
+        $cartContext = $this->buildCartContext($cart_items, $subtotal);
 
         $settings = SiteSetting::query()->first();
 
@@ -93,13 +106,9 @@ class CheckoutController extends Controller
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
 
-        $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
-        $cartContext = [
-            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
-            'subtotal' => $subtotal,
-            'user_id' => $customer?->id,
-        ];
-        $appliedPromotions = $promotionEngine->getApplicablePromotions($cartContext)->map(function ($promo) {
+        $promotionEngine = app(PromotionEngine::class);
+        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
+        $appliedPromotions = $promotionModels->map(function ($promo) {
             return [
                 'id' => $promo->id,
                 'name' => $promo->name,
@@ -117,6 +126,7 @@ class CheckoutController extends Controller
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
 
         return Inertia::render('Checkout/Index', [
             'subtotal' => $subtotal,
@@ -126,6 +136,7 @@ class CheckoutController extends Controller
             'discount_label' => @$discounts['label'],
             'appliedPromotions' => $appliedPromotions,
             'cartPromotions' => $cartPromotions,
+            'minimum_cart_requirement' => $minimumRequirement,
             'tax_total' => $taxTotal,
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
@@ -196,6 +207,16 @@ class CheckoutController extends Controller
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
+
+        $cartContext = $this->buildCartContext($cart_items, $subtotal);
+        $promotionEngine = app(PromotionEngine::class);
+        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
+        if (! $minimumRequirement['passes']) {
+            return back()
+                ->withErrors(['cart' => $minimumRequirement['message']])
+                ->with('minimum_cart_requirement', $minimumRequirement);
+        }
 
         [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $subtotal, $shippingTotal, $taxTotal, $grandTotal, $locale) {
             $customer = Auth::guard('customer')->user();

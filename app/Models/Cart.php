@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Cart extends Model
 {
@@ -63,11 +64,29 @@ class Cart extends Model
 
         $items = $this->items;
         $providers = $items->groupBy('fulfillment_provider_id');
+        Log::info('Cart shipping calculation started', [
+            'cart_id' => $this->id,
+            'items' => $items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'variant_id' => $item->variant_id,
+                    'quantity' => $item->quantity,
+                    'line_total' => $item->quantity * $item->getSinglePrice(),
+                ];
+            })->toArray(),
+            'providers' => $providers->keys()->toArray(),
+        ]);
 
         CartShipping::query()->where('cart_id', $this->id)->delete();
         $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
 
         foreach ($providers as $provider_id => $items) {
+            Log::info('Evaluating provider shipping group', [
+                'cart_id' => $this->id,
+                'provider_id' => $provider_id,
+                'line_ids' => $items->pluck('id')->values()->all(),
+            ]);
             if ($provider_id == 1) {
                 //  cj check shipping cost
                 $client = app(CJDropshippingClient::class);
@@ -105,6 +124,16 @@ class Cart extends Model
                             'total_postage_fee' => @$company['totalPostageFee'],
                             'aging' => @$company['logisticAging'],
                         ]);
+                        Log::info('CJ shipping quote stored', [
+                            'cart_id' => $this->id,
+                            'provider_id' => $provider_id,
+                            'company' => [
+                                'name' => @$company['logisticName'],
+                                'price' => @$company['logisticPrice'],
+                                'postage_fee' => @$company['totalPostageFee'],
+                                'aging' => @$company['logisticAging'],
+                            ],
+                        ]);
                     }
 
 
@@ -113,6 +142,7 @@ class Cart extends Model
         }
 
         $total_weight = 0;
+        $weight_breakdown = [];
 
         foreach ($items as $item) {
             $variant = $item->variant;
@@ -125,8 +155,20 @@ class Cart extends Model
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1];
+                    $weight_breakdown[] = [
+                        'item_id' => $item->id,
+                        'source' => 'packingWeight',
+                        'weight' => $unit_weight,
+                        'unit' => 'g',
+                    ];
                 } else if (isset($meta['cj_variant']['variantWeight'])) {
                     $unit_weight = $meta['cj_variant']['variantWeight'];
+                    $weight_breakdown[] = [
+                        'item_id' => $item->id,
+                        'source' => 'variantWeight',
+                        'weight' => $unit_weight,
+                        'unit' => 'g',
+                    ];
                 }
             } else {
 
@@ -134,16 +176,34 @@ class Cart extends Model
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1];
+                    $weight_breakdown[] = [
+                        'item_id' => $item->id,
+                        'source' => 'packingWeight_variant_path',
+                        'weight' => $unit_weight,
+                        'unit' => 'g',
+                    ];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
                     $weight = explode('-', $weight);
                     $unit_weight = $weight[count($weight) - 1];
+                    $weight_breakdown[] = [
+                        'item_id' => $item->id,
+                        'source' => 'productWeight',
+                        'weight' => $unit_weight,
+                        'unit' => 'g',
+                    ];
                 }
 
-                $total_weight += $unit_weight * $item->quantity;
             }
 
+            $total_weight += $unit_weight * $item->quantity;
+
         }
+        Log::info('Cart weight summary', [
+            'cart_id' => $this->id,
+            'total_weight_g' => $total_weight ,
+            'weight_breakdown' => $weight_breakdown,
+        ]);
         $total_weight_in_kg = $total_weight / 1000;
 
         $total_shipping = $default_warehouse->calculateShippingPerWeight($total_weight_in_kg);
@@ -154,6 +214,19 @@ class Cart extends Model
             'logistic_price' => @$total_shipping,
             'total_postage_fee' => @$total_shipping,
             'aging' => null,
+        ]);
+
+        Log::info('Default warehouse shipping entry created', [
+            'cart_id' => $this->id,
+            'shipping_company' => @$default_warehouse['shipping_company_name'],
+            'weight_kg' => $total_weight_in_kg,
+            'shipping_charge' => $total_shipping,
+            'warehouse_shipping_details' => [
+                'min_charge' => $default_warehouse['shipping_min_charge'] ?? null,
+                'base_cost' => $default_warehouse['shipping_base_cost'] ?? null,
+                'cost_per_kg' => $default_warehouse['shipping_cost_per_kg'] ?? null,
+                'additional_cost' => $default_warehouse['shipping_additional_cost'] ?? null,
+            ],
         ]);
 
         return CartShipping::query()->where('cart_id', $this->id)->sum('logistic_price');

@@ -110,6 +110,14 @@ class SiteSettingResource extends BaseResource
                         ->numeric()
                         ->minValue(0)
                         ->helperText('Subtotal after discounts that waives shipping.'),
+                    Forms\Components\TextInput::make('min_cart_total')
+                        ->label('Minimum cart subtotal')
+                        ->numeric()
+                        ->minValue(0)
+                        ->helperText('Effective subtotal (after promotions) that unlocks checkout.'),
+                    Forms\Components\Toggle::make('min_cart_total_enabled')
+                        ->label('Enable minimum cart total')
+                        ->helperText('Disable to allow checkout regardless of subtotal.'),
                 ])->columns(2),
             Section::make('Policies')
                 ->schema([

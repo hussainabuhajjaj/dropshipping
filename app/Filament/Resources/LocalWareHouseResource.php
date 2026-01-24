@@ -58,6 +58,18 @@ class LocalWareHouseResource extends BaseResource
                         ->maxLength(2)
                         ->default('CN')
                         ->helperText('2-letter country code'),
+                        Forms\Components\TextInput::make('shipping_company_name'),
+                        Forms\Components\TextInput::make('shipping_method'),
+                        Forms\Components\TextInput::make('shipping_min_charge')->numeric()
+    ->minValue(0)
+    ->maxValue(100),
+                        Forms\Components\TextInput::make('shipping_cost_per_kg')->numeric()
+    ->minValue(1)
+    ->maxValue(100),
+                        Forms\Components\TextInput::make('shipping_additional_cost')->numeric()
+    ->minValue(0)
+    ->maxValue(100),
+
                 ])->columns(2),
         ]);
     }

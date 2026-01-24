@@ -22,7 +22,7 @@ class SyncCjVariantsJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $timeout = 120;
+    public int $timeout = 1200;
 
     public function __construct(
         public string $cjPid,

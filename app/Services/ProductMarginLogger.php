@@ -3,14 +3,14 @@
 namespace App\Services;
 
 use App\Domain\Orders\Models\OrderItem;
+use App\Domain\Products\Models\Product as DomainProduct;
 use App\Domain\Products\Models\ProductVariant;
-use App\Models\Product;
 use App\Models\ProductMarginLog;
 use Illuminate\Support\Facades\Auth;
 
 class ProductMarginLogger
 {
-    public function logProduct(Product $product, array $data): ProductMarginLog
+    public function logProduct(DomainProduct $product, array $data): ProductMarginLog
     {
         $actor = $this->resolveActor($data['actor_type'] ?? null, $data['actor_id'] ?? null);
         return ProductMarginLog::create([
@@ -75,7 +75,7 @@ class ProductMarginLogger
         return round((($selling - $cost) / $cost) * 100, 2);
     }
 
-    private function productSalesCount(Product $product): int
+    private function productSalesCount(DomainProduct $product): int
     {
         return (int) OrderItem::query()
             ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')

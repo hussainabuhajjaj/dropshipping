@@ -49,6 +49,8 @@ class SiteSetting extends Model
         'cj_last_sync_at',
         'cj_last_sync_summary',
         'cj_auto_approve_delay_hours',
+        'min_cart_total',
+        'min_cart_total_enabled',
     ];
 
     protected $casts = [
@@ -58,6 +60,8 @@ class SiteSetting extends Model
         'tax_included' => 'boolean',
         'shipping_handling_fee' => 'float',
         'free_shipping_threshold' => 'float',
+        'min_cart_total' => 'float',
+        'min_cart_total_enabled' => 'boolean',
         'cj_last_sync_at' => 'datetime',
         'support_hours' => 'string',
         'about_page_html' => 'string',

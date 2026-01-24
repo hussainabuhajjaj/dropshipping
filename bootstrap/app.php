@@ -8,15 +8,17 @@ use App\Providers\FulfillmentServiceProvider;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\EventServiceProvider;
+use App\Providers\HorizonServiceProvider;
 use App\Providers\QueueServiceProvider;
 
 return Application::configure(basePath: dirname(__DIR__))
-    ->withProviders([
+        ->withProviders([
         AppServiceProvider::class,
         FulfillmentServiceProvider::class,
         AdminPanelProvider::class,
         AuthServiceProvider::class,
         EventServiceProvider::class,
+        HorizonServiceProvider::class,
         QueueServiceProvider::class,
     ])
     ->withRouting(
