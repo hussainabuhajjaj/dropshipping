@@ -120,26 +120,27 @@ class Cart extends Model
             $product_attrs = $product->getOriginal('attributes');
             if (!isset($variant)) {
                 $meta = $variant->metadata;
-
+                $unit_weight = 0;
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', $pack_weight);
-                    $total_weight += $pack_weight[count($pack_weight) - 1];
+                    $unit_weight = $pack_weight[count($pack_weight) - 1];
                 } else if (isset($meta['cj_variant']['variantWeight'])) {
-                    $total_weight += $meta['cj_variant']['variantWeight'];
+                    $unit_weight = $meta['cj_variant']['variantWeight'];
                 }
             } else {
 
                 if (!isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', $pack_weight);
-                    $total_weight += $pack_weight[count($pack_weight) - 1];
+                    $unit_weight = $pack_weight[count($pack_weight) - 1];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
                     $weight = explode('-', $weight);
-                    $total_weight += $weight[count($weight) - 1];
+                    $unit_weight = $weight[count($weight) - 1];
                 }
 
+                $total_weight += $unit_weight * $item->quantity;
             }
 
         }
