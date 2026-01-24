@@ -67,32 +67,34 @@ class AliExpressOAuthController extends Controller
             $apiPath = '/auth/token/create'; // MANDATORY for signature
 
 
+
             $params = [
-                'app_key'     => $appKey,
-                'code'        => $code,
+                'app_key' => $appKey,
+                'code' => $code,
                 'sign_method' => 'sha256',
                 'timestamp' => round(microtime(true) * 1000),
             ];
 
             ksort($params);
+            $signature = $this->aliExpressSign($params , $appSecret , $apiPath );
 
 // Build string: apiPath + sorted key/value
-            $toSign = $apiPath;
-            foreach ($params as $k => $v) {
-                $toSign .= $k . $v;
-            }
-
-// Final string: secret + toSign + secret
-            $finalSignString = $appSecret . $toSign . $appSecret;
-
-// Signature: HMAC-SHA256
-            $signature = strtoupper(
-                hash_hmac(
-                    'sha256',
-                    $finalSignString,
-                    $appSecret
-                )
-            );
+//            $toSign = $apiPath;
+//            foreach ($params as $k => $v) {
+//                $toSign .= $k . $v;
+//            }
+//
+//// Final string: secret + toSign + secret
+//            $finalSignString = $appSecret . $toSign . $appSecret;
+//
+//// Signature: HMAC-SHA256
+//            $signature = strtoupper(
+//                hash_hmac(
+//                    'sha256',
+//                    $finalSignString,
+//                    $appSecret
+//                )
+//            );
 
             $params['sign'] = $signature;
 
@@ -226,5 +228,62 @@ class AliExpressOAuthController extends Controller
             Log::error('Token refresh error', ['error' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+
+    /**
+     * Generate AliExpress API signature (HMAC-SHA256)
+     *
+     * @param array $params All request params (system + business), EXCEPT sign
+     * @param string $appSecret App Secret
+     * @param string $apiName API name or api_path
+     * @param bool $isSystem true = System Interface, false = Business Interface
+     *
+     * @return string Uppercase HEX signature
+     */
+    public function aliExpressSign(
+        array  $params,
+        string $appSecret,
+        string $apiName,
+        bool   $isSystem = true
+    ): string
+    {
+        // 1. If Business Interface → api_path participates in sorting
+        if (!$isSystem) {
+            // api_path is usually passed as "method"
+            $params['method'] = $apiName;
+        }
+
+        // Remove sign if exists
+        unset($params['sign']);
+
+        // 2. Sort parameters by ASCII order of key
+        ksort($params);
+
+        // 3. Concatenate parameters
+        $stringToSign = '';
+
+        // System Interface → prepend API name
+        if ($isSystem) {
+            $stringToSign .= $apiName;
+        }
+
+        foreach ($params as $key => $value) {
+            if ($key === '' || $value === '' || $value === null) {
+                continue;
+            }
+            $stringToSign .= $key . $value;
+        }
+
+        // 4. HMAC-SHA256
+        $hash = hash_hmac(
+            'sha256',
+            $stringToSign,
+            $appSecret,
+            true // raw binary
+        );
+
+        // 5. Convert to UPPERCASE HEX
+        return strtoupper(bin2hex($hash));
     }
 }
