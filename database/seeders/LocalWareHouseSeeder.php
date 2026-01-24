@@ -41,7 +41,7 @@ class LocalWareHouseSeeder extends Seeder
                 'postal_code' => '91761',
                 'country' => 'US',
                 'is_default' => false,
-                  'shipping_min_charge' => 20.00,
+                'shipping_min_charge' => 20.00,
                 'shipping_cost_per_kg' => 5.00,
                 'shipping_base_cost' => 15.00,
                 'shipping_additional_cost' => 2.00,
