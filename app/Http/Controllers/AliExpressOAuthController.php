@@ -6,7 +6,6 @@ use App\Models\AliExpressToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Carbon;
 
 class AliExpressOAuthController extends Controller
 {
@@ -52,11 +51,17 @@ class AliExpressOAuthController extends Controller
 //                return response('Invalid state parameter', 400);
 //            }
 
-            $url = config('ali_express.base_url') ;
+            if (!defined("IOP_SDK_WORK_DIR")) {
+                define("IOP_SDK_WORK_DIR", storage_path('logs/iop'));
+            }
+
+
+            $url = config('ali_express.base_url');
             $c = new \IopClient($url, config('ali_express.client_id'), config('ali_express.client_secret'));
             $request = new \IopRequest('/auth/token/create');
             $request->addApiParam('code', $code);
             $request->addApiParam('uuid', 'uuid');
+//            dd($c);
             dd($c->execute($request));
 
 
