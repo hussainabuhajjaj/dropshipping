@@ -72,7 +72,6 @@ class AliExpressOAuthController extends Controller
 //                ]);
 //
 //            $data = $response->json();
-//dd($data);
 
             try {
                 $c = new \IopClient($url,$appKey,$appSecret);
