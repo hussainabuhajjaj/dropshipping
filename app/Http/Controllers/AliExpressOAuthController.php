@@ -79,17 +79,19 @@ class AliExpressOAuthController extends Controller
             ];
 
             // 2. Generate the Signature
-            // Step A: Sort keys alphabetically
             ksort($params);
 
-            // Step B: Build string starting with the API Path
             $stringToSign = $apiPath;
             foreach ($params as $key => $value) {
                 $stringToSign .= $key . $value;
             }
+            $sign = strtoupper(
+                hash(
+                    'sha256',
+                    $appSecret . $stringToSign . $appSecret
+                )
+            );
 
-            // Step C: Sign with App Secret using HMAC-SHA256
-            $sign = strtoupper(hash_hmac('sha256', $stringToSign, $appSecret));
             $params['sign'] = $sign;
 
             // 3. Send via POST (Form URL Encoded)
