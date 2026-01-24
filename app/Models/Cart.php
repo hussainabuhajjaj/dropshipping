@@ -65,15 +65,16 @@ class Cart extends Model
         $providers = $items->groupBy('fulfillment_provider_id');
 
         CartShipping::query()->where('cart_id', $this->id)->delete();
+        $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
+
         foreach ($providers as $provider_id => $items) {
             if ($provider_id == 1) {
                 //  cj check shipping cost
                 $client = app(CJDropshippingClient::class);
-                $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
 
                 $payload = [
                     'startCountryCode' => 'CN',
-                    'endCountryCode' => @$default_warehouse->country??"CN",
+                    'endCountryCode' => @$default_warehouse->country ?? "CN",
                     "products" => $items->map(function ($item) {
                         $vid = null;
                         if (isset($item['variant_id'])) {
@@ -111,6 +112,48 @@ class Cart extends Model
             }
         }
 
+        $total_weight = 0;
+
+        foreach ($items as $item) {
+            $variant = $item->variant;
+            $product = $item->product;
+            $product_attrs = $product->getOriginal('attributes');
+            if (!isset($variant)) {
+                $meta = $variant->metadata;
+
+                if (isset($product_attrs['cj_payload']['packingWeight'])) {
+                    $pack_weight = $product_attrs['cj_payload']['packingWeight'];
+                    $pack_weight = explode('-', $pack_weight);
+                    $total_weight += $pack_weight[count($pack_weight) - 1];
+                } else if (isset($meta['cj_variant']['variantWeight'])) {
+                    $total_weight += $meta['cj_variant']['variantWeight'];
+                }
+            } else {
+
+                if (!isset($product_attrs['cj_payload']['packingWeight'])) {
+                    $pack_weight = $product_attrs['cj_payload']['packingWeight'];
+                    $pack_weight = explode('-', $pack_weight);
+                    $total_weight += $pack_weight[count($pack_weight) - 1];
+                } else if (isset($product_attrs['cj_payload']['productWeight'])) {
+                    $weight = $product_attrs['cj_payload']['productWeight'];
+                    $weight = explode('-', $weight);
+                    $total_weight += $weight[count($weight) - 1];
+                }
+
+            }
+
+        }
+        $total_weight_in_kg = $total_weight / 1000;
+
+        $total_shipping = $default_warehouse->calculateShippingPerWeight($total_weight_in_kg);
+        CartShipping::query()->create([
+            'cart_id' => $this['id'],
+            'fulfillment_provider_id' => null,
+            'logistic_name' => @$default_warehouse['shipping_company_name'],
+            'logistic_price' => @$total_shipping,
+            'total_postage_fee' => @$total_shipping,
+            'aging' => null,
+        ]);
 
         return CartShipping::query()->where('cart_id', $this->id)->sum('logistic_price');
 
@@ -130,6 +173,7 @@ class Cart extends Model
             ->with('items')
             ->first();
     }
+
     public static function GetGuestCart()
     {
         return self::query()
