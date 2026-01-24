@@ -67,45 +67,30 @@ class AliExpressOAuthController extends Controller
             $response = Http::asForm()->post("https://api-sg.aliexpress.com/rest" . $apiPath, $params);
 
             $body = $response->json();
-            dd($body);
-            $body = json_decode($body, true);
 
-            $response = Http::asForm()->post(config('ali_express.base_url') . '/auth/token/create', [
-                'grant_type' => 'authorization_code',
-                'code' => $code,
-                'client_id' => config('ali_express.client_id'),
-                'client_secret' => config('ali_express.client_secret'),
-                'redirect_uri' => config('ali_express.redirect_uri'),
-            ]);
-
-            $data = $response->json();
-
-            dd($data);
-            Log::info('AliExpress OAuth token response received', ['expires_in' => $data['expires_in'] ?? null]);
-
-            if (!isset($data['access_token'])) {
-                Log::error('AliExpress OAuth failed: no access_token in response', $data);
-                return response('Failed to obtain access token: ' . ($data['message'] ?? 'Unknown error'), 400);
+            if (!isset($body['access_token'])) {
+                Log::error('AliExpress OAuth failed: no access_token in response', $body);
+                return response('Failed to obtain access token: ' . ($body['message'] ?? 'Unknown error'), 400);
             }
 
             $token = AliExpressToken::create([
-                'access_token' => $data['access_token'],
-                'refresh_token' => $data['refresh_token'] ?? null,
-                'expires_at' => isset($data['expires_in']) ? now()->addSeconds($data['expires_in']) : null,
-                'refresh_expires_at' => isset($data['refresh_expires_in']) ? now()->addSeconds($data['refresh_expires_in']) : null,
-                'raw' => json_encode($data),
+                'access_token' => $body['access_token'],
+                'refresh_token' => $body['refresh_token'] ?? null,
+                'expires_at' => isset($body['expires_in']) ? now()->addSeconds($body['expires_in']) : null,
+                'refresh_expires_at' => isset($body['refresh_expires_in']) ? now()->addSeconds($body['refresh_expires_in']) : null,
+                'raw' => json_encode($body),
             ]);
 
             // Store in settings for Filament/CLI access
             \App\Models\Setting::setSetting([
-                'aliexpress_access_token' => $data['access_token'],
-                'aliexpress_refresh_token' => $data['refresh_token'] ?? null,
-                'aliexpress_expires_at' => isset($data['expires_in']) ? now()->addSeconds($data['expires_in']) : null,
+                'aliexpress_access_token' => $body['access_token'],
+                'aliexpress_refresh_token' => $body['refresh_token'] ?? null,
+                'aliexpress_expires_at' => isset($body['expires_in']) ? now()->addSeconds($body['expires_in']) : null,
             ]);
 
             Log::info('AliExpress token stored successfully', ['token_id' => $token->id]);
             // Redirect back to ali-express-import page with access token in query string
-            return redirect('/ali-express-import?access_token=' . urlencode($data['access_token']));
+            return redirect('/ali-express-import?access_token=' . urlencode($body['access_token']));
         } catch (\Exception $e) {
             Log::error('AliExpress OAuth callback error', ['error' => $e->getMessage()]);
             return response('Authentication error: ' . $e->getMessage(), 500);
