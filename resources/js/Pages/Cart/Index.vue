@@ -90,10 +90,13 @@
                         <span>{{ t('Duties & VAT') }}</span>
                         <span>{{ t('Calculated at checkout') }}</span>
                     </div>
+                    <p v-if="minimumMessage && !canCheckout" class="text-sm text-rose-600">
+                        {{ minimumMessage }}
+                    </p>
                     <button
-                        :disabled="lines.length === 0"
+                        :disabled="!canCheckout"
                         class="btn-primary mt-4 w-full"
-                        :class="{ 'cursor-not-allowed opacity-60': lines.length === 0 }"
+                        :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
                         @click="$inertia.visit('/checkout')"
                     >
                         {{ t('Proceed to checkout') }}
@@ -145,6 +148,7 @@ const props = defineProps({
     appliedPromotions: {type: Array, default: () => []},
     cartPromotions: {type: Array, default: () => []},
     user: {type: Object, default: null},
+    minimum_cart_requirement: {type: Object, default: null},
 })
 
 const {t} = useTranslations()
@@ -195,4 +199,21 @@ const applyCoupon = () => {
 const removeCoupon = () => {
     router.delete('/cart/coupon', {preserveScroll: true})
 }
+
+const minimumRequirement = computed(() => props.minimum_cart_requirement)
+const minimumMessage = computed(() => {
+    if (!minimumRequirement.value) {
+        return null
+    }
+    if (minimumRequirement.value.message) {
+        return minimumRequirement.value.message
+    }
+    if (minimumRequirement.value.threshold) {
+        return t('Add at least {amount} after discounts to continue.', {
+            amount: displayPrice(minimumRequirement.value.threshold),
+        })
+    }
+    return null
+})
+const canCheckout = computed(() => (!minimumRequirement.value || minimumRequirement.value.passes) && props.lines.length > 0)
 </script>
