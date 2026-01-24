@@ -17,7 +17,7 @@ class AliExpressOAuthController extends Controller
             "force_auth" => true,
             'redirect_uri' => config('ali_express.redirect_uri'),
             'client_id' => config('ali_express.client_id'),
-            'state' => csrf_token(),
+//            'state' => csrf_token(),
         ]);
         $url = 'https://api-sg.aliexpress.com/oauth/authorize?' . $query;
         return redirect()->away($url);
@@ -46,11 +46,11 @@ class AliExpressOAuthController extends Controller
                 Log::error('AliExpress OAuth callback missing code');
                 return response('Missing authorization code', 400);
             }
-
-            if ($state !== csrf_token()) {
-                Log::error('AliExpress OAuth state mismatch', ['expected' => csrf_token(), 'received' => $state]);
-                return response('Invalid state parameter', 400);
-            }
+//
+//            if ($state !== csrf_token()) {
+//                Log::error('AliExpress OAuth state mismatch', ['expected' => csrf_token(), 'received' => $state]);
+//                return response('Invalid state parameter', 400);
+//            }
 
             $response = Http::asForm()->post('https://api-sg.aliexpress.com/rest/auth/token/create', [
                 'grant_type' => 'authorization_code',
