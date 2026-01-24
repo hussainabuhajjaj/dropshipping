@@ -70,12 +70,8 @@ class AliExpressOAuthController extends Controller
             $params = [
                 'app_key'     => $appKey,
                 'code'        => $code,
-                'format'      => 'json',
-                'partner_id'  => 'iop-sdk-php',
-                'sign_method' => 'sha256',
-                'simplify'    => 'false',
-                'timestamp'   => round(microtime(true) * 1000),
-                'uuid'        => Str::uuid()->toString(),
+                'grant_type'=> 'authorization_code',
+                'timestamp' => round(microtime(true) * 1000),
             ];
 
             ksort($params);
