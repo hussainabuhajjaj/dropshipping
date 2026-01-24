@@ -62,36 +62,41 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
 
 
-            $apiPath = '/auth/token/create';
+            $appKey = config('ali_express.client_id');
+            $appSecret = config('ali_express.client_secret');
+            $apiPath = '/auth/token/create'; // MANDATORY for signature
+
+            // 1. Prepare Parameters (Alphabetical order is best practice)
             $params = [
-                'code' => $code,
-                'app_key' => $appKey,
+                'app_key'     => $appKey,
+                'code'        => $code,
+                'format'      => 'json',
+                'partner_id'  => 'iop-sdk-php',
                 'sign_method' => 'sha256',
-                'timestamp' => now()->getTimestamp() * 1000,
-                'sign' => 'AE3AB323878EE790908B4ED82C5F2D5B5EA4E72839C461E81CBD1757C2A82BEC',
-                'partner_id' => 'iop-sdk-php', // Recommended to include
-                'simplify' => 'false',
-                'format' => 'json',
+                'simplify'    => 'false',
+                'timestamp'   => now()->getTimestamp() * 1000,
+                'uuid'        => Str::uuid()->toString(),
             ];
 
+            // 2. Generate the Signature
+            // Step A: Sort keys alphabetically
             ksort($params);
 
-// Step B: Concatenate API Path + sorted Key-Value pairs
+            // Step B: Build string starting with the API Path
             $stringToSign = $apiPath;
             foreach ($params as $key => $value) {
                 $stringToSign .= $key . $value;
             }
 
-// Step C: Generate HMAC-SHA256 and convert to UPPERCASE
+            // Step C: Sign with App Secret using HMAC-SHA256
             $sign = strtoupper(hash_hmac('sha256', $stringToSign, $appSecret));
-
-// 4. Add the sign to the parameter array
             $params['sign'] = $sign;
 
-// 5. Send as a clean POST request (No query string in URL)
-            $url = "https://api-sg.aliexpress.com/rest" . $apiPath . "?" . http_build_query($params);
-            dump($url);
-            $response = Http::asForm()->get($url, $params);
+            // 3. Send via POST (Form URL Encoded)
+            // IMPORTANT: Do NOT put params in the URL query string
+            $url = "https://api-sg.aliexpress.com/rest" . $apiPath;
+
+            $response = Http::asForm()->post($url, $params);
             dd($response->body());
 
 //            $response = Http::asForm()
