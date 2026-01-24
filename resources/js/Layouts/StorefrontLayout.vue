@@ -49,7 +49,7 @@
         </Head>
 
         <!-- Marketplace Header -->
-        <header class="sticky top-0 z-50 shadow-md bg-brand-header">
+        <header class="sticky top-0 z-50 shadow-md bg-slate-950 text-white">
             <!-- Top row -->
             <div class="container mx-auto px-4">
                 <div class="flex items-center gap-3 py-3">
