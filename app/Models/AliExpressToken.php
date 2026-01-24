@@ -20,4 +20,10 @@ class AliExpressToken extends Model
         'refresh_expires_at' => 'datetime',
         'raw' => 'array',
     ];
+
+
+    public function isExpired()
+    {
+        return $this->expires_at && \Carbon\Carbon::parse($this->expires_at)->isPast();
+    }
 }
