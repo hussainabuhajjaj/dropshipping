@@ -26,4 +26,9 @@ class AliExpressToken extends Model
     {
         return $this->expires_at && \Carbon\Carbon::parse($this->expires_at)->isPast();
     }
+
+    public function canRefresh()
+    {
+        return $this->refresh_token && (!$this->expires_at || \Carbon\Carbon::parse($this->expires_at)->isFuture());
+    }
 }
