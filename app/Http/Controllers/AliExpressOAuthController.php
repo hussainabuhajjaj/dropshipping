@@ -61,6 +61,37 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
 
 
+
+            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
+
+            // 1. Prepare Parameters
+            $params = [
+                'app_key'     => $appKey,
+                'timestamp'   => now()->getTimestamp() * 1000,
+                'sign_method' => 'sha256',
+                'code'        => $code,
+                'uuid'        => Str::uuid()->toString(),
+                'method'      => '/auth/token/create',
+                'partner_id'  => 'iop-sdk-php',
+                'format'      => 'json',
+                'simplify'    => 'false',
+            ];
+
+            // 2. Generate Signature (The core SDK logic)
+            ksort($params);
+            $queryStr = "";
+            foreach ($params as $k => $v) {
+                $queryStr .= $k . $v;
+            }
+
+            // Sign the request path + sorted parameters
+            $sign = strtoupper(hash_hmac('sha256', '/auth/token/create' . $queryStr, $appSecret));
+            $params['sign'] = $sign;
+
+            // 3. Send as POST (This fixes the 405 error)
+            $response = Http::asForm()->post($url, $params);
+            dd($response , $response->body());
+
 //            $response = Http::asForm()
 //                ->post($url . '/auth/token/create', [
 //                    'app_key'     => $appKey,
@@ -75,9 +106,10 @@ class AliExpressOAuthController extends Controller
 
             try {
                 $c = new \IopClient($url,$appKey,$appSecret);
-                $request = new \IopRequest('/auth/token/create');
+                $request = new \IopRequest('/auth/token/create' ,'POST');
                 $request->addApiParam('code',$code);
                 $request->addApiParam('uuid','uuid');
+
                 var_dump($c->execute($request));
 //
 //                $c = new \IopClient($url, $appKey, $appSecret);
