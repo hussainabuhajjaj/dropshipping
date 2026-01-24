@@ -755,6 +755,9 @@ class CJCatalog extends BasePage implements HasTable
 
     public function importSelected(Collection $records): void
     {
+
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', 100);
         $pids = $this->selectedPids($records);
         $this->bulkImportByPids($pids, 'from your selection');
     }

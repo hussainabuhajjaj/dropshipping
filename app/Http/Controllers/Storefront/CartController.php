@@ -10,14 +10,14 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
-use App\Models\Coupon;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
+use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
+use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,15 +59,16 @@ class CartController extends Controller
         }
 
         $shipping = $cart->calculateShippingFees();
-
+        
         // Get applied promotions (not just coupon)
-        $promotionEngine = app(\App\Services\Promotions\PromotionEngine::class);
+        $promotionEngine = app(PromotionEngine::class);
         $cartContext = [
             'lines' => $cartPayload,
             'subtotal' => $subtotal,
-            'user_id' => auth('customer')->id(),
+            'user_id' => $customer?->id,
         ];
-        $appliedPromotions = $promotionEngine->getApplicablePromotions($cartContext)->map(function ($promo) {
+        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
+        $appliedPromotions = $promotionModels->map(function ($promo) {
             return [
                 'id' => $promo->id,
                 'name' => $promo->name,
@@ -85,9 +86,9 @@ class CartController extends Controller
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('cart', $productIds, $categoryIds);
-
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $couponModel);
         return Inertia::render('Cart/Index', [
-            'lines' => (CartResource::collection($cart_items))->jsonSerialize(),
+            'lines' => $cartPayload,
             'currency' => $cart[0]['currency'] ?? 'USD',
             'subtotal' => $subtotal,
             'shipping' => $shipping,
@@ -96,6 +97,7 @@ class CartController extends Controller
             'coupon' => $coupon,
             'appliedPromotions' => $appliedPromotions,
             'cartPromotions' => $cartPromotions,
+            'minimum_cart_requirement' => $minimumRequirement,
         ]);
     }
 

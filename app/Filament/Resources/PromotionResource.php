@@ -173,11 +173,12 @@ class PromotionResource extends Resource
                         ->relationship()
                         ->schema([
                             Forms\Components\Select::make('condition_type')
-                                ->options([
-                                    'min_cart_value' => 'Minimum Cart Value',
-                                    'max_discount' => 'Maximum Discount',
-                                    'first_order_only' => 'First Order Only',
-                                ])
+                            ->options([
+                                'min_cart_value' => 'Minimum Cart Value',
+                                'max_discount' => 'Maximum Discount',
+                                'first_order_only' => 'First Order Only',
+                                \App\Models\PromotionCondition::CONDITION_SKIP_MIN_CART_TOTAL => 'Skip Minimum Cart Requirement',
+                            ])
                                 ->required()
                                 ->label('Condition Type'),
                             Forms\Components\TextInput::make('condition_value')

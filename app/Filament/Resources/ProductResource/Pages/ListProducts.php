@@ -23,118 +23,118 @@ class ListProducts extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
-//            Actions\Action::make('syncCjMyProducts')
-//                ->label('Sync CJ My Products')
-//                ->icon('heroicon-o-arrow-path')
-//                ->color('gray')
-//                ->requiresConfirmation()
-//                ->action('syncCjMyProducts'),
+           Actions\Action::make('syncCjMyProducts')
+               ->label('Sync CJ My Products')
+               ->icon('heroicon-o-arrow-path')
+               ->color('gray')
+               ->requiresConfirmation()
+               ->action('syncCjMyProducts'),
             // New: Sync only listed CJ products
-//            Actions\Action::make('syncListedCjProducts')
-//                ->label('Sync Listed CJ Products')
-//                ->icon('heroicon-o-arrow-path')
-//                ->color('primary')
-//                ->requiresConfirmation()
-//                ->action(function (): void {
-//                    $importer = app(CjProductImportService::class);
-//                    $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
-//                    $startedAt = microtime(true);
-//
-//                    Notification::make()
-//                        ->title('CJ listed sync started')
-//                        ->body('Syncing only listed CJ products...')
-//                        ->send();
-//
-//                    try {
-//                        $resp = $client->listMyProducts([
-//                            'pageNum' => 1,
-//                            'pageSize' => 100,
-//                        ]);
-//                        $data = $resp->data ?? [];
-//                        $list = [];
-//                        // Normalize response to array of products
-//                        if (is_array($data)) {
-//                            if (!empty($data['content']) && is_array($data['content'])) {
-//                                foreach ($data['content'] as $entry) {
-//                                    if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
-//                                        $list = array_merge($list, $entry['productList']);
-//                                    } elseif (is_array($entry)) {
-//                                        $list[] = $entry;
-//                                    }
-//                                }
-//                            } elseif (!empty($data['productList']) && is_array($data['productList'])) {
-//                                $list = $data['productList'];
-//                            } elseif (!empty($data['content']) && is_array($data['content'])) {
-//                                $list = $data['content'];
-//                            } else {
-//                                $numericKeys = array_filter(array_keys($data), 'is_int');
-//                                if ($numericKeys !== []) {
-//                                    $list = $data;
-//                                }
-//                            }
-//                        }
-//                        // Filter for listed products only
-//                        $listed = array_filter($list, function ($item) {
-//                            return is_array($item) && !empty($item['listedShopNum']) && (int)$item['listedShopNum'] > 0;
-//                        });
-//                        $count = 0;
-//                        foreach ($listed as $record) {
-//                            $pid = $record['pid'] ?? $record['productId'] ?? $record['id'] ?? null;
-//                            if (!$pid) {
-//                                continue;
-//                            }
-//                            try {
-//                                $product = $importer->importByPid($pid, [
-//                                    'respectSyncFlag' => false,
-//                                    'defaultSyncEnabled' => true,
-//                                    'shipToCountry' => (string)(config('services.cj.ship_to_default') ?? ''),
-//                                ]);
-//                            } catch (\Throwable $e) {
-//                                Notification::make()
-//                                    ->title('CJ error')
-//                                    ->body("{$pid}: {$e->getMessage()}")
-//                                    ->danger()
-//                                    ->send();
-//                                continue;
-//                            }
-//                            if ($product) {
-//                                $count++;
-//                            }
-//                        }
-//                        $duration = microtime(true) - $startedAt;
-//                        $message = $count > 0
-//                            ? sprintf('Imported %d listed CJ product(s) in %.2fs.', $count, $duration)
-//                            : 'No listed CJ products were imported.';
-//
-//                        $settings = \App\Models\SiteSetting::query()->first();
-//                        if (!$settings) {
-//                            $settings = \App\Models\SiteSetting::create([]);
-//                        }
-//
-//                        $settings->update([
-//                            'cj_last_sync_at' => now(),
-//                            'cj_last_sync_summary' => $message,
-//                        ]);
-//
-//                        Notification::make()
-//                            ->title('CJ listed sync complete')
-//                            ->body($message)
-//                            ->success()
-//                            ->send();
-//                    } catch (ApiException $e) {
-//                        Notification::make()
-//                            ->title('CJ error')
-//                            ->body($e->getMessage())
-//                            ->danger()
-//                            ->send();
-//                    } catch (\Throwable $e) {
-//                        Notification::make()
-//                            ->title('Error')
-//                            ->body($e->getMessage())
-//                            ->danger()
-//                            ->send();
-//                    }
-//                }),
+           Actions\Action::make('syncListedCjProducts')
+               ->label('Sync Listed CJ Products')
+               ->icon('heroicon-o-arrow-path')
+               ->color('primary')
+               ->requiresConfirmation()
+               ->action(function (): void {
+                   $importer = app(CjProductImportService::class);
+                   $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
+                   $startedAt = microtime(true);
+
+                   Notification::make()
+                       ->title('CJ listed sync started')
+                       ->body('Syncing only listed CJ products...')
+                       ->send();
+
+                   try {
+                       $resp = $client->listMyProducts([
+                           'pageNum' => 1,
+                           'pageSize' => 100,
+                       ]);
+                       $data = $resp->data ?? [];
+                       $list = [];
+                       // Normalize response to array of products
+                       if (is_array($data)) {
+                           if (!empty($data['content']) && is_array($data['content'])) {
+                               foreach ($data['content'] as $entry) {
+                                   if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
+                                       $list = array_merge($list, $entry['productList']);
+                                   } elseif (is_array($entry)) {
+                                       $list[] = $entry;
+                                   }
+                               }
+                           } elseif (!empty($data['productList']) && is_array($data['productList'])) {
+                               $list = $data['productList'];
+                           } elseif (!empty($data['content']) && is_array($data['content'])) {
+                               $list = $data['content'];
+                           } else {
+                               $numericKeys = array_filter(array_keys($data), 'is_int');
+                               if ($numericKeys !== []) {
+                                   $list = $data;
+                               }
+                           }
+                       }
+                       // Filter for listed products only
+                       $listed = array_filter($list, function ($item) {
+                           return is_array($item) && !empty($item['listedShopNum']) && (int)$item['listedShopNum'] > 0;
+                       });
+                       $count = 0;
+                       foreach ($listed as $record) {
+                           $pid = $record['pid'] ?? $record['productId'] ?? $record['id'] ?? null;
+                           if (!$pid) {
+                               continue;
+                           }
+                           try {
+                               $product = $importer->importByPid($pid, [
+                                   'respectSyncFlag' => false,
+                                   'defaultSyncEnabled' => true,
+                                   'shipToCountry' => (string)(config('services.cj.ship_to_default') ?? ''),
+                               ]);
+                           } catch (\Throwable $e) {
+                               Notification::make()
+                                   ->title('CJ error')
+                                   ->body("{$pid}: {$e->getMessage()}")
+                                   ->danger()
+                                   ->send();
+                               continue;
+                           }
+                           if ($product) {
+                               $count++;
+                           }
+                       }
+                       $duration = microtime(true) - $startedAt;
+                       $message = $count > 0
+                           ? sprintf('Imported %d listed CJ product(s) in %.2fs.', $count, $duration)
+                           : 'No listed CJ products were imported.';
+
+                       $settings = \App\Models\SiteSetting::query()->first();
+                       if (!$settings) {
+                           $settings = \App\Models\SiteSetting::create([]);
+                       }
+
+                       $settings->update([
+                           'cj_last_sync_at' => now(),
+                           'cj_last_sync_summary' => $message,
+                       ]);
+
+                       Notification::make()
+                           ->title('CJ listed sync complete')
+                           ->body($message)
+                           ->success()
+                           ->send();
+                   } catch (ApiException $e) {
+                       Notification::make()
+                           ->title('CJ error')
+                           ->body($e->getMessage())
+                           ->danger()
+                           ->send();
+                   } catch (\Throwable $e) {
+                       Notification::make()
+                           ->title('Error')
+                           ->body($e->getMessage())
+                           ->danger()
+                           ->send();
+                   }
+               }),
             Actions\Action::make('cjLastSync')
                 ->label(fn() => $this->getCjSyncLabel())
                 ->icon('heroicon-o-clock')
