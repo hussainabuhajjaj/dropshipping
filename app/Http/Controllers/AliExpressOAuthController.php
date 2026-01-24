@@ -65,7 +65,17 @@ class AliExpressOAuthController extends Controller
 //            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
             $url = "https://oauth.aliexpress.com/token";
 
-            // 1. Prepare Parameters
+            $params = [
+                'grant_type'    => 'authorization_code',
+                'code'          => $code,
+                'client_id'     => config('ali_express.client_id'),
+                'client_secret' => config('ali_express.client_secret'),
+                'redirect_uri'  => config('ali_express.redirect_url'),
+                'sp'            => 'ae',
+            ];
+            $response = Http::asForm()->post($url, $params);
+
+            return $response->json();
             $params = [
                 'app_key'     => $appKey,
                 'timestamp'   => now()->getTimestamp() * 1000,
