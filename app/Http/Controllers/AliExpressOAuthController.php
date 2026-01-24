@@ -17,12 +17,10 @@ class AliExpressOAuthController extends Controller
             "force_auth" => true,
             'redirect_uri' => config('ali_express.redirect_uri'),
             'client_id' => config('ali_express.client_id'),
-            'sp' => 'ae', // Important for AliExpress
-            'view' => 'web'
+            'state' => csrf_token(),
         ]);
-        $url = 'https://oauth.aliexpress.com/authorize?' . $query;
+        $url = 'https://api-sg.aliexpress.com/oauth/authorize?' . $query;
         return redirect()->away($url);
-//        return redirect('https://api-sg.aliexpress.com/oauth/authorize?' . $query);
     }
 
     public function createSystemToken(Request $request)
@@ -40,7 +38,6 @@ class AliExpressOAuthController extends Controller
 
     public function callback(Request $request)
     {
-        dd($request->all());
         try {
             $code = $request->input('code');
             $state = $request->input('state');
@@ -64,6 +61,8 @@ class AliExpressOAuthController extends Controller
             ]);
 
             $data = $response->json();
+
+            dd($data);
             Log::info('AliExpress OAuth token response received', ['expires_in' => $data['expires_in'] ?? null]);
 
             if (!isset($data['access_token'])) {
