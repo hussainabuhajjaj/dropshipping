@@ -51,10 +51,10 @@ class AliExpressOAuthController extends Controller
 //                Log::error('AliExpress OAuth state mismatch', ['expected' => csrf_token(), 'received' => $state]);
 //                return response('Invalid state parameter', 400);
 //            }
-
-            if (!defined("IOP_SDK_WORK_DIR")) {
-                define("IOP_SDK_WORK_DIR", storage_path('logs/iop'));
-            }
+//
+//            if (!defined("IOP_SDK_WORK_DIR")) {
+//                define("IOP_SDK_WORK_DIR", storage_path('logs/iop'));
+//            }
 
             $url = config('ali_express.base_url');
             $appKey = config('ali_express.client_id');
@@ -62,7 +62,8 @@ class AliExpressOAuthController extends Controller
 
 
 
-            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
+//            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
+            $url = "https://oauth.aliexpress.com/token";
 
             // 1. Prepare Parameters
             $params = [
@@ -104,22 +105,22 @@ class AliExpressOAuthController extends Controller
 //
 //            $data = $response->json();
 
-            try {
-                $c = new \IopClient($url,$appKey,$appSecret);
-                $request = new \IopRequest('/auth/token/create' ,'POST');
-                $request->addApiParam('code',$code);
-                $request->addApiParam('uuid','uuid');
-
-                var_dump($c->execute($request));
+//            try {
+//                $c = new \IopClient($url,$appKey,$appSecret);
+//                $request = new \IopRequest('/auth/token/create' ,'POST');
+//                $request->addApiParam('code',$code);
+//                $request->addApiParam('uuid','uuid');
 //
-//                $c = new \IopClient($url, $appKey, $appSecret);
-//                $request = new \IopRequest('/auth/token/create');
-//                $request->addApiParam('code', $code);
-//                $request->addApiParam('uuid', Str::uuid()->toString());
 //                var_dump($c->execute($request));
-            } catch (\Exception $e) {
-                dd($e , $e->getTrace());
-            }
+////
+////                $c = new \IopClient($url, $appKey, $appSecret);
+////                $request = new \IopRequest('/auth/token/create');
+////                $request->addApiParam('code', $code);
+////                $request->addApiParam('uuid', Str::uuid()->toString());
+////                var_dump($c->execute($request));
+//            } catch (\Exception $e) {
+//                dd($e , $e->getTrace());
+//            }
 
             dd(12);
 
