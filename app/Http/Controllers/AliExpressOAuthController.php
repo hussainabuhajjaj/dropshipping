@@ -19,7 +19,7 @@ class AliExpressOAuthController extends Controller
             'client_id' => config('ali_express.client_id'),
 //            'state' => csrf_token(),
         ]);
-        $url = 'https://api-sg.aliexpress.com/oauth/authorize?' . $query;
+        $url = config('ali_express.base_url') . '/oauth/authorize?' . $query;
         return redirect()->away($url);
     }
 
@@ -52,7 +52,15 @@ class AliExpressOAuthController extends Controller
 //                return response('Invalid state parameter', 400);
 //            }
 
-            $response = Http::asForm()->post('https://api-sg.aliexpress.com/rest/auth/token/create', [
+            $url = config('ali_express.base_url') ;
+            $c = new \IopClient($url, config('ali_express.client_id'), config('ali_express.client_secret'));
+            $request = new \IopRequest('/auth/token/create');
+            $request->addApiParam('code', $code);
+            $request->addApiParam('uuid', 'uuid');
+            dd($c->execute($request));
+
+
+            $response = Http::asForm()->post(config('ali_express.base_url') . '/auth/token/create', [
                 'grant_type' => 'authorization_code',
                 'code' => $code,
                 'client_id' => config('ali_express.client_id'),
