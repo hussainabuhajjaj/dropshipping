@@ -62,7 +62,6 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
 
 
-            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
 
             $params = [
                 'code' => $code,
@@ -72,10 +71,12 @@ class AliExpressOAuthController extends Controller
                 'sign' => 'AE3AB323878EE790908B4ED82C5F2D5B5EA4E72839C461E81CBD1757C2A82BEC',
             ];
 
-            
+            $query = http_build_query($params);
+
+            $url = "https://api-sg.aliexpress.com/rest/auth/token/create?".$query;
 
             // 3. Send as POST (This fixes the 405 error)
-            $response = Http::asForm()->post($url, $params);
+            $response = Http::asForm()->post($url);
             dd($response, $response->body());
 
 //            $response = Http::asForm()
