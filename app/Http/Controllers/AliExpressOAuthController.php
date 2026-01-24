@@ -18,6 +18,7 @@ class AliExpressOAuthController extends Controller
             'redirect_uri' => config('ali_express.redirect_uri'),
             'client_id' => config('ali_express.client_id'),
 //            'state' => csrf_token(),
+            'sp' => 'ae', // Important for AliExpress
         ]);
         $url = config('ali_express.base_url') . '/oauth/authorize?' . $query;
         return redirect()->away($url);
@@ -61,31 +62,18 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
 
 
-
-//            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
-            $url = "https://oauth.aliexpress.com/token";
+            $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
 
             $params = [
-                'grant_type'    => 'authorization_code',
-                'code'          => $code,
-                'client_id'     => config('ali_express.client_id'),
-                'client_secret' => config('ali_express.client_secret'),
-                'redirect_uri'  => config('ali_express.redirect_url'),
-                'sp'            => 'ae',
-            ];
-            $response = Http::asForm()->post($url, $params);
-
-            return $response->json();
-            $params = [
-                'app_key'     => $appKey,
-                'timestamp'   => now()->getTimestamp() * 1000,
+                'app_key' => $appKey,
+                'timestamp' => now()->getTimestamp() * 1000,
                 'sign_method' => 'sha256',
-                'code'        => $code,
-                'uuid'        => Str::uuid()->toString(),
-                'method'      => '/auth/token/create',
-                'partner_id'  => 'iop-sdk-php',
-                'format'      => 'json',
-                'simplify'    => 'false',
+                'code' => $code,
+                'uuid' => Str::uuid()->toString(),
+                'method' => '/auth/token/create',
+                'partner_id' => 'iop-sdk-php',
+                'format' => 'json',
+                'simplify' => 'false',
             ];
 
             // 2. Generate Signature (The core SDK logic)
@@ -101,7 +89,7 @@ class AliExpressOAuthController extends Controller
 
             // 3. Send as POST (This fixes the 405 error)
             $response = Http::asForm()->post($url, $params);
-            dd($response , $response->body());
+            dd($response, $response->body());
 
 //            $response = Http::asForm()
 //                ->post($url . '/auth/token/create', [
