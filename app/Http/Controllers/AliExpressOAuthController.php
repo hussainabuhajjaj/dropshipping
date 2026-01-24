@@ -66,7 +66,7 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
             $apiPath = '/auth/token/create'; // MANDATORY for signature
 
-            // 1. Prepare Parameters (Alphabetical order is best practice)
+
             $params = [
                 'app_key'     => $appKey,
                 'code'        => $code,
@@ -74,31 +74,34 @@ class AliExpressOAuthController extends Controller
                 'partner_id'  => 'iop-sdk-php',
                 'sign_method' => 'sha256',
                 'simplify'    => 'false',
-                'timestamp'   => now()->getTimestamp() * 1000,
+                'timestamp'   => round(microtime(true) * 1000),
                 'uuid'        => Str::uuid()->toString(),
             ];
 
-            // 2. Generate the Signature
             ksort($params);
 
-            $stringToSign = $apiPath;
-            foreach ($params as $key => $value) {
-                $stringToSign .= $key . $value;
+// Build string: apiPath + sorted key/value
+            $toSign = $apiPath;
+            foreach ($params as $k => $v) {
+                $toSign .= $k . $v;
             }
-            $sign = strtoupper(
-                hash(
+
+// Final string: secret + toSign + secret
+            $finalSignString = $appSecret . $toSign . $appSecret;
+
+// Signature: HMAC-SHA256
+            $signature = strtoupper(
+                hash_hmac(
                     'sha256',
-                    $appSecret . $stringToSign . $appSecret
+                    $finalSignString,
+                    $appSecret
                 )
             );
 
-            $params['sign'] = $sign;
+            $params['sign'] = $signature;
 
-            // 3. Send via POST (Form URL Encoded)
-            // IMPORTANT: Do NOT put params in the URL query string
-            $url = "https://api-sg.aliexpress.com/rest" . $apiPath;
+            $response = Http::asForm()->post("https://api-sg.aliexpress.com/rest" . $apiPath, $params);
 
-            $response = Http::asForm()->post($url, $params);
             dd($response->body());
 
 //            $response = Http::asForm()
