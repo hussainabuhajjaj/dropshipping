@@ -90,9 +90,9 @@ class AliExpressOAuthController extends Controller
 
 // 5. Send as a clean POST request (No query string in URL)
             $url = "https://api-sg.aliexpress.com/rest" . $apiPath . "?" . http_build_query($params);
-
+            dump($url);
             $response = Http::asForm()->get($url, $params);
-            dd($response, $response->body());
+            dd($response->body());
 
 //            $response = Http::asForm()
 //                ->post($url . '/auth/token/create', [
