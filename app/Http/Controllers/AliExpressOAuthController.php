@@ -65,27 +65,14 @@ class AliExpressOAuthController extends Controller
             $url = "https://api-sg.aliexpress.com/rest/auth/token/create";
 
             $params = [
-                'app_key' => $appKey,
-                'timestamp' => now()->getTimestamp() * 1000,
-                'sign_method' => 'sha256',
                 'code' => $code,
-                'uuid' => Str::uuid()->toString(),
-                'method' => '/auth/token/create',
-                'partner_id' => 'iop-sdk-php',
-                'format' => 'json',
-                'simplify' => 'false',
+                'app_key' => $appKey,
+                'sign_method' => 'sha256',
+                'timestamp' => now()->getTimestamp() * 1000,
+                'sign' => 'AE3AB323878EE790908B4ED82C5F2D5B5EA4E72839C461E81CBD1757C2A82BEC',
             ];
 
-            // 2. Generate Signature (The core SDK logic)
-            ksort($params);
-            $queryStr = "";
-            foreach ($params as $k => $v) {
-                $queryStr .= $k . $v;
-            }
-
-            // Sign the request path + sorted parameters
-            $sign = strtoupper(hash_hmac('sha256', '/auth/token/create' . $queryStr, $appSecret));
-            $params['sign'] = $sign;
+            
 
             // 3. Send as POST (This fixes the 405 error)
             $response = Http::asForm()->post($url, $params);
