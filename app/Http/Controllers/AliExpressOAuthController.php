@@ -62,21 +62,36 @@ class AliExpressOAuthController extends Controller
             $appSecret = config('ali_express.client_secret');
 
 
-
+            $apiPath = '/auth/token/create';
             $params = [
                 'code' => $code,
                 'app_key' => $appKey,
                 'sign_method' => 'sha256',
                 'timestamp' => now()->getTimestamp() * 1000,
                 'sign' => 'AE3AB323878EE790908B4ED82C5F2D5B5EA4E72839C461E81CBD1757C2A82BEC',
+                'partner_id' => 'iop-sdk-php', // Recommended to include
+                'simplify' => 'false',
+                'format' => 'json',
             ];
 
-            $query = http_build_query($params);
+            ksort($params);
 
-            $url = "https://api-sg.aliexpress.com/rest/auth/token/create?".$query;
-dump($url);
-            // 3. Send as POST (This fixes the 405 error)
-            $response = Http::asForm()->post($url);
+// Step B: Concatenate API Path + sorted Key-Value pairs
+            $stringToSign = $apiPath;
+            foreach ($params as $key => $value) {
+                $stringToSign .= $key . $value;
+            }
+
+// Step C: Generate HMAC-SHA256 and convert to UPPERCASE
+            $sign = strtoupper(hash_hmac('sha256', $stringToSign, $appSecret));
+
+// 4. Add the sign to the parameter array
+            $params['sign'] = $sign;
+
+// 5. Send as a clean POST request (No query string in URL)
+            $url = "https://api-sg.aliexpress.com/rest" . $apiPath . "?" . http_build_query($params);
+
+            $response = Http::asForm()->get($url, $params);
             dd($response, $response->body());
 
 //            $response = Http::asForm()
