@@ -8,10 +8,11 @@ use App\Domain\Products\Models\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExportController extends Controller
 {
-    public function products(): Response
+    public function products(): StreamedResponse
     {
         $filename = 'products-' . now()->format('Ymd-His') . '.csv';
         $columns = [
@@ -58,7 +59,7 @@ class ExportController extends Controller
         }, $filename, ['Content-Type' => 'text/csv']);
     }
 
-    public function customers(): Response
+    public function customers(): StreamedResponse
     {
         $filename = 'customers-' . now()->format('Ymd-His') . '.csv';
         $columns = [

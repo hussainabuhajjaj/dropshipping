@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CouponResource\Pages;
+use App\Models\Category;
 use App\Models\Coupon;
 use BackedEnum;
 use App\Filament\Resources\BaseResource;
@@ -12,11 +13,12 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms;
+use Filament\Forms\Components\MultiSelect;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms;
 
 class CouponResource extends BaseResource
 {
@@ -71,12 +73,24 @@ class CouponResource extends BaseResource
                         ->visible(fn ($get) => $get('applicable_to') === 'products')
                         ->label('Select Products'),
                     
-                    Forms\Components\MultiSelect::make('categories')
-                        ->relationship('categories', 'name')
-                        ->searchable()
-                        ->preload()
+                    MultiSelect::make('category_ids')
+                        ->label('Select Categories')
+                        ->options(fn () => self::categoryHierarchyOptions())
                         ->visible(fn ($get) => $get('applicable_to') === 'categories')
-                        ->label('Select Categories'),
+                        ->afterStateHydrated(function (MultiSelect $component, $state) {
+                            if ($component->getRecord()) {
+                                $component->state($component->getRecord()->categories->pluck('id')->toArray());
+                            } elseif ($state) {
+                                $component->state($state);
+                            }
+                        })
+                        ->saveRelationshipsUsing(function (?array $state, $record) {
+                            if ($state === null) {
+                                $record->categories()->detach();
+                            } else {
+                                $record->categories()->sync($state);
+                            }
+                        }),
 
                     Forms\Components\Toggle::make('exclude_on_sale')
                         ->label('Exclude Products Already on Sale')
@@ -191,6 +205,29 @@ class CouponResource extends BaseResource
             'create' => Pages\CreateCoupon::route('/create'),
             'edit' => Pages\EditCoupon::route('/{record}/edit'),
         ];
+    }
+
+    protected static function categoryHierarchyOptions(): array
+    {
+        $options = [];
+
+        $roots = Category::with(['children.children'])->whereNull('parent_id')->orderBy('name')->get();
+
+        foreach ($roots as $root) {
+            $options[$root->id] = $root->name;
+
+            foreach ($root->children as $child) {
+                $childLabel = "{$root->name} / {$child->name}";
+                $options[$child->id] = $childLabel;
+
+                foreach ($child->children as $grandChild) {
+                    $grandLabel = "{$childLabel} / {$grandChild->name}";
+                    $options[$grandChild->id] = $grandLabel;
+                }
+            }
+        }
+
+        return $options;
     }
 }
 
