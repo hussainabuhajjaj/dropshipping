@@ -62,7 +62,6 @@ class ChargebackCaseResource extends Resource
                         Forms\Components\Select::make('status')
                             ->options(ChargebackStatus::labels())
                             ->required()
-                            ->color(fn ($state) => ChargebackStatus::from($state)->color())
                             ->native(false),
                     ])
                     ->columns(2),
@@ -78,7 +77,8 @@ class ChargebackCaseResource extends Resource
 
                         Forms\Components\TextInput::make('amount')
                             ->numeric()
-                            ->currencyMask(thousandsSeparator: ',', decimalSeparator: '.')
+                            ->step(0.01)
+                            ->helperText('Enter amount in USD')
                             ->required(),
 
                         Forms\Components\TextInput::make('card_last_four')

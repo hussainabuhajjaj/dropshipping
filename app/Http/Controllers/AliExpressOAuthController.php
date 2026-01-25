@@ -18,7 +18,6 @@ class AliExpressOAuthController extends Controller
             'response_type' => 'code',
             'force_auth' => true,
             'sp' => 'ae', // Important for AliExpress
-//            'state' => csrf_token(),
         ]);
         $url = config('ali_express.base_url') . '/oauth/authorize?' . $query;
         return redirect()->away($url);
