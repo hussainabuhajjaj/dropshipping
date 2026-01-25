@@ -119,8 +119,8 @@ class AliExpressImport extends Page implements HasForms
 
             $service = app(AliExpressProductImportService::class);
             $products = $service->importBySearch([
-                'keyword' => 'electronics',
-                'page_size' => 20,
+                'keyWord' => '',
+                'pageSize' => 20,
             ]);
 
             Notification::make()
