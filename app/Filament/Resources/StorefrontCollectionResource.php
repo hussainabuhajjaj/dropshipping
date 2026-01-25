@@ -11,9 +11,12 @@ use App\Models\StorefrontCollection;
 use BackedEnum;
 use Filament\Forms;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
 
@@ -27,8 +30,11 @@ class StorefrontCollectionResource extends BaseResource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema->schema([
+        return $schema->columns(12)->schema([
             Section::make('Basics')
+                ->description('General collection metadata and visibility options.')
+                ->columns(2)
+                ->columnSpan(6)
                 ->schema([
                     Forms\Components\TextInput::make('title')
                         ->required()
@@ -51,17 +57,19 @@ class StorefrontCollectionResource extends BaseResource
                         ->default(0),
                     Forms\Components\Toggle::make('is_active')
                         ->default(true),
-                ])
-                ->columns(2),
+                ]),
 
             Section::make('Hero')
+                ->description('Configure the hero section that appears above the collection content.')
+                ->columns(2)
+                ->columnSpan(6)
                 ->schema([
                     Forms\Components\TextInput::make('hero_kicker')
                         ->maxLength(120),
                     Forms\Components\Textarea::make('hero_subtitle')
                         ->rows(2),
                     Forms\Components\FileUpload::make('hero_image')
-                        ->label('Hero Image')
+                        ->label('Hero image')
                         ->disk('public')
                         ->directory('collections')
                         ->image()
@@ -71,23 +79,32 @@ class StorefrontCollectionResource extends BaseResource
                     Forms\Components\TextInput::make('hero_cta_url')
                         ->label('CTA URL')
                         ->placeholder('/collections/global-home-lab')
-                        ->helperText('Relative path only (e.g. /products).')
                         ->dehydrateStateUsing(fn (?string $state): ?string => self::normalizeRelativeUrl($state)),
-                ])
-                ->columns(2),
+                ]),
 
             Section::make('Content')
+                ->description('Rich content and SEO metadata displayed on the landing page.')
+                ->columnSpan('full')
                 ->schema([
                     Forms\Components\RichEditor::make('content')
-                        ->label('Landing page content'),
-                    Forms\Components\TextInput::make('seo_title')
-                        ->maxLength(180),
-                    Forms\Components\Textarea::make('seo_description')
-                        ->rows(2),
-                ])
-                ->columns(2),
+                        ->label('Landing page content')
+                        ->columnSpan('full'),
+                    Grid::make()
+                        ->columns(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('seo_title')
+                                ->label('SEO title')
+                                ->maxLength(180),
+                            Forms\Components\Textarea::make('seo_description')
+                                ->label('SEO description')
+                                ->rows(2),
+                        ]),
+                ]),
 
             Section::make('Schedule & locale')
+                ->description('Control when the collection appears and which locales can see it.')
+                ->columns(2)
+                ->columnSpan(6)
                 ->schema([
                     Forms\Components\DateTimePicker::make('starts_at')->native(false),
                     Forms\Components\DateTimePicker::make('ends_at')->native(false),
@@ -95,7 +112,14 @@ class StorefrontCollectionResource extends BaseResource
                         ->placeholder('Africa/Abidjan'),
                     Forms\Components\TagsInput::make('locale_visibility')
                         ->placeholder('en, fr'),
+                ]),
+
+            Section::make('Locale overrides')
+                ->description('Optional translations and schedule overrides per locale.')
+                ->columnSpan('6')
+                ->schema([
                     Forms\Components\Repeater::make('locale_overrides')
+                        ->columns(2)
                         ->schema([
                             Forms\Components\Select::make('locale')
                                 ->options(static::localeOptions())
@@ -113,41 +137,46 @@ class StorefrontCollectionResource extends BaseResource
                             Forms\Components\TextInput::make('timezone')
                                 ->placeholder('Africa/Abidjan'),
                         ])
-                        ->columns(2)
                         ->collapsible(),
-                ])
-                ->columns(2),
+                ]),
 
             Section::make('Product selection')
+                ->description('Choose how products are pulled into this collection.')
+                ->columnSpan('full')
                 ->schema([
-                    Forms\Components\Select::make('selection_mode')
-                        ->options([
-                            'rules' => 'Rule-based',
-                            'manual' => 'Manual',
-                            'hybrid' => 'Hybrid (Manual + Rules)',
-                        ])
-                        ->default('rules')
-                        ->live()
-                        ->required(),
-                    Forms\Components\TextInput::make('product_limit')
-                        ->numeric()
-                        ->minValue(1)
-                        ->placeholder('Leave blank for unlimited'),
-                    Forms\Components\Select::make('sort_by')
-                        ->options([
-                            'newest' => 'Newest',
-                            'price_asc' => 'Price: Low to High',
-                            'price_desc' => 'Price: High to Low',
-                            'rating' => 'Top rated',
-                            'popularity' => 'Most reviewed',
-                            'featured' => 'Featured first',
-                            'random' => 'Random',
-                        ])
-                        ->placeholder('Default sorting'),
+                    Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Select::make('selection_mode')
+                                ->options([
+                                    'rules' => 'Rule-based',
+                                    'manual' => 'Manual',
+                                    'hybrid' => 'Hybrid (Manual + Rules)',
+                                ])
+                                ->default('rules')
+                                ->live()
+                                ->required(),
+                            Forms\Components\TextInput::make('product_limit')
+                                ->numeric()
+                                ->minValue(1)
+                                ->placeholder('Leave blank for unlimited'),
+                            Forms\Components\Select::make('sort_by')
+                                ->options([
+                                    'newest' => 'Newest',
+                                    'price_asc' => 'Price: Low to High',
+                                    'price_desc' => 'Price: High to Low',
+                                    'rating' => 'Top rated',
+                                    'popularity' => 'Most reviewed',
+                                    'featured' => 'Featured first',
+                                    'random' => 'Random',
+                                ])
+                                ->placeholder('Default sorting'),
+                        ]),
 
-                    Forms\Components\Fieldset::make('rules')
-                        ->label('Rule-based filters')
-                        ->statePath('rules')
+                    Section::make('Rule-based filters')
+                        ->columnSpan('full')
+                        ->description('Filter by category, price, stock, and rating when rules are enabled.')
+                        ->columns(2)
                         ->schema([
                             Forms\Components\Select::make('category_ids')
                                 ->multiple()
@@ -178,25 +207,28 @@ class StorefrontCollectionResource extends BaseResource
                                 ->options(fn () => Product::query()->orderBy('name')->limit(200)->pluck('name', 'id'))
                                 ->searchable(),
                         ])
-                        ->columns(2)
                         ->visible(fn (Get $get) => in_array($get('selection_mode'), ['rules', 'hybrid'], true)),
 
-                    Forms\Components\Repeater::make('manual_products')
+                    Section::make('Manual products')
+                        ->columnSpan('full')
+                        ->description('Manually order featured products when manual mode is selected.')
                         ->schema([
-                            Forms\Components\Select::make('product_id')
-                                ->label('Product')
-                                ->options(fn () => Product::query()->orderBy('name')->limit(200)->pluck('name', 'id'))
-                                ->searchable()
-                                ->required(),
-                            Forms\Components\TextInput::make('position')
-                                ->numeric()
-                                ->default(0),
-                        ])
-                        ->columns(2)
-                        ->reorderable()
-                        ->visible(fn (Get $get) => in_array($get('selection_mode'), ['manual', 'hybrid'], true)),
-                ])
-                ->columns(2),
+                            Forms\Components\Repeater::make('manual_products')
+                                ->schema([
+                                    Forms\Components\Select::make('product_id')
+                                        ->label('Product')
+                                        ->options(fn () => Product::query()->orderBy('name')->limit(200)->pluck('name', 'id'))
+                                        ->searchable()
+                                        ->required(),
+                                    Forms\Components\TextInput::make('position')
+                                        ->numeric()
+                                        ->default(0),
+                                ])
+                                ->columns(2)
+                                ->reorderable()
+                                ->visible(fn (Get $get) => in_array($get('selection_mode'), ['manual', 'hybrid'], true)),
+                        ]),
+                ]),
         ]);
     }
 
@@ -212,10 +244,10 @@ class StorefrontCollectionResource extends BaseResource
                 Tables\Columns\TextColumn::make('display_order')->sortable(),
             ])
             ->recordActions([
-                Tables\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->toolbarActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                DeleteBulkAction::make(),
             ]);
     }
 
@@ -228,7 +260,9 @@ class StorefrontCollectionResource extends BaseResource
         ];
     }
 
-    /** @return array<string, string> */
+    /**
+     * @return array<string, string>
+     */
     private static function localeOptions(): array
     {
         return [
