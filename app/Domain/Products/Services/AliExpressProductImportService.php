@@ -14,19 +14,25 @@ class AliExpressProductImportService
 {
     public function __construct(
         private readonly AliExpressClient $client,
-    ) {}
+    )
+    {
+    }
 
-    public function importById(string $aliId, array $options = []): ?Product
+    public function importById( $aliId, array $options = []): ?Product
     {
         try {
-            $productResp = $this->client->getProduct(['product_id' => $aliId]);
-            
-            if (!isset($productResp['data']) || !is_array($productResp['data'])) {
+            $productResp = $this->client->getProduct([
+                'product_id' => $aliId,
+                'ship_to_country' => "CN"
+            ]);
+
+            if (!isset($productResp['result']) || !is_array($productResp['result'])) {
                 Log::warning('AliExpress product not found', ['product_id' => $aliId]);
                 return null;
             }
-            
-            $productData = $productResp['data'];
+
+            $productData = $productResp['result'];
+dd($productData);
             return $this->mapAndSaveProduct($productData);
         } catch (\Exception $e) {
             Log::error('AliExpress product import failed', [
@@ -40,21 +46,30 @@ class AliExpressProductImportService
     public function importBySearch(array $params = []): array
     {
         try {
+            $params = [
+                "countryCode" => "CN",
+                "local" => "en_US",
+                "currency" => "USD",
+                ...$params,
+            ];
+//dd($params);
             $results = $this->client->searchProducts($params);
             $imported = [];
-            
+
+            dd($results);
             if (!isset($results['data']) || !isset($results['data']['products'])) {
                 Log::warning('AliExpress search returned no products', ['params' => $params]);
                 return $imported;
             }
-            
             foreach ($results['data']['products'] as $productData) {
-                $product = $this->mapAndSaveProduct($productData);
-                if ($product) {
-                    $imported[] = $product;
-                }
+                $r = $this->importById($productData['itemId'], []);
+                dd($r);
+//                $product = $this->mapAndSaveProduct($productData);
+//                if ($product) {
+//                    $imported[] = $product;
+//                }
             }
-            
+
             return $imported;
         } catch (\Exception $e) {
             Log::error('AliExpress product search failed', [
@@ -69,7 +84,7 @@ class AliExpressProductImportService
     {
         try {
             $slug = Str::slug($productData['subject'] ?? 'product');
-            
+
             // Find or create category if provided
             $categoryId = null;
             if (isset($productData['category_id'])) {
@@ -79,7 +94,7 @@ class AliExpressProductImportService
                 );
                 $categoryId = $category->id;
             }
-            
+
             $product = Product::updateOrCreate(
                 ['source_url' => $productData['item_url'] ?? null],
                 [
@@ -105,12 +120,12 @@ class AliExpressProductImportService
                     ],
                 ]
             );
-            
+
             Log::info('AliExpress product imported', [
                 'product_id' => $product->id,
                 'ali_item_id' => $productData['item_id'] ?? null,
             ]);
-            
+
             return $product;
         } catch (\Exception $e) {
             Log::error('Failed to map and save AliExpress product', [

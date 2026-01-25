@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Infrastructure\Fulfillment\Clients\AliExpressClient;
 use App\Models\AliExpressToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -60,8 +62,7 @@ class AliExpressOAuthController extends Controller
             ];
 
             ksort($params);
-            $signature = $this->aliExpressSign($params, $appSecret, $apiPath);
-
+            $signature = (new AliExpressClient(FulfillmentProvider::query()->find(2)))->sign($params, $appSecret, $apiPath);
             $params['sign'] = $signature;
 
             $response = Http::asForm()->post("https://api-sg.aliexpress.com/rest" . $apiPath, $params);
