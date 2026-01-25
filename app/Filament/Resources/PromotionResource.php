@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PromotionResource\Pages;
+use App\Models\Category;
+use App\Models\Product;
 use App\Models\Promotion;
 use BackedEnum;
 use Filament\Forms;
@@ -139,29 +141,29 @@ class PromotionResource extends Resource
                                 ->required()
                                 ->live()
                                 ->label('Target Type'),
-                            Forms\Components\Select::make('target_id')
-                                ->label('Target')
-                                ->searchable()
-                                ->getOptionLabelFromRecordUsing(function ($record, $component) {
-                                    if ($component->getParentComponent()->getState()['target_type'] === 'product') {
-                                        return optional(\App\Models\Product::find($record))->name;
-                                    }
-                                    if ($component->getParentComponent()->getState()['target_type'] === 'category') {
-                                        return optional(\App\Models\Category::find($record))->name;
-                                    }
-                                    return $record;
-                                })
-                                ->options(function ($get) {
-                                    if ($get('target_type') === 'product') {
-                                        return \App\Models\Product::pluck('name', 'id');
-                                    }
-                                    if ($get('target_type') === 'category') {
-                                        return \App\Models\Category::pluck('name', 'id');
-                                    }
-                                    return [];
-                                })
-                                ->required()
-                                ->helperText('Select the product or category.'),
+                Forms\Components\Select::make('target_id')
+                    ->label('Target')
+                    ->searchable()
+                    ->getOptionLabelFromRecordUsing(function ($record, $component) {
+                        if ($component->getParentComponent()->getState()['target_type'] === 'product') {
+                            return optional(\App\Models\Product::find($record))->name;
+                        }
+                        if ($component->getParentComponent()->getState()['target_type'] === 'category') {
+                            return optional(\App\Models\Category::find($record))->name;
+                        }
+                        return $record;
+                    })
+                        ->options(function ($get) {
+                        if ($get('target_type') === 'product') {
+                            return Product::pluck('name', 'id');
+                        }
+                        if ($get('target_type') === 'category') {
+                            return self::categoryHierarchyOptions();
+                        }
+                        return [];
+                    })
+                    ->required()
+                    ->helperText('Select the product or category.'),
                         ])
                         ->label('Promotion Targets')
                         ->createItemButtonLabel('Add Target'),
@@ -190,6 +192,29 @@ class PromotionResource extends Resource
                         ->createItemButtonLabel('Add Condition'),
                 ]),
         ]);
+    }
+
+    protected static function categoryHierarchyOptions(): array
+    {
+        $options = [];
+
+        $roots = Category::with(['children.children'])->whereNull('parent_id')->orderBy('name')->get();
+
+        foreach ($roots as $root) {
+            $options[$root->id] = $root->name;
+
+            foreach ($root->children as $child) {
+                $childLabel = "{$root->name} / {$child->name}";
+                $options[$child->id] = $childLabel;
+
+                foreach ($child->children as $grandChild) {
+                    $grandLabel = "{$childLabel} / {$grandChild->name}";
+                    $options[$grandChild->id] = $grandLabel;
+                }
+            }
+        }
+
+        return $options;
     }
 
     public static function table(Table $table): Table
