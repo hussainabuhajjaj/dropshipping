@@ -15,7 +15,9 @@ class AliExpressClient
 {
     public function __construct(
         private readonly FulfillmentProvider $provider
-    ) {}
+    )
+    {
+    }
 
     // =========================
     // TOKEN MANAGEMENT
@@ -43,14 +45,14 @@ class AliExpressClient
             throw new FulfillmentException('Missing refresh token.');
         }
 
-        $appKey    = config('ali_express.client_id');
+        $appKey = config('ali_express.client_id');
         $appSecret = config('ali_express.client_secret');
-        $timestamp = (string) (now()->timestamp * 1000);
+        $timestamp = (string)(now()->timestamp * 1000);
 
         $params = [
-            'app_key'       => $appKey,
-            'timestamp'     => $timestamp,
-            'sign_method'   => 'hmac-sha256',
+            'app_key' => $appKey,
+            'timestamp' => $timestamp,
+            'sign_method' => 'hmac-sha256',
             'refresh_token' => $token->refresh_token,
         ];
 
@@ -70,12 +72,12 @@ class AliExpressClient
         }
 
         $token->update([
-            'access_token'  => $data['access_token'],
+            'access_token' => $data['access_token'],
             'refresh_token' => $data['refresh_token'] ?? $token->refresh_token,
-            'expires_at'    => isset($data['expires_in'])
-                ? now()->addSeconds((int) $data['expires_in'])
+            'expires_at' => isset($data['expires_in'])
+                ? now()->addSeconds((int)$data['expires_in'])
                 : null,
-            'raw'           => json_encode($data),
+            'raw' => json_encode($data),
         ]);
     }
 
@@ -85,11 +87,12 @@ class AliExpressClient
 
     public function searchProducts(array $params): array
     {
-        return $this->callDsApi('aliexpress.ds.product.search', $params);
+        return $this->callDsApi('aliexpress.ds.text.search', $params);
     }
 
     public function getProduct(array $params): array
     {
+        return $this->callDsApi('aliexpress.ds.product.wholesale.get', $params);
         return $this->callDsApi('aliexpress.ds.product.get', $params);
     }
 
@@ -100,24 +103,26 @@ class AliExpressClient
 
     protected function callDsApi(string $method, array $extra): array
     {
-        $appKey    = config('ali_express.client_id');
+        $appKey = config('ali_express.client_id');
         $appSecret = config('ali_express.client_secret');
 
         $params = [
-            'method'      => $method,
-            'app_key'     => $appKey,
-            'timestamp'   => (string) (now()->timestamp * 1000),
-            'sign_method' => 'hmac-sha256',
-            'access_token'=> $this->getAccessToken(),
+            'method' => $method,
+            'app_key' => $appKey,
+            'timestamp' => (string)(now()->timestamp * 1000),
+            'sign_method' => 'sha256',
+            'access_token' => $this->getAccessToken(),
             ...$extra,
         ];
+        $params['sign'] = $this->sign($params, $appSecret, $method);
 
-        $params['sign'] = $this->sign($params, $appSecret);
 
+        $url = config('ali_express.base_url') . "/rest";
         $response = Http::asForm()
-            ->timeout(30)
-            ->post(config('ali_express.api_base'), $params);
-
+            ->withHeaders([
+                'Content-Type' => 'application/x-www-form-urlencoded;charset=utf-8',
+            ])
+            ->post($url, $params);
         return $response->json() ?? [];
     }
 
@@ -125,18 +130,59 @@ class AliExpressClient
     // SIGNATURE
     // =========================
 
-    private function sign(array $params, string $secret): string
+    /**
+     * Generate AliExpress API signature (HMAC-SHA256)
+     *
+     * @param array $params All request params (system + business), EXCEPT sign
+     * @param string $appSecret App Secret
+     * @param string $apiName API name or api_path
+     * @param bool $isSystem true = System Interface, false = Business Interface
+     *
+     * @return string Uppercase HEX signature
+     */
+    public function sign(
+        array  $params,
+        string $appSecret,
+        string $apiName,
+        bool   $isSystem = true
+    ): string
     {
-        unset($params['sign']);
-
-        ksort($params);
-
-        $string = '';
-        foreach ($params as $k => $v) {
-            if ($v === '' || $v === null) continue;
-            $string .= $k . $v;
+        // 1. If Business Interface → api_path participates in sorting
+        if (!$isSystem) {
+            // api_path is usually passed as "method"
+            $params['method'] = $apiName;
         }
 
-        return strtoupper(hash_hmac('sha256', $string, $secret));
+        // Remove sign if exists
+        unset($params['sign']);
+
+        // 2. Sort parameters by ASCII order of key
+        ksort($params);
+
+        // 3. Concatenate parameters
+        $stringToSign = '';
+
+        // System Interface → prepend API name
+        if ($isSystem) {
+            $stringToSign .= $apiName;
+        }
+
+        foreach ($params as $key => $value) {
+            if ($key === '' || $value === '' || $value === null) {
+                continue;
+            }
+            $stringToSign .= $key . $value;
+        }
+
+        // 4. HMAC-SHA256
+        $hash = hash_hmac(
+            'sha256',
+            $stringToSign,
+            $appSecret,
+            true // raw binary
+        );
+
+        // 5. Convert to UPPERCASE HEX
+        return strtoupper(bin2hex($hash));
     }
 }

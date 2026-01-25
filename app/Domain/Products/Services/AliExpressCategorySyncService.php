@@ -19,13 +19,14 @@ class AliExpressCategorySyncService
     {
         try {
             $response = $this->client->getCategories();
+
             $categories = $response['data'] ?? [];
-            
+
             if (!is_array($categories) || $categories === []) {
                 Log::warning('AliExpress returned no categories');
                 return [];
             }
-            
+
             $synced = [];
             foreach ($categories as $catData) {
                 $category = Category::updateOrCreate(
@@ -41,9 +42,9 @@ class AliExpressCategorySyncService
                 );
                 $synced[] = $category;
             }
-            
+
             Log::info('AliExpress categories synced', ['count' => count($synced)]);
-            
+
             return $synced;
         } catch (\Exception $e) {
             Log::error('AliExpress category sync failed', ['error' => $e->getMessage()]);
