@@ -99,7 +99,6 @@ class AliExpressProductImportService
             }
 
             $productData = $productResp['result'];
-//dd($productData);
             return $this->mapAndSaveProduct($productData);
         } catch (\Exception $e) {
             Log::error('AliExpress product import failed', [
@@ -368,7 +367,6 @@ class AliExpressProductImportService
                     ),
                 ],
             ];
-//            dd($payload);
 
             if ($product) {
                 $product->fill($payload);
@@ -440,14 +438,16 @@ class AliExpressProductImportService
             $productData['ali_category_id']
             ?? data_get($productData, 'ae_item_base_info_dto.category_id')
             ?? null;
+
         if ($aliCategoryId !== null && $aliCategoryId !== '') {
-            $category = Category::where('ali_category_id', (string) $aliCategoryId)->first();
+            $category = Category::query()->where('ali_category_id', (string) $aliCategoryId)->first();
 
             if ($category) {
                 return (int) $category->id;
             }
 
             $category = $this->ensureAliExpressCategory((string) $aliCategoryId);
+
             if ($category) {
                 return (int) $category->id;
             }
@@ -529,6 +529,7 @@ class AliExpressProductImportService
             return null;
         }
 
+//        dd($response);
         $categories = collect(data_get($response, 'resp_result.result.categories', []));
         if ($categories->isEmpty()) {
             return null;
