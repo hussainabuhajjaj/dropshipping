@@ -101,6 +101,13 @@ class AliExpressClient
         return $this->callDsApi('aliexpress.ds.category.get', []);
     }
 
+    public function getCategoryById(string $categoryId): array
+    {
+        return $this->callDsApi('aliexpress.ds.category.get', [
+            'category_id' => $categoryId,
+        ]);
+    }
+
     protected function callDsApi(string $method, array $extra): array
     {
         $appKey = config('ali_express.client_id');
