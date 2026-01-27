@@ -73,6 +73,11 @@ class CategoryResource extends BaseResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('slug')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('description')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('ali_category_id')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('cj_id')->searchable()->sortable(),
+
                 Tables\Columns\ToggleColumn::make('is_active')->label('Active')->sortable(),
                 Tables\Columns\TextColumn::make('parent.name')->label('Parent')->toggleable()->searchable(),
                 Tables\Columns\TextColumn::make('meta_title')->toggleable(),

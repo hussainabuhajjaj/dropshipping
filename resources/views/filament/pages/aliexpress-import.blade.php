@@ -1,110 +1,152 @@
 <x-filament::page>
-    <x-filament::section label="AliExpress Integration">
-        <x-filament::card>
-            <x-slot name="header">
-                <span class="font-semibold">Authentication Status</span>
-            </x-slot>
-            @if($this->getToken())
-                @php
-                    $token = $this->getToken();
-                    $isExpired = $token->isExpired();
-                    $canRefresh = $token->canRefresh();
-                @endphp
-                <div class="rounded-md p-4 mb-2 @if($isExpired) bg-red-50 dark:bg-red-900/20 @else bg-green-50 dark:bg-green-900/20 @endif">
-                    <div class="font-semibold @if($isExpired) text-red-800 dark:text-red-200 @else text-green-800 dark:text-green-200 @endif">
-                        @if($isExpired)
-                            ✗ Token Expired
-                        @else
-                            ✓ Connected to AliExpress
-                        @endif
-                    </div>
-                    <div class="text-xs mt-1">
-                        @if($token->expires_at)
-                            Expires: {{ $token->expires_at->format('Y-m-d H:i:s') }} ({{ $token->expires_at->diffForHumans() }})
-                        @else
-                            Expiration time: Not set
-                        @endif
-                    </div>
-                    @if($canRefresh && $isExpired)
-                        <div class="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                            ℹ️ You can refresh your token
-                        </div>
-                    @endif
-                    <div class="mt-4 flex gap-2">
-                        @if($isExpired)
-                            @if($canRefresh)
-                                <x-filament::button color="primary" wire:click="refreshToken">Refresh Token</x-filament::button>
-                            @else
-                                <x-filament::button color="danger" wire:click="authenticateWithAliExpress">Re-authenticate</x-filament::button>
+    <div class="space-y-6">
+
+        <x-filament::section>
+            <x-slot name="heading">Authentication</x-slot>
+
+            @php
+                $token = $this->getToken();
+                $isExpired = $token?->isExpired() ?? true;
+                $canRefresh = $token?->canRefresh() ?? false;
+            @endphp
+
+            @if($token)
+                <x-filament::card>
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="font-semibold">
+                                @if($isExpired)
+                                    <span class="text-danger-600">✗ Token Expired</span>
+                                @else
+                                    <span class="text-success-600">✓ Connected to AliExpress</span>
+                                @endif
+                            </div>
+
+                            <div class="text-xs text-gray-500 mt-1">
+                                @if($token->expires_at)
+                                    Expires: {{ $token->expires_at->format('Y-m-d H:i:s') }} ({{ $token->expires_at->diffForHumans() }})
+                                @else
+                                    Expiration time: Not set
+                                @endif
+                            </div>
+
+                            @if($canRefresh && $isExpired)
+                                <div class="mt-1 text-xs text-primary-600">
+                                    ℹ️ You can refresh your token
+                                </div>
                             @endif
-                        @endif
+                        </div>
+
+                        <div class="flex gap-2 flex-wrap">
+                            @if($isExpired)
+                                @if($canRefresh)
+                                    <x-filament::button color="primary" wire:click="refreshToken">
+                                        Refresh Token
+                                    </x-filament::button>
+                                @else
+                                    <x-filament::button color="danger" wire:click="authenticateWithAliExpress">
+                                        Re-authenticate
+                                    </x-filament::button>
+                                @endif
+                            @else
+                                <x-filament::badge color="success">Token active</x-filament::badge>
+                            @endif
+                        </div>
                     </div>
-                </div>
+                </x-filament::card>
             @else
-                <div class="rounded-md bg-yellow-50 p-4 dark:bg-yellow-900/20">
-                    <span class="font-semibold text-yellow-800 dark:text-yellow-200">⚠ Not authenticated with AliExpress</span>
-                </div>
-                <div class="mt-4">
-                    <x-filament::button color="primary" wire:click="authenticateWithAliExpress">Authenticate with AliExpress</x-filament::button>
-                </div>
+                <x-filament::card>
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="font-semibold text-warning-700">
+                            ⚠ Not authenticated with AliExpress
+                        </div>
+
+                        <x-filament::button color="primary" wire:click="authenticateWithAliExpress">
+                            Authenticate
+                        </x-filament::button>
+                    </div>
+                </x-filament::card>
             @endif
-        </x-filament::card>
-
-        @if($this->getToken() && !$this->getToken()->isExpired())
-            <div class="grid gap-6 md:grid-cols-2">
-                <x-filament::card>
-                    <x-slot name="header">📂 Sync Categories</x-slot>
-                    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Import all product categories from AliExpress to organize your catalog
-                    </div>
-                    <x-filament::button color="info" wire:click="syncCategories" class="w-full">Sync Categories</x-filament::button>
-                </x-filament::card>
-                <x-filament::card>
-                    <x-slot name="header">🛍️ Import Products</x-slot>
-                    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Search and import products from AliExpress (up to 20 at a time)
-                    </div>
-                    <x-filament::button color="success" wire:click="importProducts" class="w-full">Import Products</x-filament::button>
-                </x-filament::card>
-            </div>
-        @elseif($this->getToken() && $this->getToken()->isExpired())
-            <div class="rounded-md bg-red-50 p-4 dark:bg-red-900/20">
-                <span class="font-semibold text-red-800 dark:text-red-200">⚠️ Import options are disabled because your token has expired. Please refresh or re-authenticate.</span>
-            </div>
-        @endif
-
-        <x-filament::section label="ℹ️ About AliExpress Integration">
-            <ul class="space-y-2 text-sm text-blue-800 dark:text-blue-300">
-                <li>• <strong>Sync Categories:</strong> Pulls all AliExpress product categories into your system</li>
-                <li>• <strong>Import Products:</strong> Currently searches for "electronics" - customize in Filament page code</li>
-                <li>• <strong>Token Refresh:</strong> Automatically refreshed when expired, or manually refresh above</li>
-                <li>• <strong>Logs:</strong> Check <code class="bg-blue-100 px-2 py-1 dark:bg-blue-900">storage/logs/laravel.log</code> for details</li>
-            </ul>
         </x-filament::section>
 
-        <x-filament::card>
-            <x-slot name="header">🧪 Test Integration (Terminal)</x-slot>
-            <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                Run these commands in your terminal to test the integration:
-            </div>
-            <div class="space-y-2 bg-gray-100 p-4 font-mono text-xs dark:bg-gray-900">
-                <div class="flex items-center justify-between text-gray-800 dark:text-gray-200">
-                    <code>php artisan aliexpress:test --action=token</code>
-                    <span class="text-gray-500">Check token status</span>
+        @if($token && ! $isExpired)
+
+            <x-filament::section>
+                <x-slot name="heading">Actions</x-slot>
+
+                <div class="flex flex-wrap gap-3">
+                    <x-filament::button color="info" wire:click="syncCategories" icon="heroicon-o-arrow-path">
+                        Sync Categories
+                    </x-filament::button>
+
+                    <x-filament::button color="primary" wire:click="searchProducts" icon="heroicon-o-magnifying-glass">
+                        Preview Products
+                    </x-filament::button>
+
+                    <x-filament::button
+                        color="success"
+                        wire:click="importSelectedProducts"
+                        icon="heroicon-o-arrow-down-tray"
+                        :disabled="empty($selectedProductIds)"
+                    >
+                        Import Selected ({{ is_countable($selectedProductIds) ? count($selectedProductIds) : 0 }})
+                    </x-filament::button>
+
+                    @if($previewed)
+                        <x-filament::button
+                            color="gray"
+                            wire:click="$set('previewed', false)"
+                            icon="heroicon-o-x-mark"
+                        >
+                            Clear Preview
+                        </x-filament::button>
+                    @endif
                 </div>
-                <div class="flex items-center justify-between text-gray-800 dark:text-gray-200">
-                    <code>php artisan aliexpress:test --action=categories</code>
-                    <span class="text-gray-500">Test category sync</span>
-                </div>
-                <div class="flex items-center justify-between text-gray-800 dark:text-gray-200">
-                    <code>php artisan aliexpress:test --action=products</code>
-                    <span class="text-gray-500">Test product import</span>
-                </div>
-                <div class="flex items-center justify-between text-gray-800 dark:text-gray-200">
-                    <code>php artisan aliexpress:test --action=full</code>
-                    <span class="text-gray-500">Run all tests</span>
-                </div>
-            </div>
-        </x-filament::card>
-    </x-filament::section>
+            </x-filament::section>
+
+            <x-filament::section>
+                <x-slot name="heading">Filters</x-slot>
+
+                <x-filament::card>
+                    {{ $this->form }}
+                </x-filament::card>
+            </x-filament::section>
+
+            <x-filament::section>
+                <x-slot name="heading">
+                    Preview Results
+                    @if($previewed)
+                        <span class="text-xs text-gray-500">
+                            ({{ is_countable($searchResults) ? count($searchResults) : 0 }} items)
+                        </span>
+                    @endif
+                </x-slot>
+
+                <x-filament::card>
+                    @if($previewed && is_countable($searchResults) && count($searchResults))
+                        {{ $this->table }}
+                    @elseif($previewed)
+                        <div class="text-sm text-gray-600">
+                            No results. Adjust filters and preview again.
+                        </div>
+                    @else
+                        <div class="text-sm text-gray-600">
+                            Click “Preview Products” to load results into the table.
+                        </div>
+                    @endif
+                </x-filament::card>
+            </x-filament::section>
+
+        @elseif($token && $isExpired)
+            <x-filament::section>
+                <x-slot name="heading">Token Expired</x-slot>
+                <x-filament::card>
+                    <div class="text-sm text-danger-700">
+                        Your AliExpress token has expired. Refresh or re-authenticate to continue.
+                    </div>
+                </x-filament::card>
+            </x-filament::section>
+        @endif
+
+    </div>
 </x-filament::page>
