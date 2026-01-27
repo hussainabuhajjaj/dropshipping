@@ -17,6 +17,8 @@ class Category extends Model
     protected $fillable = [
         'cj_id',
         'cj_payload',
+        'ali_payload',
+        'ali_category_id',
         'is_active',
         'view_count',
         'name',
@@ -34,6 +36,7 @@ class Category extends Model
 
     protected $casts = [
         'cj_payload' => 'array',
+        'ali_payload' => 'array',
         'is_active' => 'boolean',
         'view_count' => 'int',
     ];
