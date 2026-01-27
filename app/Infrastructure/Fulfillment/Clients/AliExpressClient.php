@@ -49,6 +49,7 @@ class AliExpressClient
         $appSecret = config('ali_express.client_secret');
         $timestamp = (string)(now()->timestamp * 1000);
 
+        $apiPath = "/auth/token/refresh";
         $params = [
             'app_key' => $appKey,
             'timestamp' => $timestamp,
@@ -56,14 +57,13 @@ class AliExpressClient
             'refresh_token' => $token->refresh_token,
         ];
 
-        $params['sign'] = $this->sign($params, $appSecret);
+        $params['sign'] = $this->sign($params, $appSecret, $apiPath);
 
-        $url = 'https://api-sg.aliexpress.com/rest/auth/token/refresh';
+        $url = 'https://api-sg.aliexpress.com/rest' . $apiPath;
 
         $response = Http::asForm()
             ->timeout(30)
             ->post($url, $params);
-
         $data = $response->json();
 
         if (!is_array($data) || ($data['code'] ?? null) !== '0') {
@@ -104,7 +104,7 @@ class AliExpressClient
     public function getCategoryById(string $categoryId): array
     {
         return $this->callDsApi('aliexpress.ds.category.get', [
-            'category_id' => $categoryId,
+            'categoryId' => $categoryId,
         ]);
     }
 
@@ -121,15 +121,19 @@ class AliExpressClient
             'access_token' => $this->getAccessToken(),
             ...$extra,
         ];
+
         $params['sign'] = $this->sign($params, $appSecret, $method);
 
 
         $url = config('ali_express.base_url') . "/rest";
+
         $response = Http::asForm()
             ->withHeaders([
                 'Content-Type' => 'application/x-www-form-urlencoded;charset=utf-8',
             ])
             ->post($url, $params);
+
+
         return $response->json() ?? [];
     }
 

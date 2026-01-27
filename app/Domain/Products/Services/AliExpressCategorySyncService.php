@@ -19,7 +19,7 @@ class AliExpressCategorySyncService
     {
         try {
             $response = $this->client->getCategories();
-//            dd($response);
+
             $categories = collect($response['resp_result']['result']['categories'] ?? [])
                 ->filter(fn ($cat) => ! empty($cat['category_id']))
                 ->sortBy(fn ($cat) => (int) ($cat['category_level'] ?? 0))
