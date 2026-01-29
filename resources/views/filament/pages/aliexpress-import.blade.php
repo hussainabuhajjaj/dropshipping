@@ -117,12 +117,13 @@
                     Preview Results
                     @if($previewed)
                         <span class="text-xs text-gray-500">
-                            ({{ is_countable($searchResults) ? count($searchResults) : 0 }} items)
+                            Loaded: {{ $this->getLoadedCount() }} ({{ $this->getLoadedApiPageCount() }} API pages) ·
+                            Selected: {{ $this->getSelectedCount() }} ·
+                            Imported: {{ $this->getImportedCount() }}
                         </span>
                     @endif
                 </x-slot>
 
-                <x-filament::card>
                     @if($previewed && is_countable($searchResults) && count($searchResults))
                         {{ $this->table }}
                     @elseif($previewed)
@@ -131,10 +132,9 @@
                         </div>
                     @else
                         <div class="text-sm text-gray-600">
-                            Click “Preview Products” to load results into the table.
+                            Loading preview results...
                         </div>
                     @endif
-                </x-filament::card>
             </x-filament::section>
 
         @elseif($token && $isExpired)

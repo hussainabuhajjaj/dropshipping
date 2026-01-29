@@ -8,7 +8,6 @@ use App\Domain\Products\Services\AliExpressProductImportService;
 use App\Models\AliExpressToken;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\BulkAction;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
@@ -25,6 +24,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +43,9 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
     public string $min_rating = '0';
     public bool $in_stock_only = false;
     public ?int $page_size = 20;
+    public int $apiPageSize = 40;
+    public int $nextApiPageToFetch = 1;
+    public int $maxAutoFetchPages = 3;
 
     /** Raw API results: products[] */
     public array $searchResults = [];
@@ -53,10 +56,15 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
     /** Selected itemIds to import */
     public array $selectedProductIds = [];
     protected ?Collection $importedAliIds = null;
+    protected array $activeFilters = [];
+    protected string $activeFiltersHash = '';
+    protected array $loadedApiPages = [];
+    protected bool $previewExhausted = false;
 
     public function mount(): void
     {
         $this->importedAliIds = collect();
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties(), true);
     }
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-globe-alt';
@@ -88,7 +96,8 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
     public function getTableRecordKey($record): string
     {
         // $record is an array from your API
-        return (string) ($record['itemId'] ?? $record['productId'] ?? md5(json_encode($record)));
+        $key = $this->getRecordKey((array) $record);
+        return $key !== '' ? $key : md5(json_encode($record));
     }
 
     public function form(Schema $form): Schema
@@ -102,23 +111,30 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                             ->label('AliExpress Category')
                             ->options($this->getCategoryOptions())
                             ->searchable()
-                            ->required(),
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
 
                         \Filament\Forms\Components\TextInput::make('keyword')
                             ->label('Keyword')
-                            ->placeholder('e.g. sneakers'),
+                            ->placeholder('e.g. sneakers')
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
                     ]),
 
                     Grid::make(3)->schema([
                         \Filament\Forms\Components\TextInput::make('min_price')
                             ->label('Min price')
                             ->numeric()
-                            ->placeholder('0'),
+                            ->placeholder('0')
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
 
                         \Filament\Forms\Components\TextInput::make('max_price')
                             ->label('Max price')
                             ->numeric()
-                            ->placeholder('9999'),
+                            ->placeholder('9999')
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
 
                         \Filament\Forms\Components\Select::make('min_rating')
                             ->label('Min rating')
@@ -133,7 +149,9 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
 
                     Grid::make(2)->schema([
                         \Filament\Forms\Components\Toggle::make('in_stock_only')
-                            ->label('In stock only'),
+                            ->label('In stock only')
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
 
                         \Filament\Forms\Components\TextInput::make('page_size')
                             ->label('Page size')
@@ -150,7 +168,38 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
     {
         return $table
             ->defaultSort('title')
-            ->records(fn (): Collection => collect($this->previewed ? $this->searchResults : []))
+            ->records(fn (): LengthAwarePaginator => $this->previewed
+                ? $this->paginatePreviewResults()
+                : $this->emptyPaginatedResults()
+            )
+            ->headerActions([
+                Action::make('load_more_results')
+                    ->label('Load more results')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('primary')
+                    ->action(fn () => $this->loadMoreResults())
+                    ->disabled(fn () => $this->previewExhausted),
+
+                Action::make('select_current_page')
+                    ->label('Select current page')
+                    ->icon('heroicon-o-check-circle')
+                    ->action(fn () => $this->selectCurrentPage()),
+
+                Action::make('select_all_loaded')
+                    ->label('Select all loaded')
+                    ->icon('heroicon-o-rectangle-stack')
+                    ->action(fn () => $this->selectAllLoaded()),
+
+                Action::make('select_not_imported')
+                    ->label('Select not imported')
+                    ->icon('heroicon-o-funnel')
+                    ->action(fn () => $this->selectOnlyNotImported()),
+
+                Action::make('clear_selection')
+                    ->label('Clear selection')
+                    ->color('gray')
+                    ->action(fn () => $this->clearSelection()),
+            ])
             ->striped()
             ->columns([
                 CheckboxColumn::make('selected')
@@ -159,24 +208,45 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                     ->toggleable(false)
                     ->action(fn (array $record) => $this->toggleSelectionFromRecord($record)),
 
+                TextColumn::make('table_index')
+                    ->label('#')
+                    ->getStateUsing(fn (array $record) => $this->getRecordIndex($record))
+                    ->color('secondary')
+                    ->sortable(false),
                 ImageColumn::make('itemMainPic')
                     ->label('Image')
                     ->square()
-                    ->imageSize(56)
-                    ->getStateUsing(fn (array $record) => $this->normalizeUrl($record['itemMainPic'] ?? null)),
+                    ->imageSize(200)
+                    ->getStateUsing(fn (array $record) => $this->normalizeUrl(
+                        $record['itemMainPic']
+                        ?? $record['imageUrl']
+                        ?? $record['image_url']
+                        ?? $record['productMainImageUrl']
+                        ?? $record['product_main_image_url']
+                        ?? null
+                    )),
 
                 TextColumn::make('title')
                     ->label('Title')
                     ->wrap()
+                    ->getStateUsing(fn (array $record) => $record['title']
+                        ?? $record['productTitle']
+                        ?? $record['subject']
+                        ?? $record['product_title']
+                        ?? '—')
                     ->searchable(),
 
                 TextColumn::make('salePrice')
                     ->label('Sale')
                     ->badge()
-                    ->getStateUsing(fn (array $record) => $record['targetSalePrice'] ?? $record['salePrice'] ?? null)
+                    ->getStateUsing(fn (array $record) => $record['targetSalePrice']
+                        ?? $record['salePrice']
+                        ?? $record['offer_sale_price']
+                        ?? $record['price']
+                        ?? null)
                     ->formatStateUsing(fn ($state, array $record) =>
                     filled($state)
-                        ? (($record['targetOriginalPriceCurrency'] ?? $record['salePriceCurrency'] ?? 'USD') . ' ' . $state)
+                        ? (($record['targetOriginalPriceCurrency'] ?? $record['salePriceCurrency'] ?? $record['currency'] ?? 'USD') . ' ' . $state)
                         : '—'
                     ),
 
@@ -213,6 +283,14 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                     ->toggleable(),
             ])
             ->recordActions([
+                Action::make('preview')
+                    ->label('Preview')
+                    ->icon('heroicon-o-eye')
+                    ->slideOver()
+                    ->modalHeading(fn (array $record) => $record['title'] ?? $record['productTitle'] ?? 'AliExpress Product')
+                    ->modalContent(fn (array $record) => view('filament.pages.aliexpress-detail-slide-over', [
+                        'record' => $this->buildSlideOverData($record),
+                    ])),
                 Action::make('open')
                     ->label('Open')
                     ->icon('heroicon-o-arrow-top-right-on-square')
@@ -231,38 +309,6 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                     ->color('success')
                     ->visible(fn (array $record) => ! $this->isImportedRecord($record))
                     ->action(fn (array $record) => $this->importSingleRecord($record)),
-            ])
-            ->toolbarActions([
-                BulkAction::make('select_for_import')
-                    ->label('Select for import')
-                    ->icon('heroicon-o-check-circle')
-                    ->action(function (Collection $records) {
-                        $ids = $records
-                            ->map(fn ($r) => $r['itemId'] ?? $r['productId'] ?? null)
-                            ->filter()
-                            ->map(fn ($v) => (string) $v)
-                            ->values()
-                            ->all();
-
-                        $this->selectedProductIds = array_values(array_unique([
-                            ...$this->selectedProductIds,
-                            ...$ids,
-                        ]));
-
-                        Notification::make()
-                            ->success()
-                            ->title('Selection updated')
-                            ->body('Added ' . count($ids) . ' items.')
-                            ->send();
-                    }),
-
-                BulkAction::make('clear_selection')
-                    ->label('Clear selection')
-                    ->color('gray')
-                    ->action(function () {
-                        $this->selectedProductIds = [];
-                        Notification::make()->title('Selection cleared')->send();
-                    }),
             ]);
     }
 
@@ -275,13 +321,91 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
         return str_starts_with($url, '//') ? ('https:' . $url) : $url;
     }
 
+    protected function buildSlideOverData(array $record): array
+    {
+        $title = $record['title'] ?? $record['productTitle'] ?? $record['subject'] ?? 'AliExpress Product';
+
+        $imageList = data_get($record, 'ae_multimedia_info_dto.image_urls')
+            ?? data_get($record, 'ae_multimedia.image_urls')
+            ?? ($record['imageUrls'] ?? null);
+
+        $images = [];
+        if (!empty($imageList) && is_string($imageList)) {
+            $images = array_values(array_filter(array_map(
+                fn ($url) => $this->normalizeUrl(trim($url)),
+                explode(';', $imageList)
+            )));
+        }
+
+        $mainImage = $this->normalizeUrl($record['itemMainPic'] ?? null);
+        if ($mainImage && !in_array($mainImage, $images, true)) {
+            array_unshift($images, $mainImage);
+        }
+
+        $skuInfo = data_get($record, 'ae_item_sku_info_dtos')
+            ?? data_get($record, 'ae_item_sku_info')
+            ?? data_get($record, 'ae_item_sku_info_dto')
+            ?? [];
+
+        $skuInfo = is_array($skuInfo) ? $skuInfo : [];
+
+        $prices = collect($skuInfo)
+            ->map(fn ($sku) => $sku['offer_sale_price'] ?? $sku['offerSalePrice'] ?? $sku['price'] ?? null)
+            ->filter()
+            ->map(fn ($value) => (float) $value);
+
+        $minPrice = $prices->min();
+        $maxPrice = $prices->max();
+
+        $fallbackPrice = $record['targetSalePrice'] ?? $record['salePrice'] ?? null;
+        if ($minPrice === null && $fallbackPrice !== null) {
+            $minPrice = (float) $fallbackPrice;
+            $maxPrice = (float) $fallbackPrice;
+        }
+
+        $currency = $record['targetOriginalPriceCurrency']
+            ?? $record['salePriceCurrency']
+            ?? $record['currency']
+            ?? 'USD';
+
+        $stock = collect($skuInfo)
+            ->map(fn ($sku) => $sku['sku_available_stock'] ?? $sku['stock'] ?? null)
+            ->filter()
+            ->sum();
+
+        $store = data_get($record, 'ae_store_info') ?? [];
+        $logistics = data_get($record, 'ae_logistics') ?? data_get($record, 'logistics_info_dto') ?? [];
+
+        return [
+            'title' => $title,
+            'images' => $images,
+            'minPrice' => $minPrice,
+            'maxPrice' => $maxPrice,
+            'currency' => $currency,
+            'stock' => $stock,
+            'store' => [
+                'name' => $store['store_name'] ?? $store['storeName'] ?? null,
+                'country' => $store['store_country_code'] ?? $store['storeCountryCode'] ?? null,
+                'shipping_speed' => $store['shipping_speed_rating'] ?? null,
+                'communication' => $store['communication_rating'] ?? null,
+                'as_described' => $store['item_as_described_rating'] ?? null,
+            ],
+            'delivery_time' => $logistics['delivery_time'] ?? null,
+            'ship_to_country' => $logistics['ship_to_country'] ?? null,
+            'variants_count' => is_array($skuInfo) ? count($skuInfo) : 0,
+            'record' => $record,
+        ];
+    }
+
     protected function getCategoryOptions(): array
     {
-        return Category::query()
-            ->whereNotNull('ali_category_id')
+        $cate= Category::query()
+            ->whereNotNull('ali_category_id')->distinct()
             ->orderBy('name')
             ->pluck('name', 'ali_category_id')
+//            ->distinct()
             ->toArray();
+        return $cate;
     }
 
     public function authenticateWithAliExpress(): void
@@ -327,27 +451,11 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             }
 
             $state = $this->form->getState();
+            $this->page_size = isset($state['page_size']) ? max(1, (int) $state['page_size']) : 20;
 
-            $payload = array_filter([
-                'categoryId'  => isset($state['ali_category_id']) ? (int) $state['ali_category_id'] : null,
-                'keyWord'     => isset($state['keyword']) ? trim((string) $state['keyword']) : null,
-                'min'         => isset($state['min_price']) ? (string) $state['min_price'] : null,
-                'max'         => isset($state['max_price']) ? (string) $state['max_price'] : null,
-                'pageSize'    => isset($state['page_size']) ? (int) $state['page_size'] : 20,
-                'pageIndex'   => 1,
-                'local'       => 'en_US',
-                'countryCode' => 'CI',
-                'currency'    => 'USD',
-            ], fn ($v) => $v !== null && $v !== '');
-
-            $service = app(AliExpressProductImportService::class);
-
-            $raw = $service->searchOnly($payload);
-
-            $this->searchResults = $raw['data']['products'] ?? [];
-            $this->selectedProductIds = [];
-            $this->previewed = true;
-
+            $filters = $this->buildFiltersFromState($state);
+            $this->applyFiltersAndReload($filters);
+//dd($filters);
             Notification::make()
                 ->success()
                 ->title('Preview Loaded ✓')
@@ -401,6 +509,379 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
         }
     }
 
+    public function loadMoreResults(): void
+    {
+        if (!$this->ensureAliExpressToken()) {
+            return;
+        }
+
+        if ($this->previewExhausted) {
+            Notification::make()->info()->title('No more results')->body('Reached the end of the dataset.')->send();
+            return;
+        }
+
+        $added = $this->fetchNextApiPage();
+
+        Notification::make()
+            ->success()
+            ->title('More results loaded')
+            ->body("Added {$added} items.")
+            ->send();
+    }
+
+    public function selectCurrentPage(): void
+    {
+        $records = $this->getCurrentPageRecords();
+        $ids = collect($records)
+            ->map(fn ($r) => $this->getRecordId($r))
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->selectedProductIds = array_values(array_unique([
+            ...$this->selectedProductIds,
+            ...$ids,
+        ]));
+
+        Notification::make()
+            ->success()
+            ->title('Selection updated')
+            ->body('Added ' . count($ids) . ' items from this page.')
+            ->send();
+    }
+
+    public function selectAllLoaded(): void
+    {
+        $ids = collect($this->searchResults)
+            ->map(fn ($r) => $this->getRecordId((array) $r))
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->selectedProductIds = array_values(array_unique([
+            ...$this->selectedProductIds,
+            ...$ids,
+        ]));
+
+        Notification::make()
+            ->success()
+            ->title('Selection updated')
+            ->body('Selected all loaded results (' . count($ids) . ').')
+            ->send();
+    }
+
+    public function selectOnlyNotImported(): void
+    {
+        $ids = collect($this->searchResults)
+            ->filter(fn ($r) => ! $this->isImportedRecord((array) $r))
+            ->map(fn ($r) => $this->getRecordId((array) $r))
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->selectedProductIds = array_values(array_unique([
+            ...$this->selectedProductIds,
+            ...$ids,
+        ]));
+
+        Notification::make()
+            ->success()
+            ->title('Selection updated')
+            ->body('Selected ' . count($ids) . ' not-imported items.')
+            ->send();
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selectedProductIds = [];
+        Notification::make()->title('Selection cleared')->send();
+    }
+
+    protected function resetPreviewState(): void
+    {
+        $this->searchResults = [];
+        $this->previewed = false;
+        $this->loadedApiPages = [];
+        $this->previewExhausted = false;
+        $this->nextApiPageToFetch = 1;
+    }
+
+    protected function resolveTablePerPage(): int
+    {
+        return max(1, $this->page_size ?? 20);
+    }
+
+    protected function buildFiltersFromState(array $state): array
+    {
+        $keyword = isset($state['keyword']) ? trim((string) $state['keyword']) : '';
+
+        return [
+            'categoryId' => isset($state['ali_category_id']) ? (int) $state['ali_category_id'] : null,
+            'keyWord' => $keyword !== '' ? $keyword : null,
+            'min' => isset($state['min_price']) ? (string) $state['min_price'] : null,
+            'max' => isset($state['max_price']) ? (string) $state['max_price'] : null,
+            'inStockOnly' => !empty($state['in_stock_only']) ? true : null,
+        ];
+    }
+
+    protected function buildFiltersFromProperties(): array
+    {
+        $keyword = isset($this->keyword) ? trim((string) $this->keyword) : '';
+
+        return [
+            'categoryId' => $this->ali_category_id ? (int) $this->ali_category_id : null,
+            'keyWord' => $keyword !== '' ? $keyword : null,
+            'min' => isset($this->min_price) ? (string) $this->min_price : null,
+            'max' => isset($this->max_price) ? (string) $this->max_price : null,
+            'inStockOnly' => $this->in_stock_only ? true : null,
+        ];
+    }
+
+    protected function applyFiltersAndReload(array $filters, bool $force = false): void
+    {
+        $hash = md5(json_encode($filters));
+        if (! $force && $hash === $this->activeFiltersHash) {
+            return;
+        }
+        $this->activeFilters = $filters;
+        $this->activeFiltersHash = $hash;
+        $this->resetPreviewState();
+        $this->selectedProductIds = [];
+        $this->fetchNextApiPage();
+    }
+
+    protected function refreshPreviewFromForm(): void
+    {
+        $filters = $this->buildFiltersFromState($this->form->getState());
+        $this->applyFiltersAndReload($filters, true);
+    }
+
+    public function updatedAliCategoryId(): void
+    {
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties());
+    }
+
+    public function updatedKeyword(): void
+    {
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties());
+    }
+
+    public function updatedMinPrice(): void
+    {
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties());
+    }
+
+    public function updatedMaxPrice(): void
+    {
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties());
+    }
+
+    public function updatedInStockOnly(): void
+    {
+        $this->applyFiltersAndReload($this->buildFiltersFromProperties());
+    }
+
+    protected function buildFilterPayload(): array
+    {
+        return array_filter([
+            'categoryId' => $this->activeFilters['categoryId'] ?? null,
+            'keyWord' => $this->activeFilters['keyWord'] ?? null,
+            'min' => $this->activeFilters['min'] ?? null,
+            'max' => $this->activeFilters['max'] ?? null,
+            'inStockOnly' => $this->activeFilters['inStockOnly'] ?? null,
+            'local' => 'en_US',
+            'countryCode' => 'CN',
+            'currency' => 'USD',
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+    protected function fetchNextApiPage(): int
+    {
+        return $this->fetchApiPage($this->nextApiPageToFetch);
+    }
+
+    protected function fetchApiPage(int $page): int
+    {
+        if ($page < 1 || in_array($page, $this->loadedApiPages, true) || $this->previewExhausted) {
+            return 0;
+        }
+
+        if (!$this->ensureAliExpressToken()) {
+            return 0;
+        }
+
+        $payload = $this->buildFilterPayload();
+
+        $response = app(AliExpressProductImportService::class)->searchPage(
+            $payload,
+            $page,
+            $this->apiPageSize
+        );
+        $items = $response['items'] ?? [];
+        if (empty($items)) {
+            $this->loadedApiPages[] = $page;
+            $this->previewExhausted = true;
+            return 0;
+        }
+
+        $added = $this->appendUniqueResults($items);
+//        dd($added);
+        Log::info('AliExpress preview page loaded', [
+            'page' => $page,
+            'items_received' => is_array($items) ? count($items) : 0,
+            'added' => $added,
+            'total_loaded' => count($this->searchResults),
+            'first_item_keys' => is_array($items) && isset($items[0]) ? array_keys((array) $items[0]) : [],
+        ]);
+        $this->previewed = true;
+        $this->loadedApiPages[] = $page;
+        $this->nextApiPageToFetch = $response['nextPage'] ?? ($page + 1);
+//dd($this->nextApiPageToFetch);
+        if ($added > 0) {
+            $this->refreshImportedAliIds();
+        }
+
+        if (!empty($response['exhausted'])) {
+            $this->previewExhausted = true;
+        }
+
+        return $added;
+    }
+
+    protected function ensureLoadedForUiPage(int $uiPage): void
+    {
+        if ($uiPage < 1) {
+            return;
+        }
+
+        $perPage = $this->resolveTablePerPage();
+        $required = $uiPage * $perPage;
+        $autoFetched = 0;
+
+        while (count($this->searchResults) < $required && ! $this->previewExhausted && $autoFetched < $this->maxAutoFetchPages) {
+            $added = $this->fetchNextApiPage();
+            if ($added <= 0) {
+                break;
+            }
+            $autoFetched++;
+        }
+    }
+
+    protected function paginatePreviewResults(): LengthAwarePaginator
+    {
+        $perPage = $this->resolveTablePerPage();
+        $page = max(1, (int) $this->getTablePage());
+
+        $this->ensureLoadedForUiPage($page);
+
+        $items = collect($this->searchResults);
+        $sliced = $items
+            ->slice(($page - 1) * $perPage, $perPage)
+            ->values();
+
+        return new LengthAwarePaginator(
+            $sliced,
+            $items->count(),
+            $perPage,
+            $page,
+            [
+                'path' => request()->url(),
+                'pageName' => $this->getTablePaginationPageName(),
+            ]
+        );
+    }
+
+    protected function emptyPaginatedResults(): LengthAwarePaginator
+    {
+        $perPage = $this->resolveTablePerPage();
+
+        return new LengthAwarePaginator(
+            [],
+            0,
+            $perPage,
+            1,
+            [
+                'path' => request()->url(),
+                'pageName' => $this->getTablePaginationPageName(),
+            ]
+        );
+    }
+
+    protected function getRecordIndex(array $record): string
+    {
+        $id = $this->getRecordId($record);
+        if ($id === '') {
+            return '-';
+        }
+
+        $index = collect($this->searchResults)
+            ->values()
+            ->search(fn ($item) => $this->getRecordId((array) $item) === $id);
+
+        return $index === false ? '-' : (string) ($index + 1);
+    }
+
+    protected function getRecordKey(array $record): string
+    {
+        $mainProductId = $record['main_product_id'] ?? data_get($record, 'product_id_converter_result.main_product_id');
+        if (!empty($mainProductId)) {
+            return (string) $mainProductId;
+        }
+
+        return $this->getRecordId($record);
+    }
+
+    protected function appendUniqueResults(array $items): int
+    {
+        $existing = [];
+        foreach ($this->searchResults as $record) {
+            $key = $this->getRecordKey((array) $record);
+            if ($key === '') {
+                $key = md5(json_encode($record));
+            }
+            if ($key !== '') {
+                $existing[$key] = true;
+            }
+        }
+
+        $added = 0;
+        foreach ($items as $item) {
+            $item = $this->sanitizeRecord((array) $item);
+            $key = $this->getRecordKey($item);
+            if ($key === '') {
+                $key = md5(json_encode($item));
+            }
+
+            if ($key !== '' && isset($existing[$key])) {
+                continue;
+            }
+
+            $this->searchResults[] = $item;
+            if ($key !== '') {
+                $existing[$key] = true;
+            }
+            $added++;
+        }
+
+        return $added;
+    }
+
+    protected function sanitizeRecord(array $record): array
+    {
+        $encoded = json_encode($record, JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encoded === false) {
+            return [];
+        }
+
+        $decoded = json_decode($encoded, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    protected function getCurrentPageRecords(): array
+    {
+        $paginator = $this->paginatePreviewResults();
+        return array_map(fn ($item) => (array) $item, $paginator->items());
+    }
+
     protected function ensureAliExpressToken(): ?AliExpressToken
     {
         $token = AliExpressToken::getLatestToken();
@@ -442,7 +923,23 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
 
     protected function getRecordId(array $record): string
     {
-        return (string) ($record['itemId'] ?? $record['productId'] ?? '');
+        $candidates = [
+            $record['itemId'] ?? null,
+            $record['productId'] ?? null,
+            $record['item_id'] ?? null,
+            $record['product_id'] ?? null,
+            $record['id'] ?? null,
+            data_get($record, 'product_id_converter_result.main_product_id'),
+            data_get($record, 'main_product_id'),
+        ];
+
+        foreach ($candidates as $value) {
+            if ($value !== null && $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return '';
     }
 
     protected function getImportedAliIds(): Collection
@@ -526,6 +1023,7 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
         ));
     }
 
+
     protected function getAliExpressTimestampMillis(): string
     {
         return (string) round(microtime(true) * 1000);
@@ -598,5 +1096,25 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             Log::warning('Could not fetch AliExpress token', ['error' => $e->getMessage()]);
             return null;
         }
+    }
+
+    public function getLoadedCount(): int
+    {
+        return count($this->searchResults);
+    }
+
+    public function getLoadedApiPageCount(): int
+    {
+        return count($this->loadedApiPages);
+    }
+
+    public function getSelectedCount(): int
+    {
+        return count($this->selectedProductIds);
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->getImportedAliIds()->count();
     }
 }
