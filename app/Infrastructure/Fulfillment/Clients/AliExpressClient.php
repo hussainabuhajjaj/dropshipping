@@ -92,7 +92,6 @@ class AliExpressClient
 
     public function getProduct(array $params): array
     {
-        return $this->callDsApi('aliexpress.ds.product.wholesale.get', $params);
         return $this->callDsApi('aliexpress.ds.product.get', $params);
     }
 
