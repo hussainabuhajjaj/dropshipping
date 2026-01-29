@@ -23,6 +23,8 @@ class AliExpressProductImportService
     {
     }
 
+    private const SEARCH_PAGE_LIMIT = 40;
+
     public function search(array $params = []): array
     {
         $params = [
@@ -48,8 +50,7 @@ class AliExpressProductImportService
         Log::info('AliExpress search payload', $payload);
 
         $results = $this->client->searchProducts($payload);
-
-        $items = $results['data']['products'] ?? [];
+        $items = $this->extractSearchProducts($results);
 
         return array_map(function ($item) {
             $productId = $item['productId'] ?? $item['itemId'] ?? null;
@@ -112,11 +113,13 @@ class AliExpressProductImportService
     {
         try {
 
+//            dd($params);
             $params = [
                 "countryCode" => "CN",
                 'categoryId'=>$params['categoryId'],
                 "local" => "en_US",
                 "currency" => "USD",
+                'pageSize'=>$params['pageSize'],
                 ...$params,
             ];
             $payload = array_filter([
@@ -142,13 +145,13 @@ class AliExpressProductImportService
             $results = $this->client->searchProducts($payload);
             Log::info('AliExpress searchProducts response meta', [
                 'has_data' => isset($results['data']),
-                'totalCount' => $results['data']['totalCount'] ?? null,
-                'pageIndex' => $results['data']['pageIndex'] ?? null,
-                'pageSize' => $results['data']['pageSize'] ?? null,
-                'products_count' => isset($results['data']['products']) ? count($results['data']['products']) : 0,
+                'totalCount' => $results['data']['totalCount'] ?? data_get($results, 'result.totalCount'),
+                'pageIndex' => $results['data']['pageIndex'] ?? data_get($results, 'result.pageIndex'),
+                'pageSize' => $results['data']['pageSize'] ?? data_get($results, 'result.pageSize'),
+                'products_count' => count($this->extractSearchProducts($results)),
             ]);
 
-            $products = $results['data']['products'] ?? [];
+            $products = $this->extractSearchProducts($results);
             if (empty($products)) {
                 Log::warning('AliExpress search returned no products', [
                     'payload' => $payload,
@@ -182,6 +185,93 @@ class AliExpressProductImportService
             ]);
             return [];
         }
+    }
+
+    /**
+     * Fetch search results while respecting the API cap on page size.
+     */
+    public function searchWithAutoPaging(array $params = [], int $targetCount = 20, int $startPage = 1): array
+    {
+        $target = max(1, $targetCount);
+        $perPage = $params['pageSize'] ?? $target;
+        $perPage = max(1, min($perPage, self::SEARCH_PAGE_LIMIT));
+        $collected = [];
+        $pageIndex = max(1, $startPage);
+        $firstResponse = null;
+
+        while (count($collected) < $target) {
+            $payload = array_filter([
+                ...$params,
+                'pageSize' => min($perPage, $target - count($collected)),
+                'pageIndex' => $pageIndex,
+            ], fn ($value) => $value !== null && $value !== '');
+
+            $response = $this->searchOnly($payload);
+            if (!is_array($response)) {
+                break;
+            }
+
+            $firstResponse ??= $response;
+
+            $items = $this->extractSearchProducts($response);
+            if (!$items) {
+                break;
+            }
+
+            $collected = [...$collected, ...$items];
+
+            $pageIndex++;
+        }
+
+        $limitted = array_slice($collected, 0, $target);
+
+        $meta = [
+            'requested' => $target,
+            'pages_fetched' => $pageIndex,
+            'totalCount' => $firstResponse['data']['totalCount'] ?? null,
+        ];
+
+        return [
+            'data' => [
+                'products' => $limitted,
+            ],
+            'meta' => $meta,
+        ];
+    }
+
+    public function searchPage(array $params = [], int $pageIndex = 1, ?int $pageSize = null): array
+    {
+        $pageIndex = max(1, $pageIndex);
+        $pageSize = $pageSize ?? ($params['pageSize'] ?? self::SEARCH_PAGE_LIMIT);
+        $pageSize = max(1, min((int) $pageSize, self::SEARCH_PAGE_LIMIT));
+
+        $payload = array_filter([
+            ...$params,
+            'pageIndex' => $pageIndex,
+            'pageSize' => $pageSize,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $response = $this->searchOnly($payload);
+        $products = $this->extractSearchProducts($response);
+        $totalCount = $response['data']['totalCount'] ?? data_get($response, 'result.totalCount');
+
+        $exhausted = empty($products);
+        if ($totalCount !== null) {
+            $exhausted = ($pageIndex * $pageSize) >= (int) $totalCount;
+        } elseif (count($products) < $pageSize) {
+            $exhausted = true;
+        }
+
+        return [
+            'items' => $products,
+            'pageIndex' => $pageIndex,
+            'pageSize' => $pageSize,
+            'totalCount' => $totalCount,
+            'exhausted' => $exhausted,
+            'hasMore' => ! $exhausted,
+            'nextPage' => $exhausted ? null : ($pageIndex + 1),
+            'raw' => $response,
+        ];
     }
 
 //    public function importBySearch(array $params = []): array
@@ -232,19 +322,23 @@ class AliExpressProductImportService
     {
         try {
             // Normalize categoryId coming from different callers
-            $categoryId = $params['categoryId']
-                ?? $params['category_id']
-                ?? $params['ali_category_id']
-                ?? null;
-
+            $params = [
+                "countryCode" => "CN",
+                'categoryId' => $params['categoryId'] ?? null,
+                "local" => "en_US",
+                "currency" => "USD",
+                'page_size' => $params['pageSize'] ?? null,
+                ...$params,
+            ];
+//dd($params);
             $payload = array_filter([
                 // REQUIRED by docs
                 'local'       => $params['local']       ?? 'en_US',
-                'countryCode' => $params['countryCode'] ?? 'CI',
+                'countryCode' => $params['countryCode'] ?? 'CN',
                 'currency'    => $params['currency']    ?? 'USD',
 
                 // Optional per docs
-                'categoryId'  => $categoryId ? (int) $categoryId : null,
+                'categoryId'  => $params['categoryId'] ? (int)$params['categoryId'] : null,
                 'keyWord'     => $params['keyWord'] ?? $params['keyword'] ?? null,
                 'sortBy'      => $params['sortBy'] ?? null,
                 'pageSize'    => isset($params['pageSize']) ? (int) $params['pageSize']
@@ -259,22 +353,39 @@ class AliExpressProductImportService
                 'selectionName' => $params['selectionName'] ?? null,
                 'searchKey'     => $params['searchKey'] ?? null,
                 'searchValue'   => $params['searchValue'] ?? null,
+                'inStockOnly'   => isset($params['inStockOnly']) ? ($params['inStockOnly'] ? 'true' : 'false') : null,
             ], fn ($v) => $v !== null && $v !== '');
-
+//dd($payload);
             Log::info('AliExpress searchOnly payload', $payload);
 
             $results = $this->client->searchProducts($payload);
-    //dd($results);
+            $products = $this->extractSearchProducts($results);
+
+            if ($products === [] && ! empty($payload['keyWord'])) {
+                $fallback = [
+                    ...$payload,
+                    'searchKey' => $payload['searchKey'] ?? 'keywords',
+                    'searchValue' => $payload['searchValue'] ?? $payload['keyWord'],
+                ];
+                unset($fallback['keyWord']);
+
+                Log::info('AliExpress searchOnly fallback payload', $fallback);
+                $fallbackResults = $this->client->searchProducts($fallback);
+                $fallbackProducts = $this->extractSearchProducts($fallbackResults);
+                if ($fallbackProducts !== []) {
+                    $results = $fallbackResults;
+                    $products = $fallbackProducts;
+                }
+            }
+
             Log::info('AliExpress searchOnly response meta', [
                 'has_data'        => isset($results['data']),
                 'code'            => $results['code'] ?? null,
                 'msg'             => $results['msg'] ?? null,
-                'totalCount'      => $results['data']['totalCount'] ?? null,
-                'pageIndex'       => $results['data']['pageIndex'] ?? null,
-                'pageSize'        => $results['data']['pageSize'] ?? null,
-                'products_count'  => isset($results['data']['products']) && is_array($results['data']['products'])
-                    ? count($results['data']['products'])
-                    : 0,
+                'totalCount'      => $results['data']['totalCount'] ?? data_get($results, 'result.totalCount'),
+                'pageIndex'       => $results['data']['pageIndex'] ?? data_get($results, 'result.pageIndex'),
+                'pageSize'        => $results['data']['pageSize'] ?? data_get($results, 'result.pageSize'),
+                'products_count'  => count($products),
             ]);
 
             return $results;
@@ -291,6 +402,35 @@ class AliExpressProductImportService
                 'data' => null,
             ];
         }
+    }
+
+    private function extractSearchProducts(array $response): array
+    {
+        $candidates = [
+            data_get($response, 'data.products'),
+            data_get($response, 'data.productList'),
+            data_get($response, 'data.productsList'),
+            data_get($response, 'data.searchResult'),
+            data_get($response, 'data.items'),
+            data_get($response, 'result.products'),
+            data_get($response, 'result.productList'),
+            data_get($response, 'resp_result.result.products'),
+            data_get($response, 'resp_result.result.productList'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_array($candidate) && $candidate !== []) {
+                return $candidate;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            if (is_array($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return [];
     }
 
     private function mapAndSaveProduct(array $productData): ?Product
@@ -509,8 +649,44 @@ class AliExpressProductImportService
         $parentAliId = (string) ($payload['parent_category_id'] ?? '');
         if ($parentAliId !== '') {
             $parent = Category::where('ali_category_id', $parentAliId)->first();
-            if ($parent && (int) $category->parent_id !== (int) $parent->id) {
-                $category->updateQuietly(['parent_id' => $parent->id]);
+            if ($parent) {
+                // Avoid unique(name,parent_id) violations by reusing an existing sibling.
+                $conflict = Category::query()
+                    ->where('name', $category->name)
+                    ->where('parent_id', $parent->id)
+                    ->where('id', '!=', $category->id)
+                    ->first();
+
+                if ($conflict) {
+                    Log::warning('AliExpress category parent conflict; reusing existing category', [
+                        'ali_category_id' => $aliCategoryId,
+                        'category_id' => $category->id,
+                        'conflict_id' => $conflict->id,
+                        'parent_id' => $parent->id,
+                        'name' => $category->name,
+                    ]);
+
+                    if (empty($conflict->ali_category_id)) {
+                        $conflict->ali_category_id = $aliCategoryId;
+                        $conflict->ali_payload = $conflict->ali_payload ?: $payload;
+                        $conflict->save();
+                    } elseif ((string) $conflict->ali_category_id !== $aliCategoryId) {
+                        Log::warning('AliExpress category conflict has different ali_category_id', [
+                            'ali_category_id' => $aliCategoryId,
+                            'conflict_ali_category_id' => $conflict->ali_category_id,
+                            'conflict_id' => $conflict->id,
+                        ]);
+                    }
+
+                    // Reattach any products to the canonical category.
+                    Product::where('category_id', $category->id)->update(['category_id' => $conflict->id]);
+
+                    return $conflict;
+                }
+
+                if ((int) $category->parent_id !== (int) $parent->id) {
+                    $category->updateQuietly(['parent_id' => $parent->id]);
+                }
             }
         }
 
