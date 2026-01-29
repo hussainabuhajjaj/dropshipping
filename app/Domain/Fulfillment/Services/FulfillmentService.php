@@ -180,7 +180,6 @@ class FulfillmentService
 
             // Force refresh and persist into cache via client logic
             $res = $client->createOrderV2($request_body);
-            dd($res);
 //            $job = FulfillmentJob::create([
 //                'order_item_id' => $orderItem->id,
 //                'fulfillment_provider_id' => $provider->id,

@@ -40,9 +40,10 @@ class AliExpressProductImportService
             'currency' => $params['currency'],
             'categoryId' => $params['categoryId'] ?? null,
             'keyWord' => $params['keyWord'] ?? null,
+            'minRating' => $params['minRating'] ?? $params['min_rating'] ?? null,
             'min' => $params['min'] ?? null,
             'max' => $params['max'] ?? null,
-            'pageSize' => $params['pageSize'] ?? 20,
+            'pageSize' => $params['pageSize'] ?? 40,
             'pageIndex' => $params['pageIndex'] ?? 1,
             'inStockOnly' => isset($params['inStockOnly']) ? ($params['inStockOnly'] ? 'true' : 'false') : null,
         ], fn($v) => $v !== null && $v !== '');
@@ -91,7 +92,8 @@ class AliExpressProductImportService
         try {
             $productResp = $this->client->getProduct([
                 'product_id' => $aliId,
-                'ship_to_country' => "CN"
+                'ship_to_country' => 'CN',
+                ...$options,
             ]);
 
             if (!isset($productResp['result']) || !is_array($productResp['result'])) {
@@ -190,7 +192,7 @@ class AliExpressProductImportService
     /**
      * Fetch search results while respecting the API cap on page size.
      */
-    public function searchWithAutoPaging(array $params = [], int $targetCount = 20, int $startPage = 1): array
+    public function searchWithAutoPaging(array $params = [], int $targetCount = 40, int $startPage = 1): array
     {
         $target = max(1, $targetCount);
         $perPage = $params['pageSize'] ?? $target;
@@ -253,19 +255,25 @@ class AliExpressProductImportService
 
         $response = $this->searchOnly($payload);
         $products = $this->extractSearchProducts($response);
-        $totalCount = $response['data']['totalCount'] ?? data_get($response, 'result.totalCount');
+        $rawTotalCount = $response['data']['totalCount'] ?? data_get($response, 'result.totalCount');
+        $totalCount = is_numeric($rawTotalCount) ? (int) $rawTotalCount : null;
+        if ($totalCount !== null && $totalCount <= 0) {
+            $totalCount = null;
+        }
+        $responsePageSize = $response['data']['pageSize'] ?? data_get($response, 'result.pageSize');
+        $effectivePageSize = is_numeric($responsePageSize) ? (int) $responsePageSize : $pageSize;
 
         $exhausted = empty($products);
         if ($totalCount !== null) {
-            $exhausted = ($pageIndex * $pageSize) >= (int) $totalCount;
-        } elseif (count($products) < $pageSize) {
+            $exhausted = ($pageIndex * $effectivePageSize) >= $totalCount;
+        } elseif ($effectivePageSize > 0 && count($products) < $effectivePageSize) {
             $exhausted = true;
         }
 
         return [
             'items' => $products,
             'pageIndex' => $pageIndex,
-            'pageSize' => $pageSize,
+            'pageSize' => $effectivePageSize,
             'totalCount' => $totalCount,
             'exhausted' => $exhausted,
             'hasMore' => ! $exhausted,
@@ -340,6 +348,7 @@ class AliExpressProductImportService
                 // Optional per docs
                 'categoryId'  => $params['categoryId'] ? (int)$params['categoryId'] : null,
                 'keyWord'     => $params['keyWord'] ?? $params['keyword'] ?? null,
+                'minRating'   => $params['minRating'] ?? $params['min_rating'] ?? null,
                 'sortBy'      => $params['sortBy'] ?? null,
                 'pageSize'    => isset($params['pageSize']) ? (int) $params['pageSize']
                     : (isset($params['page_size']) ? (int) $params['page_size'] : 20),
@@ -760,7 +769,21 @@ dd($categoryName);
     }
     private function resolveCurrency(array $productData): string
     {
-        return $productData['targetOriginalPriceCurrency']
+        $skuCurrency = null;
+        foreach (($productData['ae_item_sku_info_dtos'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+            $code = $sku['currency_code'] ?? $sku['currency'] ?? null;
+            if (is_string($code) && $code !== '') {
+                $skuCurrency = $code;
+                break;
+            }
+        }
+
+        return $skuCurrency
+            ?? $productData['targetOriginalPriceCurrency']
+            ?? $productData['targetSalePriceCurrency']
             ?? data_get($productData, 'ae_item_base_info_dto.currency_code')
             ?? $productData['currency_code']
             ?? 'USD';
