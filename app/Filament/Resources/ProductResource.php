@@ -329,9 +329,13 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(10),
                     Tables\Columns\TextColumn::make('source')
                         ->label('Source')
-                        ->getStateUsing(fn (Product $record) => $record->cj_pid ? 'CJ' : 'Local')
+                        ->getStateUsing(fn (Product $record) => self::sourceLabel($record))
                         ->badge()
-                        ->color(fn (string $state) => $state === 'CJ' ? 'info' : 'gray')
+                        ->color(fn (string $state) => match ($state) {
+                            'CJ' => 'info',
+                            'AliExpress' => 'warning',
+                            default => 'gray',
+                        })
                         ->toggleable(),
                     Tables\Columns\TextColumn::make('sync_status')
                         ->label('Sync')
@@ -342,13 +346,14 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\TextColumn::make('translation_status')
                         ->label('Translation')
                         ->badge()
-                        ->color(fn (string $state) => match ($state) {
+                        ->getStateUsing(fn (Product $record) => $record->translation_status ?? 'not translated')
+                        ->color(fn (?string $state) => match ($state) {
                             'completed' => 'success',
                             'in_progress' => 'warning',
                             'failed' => 'danger',
                             default => 'gray',
                         })
-                        ->formatStateUsing(fn (string $state) => ucfirst($state))
+                        ->formatStateUsing(fn (?string $state) => Str::headline($state ?? 'not translated'))
                         ->toggleable(),
                     Tables\Columns\TextColumn::make('cj_pid')
                         ->label('CJ PID')
@@ -445,6 +450,15 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                 Tables\Filters\Filter::make('cj')
                     ->label('CJ')
                     ->query(fn ($query) => $query->whereNotNull('cj_pid'))
+                    ->toggle(),
+                Tables\Filters\Filter::make('ali_express')
+                    ->label('AliExpress')
+                    ->query(function ($query) {
+                        return $query->where(function ($inner) {
+                            $inner->whereNotNull('attributes->ali_item_id')
+                                ->orWhere('attributes->supplier_code', 'ae');
+                        });
+                    })
                     ->toggle(),
                 Tables\Filters\Filter::make('local')
                     ->label('Local')
@@ -1101,6 +1115,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
     private static function syncStatus(Product $record): string
     {
+        if (! $record->cj_pid && self::isAliExpressProduct($record)) {
+            return 'AliExpress';
+        }
+
         if (! $record->cj_pid) {
             return 'Local';
         }
@@ -1125,8 +1143,31 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
             'Out of sync' => 'warning',
             'Never' => 'danger',
             'Sync off' => 'gray',
+            'AliExpress' => 'warning',
             default => 'gray',
         };
+    }
+
+    private static function sourceLabel(Product $record): string
+    {
+        if ($record->cj_pid) {
+            return 'CJ';
+        }
+
+        if (self::isAliExpressProduct($record)) {
+            return 'AliExpress';
+        }
+
+        return 'Local';
+    }
+
+    private static function isAliExpressProduct(Product $record): bool
+    {
+        $attributes = is_array($record->attributes) ? $record->attributes : [];
+        $aliItemId = data_get($attributes, 'ali_item_id');
+        $supplierCode = data_get($attributes, 'supplier_code');
+
+        return ($aliItemId !== null && $aliItemId !== '') || $supplierCode === 'aliexpress';
     }
 
     private static function formatChangedFields(Product $record): string
