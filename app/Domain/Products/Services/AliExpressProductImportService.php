@@ -604,7 +604,7 @@ class AliExpressProductImportService
             ?? $productData['ali_category_name']
             ?? ''
         ));
-
+dd($categoryName);
         if ($categoryName === '') {
             return null;
         }
@@ -630,13 +630,14 @@ class AliExpressProductImportService
         }
 
         $name = $payload['category_name'] ?? $payload['name'] ?? "AliExpress {$aliCategoryId}";
+
         $slug = Str::slug($name);
         if ($slug === '') {
             $slug = 'ali-category-' . Str::random(6);
         }
 
         $category = Category::firstOrCreate(
-            ['ali_category_id' => $aliCategoryId],
+            ['ali_category_id' => $payload['category_id']],
             [
                 'name' => $name,
                 'slug' => $slug,
@@ -648,7 +649,7 @@ class AliExpressProductImportService
 
         $parentAliId = (string) ($payload['parent_category_id'] ?? '');
         if ($parentAliId !== '') {
-            $parent = Category::where('ali_category_id', $parentAliId)->first();
+            $parent = Category::query()->where('ali_category_id', $parentAliId)->first();
             if ($parent) {
                 // Avoid unique(name,parent_id) violations by reusing an existing sibling.
                 $conflict = Category::query()
