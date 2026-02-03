@@ -24,6 +24,7 @@ class CartResource extends JsonResource
             'quantity' => $this['quantity'],
             'stock_on_hand' => $this['stock_on_hand'],
             'category_id' => $product?->category_id,
+            'slug' => $product?->slug,
             'name' => $product?->name,
             'variant' => $variant?->title,
             'price' => $this->getSinglePrice(),

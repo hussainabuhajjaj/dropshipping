@@ -12,6 +12,8 @@ use App\Models\GiftCard;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
+use App\Services\Account\WalletService;
+use App\Services\Notifications\NotificationPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -382,16 +384,7 @@ class AccountController extends Controller
 
     private function transformCoupon(Coupon $coupon): array
     {
-        return [
-            'id' => $coupon->id,
-            'code' => $coupon->code,
-            'description' => $coupon->description,
-            'type' => $coupon->type,
-            'amount' => $coupon->amount,
-            'min_order_total' => $coupon->min_order_total,
-            'starts_at' => $coupon->starts_at,
-            'ends_at' => $coupon->ends_at,
-        ];
+        return app(WalletService::class)->transformCoupon($coupon);
     }
 
     public function addresses(Request $request): Response
@@ -528,57 +521,12 @@ class AccountController extends Controller
     public function wallet(Request $request): Response
     {
         $user = $request->user();
-        $giftCards = GiftCard::query()
-            ->where('customer_id', $user->id)
-            ->latest()
-            ->get()
-            ->map(fn (GiftCard $card) => [
-                'id' => $card->id,
-                'code' => $card->code,
-                'balance' => $card->balance,
-                'currency' => $card->currency,
-                'status' => $card->status,
-                'expires_at' => $card->expires_at,
-            ]);
-
-        $savedCouponIds = CouponRedemption::query()
-            ->where('customer_id', $user->id)
-            ->pluck('coupon_id')
-            ->all();
-
-        $availableCoupons = Coupon::query()
-            ->where('is_active', true)
-            ->where(function ($query) {
-                $now = Carbon::now();
-                $query->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
-            })
-            ->where(function ($query) {
-                $now = Carbon::now();
-                $query->whereNull('ends_at')->orWhere('ends_at', '>=', $now);
-            })
-            ->when($savedCouponIds, fn ($query) => $query->whereNotIn('id', $savedCouponIds))
-            ->orderBy('code')
-            ->get()
-            ->map(fn (Coupon $coupon) => $this->transformCoupon($coupon));
-
-        $savedCoupons = CouponRedemption::query()
-            ->with('coupon')
-            ->where('customer_id', $user->id)
-            ->latest()
-            ->get()
-            ->map(function (CouponRedemption $redemption) {
-                return [
-                    'id' => $redemption->id,
-                    'status' => $redemption->status,
-                    'redeemed_at' => $redemption->redeemed_at,
-                    'coupon' => $redemption->coupon ? $this->transformCoupon($redemption->coupon) : null,
-                ];
-            });
+        $wallet = app(WalletService::class)->getWallet($user);
 
         return Inertia::render('Account/Wallet', [
-            'giftCards' => $giftCards,
-            'savedCoupons' => $savedCoupons,
-            'availableCoupons' => $availableCoupons,
+            'giftCards' => $wallet['gift_cards'] ?? [],
+            'savedCoupons' => $wallet['saved_coupons'] ?? [],
+            'availableCoupons' => $wallet['available_coupons'] ?? [],
             'user' => [
                 'name' => $user->name,
                 'email' => $user->email,
@@ -589,24 +537,12 @@ class AccountController extends Controller
     public function notifications(Request $request): Response
     {
         $user = $request->user();
-
+        $presenter = app(NotificationPresenter::class);
         $notifications = $user->notifications()
             ->latest()
             ->take(50)
             ->get()
-            ->map(function ($notification) {
-                $data = $notification->data ?? [];
-
-                return [
-                    'id' => $notification->id,
-                    'title' => $data['title'] ?? $this->notificationTitle($notification->type, $data),
-                    'body' => $data['body'] ?? $this->notificationBody($notification->type, $data),
-                    'action_url' => $data['action_url'] ?? $data['tracking_url'] ?? $data['order_url'] ?? $data['admin_url'] ?? null,
-                    'action_label' => $data['action_label'] ?? null,
-                    'read_at' => $notification->read_at,
-                    'created_at' => $notification->created_at,
-                ];
-            });
+            ->map(fn ($notification) => $presenter->format($notification));
 
         return Inertia::render('Account/Notifications', [
             'notifications' => $notifications,
@@ -631,119 +567,5 @@ class AccountController extends Controller
         $request->user()->unreadNotifications->markAsRead();
 
         return Redirect::back();
-    }
-
-    private function notificationTitle(string $type, array $data): string
-    {
-        if (str_contains($type, 'OrderConfirmedNotification')) {
-            return "Order #{$data['order_number']} confirmed";
-        }
-        if (str_contains($type, 'DeliveryConfirmedNotification')) {
-            return "Order #{$data['order_number']} delivered";
-        }
-        if (str_contains($type, 'ShippingDelayNotification')) {
-            return "Delay on order #{$data['order_number']}";
-        }
-        if (str_contains($type, 'CustomsInfoNotification')) {
-            return "Customs update for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'RefundProcessedNotification')) {
-            return "Refund processed for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'CustomerShipmentNotification')) {
-            return "Shipment update for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'OrderCancellationConfirmedNotification')) {
-            return "Order #{$data['order_number']} cancelled";
-        }
-        if (str_contains($type, 'PaymentReceiptNotification')) {
-            return "Payment received for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'ReturnApprovedNotification')) {
-            return "Return approved for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'ReturnRejectedNotification')) {
-            return "Return update for #{$data['order_number']}";
-        }
-        if (str_contains($type, 'InTransitNotification')) {
-            return "Order #{$data['order_number']} is on the way";
-        }
-        if (str_contains($type, 'OrderStatusChanged')) {
-            return "Order #{$data['order_number']} updated";
-        }
-        if (str_contains($type, 'WelcomeNotification')) {
-            return 'Welcome to our store';
-        }
-        if (str_contains($type, 'AbandonedCartNotification')) {
-            return 'You left items in your cart';
-        }
-        if (str_contains($type, 'ReviewRequestNotification')) {
-            return "Review your purchase";
-        }
-
-        return $data['title'] ?? 'Notification';
-    }
-
-    private function notificationBody(string $type, array $data): string
-    {
-        if (str_contains($type, 'OrderConfirmedNotification')) {
-            return "Total: {$data['currency']} {$data['total']}";
-        }
-        if (str_contains($type, 'DeliveryConfirmedNotification')) {
-            return $data['delivered_at'] ? "Delivered at {$data['delivered_at']}." : 'Delivery confirmed.';
-        }
-        if (str_contains($type, 'ShippingDelayNotification')) {
-            return trim(implode(' ', array_filter([
-                $data['reason'] ?? null,
-                $data['eta'] ? "ETA: {$data['eta']}" : null,
-            ]))) ?: 'Shipping delay reported.';
-        }
-        if (str_contains($type, 'CustomsInfoNotification')) {
-            return $data['note'] ?? 'Your shipment is being processed by customs.';
-        }
-        if (str_contains($type, 'RefundProcessedNotification')) {
-            return "Refund {$data['currency']} {$data['amount']}" . (! empty($data['reason']) ? " · {$data['reason']}" : '');
-        }
-        if (str_contains($type, 'CustomerShipmentNotification')) {
-            $tracking = $data['tracking_number'] ?? null;
-            return $tracking ? "Tracking: {$tracking}" : 'Shipment update received.';
-        }
-        if (str_contains($type, 'OrderCancellationConfirmedNotification')) {
-            $refund = $data['refund_amount'] ?? null;
-            return $refund ? "Refund: {$refund}" : 'Your order was cancelled.';
-        }
-        if (str_contains($type, 'PaymentReceiptNotification')) {
-            $method = $data['payment_method'] ?? null;
-            $amount = isset($data['amount']) ? "{$data['currency']} {$data['amount']}" : null;
-            return trim(implode(' · ', array_filter([
-                $amount ? "Paid {$amount}" : null,
-                $method ? ucfirst(str_replace('_', ' ', (string) $method)) : null,
-            ]))) ?: 'Payment received.';
-        }
-        if (str_contains($type, 'ReturnApprovedNotification')) {
-            return $data['return_label_url'] ? 'Return approved · label ready' : 'Return approved · ship item back';
-        }
-        if (str_contains($type, 'ReturnRejectedNotification')) {
-            return $data['rejection_reason'] ?? 'Return request rejected.';
-        }
-        if (str_contains($type, 'InTransitNotification')) {
-            $tracking = $data['tracking_number'] ?? null;
-            return $tracking ? "Tracking: {$tracking}" : 'Your order is in transit.';
-        }
-        if (str_contains($type, 'OrderStatusChanged')) {
-            return $data['status_label'] ?? 'Order status updated.';
-        }
-        if (str_contains($type, 'WelcomeNotification')) {
-            return 'Your account is ready. Start shopping now.';
-        }
-        if (str_contains($type, 'AbandonedCartNotification')) {
-            return $data['body'] ?? 'Items are waiting in your cart.';
-        }
-        if (str_contains($type, 'ReviewRequestNotification')) {
-            $product = $data['product_name'] ?? null;
-            return $product ? "How was your {$product}?" : 'Tell us about your purchase.';
-        }
-
-        return $data['body'] ?? 'You have a new notification.';
     }
 }
