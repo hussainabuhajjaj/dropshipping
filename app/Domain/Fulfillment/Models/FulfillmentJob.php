@@ -50,7 +50,7 @@ class FulfillmentJob extends Model
 
     public function attempts(): HasMany
     {
-        return $this->hasMany(FulfillmentAttempt::class);
+        return $this->hasMany(FulfillmentAttempt::class, 'fulfillment_job_id');
     }
 
     public function events(): HasMany

@@ -39,7 +39,7 @@
         "ACCESS_COARSE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
-      "package": "com.anonymous.mobile"
+      "package": "com.simbazu.mobile"
     },
     "web": {
       "bundler": "metro",

@@ -144,8 +144,8 @@ class ChargebackCaseResource extends Resource
 
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn ($state) => ChargebackStatus::from($state)->color())
-                    ->formatStateUsing(fn ($state) => ChargebackStatus::from($state)->label()),
+                    ->color(fn ($state) => ($state instanceof ChargebackStatus ? $state : ChargebackStatus::from((string) $state))->color())
+                    ->formatStateUsing(fn ($state) => ($state instanceof ChargebackStatus ? $state : ChargebackStatus::from((string) $state))->label()),
 
                 Tables\Columns\TextColumn::make('amount')
                     ->money('USD')

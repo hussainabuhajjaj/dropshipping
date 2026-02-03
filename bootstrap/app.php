@@ -35,8 +35,58 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        //
+        $middleware->api(append: [
+            \App\Http\Middleware\ApiSetLocale::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $exception, $request) {
+            if ($request->is('api/mobile/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthenticated.',
+                    'errors' => null,
+                ], 401);
+            }
+        });
+
+        $exceptions->render(function (\Illuminate\Auth\Access\AuthorizationException $exception, $request) {
+            if ($request->is('api/mobile/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forbidden.',
+                    'errors' => null,
+                ], 403);
+            }
+        });
+
+        $exceptions->render(function (\Illuminate\Database\Eloquent\ModelNotFoundException $exception, $request) {
+            if ($request->is('api/mobile/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Resource not found',
+                    'errors' => null,
+                ], 404);
+            }
+        });
+
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $exception, $request) {
+            if ($request->is('api/mobile/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Resource not found',
+                    'errors' => null,
+                ], 404);
+            }
+        });
+
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $exception, $request) {
+            if ($request->is('api/mobile/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage() ?: 'Validation failed',
+                    'errors' => $exception->errors(),
+                ], $exception->status);
+            }
+        });
     })->create();

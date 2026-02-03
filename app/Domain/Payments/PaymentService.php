@@ -9,9 +9,11 @@ use App\Domain\Payments\Models\Payment;
 use App\Domain\Payments\Models\PaymentWebhook;
 use App\Domain\Observability\EventLogger;
 use App\Events\Orders\OrderPaid;
+use App\Infrastructure\Payments\Clients\KorapayClient;
 use App\Jobs\DispatchFulfillmentJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 use InvalidArgumentException;
 
@@ -219,5 +221,72 @@ class PaymentService
         if ($dispatched && ! in_array($order->status, ['fulfilled', 'cancelled', 'refunded'], true)) {
             $order->update(['status' => 'fulfilling']);
         }
+    }
+
+    public function initializeKorapay(Order $order, Payment $payment, array $customer = []): array
+    {
+        $client = app(KorapayClient::class);
+
+        if (! $payment->provider_reference) {
+            $payment->update(['provider_reference' => $this->buildKorapayReference($order)]);
+        }
+
+        $payload = [
+            'amount' => (float) $order->grand_total,
+            'currency' => $order->currency ?? 'USD',
+            'reference' => $payment->provider_reference,
+            'customer' => [
+                'email' => $customer['email'] ?? $order->email,
+                'name' => $customer['name'] ?? $order->guest_name ?? $order->customer?->name,
+            ],
+            'metadata' => [
+                'order_number' => $order->number,
+                'payment_id' => $payment->id,
+                'customer_id' => $order->customer_id,
+            ],
+        ];
+
+        $response = $client->initialize($payload);
+        $data = is_array($response->data) ? $response->data : [];
+
+        $payment->update([
+            'meta' => array_merge($payment->meta ?? [], ['korapay_init' => $data]),
+        ]);
+
+        return [
+            'reference' => $data['reference'] ?? $payment->provider_reference,
+            'checkout_url' => $data['authorization_url'] ?? $data['checkout_url'] ?? null,
+        ];
+    }
+
+    public function verifyKorapay(string $reference): Payment
+    {
+        $client = app(KorapayClient::class);
+        $response = $client->verify($reference);
+        $data = is_array($response->data) ? $response->data : [];
+
+        $payload = $this->normalizeKorapayPayload($data, $reference);
+        $eventId = $payload['event_id'] ?? ('verify:' . $reference);
+
+        return $this->handleWebhook('korapay', $eventId, $payload);
+    }
+
+    private function normalizeKorapayPayload(array $data, string $reference): array
+    {
+        return [
+            'event_id' => $data['id'] ?? $data['event_id'] ?? $reference,
+            'provider_reference' => $data['reference'] ?? $reference,
+            'transaction_id' => $data['id'] ?? null,
+            'order_number' => $data['metadata']['order_number'] ?? $data['order_number'] ?? null,
+            'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
+            'currency' => $data['currency'] ?? null,
+            'status' => $data['status'] ?? null,
+            'korapay' => $data,
+        ];
+    }
+
+    private function buildKorapayReference(Order $order): string
+    {
+        return 'krp_' . strtolower($order->number) . '_' . strtolower(Str::random(6));
     }
 }

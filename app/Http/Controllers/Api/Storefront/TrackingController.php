@@ -5,53 +5,29 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Storefront;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\Storefront\Order\TrackOrderRequest;
+use App\Http\Resources\Storefront\OrderTrackingResource;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class TrackingController extends Controller
 {
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(TrackOrderRequest $request): JsonResponse
     {
-        $orderNumber = $request->query('number');
-        $email = $request->query('email');
-
-        if (! $orderNumber || ! $email) {
-            return response()->json(['error' => 'Order number and email are required.'], 422);
-        }
+        $validated = $request->validated();
+        $orderNumber = $validated['number'];
+        $email = $validated['email'];
 
         $order = Order::query()
             ->where('number', $orderNumber)
             ->where('email', $email)
-            ->with(['orderItems.shipments.trackingEvents'])
+            ->with(['orderItems.shipments.trackingEvents', 'events'])
             ->first();
 
         if (! $order) {
             return response()->json(['error' => 'Order not found.'], 404);
         }
 
-        return response()->json([
-            'orderNumber' => $order->number,
-            'status' => $order->getCustomerStatusLabel(),
-            'tracking' => $this->buildTrackingEvents($order),
-        ]);
-    }
-
-    private function buildTrackingEvents(Order $order): array
-    {
-        $events = $order->orderItems->flatMap(function ($item) {
-            return $item->shipments->flatMap(function ($shipment) {
-                return $shipment->trackingEvents->map(function ($event) {
-                    return [
-                        'id' => $event->id,
-                        'status' => $event->status_label,
-                        'description' => $event->description,
-                        'occurredAt' => $event->occurred_at?->format('Y-m-d H:i') ?? null,
-                    ];
-                });
-            });
-        });
-
-        return $events->sortByDesc('occurredAt')->values()->all();
+        return response()->json(new OrderTrackingResource($order));
     }
 }

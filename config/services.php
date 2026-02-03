@@ -46,6 +46,15 @@ return [
         'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
     ],
 
+    'korapay' => [
+        'secret_key' => env('KORAPAY_SECRET_KEY'),
+        'public_key' => env('KORAPAY_PUBLIC_KEY'),
+        'webhook_secret' => env('KORAPAY_WEBHOOK_SECRET'),
+        'base_url' => env('KORAPAY_BASE_URL'),
+        'initialize_endpoint' => env('KORAPAY_INITIALIZE_ENDPOINT'),
+        'verify_endpoint' => env('KORAPAY_VERIFY_ENDPOINT'),
+    ],
+
     'stripe' => [
         'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),

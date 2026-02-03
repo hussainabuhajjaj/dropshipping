@@ -11,4 +11,20 @@ class Product extends DomainProduct
     {
         return $this->hasMany(ProductReview::class);
     }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $query = $this->newQuery();
+
+        if (is_numeric($value)) {
+            $model = $query->whereKey($value)->first();
+            if ($model) {
+                return $model;
+            }
+        }
+
+        $field = $field ?: 'slug';
+
+        return $query->where($field, $value)->first();
+    }
 }
