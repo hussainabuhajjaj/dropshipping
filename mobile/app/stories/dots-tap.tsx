@@ -1,0 +1,141 @@
+import { Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { theme } from '@/src/theme';
+export default function StoryDotsTapScreen() {
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.progressRow}>
+        {[0, 1, 2, 3].map((index) => (
+          <View key={index} style={[styles.progressBar, index < 2 ? styles.progressActive : null]} />
+        ))}
+      </View>
+
+      <View style={styles.headerRow}>
+        <Pressable style={styles.iconButton} onPress={() => router.back()}>
+          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+        </Pressable>
+        <Text style={styles.title}>Stories</Text>
+        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+          <Feather name="x" size={16} color={theme.colors.inkDark} />
+        </Pressable>
+      </View>
+
+      <View style={styles.storyCard}>
+        <View style={styles.storyImage} />
+        <View style={styles.storyOverlay}>
+          <Text style={styles.storyTitle}>Tap for the look</Text>
+          <Text style={styles.storySubtitle}>Swipe through highlights</Text>
+        </View>
+      </View>
+
+      <View style={styles.dotRow}>
+        <View style={[styles.dot, styles.dotActive]} />
+        <View style={[styles.dot, styles.dotActive]} />
+        <View style={styles.dot} />
+      </View>
+
+      <Pressable style={styles.primaryButton} onPress={() => router.push('/stories/product-1')}>
+        <Text style={styles.primaryText}>View item</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.blueSoftAlt,
+  },
+  progressActive: {
+    backgroundColor: theme.colors.sun,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.inkDark,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.sand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storyCard: {
+    height: 360,
+    borderRadius: 24,
+    backgroundColor: theme.colors.blueSoftPale,
+    overflow: 'hidden',
+  },
+  storyImage: {
+    flex: 1,
+    backgroundColor: '#cdd6fb',
+  },
+  storyOverlay: {
+    position: 'absolute',
+    left: 20,
+    bottom: 20,
+  },
+  storyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.inkDark,
+  },
+  storySubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    color: theme.colors.mutedDark,
+  },
+  dotRow: {
+    marginTop: 18,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.blueSoftAlt,
+  },
+  dotActive: {
+    backgroundColor: theme.colors.sun,
+  },
+  primaryButton: {
+    marginTop: 20,
+    backgroundColor: theme.colors.sun,
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  primaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+});
+
