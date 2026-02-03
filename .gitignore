@@ -27,5 +27,9 @@ Thumbs.db
 *.md
 *.bat
 /mobile
+!/mobile/
+!/mobile/**
+/mobile/node_modules
+/mobile/.expo
 *.txt
 /docs
