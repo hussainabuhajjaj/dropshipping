@@ -22,7 +22,8 @@
         "NSPhotoLibraryUsageDescription": "Allow access to your photo library to set a profile picture.",
         "NSPhotoLibraryAddUsageDescription": "Allow saving profile pictures to your photo library.",
         "NSLocationWhenInUseUsageDescription": "Allow access to your location to show nearby delivery options."
-      }
+      },
+      "bundleIdentifier": "net.simbazu.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -54,7 +55,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "BACKEND_URL": "http://localhost:8000",
+      "BACKEND_URL": "https://simbazu.net",
+      "SITE_URL": "https://simbazu.net",
       "router": {},
       "eas": {
         "projectId": "a9824a17-5810-4706-9271-ba660148f6ad"

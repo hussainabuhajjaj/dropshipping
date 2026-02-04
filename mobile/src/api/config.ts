@@ -59,6 +59,11 @@ const explicitBaseUrl =
   fromExpoExtra('API_URL') ??
   fromExpoExtra('BACKEND_URL');
 
+const explicitSiteUrl =
+  process.env.EXPO_PUBLIC_SITE_URL ??
+  fromExpoExtra('SITE_URL') ??
+  fromExpoExtra('PUBLIC_SITE_URL');
+
 const fallbackBaseUrl = fromExpoHost() ?? DEFAULT_BASE_URL;
 
 const rebindLocalhostToExpoHost = (baseUrl: string): string | undefined => {
@@ -81,6 +86,12 @@ const resolvedBaseUrl =
     : baseUrlCandidate ?? DEFAULT_BASE_URL;
 
 export const apiBaseUrl = normalizeBaseUrl(resolvedBaseUrl);
+
+const normalizedSiteUrl =
+  explicitSiteUrl && !isLikelyLocalHost(explicitSiteUrl)
+    ? normalizeBaseUrl(explicitSiteUrl)
+    : null;
+export const publicSiteUrl = normalizedSiteUrl;
 
 // Laravel storefront endpoints
 export const storefrontBaseUrl = `${apiBaseUrl}/api/storefront`;

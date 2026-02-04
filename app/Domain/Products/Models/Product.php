@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Builder;
 
 class Product extends Model
 {
@@ -131,6 +132,33 @@ class Product extends Model
         }
 
         return $this->translations()->where('locale', $locale)->first();
+    }
+
+    public function scopePriceRange(Builder $query, ?float $min, ?float $max): Builder
+    {
+        if ($min === null && $max === null) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $builder) use ($min, $max) {
+            $builder->where(function (Builder $priceQuery) use ($min, $max) {
+                if ($min !== null) {
+                    $priceQuery->where('selling_price', '>=', $min);
+                }
+                if ($max !== null) {
+                    $priceQuery->where('selling_price', '<=', $max);
+                }
+            });
+
+            $builder->orWhereHas('variants', function (Builder $variantQuery) use ($min, $max) {
+                if ($min !== null) {
+                    $variantQuery->where('price', '>=', $min);
+                }
+                if ($max !== null) {
+                    $variantQuery->where('price', '<=', $max);
+                }
+            });
+        });
     }
 
     protected static function booted(): void

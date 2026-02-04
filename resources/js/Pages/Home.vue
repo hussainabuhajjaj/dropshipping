@@ -300,7 +300,8 @@ import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { formatCurrency } from '@/utils/currency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useCurrency } from '@/composables/useCurrency.js'
 
 // Helper: Highlight banners with promotion info if any promotion is active
 function highlightBannerWithPromotion(banner, promotions) {
@@ -351,12 +352,15 @@ const props = defineProps({
 const page = usePage()
 const { t } = useTranslations()
 const now = usePromoNow()
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || props.currency)
 const homepagePromotions = computed(() =>
   Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : []
 )
 const limitedTimeDealsLink = computed(() => '/promotions/products')
 
-const displayPrice = (amount) => formatCurrency(Number(amount ?? 0), props.currency)
+const displayPrice = (amount) =>
+  formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
 const logisticsSupportPromo = computed(() => {
   return homepagePromotions.value.find((promo) => promo.intent === 'shipping_support') ?? null

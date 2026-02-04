@@ -6,14 +6,14 @@ import { CircleIconButton } from '@/src/components/ui/CircleIconButton';
 import { ProductCard } from '@/src/components/ui/ProductCard';
 import { SearchBar } from '@/src/components/ui/SearchBar';
 import { theme } from '@/src/theme';
-import { fetchProducts } from '@/src/api/catalog';
+import { searchRequest } from '@/src/api/search';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 
 export default function ShopResultsScreen() {
   const { show } = useToast();
   const params = useLocalSearchParams();
-  const query = typeof params.q === 'string' ? params.q : 'Socks';
+  const query = typeof params.q === 'string' ? params.q : '';
   const category = typeof params.category === 'string' ? params.category : '';
   const minPriceParam = typeof params.min_price === 'string' ? Number(params.min_price) : undefined;
   const maxPriceParam = typeof params.max_price === 'string' ? Number(params.max_price) : undefined;
@@ -25,7 +25,7 @@ export default function ShopResultsScreen() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchProducts({
+    searchRequest({
       q: query,
       category,
       min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
@@ -33,9 +33,9 @@ export default function ShopResultsScreen() {
       sort: sortParam || undefined,
       per_page: 12,
     })
-      .then(({ items: payload }) => {
+      .then(({ products }) => {
         if (!active) return;
-        setItems(payload);
+        setItems(products);
       })
       .catch((err: any) => {
         if (!active) return;
@@ -61,7 +61,7 @@ export default function ShopResultsScreen() {
           readOnly
           onClear={() => {}}
           onRightPress={() => router.push('/image-search')}
-          onPress={() => router.push('/search/results?query=Socks')}
+          onPress={() => router.push(query ? `/search/results?query=${encodeURIComponent(query)}` : '/search')}
           showSearchIcon={false}
           rightIconBorder={theme.colors.border}
           style={styles.search}

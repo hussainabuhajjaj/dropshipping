@@ -15,3 +15,4 @@ export * from './preferences';
 export * from './newsletter';
 export * from './config';
 export * from './http';
+export * from './search';

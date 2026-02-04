@@ -389,6 +389,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->label('Stock')
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
+                          Tables\Columns\TextColumn::make('variants.compare_at_price')->money('usd')
+                        ->label('Compate At')
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('images_count')
                         ->label('Images')
                         ->badge()
@@ -660,6 +664,55 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             ->success()
                             ->send();
                     }),
+                Action::make('generateCompareAt')
+                    ->label('Generate Compare-at')
+                    ->icon('heroicon-o-receipt-percent')
+                    ->requiresConfirmation()
+                    ->schema([
+                        Toggle::make('force')
+                            ->label('Force overwrite')
+                            ->default(false),
+                        Toggle::make('run_now')
+                            ->label('Run now (no queue)')
+                            ->default(false),
+                    ])
+                    ->action(function (Product $record, array $data): void {
+                        if (empty(config('services.deepseek.key'))) {
+                            Notification::make()
+                                ->title('DeepSeek not configured')
+                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $force = (bool) ($data['force'] ?? false);
+                        $runNow = (bool) ($data['run_now'] ?? false);
+
+                        if ($runNow) {
+                            try {
+                                app(\App\Services\AI\ProductCompareAtService::class)->generate($record, $force);
+                                Notification::make()
+                                    ->title('Compare-at updated')
+                                    ->success()
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Compare-at failed')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                            }
+                            return;
+                        }
+
+                        \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, $force);
+
+                        Notification::make()
+                            ->title('Compare-at queued')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('preview')
                     ->label('Preview')
                     ->icon('heroicon-o-arrow-top-right-on-square')
@@ -821,7 +874,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     BulkAction::make('setMargin')
                         ->label('Set Margin %')
                         ->icon('heroicon-o-calculator')
-                        ->form([
+                        ->schema([
                             TextInput::make('margin_percent')
                                 ->label('Margin %')
                                 ->numeric()
@@ -841,9 +894,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             $skipped = 0;
                             $variantUpdated = 0;
                             $variantSkipped = 0;
+                            $compareAtQueued = 0;
                             $logger = app(ProductMarginLogger::class);
 
-                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, $logger): void {
+                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, &$compareAtQueued, $logger): void {
                                 if (! is_numeric($record->cost_price)) {
                                     $skipped++;
                                     return;
@@ -883,8 +937,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                     ]);
                                 }
 
+                                $needsCompareAt = false;
+
                                 if ($applyVariants) {
-                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped, $logger): void {
+                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped, &$needsCompareAt, $logger): void {
                                         if (! is_numeric($variant->cost_price)) {
                                             $variantSkipped++;
                                             return;
@@ -901,13 +957,30 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                             'new_selling_price' => $variant->price,
                                             'notes' => "Margin set to {$margin}% for variant",
                                         ]);
+
+                                        if (is_numeric($oldVariantPrice) && is_numeric($variant->compare_at_price)) {
+                                            $price = (float) $variant->price;
+                                            $oldPrice = (float) $oldVariantPrice;
+                                            $compareAt = (float) $variant->compare_at_price;
+                                            if ($price > $oldPrice && $compareAt <= $price) {
+                                                $needsCompareAt = true;
+                                            }
+                                        }
                                     });
+                                }
+
+                                if ($needsCompareAt) {
+                                    \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false);
+                                    $compareAtQueued++;
                                 }
                             });
 
                             $body = "Updated $updated product(s) and $variantUpdated variant(s).";
                             if ($skipped > 0 || $variantSkipped > 0) {
                                 $body .= " Skipped $skipped product(s) and $variantSkipped variant(s) due to missing or invalid cost price.";
+                            }
+                            if ($compareAtQueued > 0) {
+                                $body .= " Queued compare-at refresh for $compareAtQueued product(s).";
                             }
 
                             Notification::make()
@@ -931,7 +1004,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     BulkAction::make('translate')
                         ->label('Translate')
                         ->icon('heroicon-o-language')
-                        ->form([
+                        ->schema([
                             TextInput::make('locales')
                                 ->label('Locales')
                                 ->default('en,fr')
@@ -972,7 +1045,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     BulkAction::make('generateSeo')
                         ->label('Generate SEO')
                         ->icon('heroicon-o-sparkles')
-                        ->form([
+                        ->schema([
                             Toggle::make('force')
                                 ->label('Force overwrite')
                                 ->default(true),
@@ -996,6 +1069,63 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
                             Notification::make()
                                 ->title('SEO queued')
+                                ->body("Queued {$records->count()} product(s).")
+                                ->success()
+                                ->send();
+                        }),
+                    BulkAction::make('generateCompareAt')
+                        ->label('Generate Compare-at')
+                        ->icon('heroicon-o-receipt-percent')
+                        ->schema([
+                            Toggle::make('force')
+                                ->label('Force overwrite')
+                                ->default(false),
+                            Toggle::make('run_now')
+                                ->label('Run now (no queue)')
+                                ->default(false),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $force = (bool) ($data['force'] ?? false);
+                            $runNow = (bool) ($data['run_now'] ?? false);
+
+                            if ($runNow) {
+                                $service = app(\App\Services\AI\ProductCompareAtService::class);
+                                $updated = 0;
+                                $failed = 0;
+
+                                foreach ($records as $record) {
+                                    try {
+                                        $service->generate($record, $force);
+                                        $updated++;
+                                    } catch (\Throwable $e) {
+                                        $failed++;
+                                    }
+                                }
+
+                                Notification::make()
+                                    ->title('Compare-at updated')
+                                    ->body("Updated {$updated} product(s). Failed {$failed}.")
+                                    ->success()
+                                    ->send();
+                                return;
+                            }
+
+                            foreach ($records as $record) {
+                                \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, $force);
+                            }
+
+                            Notification::make()
+                                ->title('Compare-at queued')
                                 ->body("Queued {$records->count()} product(s).")
                                 ->success()
                                 ->send();

@@ -12,7 +12,7 @@
                         v-for="line in lines"
                         :key="line.id"
                         :line="line"
-                        :currency="currency"
+                        :currency="displayCurrency"
                         :promotions="displayPromotions"
                         @remove="removeLine(line.id)"
                         @update="updateQty"
@@ -118,21 +118,22 @@
 </template>
 
 <script setup>
-import {convertCurrency, formatCurrency} from '@/utils/currency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useCurrency } from '@/composables/useCurrency.js'
 
 // Helper to display price in selected currency
 function displayPrice(amount) {
-    return formatCurrency(convertCurrency(amount, 'USD', props.currency), props.currency)
+    return formatCurrency(convertCurrency(amount, 'USD', displayCurrency.value), displayCurrency.value)
 }
 
-import {Link, router} from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CartLineItem from '@/Components/CartLineItem.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
-import {ref, computed} from 'vue'
+import { ref, computed } from 'vue'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
@@ -158,6 +159,8 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const displayPromotions = computed(() =>
     props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
 )
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || props.currency)
 
 const couponCode = ref('')
 

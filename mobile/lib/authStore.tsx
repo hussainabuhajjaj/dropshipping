@@ -104,3 +104,6 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 };
+
+// Optional variant for screens that can render without providers (e.g., previews).
+export const useAuthOptional = () => useContext(AuthContext);

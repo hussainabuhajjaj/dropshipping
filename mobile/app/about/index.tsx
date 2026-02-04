@@ -16,7 +16,7 @@ export default function AboutScreen() {
       </View>
 
       <View style={styles.heroCard}>
-        <Text style={styles.heroEyebrow}>Shoppe</Text>
+        <Text style={styles.heroEyebrow}>Simbazu</Text>
         <Text style={styles.heroTitle}>Design-forward fashion for daily life.</Text>
         <Text style={styles.heroBody}>
           We partner with vetted suppliers to deliver trending pieces with clear shipping timelines and

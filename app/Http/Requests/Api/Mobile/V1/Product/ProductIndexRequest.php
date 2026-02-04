@@ -18,6 +18,7 @@ class ProductIndexRequest extends BaseRequest
             'sort' => ['nullable', 'string', 'in:newest,price_asc,price_desc,rating,popular'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'currency' => ['nullable', 'string', 'max:3'],
         ];
     }
 }
