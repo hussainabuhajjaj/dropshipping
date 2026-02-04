@@ -72,7 +72,9 @@ class CategoryResource extends BaseResource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('hero_image'),
+                Tables\Columns\ImageColumn::make('hero_image')
+                    ->disk('public')
+                    ->visibility('public'),
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('slug')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('description')->searchable()->sortable(),
@@ -104,4 +106,3 @@ class CategoryResource extends BaseResource
         ];
     }
 }
-
