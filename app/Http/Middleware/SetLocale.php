@@ -22,9 +22,9 @@ class SetLocale
         $cookieLocale = $request->cookie('locale');
         $headerLocale = $this->resolveFromHeader($request->header('Accept-Language', ''));
 
-        $locale = $headerLocale
-            ?? $sessionLocale
-            ?? $cookieLocale;
+        $locale = $sessionLocale
+            ?? $cookieLocale
+            ?? $headerLocale;
 
         if (! in_array($locale, self::SUPPORTED_LOCALES, true)) {
             $locale = $headerLocale;

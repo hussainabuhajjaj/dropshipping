@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\Api\ApiException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -31,15 +32,58 @@ class SyncCjMyProductsJob implements ShouldQueue
 
     public function handle(): void
     {
+        Log::info('CJ My Products Sync: handle start', [
+            'page' => $this->pageNum,
+            'pageSize' => $this->pageSize,
+            'job' => static::class,
+        ]);
+
         $client = app(CJDropshippingClient::class);
         $importer = app(CjProductImportService::class);
 
-        $resp = $client->listMyProducts([
+        $filters = [
             'pageNum' => $this->pageNum,
             'pageSize' => $this->pageSize,
+        ];
+
+        $endpoint = config('services.cj.my_products_endpoint', '/v1/product/myProduct/query');
+        $method = strtolower((string) config('services.cj.my_products_method', 'get'));
+
+        Log::info('CJ My Products Sync: request', [
+            'page' => $this->pageNum,
+            'pageSize' => $this->pageSize,
+            'endpoint' => $endpoint,
+            'method' => $method,
+            'base_url' => config('services.cj.base_url'),
         ]);
 
-        $products = (array) ($resp->data ?? []);
+        try {
+            $resp = $client->listMyProducts($filters);
+        } catch (ApiException $e) {
+            Log::error('CJ My Products Sync: API error', [
+                'page' => $this->pageNum,
+                'pageSize' => $this->pageSize,
+                'endpoint' => $endpoint,
+                'method' => $method,
+                'status' => $e->status,
+                'code' => $e->codeString,
+                'message' => $e->getMessage(),
+                'body' => $e->body,
+            ]);
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('CJ My Products Sync: unexpected error', [
+                'page' => $this->pageNum,
+                'pageSize' => $this->pageSize,
+                'endpoint' => $endpoint,
+                'method' => $method,
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        $data = is_array($resp->data) ? $resp->data : [];
+        $products = (array) ($data['list'] ?? $data['data'] ?? $data['content'] ?? $data);
         $imported = 0;
         $skipped = 0;
 
@@ -74,6 +118,9 @@ class SyncCjMyProductsJob implements ShouldQueue
             'pageSize' => $this->pageSize,
             'imported' => $imported,
             'skipped' => $skipped,
+            'total' => $data['total'] ?? null,
+            'response_status' => $resp->status,
+            'response_message' => $resp->message,
         ]);
     }
 }

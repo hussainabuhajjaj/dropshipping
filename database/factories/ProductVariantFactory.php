@@ -14,8 +14,8 @@ class ProductVariantFactory extends Factory
     {
         return [
             'product_id' => Product::factory(),
-            'name' => $this->faker->word(),
-            'sku' => $this->faker->unique()->sku(),
+            'title' => $this->faker->word(),
+            'sku' => $this->faker->unique()->bothify('SKU-#####'),
             'price' => $this->faker->numberBetween(500, 10000),
         ];
     }

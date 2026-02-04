@@ -46,6 +46,15 @@ return [
         'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
     ],
 
+    'korapay' => [
+        'secret_key' => env('KORAPAY_SECRET_KEY'),
+        'public_key' => env('KORAPAY_PUBLIC_KEY'),
+        'webhook_secret' => env('KORAPAY_WEBHOOK_SECRET'),
+        'base_url' => env('KORAPAY_BASE_URL'),
+        'initialize_endpoint' => env('KORAPAY_INITIALIZE_ENDPOINT'),
+        'verify_endpoint' => env('KORAPAY_VERIFY_ENDPOINT'),
+    ],
+
     'stripe' => [
         'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
@@ -76,6 +85,7 @@ return [
         'api_secret' => env('CJ_API_SECRET'),
         'api_key' => env('CJ_API_KEY'),
         'base_url' => env('CJ_BASE_URL', 'https://developers.cjdropshipping.com/api2.0'),
+        'warehouse_list_endpoint' => env('CJ_WAREHOUSE_LIST_ENDPOINT', '/v1/product/globalWarehouse/list'),
         'timeout' => env('CJ_TIMEOUT', 10),
         'webhook_secret' => env('CJ_WEBHOOK_SECRET'),
         'platform_token' => env('CJ_PLATFORM_TOKEN'),

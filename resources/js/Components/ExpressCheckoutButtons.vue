@@ -46,10 +46,6 @@
 
 <script setup>
 import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-
-const displayAmount = computed(() =>
-  formatCurrency(convertCurrency(props.amount, 'USD', props.currency), props.currency)
-)
 import { ref, onMounted, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
@@ -57,11 +53,16 @@ import { useTranslations } from '@/i18n'
 const props = defineProps({
   amount: { type: Number, required: true },
   currency: { type: String, required: true },
+  displayCurrency: { type: String, default: null },
   stripeKey: { type: String, default: '' },
   paystackKey: { type: String, default: '' },
 })
 
 const { t } = useTranslations()
+const effectiveDisplayCurrency = computed(() => props.displayCurrency || props.currency)
+const displayAmount = computed(() =>
+  formatCurrency(convertCurrency(props.amount, 'USD', effectiveDisplayCurrency.value), effectiveDisplayCurrency.value)
+)
 
 const canUseApplePay = ref(false)
 const canUseGooglePay = ref(false)
