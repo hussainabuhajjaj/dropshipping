@@ -3,13 +3,14 @@ import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { Skeleton } from '@/src/components/ui/Skeleton';
-import { fetchProducts } from '@/src/api/catalog';
+import { searchRequest } from '@/src/api/search';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { addSearchHistory } from '@/src/lib/searchHistory';
 export default function SearchResultsScreen() {
   const params = useLocalSearchParams();
-  const query = typeof params.query === 'string' ? params.query : 'Socks';
+  const query = typeof params.query === 'string' ? params.query : '';
   const category = typeof params.category === 'string' ? params.category : '';
   const minPriceParam = typeof params.min_price === 'string' ? Number(params.min_price) : undefined;
   const maxPriceParam = typeof params.max_price === 'string' ? Number(params.max_price) : undefined;
@@ -25,19 +26,37 @@ export default function SearchResultsScreen() {
   }, [query]);
 
   useEffect(() => {
+    if (query.trim().length === 0) return;
+    addSearchHistory(query);
+  }, [query]);
+
+  useEffect(() => {
     let active = true;
+    const hasFilters =
+      query.trim().length > 0 ||
+      category.length > 0 ||
+      Number.isFinite(minPriceParam) ||
+      Number.isFinite(maxPriceParam);
+    if (!hasFilters) {
+      setItems([]);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
     setLoading(true);
-    fetchProducts({
-      q: query,
-      category,
+    searchRequest({
+      q: query || undefined,
+      category: category || undefined,
       min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
       max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
       sort: sortParam || undefined,
       per_page: 12,
     })
-      .then(({ items: payload }) => {
+      .then(({ products }) => {
         if (!active) return;
-        setItems(payload);
+        setItems(products);
       })
       .catch((err: any) => {
         if (!active) return;
@@ -146,8 +165,14 @@ export default function SearchResultsScreen() {
             ))}
         {!loading && items.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No matches found</Text>
-            <Text style={styles.emptyBody}>Try another keyword or adjust filters.</Text>
+            <Text style={styles.emptyTitle}>
+              {query.trim().length > 0 ? 'No matches found' : 'Start searching'}
+            </Text>
+            <Text style={styles.emptyBody}>
+              {query.trim().length > 0
+                ? 'Try another keyword or adjust filters.'
+                : 'Enter a keyword to explore products.'}
+            </Text>
           </View>
         ) : null}
       </View>

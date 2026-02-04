@@ -85,6 +85,7 @@ return [
         'api_secret' => env('CJ_API_SECRET'),
         'api_key' => env('CJ_API_KEY'),
         'base_url' => env('CJ_BASE_URL', 'https://developers.cjdropshipping.com/api2.0'),
+        'warehouse_list_endpoint' => env('CJ_WAREHOUSE_LIST_ENDPOINT', '/v1/product/globalWarehouse/list'),
         'timeout' => env('CJ_TIMEOUT', 10),
         'webhook_secret' => env('CJ_WEBHOOK_SECRET'),
         'platform_token' => env('CJ_PLATFORM_TOKEN'),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from '@/src/utils/responsiveStyleSheet';
@@ -8,6 +8,7 @@ import { fetchProducts } from '@/src/api/catalog';
 import type { Product } from '@/src/types/storefront';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { theme } from '@/src/theme';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 type ProductsScreenProps = {
   filterRoute?: string;
@@ -25,6 +26,7 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
   const { show } = useToast();
   const { width } = useWindowDimensions();
   const horizontalPadding = theme.moderateScale(20);
@@ -69,37 +71,38 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
     }
   }, [sortParam, chip]);
 
-  useEffect(() => {
-    let active = true;
+  const loadProducts = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError(null);
-    fetchProducts({
-      q: query,
-      category,
-      min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
-      max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
-      sort: sortParam || chipToSort[chip],
-    })
-      .then(({ items: data }) => {
-        if (active) {
-          setItems(data);
-        }
-      })
-      .catch((err: any) => {
-        const message = err?.message ?? 'Unable to load products.';
-        setError(message);
-        show({ type: 'error', message });
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
+    try {
+      const { items: data } = await fetchProducts({
+        q: query,
+        category,
+        min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
+        max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
+        sort: sortParam || chipToSort[chip],
       });
-
-    return () => {
-      active = false;
-    };
+      if (id !== requestId.current) return;
+      setItems(data);
+    } catch (err: any) {
+      if (id !== requestId.current) return;
+      const message = err?.message ?? 'Unable to load products.';
+      setError(message);
+      show({ type: 'error', message });
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, [query, category, minPriceParam, maxPriceParam, sortParam, chip, show]);
+
+  useEffect(() => {
+    loadProducts();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [loadProducts]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadProducts);
 
   return (
     <View style={styles.container}>
@@ -108,6 +111,8 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         columnWrapperStyle={styles.column}
         contentContainerStyle={styles.content}
         ListHeaderComponent={

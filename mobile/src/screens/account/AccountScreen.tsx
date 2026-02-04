@@ -21,11 +21,13 @@ import { Skeleton } from '@/src/components/ui/Skeleton';
 import { theme } from '@/src/theme';
 import { useAuth } from '@/lib/authStore';
 import { meRequest } from '@/src/api/auth';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchHome, fetchProductsBySlugs } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { HomePayload, Product } from '@/src/types/storefront';
 import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
+import { RefreshControl } from 'react-native';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 const orderTabs = ['To Pay', 'To Receive', 'To Review'];
 const stories = Array.from({ length: 5 }, (_, index) => `story-${index}`);
@@ -49,6 +51,8 @@ export default function AccountScreen() {
   const { show } = useToast();
   const { status, user, updateUser } = useAuth();
   const hasLoadedMe = useRef(false);
+  const homeRequestId = useRef(0);
+  const recentRequestId = useRef(0);
   const { slugs: recentSlugs } = useRecentlyViewed();
   const [home, setHome] = useState<HomePayload | null>(null);
   const [loadingHome, setLoadingHome] = useState(true);
@@ -87,14 +91,14 @@ export default function AccountScreen() {
     }));
   }, [categories]);
 
-  useEffect(() => {
-    if (status !== 'authed') {
-      hasLoadedMe.current = false;
-      return;
-    }
-    if (hasLoadedMe.current) return;
-    hasLoadedMe.current = true;
-    const load = async () => {
+  const loadMe = useCallback(
+    async (force?: boolean) => {
+      if (status !== 'authed') {
+        hasLoadedMe.current = false;
+        return;
+      }
+      if (!force && hasLoadedMe.current) return;
+      hasLoadedMe.current = true;
       try {
         const me = await meRequest();
         const fullName = `${me.first_name ?? ''} ${me.last_name ?? ''}`.trim();
@@ -107,66 +111,84 @@ export default function AccountScreen() {
       } catch {
         // ignore profile fetch errors
       }
-    };
-    load();
-  }, [status, updateUser]);
+    },
+    [status, updateUser]
+  );
 
   useEffect(() => {
-    let active = true;
-    setLoadingHome(true);
-    fetchHome()
-      .then((payload) => {
-        if (!active) return;
-        setHome(payload);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        const message = err?.message ?? 'Unable to load account feed.';
-        show({ type: 'error', message });
-        setHome(null);
-      })
-      .finally(() => {
-        if (active) setLoadingHome(false);
-      });
+    loadMe();
+  }, [loadMe]);
 
-    return () => {
-      active = false;
-    };
+  const loadHome = useCallback(async () => {
+    const id = ++homeRequestId.current;
+    setLoadingHome(true);
+    try {
+      const payload = await fetchHome();
+      if (id !== homeRequestId.current) return;
+      setHome(payload);
+    } catch (err: any) {
+      if (id !== homeRequestId.current) return;
+      const message = err?.message ?? 'Unable to load account feed.';
+      show({ type: 'error', message });
+      setHome(null);
+    } finally {
+      if (id === homeRequestId.current) setLoadingHome(false);
+    }
   }, [show]);
 
-  useEffect(() => {
-    let active = true;
+  const loadRecent = useCallback(async () => {
+    const id = ++recentRequestId.current;
     setLoadingRecent(true);
     if (recentSlugs.length === 0) {
       setRecentItems([]);
       setLoadingRecent(false);
-      return () => {
-        active = false;
-      };
+      return;
     }
-
-    fetchProductsBySlugs(recentSlugs.slice(0, 5))
-      .then((items) => {
-        if (!active) return;
-        setRecentItems(items);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load recently viewed items.' });
-        setRecentItems([]);
-      })
-      .finally(() => {
-        if (active) setLoadingRecent(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const items = await fetchProductsBySlugs(recentSlugs.slice(0, 5));
+      if (id !== recentRequestId.current) return;
+      setRecentItems(items);
+    } catch (err: any) {
+      if (id !== recentRequestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load recently viewed items.' });
+      setRecentItems([]);
+    } finally {
+      if (id === recentRequestId.current) setLoadingRecent(false);
+    }
   }, [recentSlugs, show]);
+
+  useEffect(() => {
+    loadHome();
+    return () => {
+      homeRequestId.current += 1;
+    };
+  }, [loadHome]);
+
+  useEffect(() => {
+    loadRecent();
+    return () => {
+      recentRequestId.current += 1;
+    };
+  }, [loadRecent]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(async () => {
+    await Promise.all([loadHome(), loadRecent(), loadMe(true)]);
+  });
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.push('/account/full-profile')}>
             <View style={styles.avatar}>

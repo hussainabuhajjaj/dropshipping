@@ -33,13 +33,9 @@ class ProductController extends Controller
             });
         }
 
-        if ($minPrice !== null && is_numeric($minPrice)) {
-            $productQuery->where('selling_price', '>=', (float) $minPrice);
-        }
-
-        if ($maxPrice !== null && is_numeric($maxPrice)) {
-            $productQuery->where('selling_price', '<=', (float) $maxPrice);
-        }
+        $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
+        $maxValue = $maxPrice !== null && is_numeric($maxPrice) ? (float) $maxPrice : null;
+        $productQuery->priceRange($minValue, $maxValue);
 
         if ($query) {
             $productQuery->where(function ($builder) use ($query) {
@@ -53,9 +49,17 @@ class ProductController extends Controller
         }
 
         $perPage = min((int) ($validated['per_page'] ?? 18), 50);
-        $products = $productQuery
-            ->latest()
-            ->paginate($perPage);
+        $products = (match ($validated['sort'] ?? 'newest') {
+            'price_asc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
+            'price_desc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
+            'rating' => $productQuery->orderByDesc('reviews_avg_rating'),
+            'popular' => $productQuery->orderByDesc('reviews_count'),
+            default => $productQuery->latest(),
+        })->paginate($perPage);
 
         return response()->json([
             'products' => ProductResource::collection($products->getCollection()),

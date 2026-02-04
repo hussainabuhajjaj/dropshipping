@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources\Storefront;
 
 use App\Domain\Products\Models\Product;
+use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Http\Request;
 
 class ProductResource extends JsonResource
@@ -36,9 +37,26 @@ class ProductResource extends JsonResource
             ];
         })->values()->all();
 
-        $defaultVariant = $variantPayload[0] ?? null;
-        $price = $defaultVariant['price'] ?? (float) ($product->selling_price ?? 0);
-        $currency = $defaultVariant['currency'] ?? $product->currency ?? 'USD';
+        $pricedVariant = collect($variantPayload)
+            ->filter(fn (array $variant) => $variant['price'] !== null)
+            ->sortBy('price')
+            ->first();
+
+        $defaultVariant = $pricedVariant ?? $variantPayload[0] ?? null;
+        $variantPrice = $defaultVariant['price'] ?? null;
+        $sellingPrice = $product->selling_price !== null ? (float) $product->selling_price : null;
+
+        if ($sellingPrice !== null && ($variantPrice === null || $sellingPrice < $variantPrice)) {
+            $price = $sellingPrice;
+            $currency = $product->currency ?? 'USD';
+            $compareAt = null;
+            $variantForDisplay = null;
+        } else {
+            $price = $variantPrice ?? (float) ($product->selling_price ?? 0);
+            $currency = $defaultVariant['currency'] ?? $product->currency ?? 'USD';
+            $compareAt = $defaultVariant['compare_at_price'] ?? null;
+            $variantForDisplay = $defaultVariant;
+        }
 
         $translation = $product->translationForLocale($locale);
 
@@ -55,16 +73,35 @@ class ProductResource extends JsonResource
             'rating' => round((float) ($product->reviews_avg_rating ?? 0), 1),
             'rating_count' => (int) ($product->reviews_count ?? 0),
             'variants' => $variantPayload,
-            'default_variant_id' => $defaultVariant['id'] ?? null,
-            'primary_variant_title' => $defaultVariant['title'] ?? null,
+            'default_variant_id' => $variantForDisplay['id'] ?? null,
+            'primary_variant_title' => $variantForDisplay['title'] ?? null,
             'price' => $price,
-            'compare_at_price' => $defaultVariant['compare_at_price'] ?? null,
+            'compare_at_price' => $compareAt,
             'currency' => $currency,
             'is_in_wishlist' => false,
         ];
 
+        $converter = app(CurrencyConversionService::class);
+        $requestedCurrency = $this->resolveRequestedCurrency($request, $converter);
+        if ($requestedCurrency && $requestedCurrency !== $currency) {
+            try {
+                $data['price'] = $converter->convertAmount($data['price'], $currency, $requestedCurrency);
+                $data['compare_at_price'] = $converter->convertAmount($data['compare_at_price'], $currency, $requestedCurrency);
+                $data['currency'] = $requestedCurrency;
+
+                $data['variants'] = collect($variantPayload)->map(function (array $variant) use ($converter, $requestedCurrency, $currency) {
+                    $baseCurrency = $variant['currency'] ?? $currency;
+                    $variant['price'] = $converter->convertAmount($variant['price'], $baseCurrency, $requestedCurrency);
+                    $variant['compare_at_price'] = $converter->convertAmount($variant['compare_at_price'], $baseCurrency, $requestedCurrency);
+                    $variant['currency'] = $requestedCurrency;
+                    return $variant;
+                })->values()->all();
+            } catch (\Throwable) {
+                // Fall back to original currency when rate is not configured.
+            }
+        }
+
         if ($this->includeMeta) {
-            $data['variants'] = $variantPayload;
             $data['lead_time_days'] = $product->shipping_estimate_days;
             $data['specs'] = is_array($product->attributes) ? $product->attributes : [];
             $data['meta_title'] = $product->meta_title;
@@ -72,5 +109,18 @@ class ProductResource extends JsonResource
         }
 
         return $data;
+    }
+
+    private function resolveRequestedCurrency(Request $request, CurrencyConversionService $converter): ?string
+    {
+        $currency = $request->header('X-Currency')
+            ?? $request->query('currency')
+            ?? $request->input('currency');
+
+        if (! $currency) {
+            return null;
+        }
+
+        return $converter->normalize((string) $currency);
     }
 }

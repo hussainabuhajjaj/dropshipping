@@ -1,4 +1,5 @@
 import { getAuthToken } from './authToken';
+import { getApiCurrency } from './currency';
 
 export type ApiError = {
   status: number;
@@ -10,8 +11,10 @@ export type ApiError = {
 
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
+  const currency = getApiCurrency();
   const headers: Record<string, string> = {
     Accept: 'application/json',
+    ...(currency ? { 'X-Currency': currency } : {}),
     ...(init?.headers as Record<string, string> | undefined),
   };
 

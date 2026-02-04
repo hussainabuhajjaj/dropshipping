@@ -1,11 +1,13 @@
+import 'react-native-gesture-handler';
+import 'react-native-reanimated';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LogBox, StyleSheet, Text, View } from 'react-native';
-import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { CartProvider } from '@/lib/cartStore';
@@ -129,38 +131,40 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <PortalHost>
-        <ToastProvider>
-          <AuthProvider>
-            <PreferencesProvider>
-              <CartProvider>
-                <OrdersProvider>
-                  <PaymentMethodsProvider>
-                    <AddressesProvider>
-                      <WishlistProvider>
-                        <RecentlyViewedProvider>
-                          <Stack
-                            screenOptions={({ route }) => ({
-                              title: formatRouteTitle(route.name),
-                            })}
-                          >
-                            <Stack.Screen name="index" options={{ headerShown: false }} />
-                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-                          </Stack>
-                          {/* <DebugApiBanner /> */}
-                        </RecentlyViewedProvider>
-                      </WishlistProvider>
-                    </AddressesProvider>
-                  </PaymentMethodsProvider>
-                </OrdersProvider>
-              </CartProvider>
-            </PreferencesProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </PortalHost>
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <PortalHost>
+          <ToastProvider>
+            <AuthProvider>
+              <PreferencesProvider>
+                <CartProvider>
+                  <OrdersProvider>
+                    <PaymentMethodsProvider>
+                      <AddressesProvider>
+                        <WishlistProvider>
+                          <RecentlyViewedProvider>
+                            <Stack
+                              screenOptions={({ route }) => ({
+                                title: formatRouteTitle(route.name),
+                              })}
+                            >
+                              <Stack.Screen name="index" options={{ headerShown: false }} />
+                              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                            </Stack>
+                            {/* <DebugApiBanner /> */}
+                          </RecentlyViewedProvider>
+                        </WishlistProvider>
+                      </AddressesProvider>
+                    </PaymentMethodsProvider>
+                  </OrdersProvider>
+                </CartProvider>
+              </PreferencesProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </PortalHost>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -174,6 +178,9 @@ function DebugApiBanner() {
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   apiBanner: {
     position: 'absolute',
     left: 12,

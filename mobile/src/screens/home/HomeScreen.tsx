@@ -1,13 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   FlatList,
   Image,
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,17 +24,20 @@ import { Skeleton } from '@/src/components/ui/Skeleton';
 import ModalDialog from '@/src/components/ui/ModalDialog';
 import { RoundedInput } from '@/src/components/auth/RoundedInput';
 import { theme } from '@/src/theme';
-import { fetchHome } from '@/src/api/catalog';
+import { fetchCategories, fetchHome } from '@/src/api/catalog';
 import type { Banner, BannerGroups, Category, NewsletterPopup, Product, PromoSlide } from '@/src/types/storefront';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { subscribeNewsletter } from '@/src/api/newsletter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const { show } = useToast();
   const [loading, setLoading] = useState(true);
   const [heroSlide, setHeroSlide] = useState<PromoSlide | null>(null);
+  const [heroSlides, setHeroSlides] = useState<PromoSlide[]>([]);
+  const [heroIndex, setHeroIndex] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
   const [trending, setTrending] = useState<Product[]>([]);
@@ -45,6 +49,7 @@ export default function HomeScreen() {
   const [popupEmail, setPopupEmail] = useState('');
   const [popupSubmitting, setPopupSubmitting] = useState(false);
   const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const requestId = useRef(0);
   const popupStorageKey = 'newsletterPopupDismissedAt';
   const gridGap = theme.moderateScale(12);
   const horizontalPadding = theme.moderateScale(20);
@@ -83,41 +88,52 @@ export default function HomeScreen() {
   const safeCarouselBanners = carouselBanners.filter(Boolean) as Banner[];
   const safeFullBanners = fullBanners.filter(Boolean) as Banner[];
 
-  useEffect(() => {
-    let active = true;
+  const loadHome = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    fetchHome()
-      .then((data) => {
-        if (!active) return;
-        const heroSlide = Array.isArray(data.hero) ? data.hero[0] : null;
-        setHeroSlide(
-          heroSlide
-            ? {
-                ...heroSlide,
-                title: String(heroSlide.title ?? heroSlide.kicker ?? 'Big Sale'),
-                subtitle: String(heroSlide.subtitle ?? 'Up to 50%'),
-              }
-            : null
-        );
-        setCategories(Array.isArray(data.categories) ? data.categories : []);
-        setFlashDeals(Array.isArray(data.flashDeals) ? data.flashDeals : []);
-        setTrending(Array.isArray(data.trending) ? data.trending : []);
-        setRecommended(Array.isArray(data.recommended) ? data.recommended : []);
-        setBanners(data.banners ?? null);
-        setNewsletterPopup(data.newsletterPopup ?? null);
-      })
-      .catch((err: any) => {
-        const message = err?.message ?? 'Unable to load home data.';
-        show({ type: 'error', message });
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const data = await fetchHome();
+      if (id !== requestId.current) return;
+      const heroItems = Array.isArray(data.hero) ? data.hero : [];
+      const normalizedHero = heroItems.map((slide) => ({
+        ...slide,
+        title: String(slide.title ?? slide.kicker ?? 'Big Sale'),
+        subtitle: String(slide.subtitle ?? 'Up to 50%'),
+      }));
+      setHeroSlides(normalizedHero);
+      setHeroSlide(normalizedHero[0] ?? null);
+      setHeroIndex(0);
+      let nextCategories = Array.isArray(data.categories) ? data.categories : [];
+      if (nextCategories.length === 0) {
+        try {
+          nextCategories = await fetchCategories();
+        } catch {
+          nextCategories = [];
+        }
+      }
+      setCategories(nextCategories);
+      setFlashDeals(Array.isArray(data.flashDeals) ? data.flashDeals : []);
+      setTrending(Array.isArray(data.trending) ? data.trending : []);
+      setRecommended(Array.isArray(data.recommended) ? data.recommended : []);
+      setBanners(data.banners ?? null);
+      setNewsletterPopup(data.newsletterPopup ?? null);
+    } catch (err: any) {
+      if (id !== requestId.current) return;
+      const message = err?.message ?? 'Unable to load home data.';
+      show({ type: 'error', message });
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, [show]);
+
+  useEffect(() => {
+    loadHome();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [loadHome]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadHome);
 
   useEffect(() => {
     let active = true;
@@ -253,9 +269,8 @@ export default function HomeScreen() {
     () => (loading ? skeletonProducts.slice(0, 4) : recommended.slice(0, 4)),
     [loading, recommended, skeletonProducts]
   );
-  const heroGradient = heroSlide?.tone
-    ? [heroSlide.tone, theme.colors.sand]
-    : ['#f0b61f', '#f3c93a'];
+  const heroGradientFor = (slide?: PromoSlide | null) =>
+    slide?.tone ? [slide.tone, theme.colors.sand] : ['#f0b61f', '#f3c93a'];
   const resolveResizeMode = (mode?: string | null) =>
     mode === 'contain' || mode === 'split' ? 'contain' : 'cover';
 
@@ -293,7 +308,18 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
         <View style={styles.headerRow}>
           <Text style={styles.title}>Shop</Text>
           <SearchBar
@@ -305,27 +331,44 @@ export default function HomeScreen() {
           />
         </View>
 
-        <Pressable
-          style={styles.banner}
-          onPress={() => (heroSlide?.href ? openHref(heroSlide.href) : router.push('/flash-sale'))}
-        >
-          <LinearGradient colors={heroGradient} style={styles.bannerGradient}>
-            <View style={styles.bannerCopy}>
-              <Text style={styles.bannerTitle}>{heroSlide?.title ?? 'Big Sale'}</Text>
-              <Text style={styles.bannerSubtitle}>{heroSlide?.subtitle ?? 'Up to 50%'}</Text>
-              <View style={styles.bannerBadge}>
-                <Text style={styles.bannerBadgeText}>Happening{'\n'}Now</Text>
-              </View>
-            </View>
-            <View style={styles.bannerImage} />
-          </LinearGradient>
+        <View style={styles.banner}>
+          <FlatList
+            horizontal
+            pagingEnabled
+            data={heroSlides.length > 0 ? heroSlides : heroSlide ? [heroSlide] : []}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / Math.max(width, 1));
+              setHeroIndex(nextIndex);
+            }}
+            renderItem={({ item }) => (
+              <Pressable
+                style={{ width: Math.max(width, 1) }}
+                onPress={() => (item?.href ? openHref(item.href) : router.push('/flash-sale'))}
+              >
+                <LinearGradient colors={heroGradientFor(item)} style={styles.bannerGradient}>
+                  <View style={styles.bannerCopy}>
+                    <Text style={styles.bannerTitle}>{item?.title ?? 'Big Sale'}</Text>
+                    <Text style={styles.bannerSubtitle}>{item?.subtitle ?? 'Up to 50%'}</Text>
+                    <View style={styles.bannerBadge}>
+                      <Text style={styles.bannerBadgeText}>Happening{'\n'}Now</Text>
+                    </View>
+                  </View>
+                  <View style={styles.bannerImage} />
+                </LinearGradient>
+              </Pressable>
+            )}
+          />
           <View style={styles.bannerDots}>
-            <View style={styles.bannerDotActive} />
-            <View style={styles.bannerDot} />
-            <View style={styles.bannerDot} />
-            <View style={styles.bannerDot} />
+            {(heroSlides.length > 0 ? heroSlides : heroSlide ? [heroSlide] : []).map((_, index) => (
+              <View
+                key={`hero-dot-${index}`}
+                style={index === heroIndex ? styles.bannerDotActive : styles.bannerDot}
+              />
+            ))}
           </View>
-        </Pressable>
+        </View>
 
         {stripBanner ? (
           <Pressable
