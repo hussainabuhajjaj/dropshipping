@@ -28,6 +28,6 @@ class FulfillmentAttempt extends Model
 
     public function fulfillmentJob(): BelongsTo
     {
-        return $this->belongsTo(FulfillmentJob::class);
+        return $this->belongsTo(FulfillmentJob::class, 'fulfillment_job_id');
     }
 }

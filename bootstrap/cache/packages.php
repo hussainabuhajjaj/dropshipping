@@ -20,6 +20,13 @@
       0 => 'BladeUI\\Icons\\BladeIconsServiceProvider',
     ),
   ),
+  'dedoc/scramble' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'Dedoc\\Scramble\\ScrambleServiceProvider',
+    ),
+  ),
   'filament/actions' => 
   array (
     'providers' => 
@@ -209,6 +216,13 @@
     'providers' => 
     array (
       0 => 'Tighten\\Ziggy\\ZiggyServiceProvider',
+    ),
+  ),
+  'yieldstudio/laravel-expo-notifier' => 
+  array (
+    'providers' => 
+    array (
+      0 => 'YieldStudio\\LaravelExpoNotifier\\ExpoNotificationsServiceProvider',
     ),
   ),
 );

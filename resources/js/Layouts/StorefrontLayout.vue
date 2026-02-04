@@ -345,16 +345,14 @@
                                                 </p>
                                             </div>
                                             <div class="text-xs font-semibold text-slate-800">
-                                                {{ line.currency }} {{ Number(line.price).toFixed(2) }}
+                                                {{ formatPrice(line.price) }}
                                             </div>
                                         </div>
 
                                         <div
                                             class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
                                             <span>{{ t('Subtotal') }}</span>
-                                            <span class="font-semibold text-slate-900">{{
-                                                    cartCurrency
-                                                }} {{ cartSubtotal.toFixed(2) }}</span>
+                                            <span class="font-semibold text-slate-900">{{ formatPrice(cartSubtotal) }}</span>
                                         </div>
 
                                         <div class="grid gap-2">
@@ -841,6 +839,8 @@ import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
 
 import { toastAlert } from "@/utils/toast";
+import { useCurrency } from '@/composables/useCurrency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 
 
 
@@ -848,12 +848,13 @@ import { toastAlert } from "@/utils/toast";
 const {cart: persistentCart, setCart, addLine, updateLine, removeLine, clearCart} = usePersistentCart()
 
 // --- Multi-currency support ---
-const currencyOptions = ['USD', 'XOF']
-const CURRENCY_KEY = 'dropshipping_currency'
-const selectedCurrency = ref(localStorage.getItem(CURRENCY_KEY) || 'USD')
+const { currencyOptions, selectedCurrency, setCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || 'USD')
+const formatPrice = (amount) =>
+    formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
 function onCurrencyChange() {
-    localStorage.setItem(CURRENCY_KEY, selectedCurrency.value)
+    setCurrency(selectedCurrency.value)
 }
 
 // --- App / page ---
@@ -904,7 +905,6 @@ const cartSummary = computed(() => page.props.cart ?? {lines: [], count: 0, subt
 const cartLines = computed(() => cartSummary.value.lines ?? [])
 const cartCount = computed(() => cartSummary.value.count ?? 0)
 const cartSubtotal = computed(() => Number(cartSummary.value.subtotal ?? 0))
-const cartCurrency = computed(() => cartLines.value[0]?.currency ?? 'USD')
 
 const wishlistCount = computed(() => Number(page.props.wishlist?.count ?? 0))
 const unreadNotifications = computed(() => {

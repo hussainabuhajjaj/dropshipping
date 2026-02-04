@@ -64,35 +64,50 @@
 </template>
 
 <script setup>
-import {convertCurrency, formatCurrency} from '@/utils/currency.js'
-
-const displayUnitPrice = formatCurrency(convertCurrency(Number(__props.line.price ?? 0), 'USD', __props.currency), __props.currency)
-const displayPrice = (amount) => formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', __props.currency), __props.currency)
-// const displayTotalPrice = formatCurrency(convertCurrency(Number((__props.line.price ?? 0) * (__props.line.quantity ?? 1)), 'USD', __props.currency), __props.currency)
-import {useTranslations} from '@/i18n'
-import {computed} from "vue";
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useTranslations } from '@/i18n'
+import { computed } from 'vue'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { useCurrency } from '@/composables/useCurrency.js'
 
-defineProps({
-    line: {type: Object, required: true},
-    currency: {type: String, default: 'USD'},
-    promotions: {type: Array, default: () => []},
-})
-
-const displayTotalPrice = computed(() => {
-    return formatCurrency(convertCurrency(Number((__props.line.price ?? 0) * (__props.line.quantity ?? 1)), 'USD', __props.currency), __props.currency);
+const props = defineProps({
+    line: { type: Object, required: true },
+    currency: { type: String, default: 'USD' },
+    promotions: { type: Array, default: () => [] },
 })
 
 defineEmits(['remove', 'update'])
 
-const {t} = useTranslations()
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+
+const displayUnitPrice = computed(() =>
+    formatCurrency(
+        convertCurrency(Number(props.line.price ?? 0), 'USD', displayCurrency.value),
+        displayCurrency.value
+    )
+)
+const displayPrice = (amount) =>
+    formatCurrency(
+        convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value),
+        displayCurrency.value
+    )
+
+const displayTotalPrice = computed(() => {
+    return formatCurrency(
+        convertCurrency(Number((props.line.price ?? 0) * (props.line.quantity ?? 1)), 'USD', displayCurrency.value),
+        displayCurrency.value
+    )
+})
+
+const { t } = useTranslations()
 const now = usePromoNow()
 const linePromotion = computed(() => {
-    if (!__props.promotions?.length) return null
-    return __props.promotions.find(p =>
+    if (!props.promotions?.length) return null
+    return props.promotions.find(p =>
         (p.targets || []).some(t => {
-            if (t.target_type === 'product') return t.target_id == __props.line.product_id
-            if (t.target_type === 'category') return t.target_id == __props.line.category_id
+            if (t.target_type === 'product') return t.target_id == props.line.product_id
+            if (t.target_type === 'category') return t.target_id == props.line.category_id
             return false
         })
     )

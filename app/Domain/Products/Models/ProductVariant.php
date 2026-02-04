@@ -35,6 +35,7 @@ class ProductVariant extends Model
         'low_stock_threshold',
         'options',
         'metadata',
+        'variant_image'
     ];
 
     protected $casts = [
