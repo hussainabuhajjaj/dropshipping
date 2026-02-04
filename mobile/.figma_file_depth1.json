@@ -1,0 +1,73 @@
+{
+    "document":  {
+                     "id":  "0:0",
+                     "name":  "Document",
+                     "type":  "DOCUMENT",
+                     "scrollBehavior":  "SCROLLS",
+                     "children":  [
+                                      {
+                                          "id":  "0:1",
+                                          "name":  "💙 Design",
+                                          "type":  "CANVAS",
+                                          "scrollBehavior":  "SCROLLS",
+                                          "children":  [
+
+                                                       ],
+                                          "backgroundColor":  {
+                                                                  "r":  0.94901961088180542,
+                                                                  "g":  0.94901961088180542,
+                                                                  "b":  0.94901961088180542,
+                                                                  "a":  1.0
+                                                              },
+                                          "prototypeStartNodeID":  null,
+                                          "flowStartingPoints":  [
+
+                                                                 ],
+                                          "prototypeDevice":  {
+                                                                  "type":  "NONE",
+                                                                  "rotation":  "NONE"
+                                                              }
+                                      },
+                                      {
+                                          "id":  "0:12997",
+                                          "name":  "⚙️ Design System",
+                                          "type":  "CANVAS",
+                                          "scrollBehavior":  "SCROLLS",
+                                          "children":  [
+
+                                                       ],
+                                          "backgroundColor":  {
+                                                                  "r":  1.0,
+                                                                  "g":  1.0,
+                                                                  "b":  1.0,
+                                                                  "a":  1.0
+                                                              },
+                                          "prototypeStartNodeID":  null,
+                                          "flowStartingPoints":  [
+
+                                                                 ],
+                                          "prototypeDevice":  {
+                                                                  "type":  "NONE",
+                                                                  "rotation":  "NONE"
+                                                              }
+                                      }
+                                  ]
+                 },
+    "components":  {
+
+                   },
+    "componentSets":  {
+
+                      },
+    "schemaVersion":  0,
+    "styles":  {
+
+               },
+    "name":  "Shoppe - eCommerce Clothing Fashion Store Multi Purpose UI Mobile App Design (Community)",
+    "lastModified":  "2025-12-28T03:36:55Z",
+    "thumbnailUrl":  "https://s3-alpha.figma.com/thumbnails/52affde6-18e7-4972-9134-78f8651fdb19?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=AKIAQ4GOSFWC6BA62JMJ%2F20251228%2Fus-west-2%2Fs3%2Faws4_request\u0026X-Amz-Date=20251228T120000Z\u0026X-Amz-Expires=604800\u0026X-Amz-SignedHeaders=host\u0026X-Amz-Signature=c4cdd69c18ee882e1588e82dc2a5fbca61bdfc06e799cf6782b37ffdf0d134c2",
+    "version":  "2302354160594360858",
+    "role":  "owner",
+    "editorType":  "figma",
+    "linkAccess":  "view"
+}

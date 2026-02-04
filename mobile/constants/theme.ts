@@ -1,0 +1,30 @@
+export const theme = {
+  colors: {
+    background: '#f0ecd6',
+    surface: '#ffffff',
+    ink: '#0b0b0d',
+    muted: '#6f737a',
+    border: '#f0ecd6',
+    brandYellow: '#ffd428',
+    brandCoral: '#ff6b3d',
+    brandPink: '#ff4fd8',
+    brandBlue: '#ffd428',
+    brandGreen: '#16a34a',
+    chip: '#f0ecd6',
+    shadow: 'rgba(11, 11, 13, 0.08)',
+  },
+  radius: {
+    sm: 6,
+    md: 10,
+    lg: 16,
+    xl: 22,
+    pill: 999,
+  },
+  spacing: {
+    xs: 6,
+    sm: 10,
+    md: 14,
+    lg: 20,
+    xl: 28,
+  },
+};
