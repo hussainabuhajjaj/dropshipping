@@ -76,7 +76,7 @@
             <div class="mt-3 text-sm text-slate-700">
               <span class="font-medium">{{ t('Value') }}:</span>
               <span v-if="promo.value_type === 'percentage'">{{ promo.value }}%</span>
-              <span v-else-if="promo.value_type === 'fixed'">{{ formatCurrency(Number(promo.value ?? 0), currency) }}</span>
+              <span v-else-if="promo.value_type === 'fixed'">{{ displayAmount(promo.value) }}</span>
               <span v-else>{{ t('Special') }}</span>
             </div>
           </div>
@@ -95,7 +95,7 @@
             <div class="mt-3 text-sm text-slate-700">
               <span class="font-medium">{{ t('Discount') }}:</span>
               <span v-if="coupon.type === 'percentage'">{{ coupon.amount }}%</span>
-              <span v-else>{{ formatCurrency(Number(coupon.amount ?? 0), currency) }}</span>
+              <span v-else>{{ displayAmount(coupon.amount) }}</span>
             </div>
           </div>
         </div>
@@ -121,10 +121,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
-import { formatCurrency } from '@/utils/currency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useCurrency } from '@/composables/useCurrency.js'
 
 const props = defineProps({
   campaign: { type: Object, required: true },
@@ -136,7 +138,10 @@ const props = defineProps({
 
 const { t, locale } = useTranslations()
 const page = usePage()
-const currency = page.props.currency || 'USD'
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || page.props.currency || 'USD')
+const displayAmount = (amount) =>
+  formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
 const formatDate = (value) => {
   if (!value) return ''

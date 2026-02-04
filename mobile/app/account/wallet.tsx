@@ -1,42 +1,60 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
+import { RefreshControl } from 'react-native';
 import { theme } from '@/src/theme';
 import { fetchWallet } from '@/src/api/wallet';
 import type { GiftCard, Wallet } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 export default function WalletScreen() {
   const [redeemed, setRedeemed] = useState(false);
   const { show } = useToast();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    let active = true;
+  const loadWallet = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    fetchWallet()
-      .then((data) => {
-        if (!active) return;
-        setWallet(data);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load wallet.' });
-        setWallet(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const data = await fetchWallet();
+      if (id !== requestId.current) return;
+      setWallet(data);
+    } catch (err: any) {
+      if (id !== requestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load wallet.' });
+      setWallet(null);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, [show]);
 
+  useEffect(() => {
+    loadWallet();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [loadWallet]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadWallet);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+        />
+      }
+    >
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />

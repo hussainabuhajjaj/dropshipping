@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { RefreshControl } from 'react-native';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import type { Product } from '@/src/types/storefront';
 import { fetchProducts, fetchProductsBySlugs } from '@/src/api/catalog';
@@ -10,11 +11,14 @@ import { useWishlist } from '@/lib/wishlistStore';
 import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 export default function WishlistScreen() {
-  const { items: wishlisted, loading: loadingWish, error, remove } = useWishlist();
+  const { items: wishlisted, loading: loadingWish, error, remove, refresh: refreshWishlist } = useWishlist();
   const { slugs: recentSlugs } = useRecentlyViewed();
   const { addItem } = useCart();
   const { show } = useToast();
+  const recentRequestId = useRef(0);
+  const popularRequestId = useRef(0);
   const recentSize = 46;
   const recentRadius = 23;
   const itemImageWidth = 86;
@@ -27,64 +31,80 @@ export default function WishlistScreen() {
   const [loadingPopular, setLoadingPopular] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const loadRecent = useCallback(async () => {
+    const id = ++recentRequestId.current;
     setLoadingRecent(true);
     if (recentSlugs.length === 0) {
       setRecentItems([]);
       setLoadingRecent(false);
-      return () => {
-        active = false;
-      };
+      return;
     }
-    fetchProductsBySlugs(recentSlugs.slice(0, 5))
-      .then((items) => {
-        if (!active) return;
-        setRecentItems(items);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load recent items.' });
-        setRecentItems([]);
-      })
-      .finally(() => {
-        if (active) setLoadingRecent(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const items = await fetchProductsBySlugs(recentSlugs.slice(0, 5));
+      if (id !== recentRequestId.current) return;
+      setRecentItems(items);
+    } catch (err: any) {
+      if (id !== recentRequestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load recent items.' });
+      setRecentItems([]);
+    } finally {
+      if (id === recentRequestId.current) setLoadingRecent(false);
+    }
   }, [recentSlugs, show]);
 
-  useEffect(() => {
-    let active = true;
+  const loadPopular = useCallback(async () => {
+    const id = ++popularRequestId.current;
     setLoadingPopular(true);
-    fetchProducts({ per_page: 6 })
-      .then(({ items }) => {
-        if (!active) return;
-        setPopular(items);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load popular items.' });
-        setPopular([]);
-      })
-      .finally(() => {
-        if (active) setLoadingPopular(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const { items } = await fetchProducts({ per_page: 6 });
+      if (id !== popularRequestId.current) return;
+      setPopular(items);
+    } catch (err: any) {
+      if (id !== popularRequestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load popular items.' });
+      setPopular([]);
+    } finally {
+      if (id === popularRequestId.current) setLoadingPopular(false);
+    }
   }, [show]);
+
+  useEffect(() => {
+    loadRecent();
+    return () => {
+      recentRequestId.current += 1;
+    };
+  }, [loadRecent]);
+
+  useEffect(() => {
+    loadPopular();
+    return () => {
+      popularRequestId.current += 1;
+    };
+  }, [loadPopular]);
 
   const showEmpty = !loadingWish && wishlisted.length === 0;
   const combinedError = localError ?? error;
 
+  const { refreshing, onRefresh } = usePullToRefresh(async () => {
+    await Promise.all([loadRecent(), loadPopular(), refreshWishlist()]);
+  });
+
   return (
     <>
       <Stack.Screen options={{ title: 'Wish List' }} />
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
         <View style={styles.headerRow}>
           <Text style={styles.title}>Wishlist</Text>
         </View>

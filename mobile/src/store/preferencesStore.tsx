@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
 import { loadPersisted, savePersisted } from './persist';
 import { fetchPreferences, fetchPreferencesLookups, updatePreferences } from '@/src/api/preferences';
+import { setApiCurrency, normalizeCurrency } from '@/src/api/currency';
 import type { PreferencesLookups, Preferences as ApiPreferences } from '@/src/types/preferences';
 import { useAuth } from '@/lib/authStore';
 
@@ -146,6 +147,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       dispatch({ type: 'setCurrency', value: data.currency });
       dispatch({ type: 'setSize', value: data.size });
       dispatch({ type: 'setLanguage', value: data.language });
+      setApiCurrency(normalizeCurrency(data.currency));
       dispatch({
         type: 'setLanguageSource',
         value: (data as any).languageSource === 'user' ? 'user' : 'device',
@@ -202,6 +204,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
         setCurrency: (value: string) => {
           if (value === state.currency) return;
           dispatch({ type: 'setCurrency', value });
+          setApiCurrency(normalizeCurrency(value));
           applyUpdate({ currency: value });
         },
         setSize: (value: string) => {

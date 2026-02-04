@@ -16,6 +16,7 @@ class CartResource extends JsonResource
     {
         $product = $this->product;
         $variant = $this->variant;
+        $attributes = is_array($product?->attributes ?? null) ? $product->attributes : [];
         return [
             'id' => $this['id'],
             'product_id' => $this['product_id'],
@@ -29,10 +30,10 @@ class CartResource extends JsonResource
             'variant' => $variant?->title,
             'price' => $this->getSinglePrice(),
             'compare_at_price' => $variant?->compare_at_price !== null ? (float) $variant->compare_at_price : null,
-            'currency' => $variant?->currency ?? $product->currency ?? 'USD',
-            'media' => $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
+            'currency' => $variant?->currency ?? $product?->currency ?? 'USD',
+            'media' => $product?->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
             'sku' => $variant?->sku,
-            'cj_pid' => $product->attributes['cj_pid'] ?? null,
+            'cj_pid' => $attributes['cj_pid'] ?? null,
             'cj_vid' => $variant?->metadata['cj_vid'] ?? null,
         ];
     }

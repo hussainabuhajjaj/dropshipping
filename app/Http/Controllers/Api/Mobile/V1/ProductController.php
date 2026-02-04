@@ -33,13 +33,9 @@ class ProductController extends ApiController
             });
         }
 
-        if ($minPrice !== null && is_numeric($minPrice)) {
-            $productQuery->where('selling_price', '>=', (float) $minPrice);
-        }
-
-        if ($maxPrice !== null && is_numeric($maxPrice)) {
-            $productQuery->where('selling_price', '<=', (float) $maxPrice);
-        }
+        $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
+        $maxValue = $maxPrice !== null && is_numeric($maxPrice) ? (float) $maxPrice : null;
+        $productQuery->priceRange($minValue, $maxValue);
 
         if ($query) {
             $productQuery->where(function ($builder) use ($query) {
@@ -53,8 +49,12 @@ class ProductController extends ApiController
         }
 
         $productQuery = match ($sort) {
-            'price_asc' => $productQuery->orderBy('selling_price'),
-            'price_desc' => $productQuery->orderByDesc('selling_price'),
+            'price_asc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
+            'price_desc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
             'rating' => $productQuery->orderByDesc('reviews_avg_rating'),
             'popular' => $productQuery->orderByDesc('reviews_count'),
             default => $productQuery->latest(),

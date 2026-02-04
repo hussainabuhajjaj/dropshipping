@@ -13,6 +13,7 @@
           <ExpressCheckoutButtons
             :amount="total"
             :currency="currency"
+            :display-currency="displayCurrency"
             :stripe-key="stripeKey"
             :paystack-key="paystackKey"
           />
@@ -97,14 +98,14 @@
         <aside class="card-muted space-y-4 p-5">
           <div class="flex items-center justify-between text-sm">
             <span>{{ t('Subtotal') }}</span>
-            <span class="font-semibold text-slate-900">{{ currency }} {{ subtotal.toFixed(2) }}</span>
+            <span class="font-semibold text-slate-900">{{ displayAmount(subtotal) }}</span>
           </div>
           <div v-if="discount > 0" class="flex items-center justify-between text-sm text-green-700">
             <span>
               {{ t('Discount') }}
               <span v-if="discount_label" class="text-xs text-slate-500">({{ discount_label }})</span>
             </span>
-            <span>- {{ currency }} {{ discount.toFixed(2) }}</span>
+            <span>- {{ displayAmount(discount) }}</span>
           </div>
           <div v-if="displayPromotions.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-slate-700">
             <div class="mb-1 font-semibold text-amber-700">{{ t('Promotions applied:') }}</div>
@@ -113,7 +114,7 @@
                 <span class="font-semibold">{{ promo.name }}</span>
                 <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
                 <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
-                <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ currency }} {{ Number(promo.value).toFixed(2) }}</span>
+                <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ displayAmount(Number(promo.value ?? 0)) }}</span>
                 <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
                   {{ t('Ends in') }} {{ promoCountdown(promo) }}
                 </span>
@@ -124,7 +125,7 @@
             <span>
               {{ t('Shipping') }} <span class="text-xs text-slate-400">({{ shipping_method }})</span>
             </span>
-            <span class="text-slate-600">{{ currency }} {{ shipping.toFixed(2) }}</span>
+            <span class="text-slate-600">{{ displayAmount(shipping) }}</span>
           </div>
           <p class="text-[0.65rem] text-slate-500">
             {{ t('Your order may arrive in multiple packages and tracking numbers may update separately.') }}
@@ -136,11 +137,11 @@
             <span>
               {{ tax_label }} <span v-if="tax_included" class="text-xs text-slate-400">({{ t('included') }})</span>
             </span>
-            <span class="text-slate-600">{{ currency }} {{ tax_total.toFixed(2) }}</span>
+            <span class="text-slate-600">{{ displayAmount(tax_total) }}</span>
           </div>
           <div class="flex items-center justify-between text-base font-semibold text-slate-900">
             <span>{{ t('Total') }}</span>
-            <span>{{ currency }} {{ total.toFixed(2) }}</span>
+            <span>{{ displayAmount(total) }}</span>
           </div>
           <div class="space-y-4 pt-2">
             <DeliveryTimeline compact />
@@ -166,6 +167,8 @@ import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { useCurrency } from '@/composables/useCurrency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
@@ -194,6 +197,10 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const displayPromotions = computed(() =>
   props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
 )
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || currency.value || 'USD')
+const displayAmount = (amount) =>
+  formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
 const form = useForm({
   email: props.user?.email || '',

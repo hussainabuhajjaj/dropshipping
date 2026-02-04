@@ -82,7 +82,7 @@ const stripHtml = (value: string): string => {
   return decodeHtmlEntities(textOnly).replace(/\n{3,}/g, '\n\n').trim();
 };
 
-const mapCategory = (source: ApiCategory): Category => {
+export const mapCategory = (source: ApiCategory): Category => {
   const children = Array.isArray(source.children)
     ? (source.children as ApiCategory[]).map(mapCategory)
     : [];

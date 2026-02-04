@@ -7,10 +7,11 @@ import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { AuthBlobBackground } from '@/src/components/auth/AuthBlobBackground';
 import { theme } from '@/src/theme';
 import { routes } from '@/src/navigation/routes';
-import { useAuth } from '@/lib/authStore';
+import { useAuthOptional } from '@/lib/authStore';
 
 export default function WelcomeScreen() {
-  const { status } = useAuth();
+  const auth = useAuthOptional();
+  const status = auth?.status ?? 'guest';
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

@@ -1,44 +1,62 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { RefreshControl } from 'react-native';
 import { theme } from '@/src/theme';
 import { fetchRewardSummary, fetchVouchers } from '@/src/api/rewards';
 import type { RewardSummary, Voucher } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 export default function RewardsScreen() {
   const { show } = useToast();
   const [summary, setSummary] = useState<RewardSummary | null>(null);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    let active = true;
+  const loadRewards = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    Promise.all([fetchRewardSummary(), fetchVouchers()])
-      .then(([summary, vouchers]) => {
-        if (!active) return;
-        setSummary(summary);
-        setVouchers(vouchers);
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load rewards.' });
-        setSummary(null);
-        setVouchers([]);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const [summary, vouchers] = await Promise.all([fetchRewardSummary(), fetchVouchers()]);
+      if (id !== requestId.current) return;
+      setSummary(summary);
+      setVouchers(vouchers);
+    } catch (err: any) {
+      if (id !== requestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load rewards.' });
+      setSummary(null);
+      setVouchers([]);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, [show]);
 
+  useEffect(() => {
+    loadRewards();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [loadRewards]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(loadRewards);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+        />
+      }
+    >
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />

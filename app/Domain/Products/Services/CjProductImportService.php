@@ -136,13 +136,14 @@ class CjProductImportService
             ]
         );
 
-        // Set cost price as imported, selling price to 0
+        // Set cost price as imported, preserve selling price if price lock is enabled
         $rawCost = $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0));
+        $sellingPrice = $lockPrice && $product ? ($product->selling_price ?? 0) : 0;
         $payload = [
             'name' => $name,
             'category_id' => $category?->id,
             'description' => $description,
-            'selling_price' => 0,
+            'selling_price' => $sellingPrice,
             'cost_price' => $rawCost,
             'currency' => $productData['currency'] ?? 'USD',
             'attributes' => $attributes,
@@ -640,6 +641,7 @@ class CjProductImportService
                             'price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float)$variant['variantSellPrice'] : ($product->selling_price ?? 0),
                             'cost_price' => is_numeric($variant['variantSellPrice'] ?? null) ? (float)$variant['variantSellPrice'] : ($product->cost_price ?? 0),
                             'currency' => $product->currency ?? 'USD',
+                            'variant_image'=> $variant['variantImage'] ?? null,
                             'metadata' => [
                                 'cj_vid' => $vid,
                                 'cj_variant' => $variant,

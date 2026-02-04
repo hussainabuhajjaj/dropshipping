@@ -1,43 +1,46 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Linking } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, RefreshControl } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { fetchNotifications, markNotificationsRead } from '@/src/api/notifications';
 import type { NotificationItem } from '@/src/types/notifications';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 
 export default function NotificationsScreen() {
   const { show } = useToast();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const requestId = useRef(0);
+
+  const loadNotifications = useCallback(async () => {
+    const id = ++requestId.current;
+    setLoading(true);
+    try {
+      const { items } = await fetchNotifications({ per_page: 30 });
+      if (id !== requestId.current) return;
+      setItems(items);
+      const unreadIds = items.filter((item) => !item.readAt).map((item) => item.id);
+      if (unreadIds.length > 0) {
+        markNotificationsRead({ ids: unreadIds }).catch(() => {});
+      }
+    } catch (err: any) {
+      if (id !== requestId.current) return;
+      show({ type: 'error', message: err?.message ?? 'Unable to load notifications.' });
+      setItems([]);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
+  }, [show]);
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    fetchNotifications({ per_page: 30 })
-      .then(({ items }) => {
-        if (!active) return;
-        setItems(items);
-        const unreadIds = items.filter((item) => !item.readAt).map((item) => item.id);
-        if (unreadIds.length > 0) {
-          markNotificationsRead({ ids: unreadIds }).catch(() => {});
-        }
-      })
-      .catch((err: any) => {
-        if (!active) return;
-        show({ type: 'error', message: err?.message ?? 'Unable to load notifications.' });
-        setItems([]);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
+    loadNotifications();
     return () => {
-      active = false;
+      requestId.current += 1;
     };
-  }, [show]);
+  }, [loadNotifications]);
 
   const openHref = (href?: string | null) => {
     if (!href) return;
@@ -50,8 +53,22 @@ export default function NotificationsScreen() {
 
   const cards = useMemo(() => (loading ? [] : items), [items, loading]);
 
+  const { refreshing, onRefresh } = usePullToRefresh(loadNotifications);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={theme.colors.primary}
+          colors={[theme.colors.primary]}
+        />
+      }
+    >
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />

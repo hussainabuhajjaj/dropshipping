@@ -11,15 +11,23 @@ use App\Models\StorefrontBanner;
 use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
 use App\Models\StorefrontSetting;
+use App\Services\Currency\CurrencyConversionService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class HomeController extends ApiController
 {
-    public function index(HomeBuilderService $homeBuilder): JsonResponse
+    public function index(HomeBuilderService $homeBuilder, Request $request): JsonResponse
     {
+        $converter = app(CurrencyConversionService::class);
+        $requestedCurrency = $request->header('X-Currency')
+            ?? $request->query('currency')
+            ?? $request->input('currency');
+        $currency = $requestedCurrency ? $converter->normalize((string) $requestedCurrency) : 'USD';
+
         $locale = app()->getLocale();
         $sections = $homeBuilder->buildProductSections(6);
         $featured = $sections['featured'];
@@ -72,7 +80,7 @@ class HomeController extends ApiController
         $popupBanners = $this->mapBannerCollection($this->popupBannerModels(), $homeBuilder);
 
         return $this->success(new HomeResource([
-            'currency' => 'USD',
+            'currency' => $currency,
             'hero' => $hero,
             'categories' => $categories,
             'flashDeals' => $featured,
