@@ -6,13 +6,17 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use App\Domain\Common\Models\Address;
+use YieldStudio\LaravelExpoNotifier\Models\ExpoToken;
 
 class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePreference
 {
+    use HasApiTokens;
     use HasFactory;
     use SoftDeletes;
     use Notifiable;
@@ -32,12 +36,20 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'metadata',
         'password',
         'email_verified_at',
+        'email_verification_code',
+        'email_verification_expires_at',
+        'phone_verified_at',
+        'phone_verification_code',
+        'phone_verification_expires_at',
         'remember_token',
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'email_verified_at' => 'datetime',
+        'email_verification_expires_at' => 'datetime',
+        'phone_verified_at' => 'datetime',
+        'phone_verification_expires_at' => 'datetime',
         'password' => 'hashed',
     ];
 
@@ -73,6 +85,11 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
     public function couponRedemptions(): HasMany
     {
         return $this->hasMany(CouponRedemption::class);
+    }
+
+    public function expoTokens(): MorphMany
+    {
+        return $this->morphMany(ExpoToken::class, 'owner');
     }
 
     public function getNameAttribute(): string

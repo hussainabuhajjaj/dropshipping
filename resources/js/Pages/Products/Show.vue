@@ -66,7 +66,7 @@
             >
               {{ productPromotion.badge_text || productPromotion.name }}
               <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
-              <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }}</span>
+              <span v-else-if="productPromotion.value_type === 'fixed'">-{{ displayPromotionValue(productPromotion.value) }}</span>
             </span>
             <span v-if="promoCountdown" class="ml-2 text-[10px] font-semibold text-amber-700">
               {{ t('Ends in') }} {{ promoCountdown }}
@@ -78,10 +78,10 @@
 
         <div class="flex flex-wrap items-center gap-3">
           <span class="text-2xl font-semibold text-slate-900">
-            {{ currency }} {{ displayPrice.toFixed(2) }}
+            {{ displayPriceFormatted }}
           </span>
           <span v-if="compareAtForDisplay" class="text-sm text-slate-400 line-through">
-            {{ currency }} {{ Number(compareAtForDisplay).toFixed(2) }}
+            {{ compareAtFormatted }}
           </span>
           <span v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-xs text-slate-500">
             {{ productPromotion.apply_hint }}
@@ -421,6 +421,8 @@ import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { useCurrency } from '@/composables/useCurrency.js'
+import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -434,6 +436,8 @@ const props = defineProps({
 
 const { t, locale } = useTranslations()
 const now = usePromoNow()
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || props.currency)
 
 const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
@@ -494,6 +498,16 @@ const displayPrice = computed(() => {
   const amount = Number(promo?.value ?? 0)
   return Math.max(0, Number((base - amount).toFixed(2)))
 })
+
+const displayPriceFormatted = computed(() =>
+  formatCurrency(convertCurrency(displayPrice.value, 'USD', displayCurrency.value), displayCurrency.value)
+)
+const compareAtFormatted = computed(() =>
+  formatCurrency(convertCurrency(Number(compareAtForDisplay.value ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
+)
+
+const displayPromotionValue = (amount) =>
+  formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
 const selectVariant = (id) => {
   selectedVariantId.value = id

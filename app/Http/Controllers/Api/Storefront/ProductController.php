@@ -5,21 +5,21 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Storefront;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
+use App\Http\Requests\Api\Storefront\Product\ProductIndexRequest;
+use App\Http\Resources\Storefront\ProductDetailResource;
+use App\Http\Resources\Storefront\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    use TransformsProducts;
-
-    public function index(Request $request): JsonResponse
+    public function index(ProductIndexRequest $request): JsonResponse
     {
-        $category = $request->query('category');
-        $minPrice = $request->query('min_price');
-        $maxPrice = $request->query('max_price');
-        $query = $request->query('q');
+        $validated = $request->validated();
+        $category = $validated['category'] ?? null;
+        $minPrice = $validated['min_price'] ?? null;
+        $maxPrice = $validated['max_price'] ?? null;
+        $query = $validated['q'] ?? null;
 
         $productQuery = Product::query()
             ->where('is_active', true)
@@ -33,13 +33,9 @@ class ProductController extends Controller
             });
         }
 
-        if ($minPrice !== null && is_numeric($minPrice)) {
-            $productQuery->where('selling_price', '>=', (float) $minPrice);
-        }
-
-        if ($maxPrice !== null && is_numeric($maxPrice)) {
-            $productQuery->where('selling_price', '<=', (float) $maxPrice);
-        }
+        $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
+        $maxValue = $maxPrice !== null && is_numeric($maxPrice) ? (float) $maxPrice : null;
+        $productQuery->priceRange($minValue, $maxValue);
 
         if ($query) {
             $productQuery->where(function ($builder) use ($query) {
@@ -52,15 +48,21 @@ class ProductController extends Controller
             });
         }
 
-        $perPage = min((int) $request->query('per_page', 18), 50);
-        $products = $productQuery
-            ->latest()
-            ->paginate($perPage);
-
-        $products->getCollection()->transform(fn (Product $product) => $this->transformProduct($product));
+        $perPage = min((int) ($validated['per_page'] ?? 18), 50);
+        $products = (match ($validated['sort'] ?? 'newest') {
+            'price_asc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
+            'price_desc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
+            'rating' => $productQuery->orderByDesc('reviews_avg_rating'),
+            'popular' => $productQuery->orderByDesc('reviews_count'),
+            default => $productQuery->latest(),
+        })->paginate($perPage);
 
         return response()->json([
-            'products' => $products->items(),
+            'products' => ProductResource::collection($products->getCollection()),
             'pagination' => [
                 'currentPage' => $products->currentPage(),
                 'lastPage' => $products->lastPage(),
@@ -77,7 +79,7 @@ class ProductController extends Controller
         $product->load(['images', 'variants', 'category', 'translations']);
 
         return response()->json([
-            'product' => $this->transformProduct($product, true),
+            'product' => new ProductDetailResource($product),
         ]);
     }
 }

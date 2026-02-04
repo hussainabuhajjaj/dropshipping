@@ -33,7 +33,8 @@ class CjProductApi extends CjBaseApi
 
     public function listGlobalWarehouses(): ApiResponse
     {
-        return $this->client()->get('/v1/product/globalWarehouse/list');
+        $endpoint = config('services.cj.warehouse_list_endpoint', '/v1/product/globalWarehouse/list');
+        return $this->client()->get($endpoint);
     }
 
     public function getWarehouseDetail(string $id): ApiResponse
@@ -151,9 +152,56 @@ class CjProductApi extends CjBaseApi
             'storeProductId' => $filters['storeProductId'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
 
-        // Use the documented My Product endpoint per CJ docs (myProduct/query)
-        // See: https://developers.cjdropshipping.com/api2.0/v1/product/myProduct/query
-        return $this->client()->get('/v1/product/myProduct/query', $params);
+        $endpoint = config('services.cj.my_products_endpoint', '/v1/product/myProduct/query');
+        $method = strtolower((string) config('services.cj.my_products_method', 'get'));
+
+        \Log::info('CJ My Products API: request', [
+            'endpoint' => $endpoint,
+            'method' => $method,
+            'params' => $params,
+        ]);
+
+        if ($method === 'post') {
+            $response = $this->client()->post($endpoint, $params);
+            $this->logMyProductsResponse($response);
+            return $response;
+        }
+
+        // Default GET
+        $response = $this->client()->get($endpoint, $params);
+        $this->logMyProductsResponse($response);
+        return $response;
+    }
+
+    private function logMyProductsResponse(ApiResponse $response): void
+    {
+        $data = $response->data;
+        $dataType = is_array($data) ? 'array' : gettype($data);
+        $dataCount = null;
+        if (is_array($data)) {
+            $list = $data['list'] ?? $data['data'] ?? $data['content'] ?? null;
+            if (is_array($list)) {
+                $dataCount = count($list);
+            } else {
+                $dataCount = count($data);
+            }
+        }
+
+        $rawPreview = $response->raw;
+        if (is_array($rawPreview)) {
+            $rawPreview = array_slice($rawPreview, 0, 10, true);
+        } elseif (is_string($rawPreview)) {
+            $rawPreview = substr($rawPreview, 0, 2000);
+        }
+
+        \Log::info('CJ My Products API: response', [
+            'status' => $response->status,
+            'ok' => $response->ok,
+            'message' => $response->message,
+            'data_type' => $dataType,
+            'data_count' => $dataCount,
+            'raw_preview' => $rawPreview,
+        ]);
     }
 
     public function getVariantsByPid(string $pid): ApiResponse

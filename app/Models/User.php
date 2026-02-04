@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Notifications\AdminResetPasswordNotification;
+use CWSPS154\UsersRolesPermissions\Models\HasRole;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Filament\Support\Concerns\HasMediaFilter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens , Panel\Concerns\HasAvatars;
 
     /**
      * The attributes that are mass assignable.
@@ -28,6 +30,9 @@ class User extends Authenticatable implements FilamentUser
         'two_factor_enabled',
         'two_factor_secret',
         'password',
+        'role_id',
+        'last_seen',
+        'is_active'
     ];
 
     /**
@@ -38,6 +43,7 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
+
     ];
 
     /**
@@ -51,6 +57,9 @@ class User extends Authenticatable implements FilamentUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_enabled' => 'boolean',
+            'last_seen' => 'datetime',
+            'is_active' => 'boolean',
+
         ];
     }
 

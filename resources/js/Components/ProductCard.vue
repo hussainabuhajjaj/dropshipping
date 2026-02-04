@@ -12,7 +12,7 @@
         <span v-if="productPromotion" class="badge-accent absolute right-3 top-3">
           {{ productPromotion.badge_text || productPromotion.name }}
           <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
-          <span v-else-if="productPromotion.value_type === 'fixed'">-{{ productPromotion.value }} {{ currency }}</span>
+          <span v-else-if="productPromotion.value_type === 'fixed'">-{{ promotionFixedDisplay }}</span>
         </span>
         <span v-else-if="hasDiscount" class="badge-accent absolute right-3 top-3">
           {{ t('Save :percent%', { percent: discountPercent }) }}
@@ -105,6 +105,7 @@ import { Link, router, useForm } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { useCurrency } from '@/composables/useCurrency.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -116,6 +117,8 @@ const { t } = useTranslations()
 const wishlisted = ref(Boolean(props.product.is_in_wishlist))
 const wishlistProcessing = ref(false)
 const now = usePromoNow()
+const { selectedCurrency } = useCurrency()
+const displayCurrency = computed(() => selectedCurrency.value || props.currency)
 
 // Promotion logic
 const productPromotion = computed(() => {
@@ -174,11 +177,17 @@ const discountPercent = computed(() => {
   if (!hasDiscount.value) return 0
   return Math.round((1 - displayPrice.value / compareAtForDisplay.value) * 100)
 })
+const promotionFixedDisplay = computed(() =>
+  formatCurrency(
+    convertCurrency(Number(productPromotion.value?.value ?? 0), 'USD', displayCurrency.value),
+    displayCurrency.value
+  )
+)
 const displayPriceFormatted = computed(() =>
-  formatCurrency(convertCurrency(displayPrice.value, 'USD', props.currency), props.currency)
+  formatCurrency(convertCurrency(displayPrice.value, 'USD', displayCurrency.value), displayCurrency.value)
 )
 const compareAtFormatted = computed(() =>
-  formatCurrency(convertCurrency(compareAtForDisplay.value, 'USD', props.currency), props.currency)
+  formatCurrency(convertCurrency(compareAtForDisplay.value, 'USD', displayCurrency.value), displayCurrency.value)
 )
 const rating = computed(() => props.product.rating ?? null)
 const ratingCount = computed(() => props.product.rating_count ?? null)

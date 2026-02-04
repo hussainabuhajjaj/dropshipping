@@ -147,17 +147,40 @@ class Cart extends Model
         foreach ($items as $item) {
             $variant = $item->variant;
             $product = $item->product;
-            $product_attrs = $product->getOriginal('attributes');
-            if (!isset($variant)) {
-                $meta = $variant->metadata;
-                $unit_weight = 0;
+            $product_attrs = $product?->getOriginal('attributes');
+            if (is_string($product_attrs)) {
+                $product_attrs = json_decode($product_attrs, true);
+            }
+            if (!is_array($product_attrs)) {
+                $product_attrs = [];
+            }
+            $meta = $variant?->metadata ?? [];
+            if (is_string($meta)) {
+                $meta = json_decode($meta, true);
+            }
+            if (!is_array($meta)) {
+                $meta = [];
+            }
+            $unit_weight = 0;
+
+            if (isset($variant)) {
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
-                    $pack_weight = explode('-', $pack_weight);
-                    $unit_weight = $pack_weight[count($pack_weight) - 1];
+                    $pack_weight = explode('-', (string) $pack_weight);
+                    $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
-                        'source' => 'packingWeight',
+                        'source' => 'packingWeight_variant_path',
+                        'weight' => $unit_weight,
+                        'unit' => 'g',
+                    ];
+                } else if (isset($product_attrs['cj_payload']['productWeight'])) {
+                    $weight = $product_attrs['cj_payload']['productWeight'];
+                    $weight = explode('-', (string) $weight);
+                    $unit_weight = $weight[count($weight) - 1] ?? 0;
+                    $weight_breakdown[] = [
+                        'item_id' => $item->id,
+                        'source' => 'productWeight',
                         'weight' => $unit_weight,
                         'unit' => 'g',
                     ];
@@ -171,21 +194,20 @@ class Cart extends Model
                     ];
                 }
             } else {
-
-                if (!isset($product_attrs['cj_payload']['packingWeight'])) {
+                if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
-                    $pack_weight = explode('-', $pack_weight);
-                    $unit_weight = $pack_weight[count($pack_weight) - 1];
+                    $pack_weight = explode('-', (string) $pack_weight);
+                    $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
-                        'source' => 'packingWeight_variant_path',
+                        'source' => 'packingWeight',
                         'weight' => $unit_weight,
                         'unit' => 'g',
                     ];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
-                    $weight = explode('-', $weight);
-                    $unit_weight = $weight[count($weight) - 1];
+                    $weight = explode('-', (string) $weight);
+                    $unit_weight = $weight[count($weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
                         'source' => 'productWeight',
@@ -193,10 +215,9 @@ class Cart extends Model
                         'unit' => 'g',
                     ];
                 }
-
             }
 
-            $total_weight += $unit_weight * $item->quantity;
+            $total_weight += (float) $unit_weight * $item->quantity;
 
         }
         Log::info('Cart weight summary', [
