@@ -20,7 +20,7 @@ class CategoryDetailResource extends JsonResource
             && ! str_starts_with($heroImage, '/storage/')
             && ! str_starts_with($heroImage, 'storage/')
         ) {
-            $heroImage = Storage::url($heroImage);
+            $heroImage = url(Storage::url($heroImage));
         }
 
         return [

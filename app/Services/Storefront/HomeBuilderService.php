@@ -99,6 +99,6 @@ class HomeBuilderService
             return $path;
         }
 
-        return Storage::url($path);
+        return url(Storage::url($path));
     }
 }
