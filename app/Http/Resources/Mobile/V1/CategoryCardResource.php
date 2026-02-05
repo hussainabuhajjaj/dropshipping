@@ -25,7 +25,7 @@ class CategoryCardResource extends \App\Http\Resources\Storefront\CategoryCardRe
         if ($children && $children->count() > 0) {
             $data['children'] = self::collection($children)->toArray($request);
         }
-
+dd($data);
         return $data;
     }
 }

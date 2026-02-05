@@ -60,11 +60,16 @@ class ProductResource extends JsonResource
 
         $translation = $product->translationForLocale($locale);
 
+        $categoryName = $product->category?->name;
+        if ($product->category && method_exists($product->category, 'translatedValue')) {
+            $categoryName = $product->category->translatedValue('name', $locale);
+        }
+
         $data = [
             'id' => $product->id,
             'slug' => $product->slug,
             'name' => $translation?->name ?: $product->name,
-            'category' => $product->category?->name,
+            'category' => $categoryName,
             'category_id' => $product->category_id,
             'description' => $translation?->description ?: $product->description,
             'media' => $media,

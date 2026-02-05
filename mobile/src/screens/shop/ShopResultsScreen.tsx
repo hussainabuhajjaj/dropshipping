@@ -9,9 +9,12 @@ import { theme } from '@/src/theme';
 import { searchRequest } from '@/src/api/search';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 export default function ShopResultsScreen() {
   const { show } = useToast();
+  const { state } = usePreferences();
   const params = useLocalSearchParams();
   const query = typeof params.q === 'string' ? params.q : '';
   const category = typeof params.category === 'string' ? params.category : '';
@@ -110,7 +113,7 @@ export default function ShopResultsScreen() {
           return (
             <ProductCard
               title={item.name}
-              price={`$${item.price.toFixed(2)}`}
+              price={formatCurrency(item.price, item.currency, state.currency)}
               width="48%"
               imageHeight={theme.moderateScale(140)}
               image={item.image ? { uri: item.image } : undefined}

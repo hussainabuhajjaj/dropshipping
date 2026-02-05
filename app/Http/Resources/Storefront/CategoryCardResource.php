@@ -15,10 +15,14 @@ class CategoryCardResource extends JsonResource
         $image = data_get($this->resource, 'image', $heroImageRaw);
         $image = $this->resolveImage($image);
         $heroImage = $this->resolveImage($heroImageRaw);
+        $locale = app()->getLocale();
+        $name = method_exists($this->resource, 'translatedValue')
+            ? $this->resource->translatedValue('name', $locale)
+            : data_get($this->resource, 'name');
 
         return [
             'id' => data_get($this->resource, 'id'),
-            'name' => data_get($this->resource, 'name'),
+            'name' => $name,
             'slug' => data_get($this->resource, 'slug'),
             'count' => (int) (data_get($this->resource, 'count', data_get($this->resource, 'products_count', 0)) ?? 0),
             'image' => $image,

@@ -28,6 +28,8 @@ import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 import { getProductShareUrl } from '@/src/lib/shareLinks';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const materials = ['Cotton', 'Polyester'];
 const detailItems = ['Soft-touch knit', 'Breathable fabric', 'Machine washable'];
@@ -138,6 +140,7 @@ export function ProductDetailScreen({
   const { toggle, contains } = useWishlist();
   const { track } = useRecentlyViewed();
   const { show } = useToast();
+  const { state } = usePreferences();
   const youMayLike: Product[] = related;
   const showExtended = mode === 'full' || mode === 'modal';
   const isModal = mode === 'modal';
@@ -178,6 +181,7 @@ export function ProductDetailScreen({
   );
   const displayPrice = activeVariant?.price ?? product?.price ?? 0;
   const displayCompareAt = activeVariant?.compare_at_price ?? product?.compareAt ?? null;
+  const displayCurrency = activeVariant?.currency ?? product?.currency ?? state.currency;
   const imageSlides = useMemo(() => {
     if (!product) return [];
     const media = product.media && product.media.length > 0 ? product.media : [];
@@ -460,10 +464,12 @@ export function ProductDetailScreen({
           </View>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>${displayPrice.toFixed(2)}</Text>
+            <Text style={styles.price}>{formatCurrency(displayPrice, displayCurrency, state.currency)}</Text>
             {displayCompareAt ? (
               <View style={styles.compareRow}>
-                <Text style={styles.compareAt}>${displayCompareAt.toFixed(2)}</Text>
+                <Text style={styles.compareAt}>
+                  {formatCurrency(displayCompareAt, displayCurrency, state.currency)}
+                </Text>
                 <View style={styles.savePill}>
                   <Text style={styles.saveText}>Save 20%</Text>
                 </View>
