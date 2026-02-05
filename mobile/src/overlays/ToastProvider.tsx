@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { Feather } from '@expo/vector-icons';
 import { PortalContext } from './PortalHost';
 import { theme } from '@/src/theme';

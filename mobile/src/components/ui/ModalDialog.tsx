@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, View, Text, Pressable, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import { Modal, View, Pressable, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { theme } from '@/src/theme';
 
 export default function ModalDialog({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {

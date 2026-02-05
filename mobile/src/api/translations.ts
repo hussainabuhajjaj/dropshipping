@@ -33,3 +33,14 @@ export const fetchTranslations = async (locale?: string): Promise<TranslationPay
   const payload = await apiFetch<ApiEnvelope<TranslationPayload>>(`${mobileApiBaseUrl}/translations${query}`);
   return unwrap(payload);
 };
+
+export const registerMissingTranslations = async (keys: string[]): Promise<void> => {
+  if (!Array.isArray(keys) || keys.length === 0) return;
+  await apiFetch<ApiEnvelope<{ count?: number }>>(`${mobileApiBaseUrl}/translations/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ keys }),
+  });
+};

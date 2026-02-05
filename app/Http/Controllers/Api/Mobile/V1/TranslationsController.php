@@ -30,6 +30,32 @@ class TranslationsController extends ApiController
         ]);
     }
 
+    public function register(Request $request): JsonResponse
+    {
+        $locale = app()->getLocale();
+        $keys = $request->input('keys', []);
+
+        if (! is_array($keys)) {
+            return $this->error('Invalid keys payload.', 422);
+        }
+
+        $uniqueKeys = collect($keys)
+            ->filter(fn ($key) => is_string($key) && trim($key) !== '')
+            ->map(fn ($key) => trim($key))
+            ->unique()
+            ->take(300)
+            ->values();
+
+        foreach ($uniqueKeys as $key) {
+            MobileTranslation::firstOrCreate(
+                ['locale' => $locale, 'key' => $key],
+                ['value' => $key]
+            );
+        }
+
+        return $this->success(['count' => $uniqueKeys->count()]);
+    }
+
     private function loadTranslations(string $locale): array
     {
         $dbTranslations = MobileTranslation::query()

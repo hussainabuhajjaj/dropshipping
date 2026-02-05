@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { theme } from '@/src/theme';
 

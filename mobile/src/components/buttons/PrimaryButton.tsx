@@ -1,4 +1,5 @@
-import { Pressable, StyleProp, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, TextStyle, ViewStyle } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { theme } from '@/src/theme';
 
 type PrimaryButtonProps = {

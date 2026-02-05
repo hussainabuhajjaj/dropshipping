@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { ModalSheet } from './ModalSheet';
 import { theme } from '@/src/theme';

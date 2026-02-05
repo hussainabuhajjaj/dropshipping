@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { IconCircleButton } from '@/src/components/buttons/IconCircleButton';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { AuthBlobBackground } from '@/src/components/auth/AuthBlobBackground';

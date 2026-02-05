@@ -7,8 +7,8 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { LogBox, StyleSheet, Text, View } from 'react-native';
-
+import { LogBox, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { useColorScheme } from '@/components/useColorScheme';
 import { CartProvider } from '@/lib/cartStore';
 import { OrdersProvider } from '@/lib/ordersStore';

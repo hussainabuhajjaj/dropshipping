@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { Dialog } from './Dialog';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { TextButton } from '@/src/components/buttons/TextButton';

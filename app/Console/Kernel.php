@@ -28,6 +28,7 @@ class Kernel extends ConsoleKernel
         CjSyncCatalog::class,
         TranslateProducts::class,
         TranslateCategories::class,
+        \App\Console\Commands\TranslateMobileStrings::class,
         \App\Console\Commands\CjCleanupWebhooks::class,
         \App\Console\Commands\CjRefreshToken::class,
         SyncCjVariants::class,

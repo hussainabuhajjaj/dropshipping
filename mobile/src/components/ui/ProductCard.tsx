@@ -1,4 +1,5 @@
-import { DimensionValue, Image, ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
+import { DimensionValue, Image, ImageSourcePropType, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { theme } from '@/src/theme';

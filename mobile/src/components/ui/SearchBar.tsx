@@ -1,13 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  View,
-  ViewStyle,
-} from 'react-native';
+import { Pressable, StyleSheet, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { theme } from '@/src/theme';
 
 type SearchBarProps = {

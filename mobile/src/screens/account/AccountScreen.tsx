@@ -1,16 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  FlatList,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { CategoryCard } from '@/src/components/ui/CategoryCard';
 import { Chip } from '@/src/components/ui/Chip';
 import { CircleIconButton } from '@/src/components/ui/CircleIconButton';
