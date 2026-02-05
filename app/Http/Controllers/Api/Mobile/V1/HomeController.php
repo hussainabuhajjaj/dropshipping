@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 use App\Http\Resources\Mobile\V1\HomeResource;
 use App\Models\Category;
 use App\Models\HomePageSetting;
+use App\Models\SiteSetting;
 use App\Models\StorefrontBanner;
 use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
@@ -42,7 +43,7 @@ class HomeController extends ApiController
             ->whereHas('products', fn ($q) => $q->where('is_active', true))
             ->orderByDesc('view_count')
             ->orderByDesc('products_count')
-            ->take(8)
+            ->take(10)
             ->get()
             ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder))
             ->values()
@@ -78,6 +79,7 @@ class HomeController extends ApiController
 
         $fullBanners = $this->mapBannerCollection($this->fullBannerModels(), $homeBuilder);
         $popupBanners = $this->mapBannerCollection($this->popupBannerModels(), $homeBuilder);
+        $storefront = $this->mapStorefrontSettings($homeBuilder);
 
         return $this->success(new HomeResource([
             'currency' => $currency,
@@ -97,6 +99,7 @@ class HomeController extends ApiController
                 'popup' => $popupBanners,
             ],
             'newsletterPopup' => $this->mapNewsletterPopup($homeBuilder),
+            'storefront' => $storefront,
         ]));
     }
 
@@ -381,6 +384,29 @@ class HomeController extends ApiController
             return $homeBuilder->normalizeImage($banner->category->hero_image ?? null);
         }
 
+        return null;
+    }
+
+    private function mapStorefrontSettings(HomeBuilderService $homeBuilder): array
+    {
+        $storefront = StorefrontSetting::query()->latest()->first();
+        $site = SiteSetting::query()->latest()->first();
+
+        return [
+            'brandName' => $storefront?->brand_name ?? $site?->site_name ?? config('app.name', 'Store'),
+            'logo' => $this->resolveLogoPath($site, $homeBuilder),
+        ];
+    }
+
+    private function resolveLogoPath(?SiteSetting $site, HomeBuilderService $homeBuilder): ?string
+    {
+        $logo = $site?->logo_path ?? null;
+        if (is_array($logo)) {
+            $logo = $logo['path'] ?? $logo['url'] ?? $logo[0] ?? null;
+        }
+        if (is_string($logo) && $logo !== '') {
+            return $homeBuilder->normalizeImage($logo);
+        }
         return null;
     }
 

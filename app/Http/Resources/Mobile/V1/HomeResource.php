@@ -26,6 +26,7 @@ class HomeResource extends JsonResource
             'seasonalDrops' => $this->resource['seasonalDrops'] ?? [],
             'banners' => $this->resource['banners'] ?? [],
             'newsletterPopup' => $this->resource['newsletterPopup'] ?? null,
+            'storefront' => $this->resource['storefront'] ?? null,
         ];
     }
 }

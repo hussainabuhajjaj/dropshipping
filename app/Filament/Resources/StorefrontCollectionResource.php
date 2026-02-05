@@ -9,14 +9,15 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\StorefrontCollection;
 use BackedEnum;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
+
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
 

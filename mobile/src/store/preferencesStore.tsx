@@ -80,7 +80,7 @@ const PreferencesContext = createContext<{
   setCountry: (value: string) => void;
   setCurrency: (value: string) => void;
   setSize: (value: string) => void;
-  setLanguage: (value: string) => void;
+  setLanguage: (value: string) => Promise<{ ok: boolean; message?: string }>;
   setShippingAddress: (value: Partial<ShippingAddress>) => void;
   setNotification: (key: 'push' | 'email' | 'sms', value: boolean) => void;
   refresh: () => Promise<void>;
@@ -189,14 +189,18 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
   const value = useMemo(
     () => {
       const applyUpdate = async (next: Partial<ApiPreferences>) => {
-        if (status !== 'authed') return;
+        if (status !== 'authed') {
+          return { ok: true as const };
+        }
         try {
           dispatch({ type: 'setLoading', value: true });
           const updated = await updatePreferences(next);
           dispatch({ type: 'setFromApi', value: updated });
           dispatch({ type: 'setError', value: null });
+          return { ok: true as const };
         } catch (err: any) {
           dispatch({ type: 'setError', value: err?.message ?? 'Unable to update preferences.' });
+          return { ok: false as const, message: err?.message ?? 'Unable to update preferences.' };
         } finally {
           dispatch({ type: 'setLoading', value: false });
         }
@@ -221,11 +225,11 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
           applyUpdate({ size: value });
         },
         setLanguage: (value: string) => {
-          if (value === state.language) return;
+          if (value === state.language) return Promise.resolve({ ok: true });
           dispatch({ type: 'setLanguage', value });
           dispatch({ type: 'setLanguageSource', value: 'user' });
           setApiLocale(value);
-          applyUpdate({ language: value });
+          return applyUpdate({ language: value });
         },
         setShippingAddress: (value: Partial<ShippingAddress>) =>
           dispatch({ type: 'setShippingAddress', value }),
