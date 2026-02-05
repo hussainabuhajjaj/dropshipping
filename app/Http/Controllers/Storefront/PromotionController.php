@@ -128,7 +128,7 @@ class PromotionController extends Controller
             ->map(function (Category $category) use ($locale) {
                 $image = $category->hero_image;
                 if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
-                    $image = Storage::url($image);
+                    $image = url(Storage::url($image));
                 }
 
                 return [

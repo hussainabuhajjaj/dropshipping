@@ -107,6 +107,7 @@ class HomeController extends Controller
             'slug' => $category->slug,
             'count' => $category->products_count ?? 0,
             'image' => $image,
+            'heroImage' => $image,
             'accent' => $this->accentForIndex($category->id ?: $index),
         ];
     }
