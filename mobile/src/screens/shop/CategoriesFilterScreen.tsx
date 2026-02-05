@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { router } from 'expo-router';
 import { CategorySearchBar } from '@/src/components/ui/CategorySearchBar';
 import { Skeleton } from '@/src/components/ui/Skeleton';

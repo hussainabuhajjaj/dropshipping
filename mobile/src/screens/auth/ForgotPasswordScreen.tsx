@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { router } from 'expo-router';
 import { AuthScreen } from '@/src/components/auth/AuthScreen';
 import { AvatarBadge } from '@/src/components/auth/AvatarBadge';

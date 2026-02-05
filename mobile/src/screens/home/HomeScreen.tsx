@@ -3,18 +3,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  FlatList,
-  Image,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { FlatList, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { CategoryCard } from '@/src/components/ui/CategoryCard';
 import { PopularCard } from '@/src/components/ui/PopularCard';
 import { ProductCard } from '@/src/components/ui/ProductCard';

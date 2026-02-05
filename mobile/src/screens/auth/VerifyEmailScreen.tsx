@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { useLocalSearchParams, router } from 'expo-router';
 import { AuthScreen } from '@/src/components/auth/AuthScreen';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';

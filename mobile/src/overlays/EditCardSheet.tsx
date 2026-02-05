@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { useEffect, useState } from 'react';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { ModalSheet } from './ModalSheet';

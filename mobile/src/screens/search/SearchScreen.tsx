@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { CircleIconButton } from '@/src/components/ui/CircleIconButton';
 import { Chip } from '@/src/components/ui/Chip';
 import { ProductCard } from '@/src/components/ui/ProductCard';

@@ -1,5 +1,6 @@
 import { FontAwesome } from '@expo/vector-icons';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { router } from 'expo-router';
 import { useCart } from '@/lib/cartStore';
 import { useWishlist } from '@/lib/wishlistStore';
