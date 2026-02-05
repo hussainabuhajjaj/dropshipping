@@ -15,6 +15,7 @@ import { useWishlist } from '@/lib/wishlistStore';
 import { useOrders } from '@/lib/ordersStore';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
 import { useAddresses } from '@/lib/addressesStore';
+import { useTranslations } from '@/src/i18n/TranslationsProvider';
 
 type RowItem = {
   label: string;
@@ -23,33 +24,34 @@ type RowItem = {
   danger?: boolean;
 };
 
-const personalItems: RowItem[] = [
-  { label: 'Profile', onPress: () => router.push('/settings/profile') },
-  { label: 'Shipping Address', onPress: () => router.push('/shipping') },
-  { label: 'Payment methods', onPress: () => router.push('/settings/payments') },
-];
-
-const shopItems: RowItem[] = [
-  { label: 'Country', value: 'Vietnam', onPress: () => router.push('/preferences/country') },
-  { label: 'Currency', value: '$ USD', onPress: () => router.push('/preferences/currency') },
-  { label: 'Sizes', value: 'UK', onPress: () => router.push('/preferences/sizes') },
-  { label: 'Terms & Privacy', onPress: () => router.push('/legal/terms') },
-];
-
-const accountItems: RowItem[] = [
-  { label: 'Language', value: 'English', onPress: () => router.push('/preferences/language') },
-  { label: 'About Simbazu', onPress: () => router.push('/about') },
-];
-
 export default function SettingsScreen() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { state } = usePreferences();
   const { status, logout } = useAuth();
+  const { t } = useTranslations();
   const cart = useCart();
   const wishlist = useWishlist();
   const orders = useOrders();
   const paymentMethods = usePaymentMethods();
   const addresses = useAddresses();
+
+  const personalItems: RowItem[] = [
+    { label: t('Profile', 'Profile'), onPress: () => router.push('/settings/profile') },
+    { label: t('Shipping Address', 'Shipping Address'), onPress: () => router.push('/shipping') },
+    { label: t('Payment methods', 'Payment methods'), onPress: () => router.push('/settings/payments') },
+  ];
+
+  const shopItems: RowItem[] = [
+    { label: t('Country', 'Country'), value: 'Vietnam', onPress: () => router.push('/preferences/country') },
+    { label: t('Currency', 'Currency'), value: '$ USD', onPress: () => router.push('/preferences/currency') },
+    { label: t('Sizes', 'Sizes'), value: 'UK', onPress: () => router.push('/preferences/sizes') },
+    { label: t('Terms & Privacy', 'Terms & Privacy'), onPress: () => router.push('/legal/terms') },
+  ];
+
+  const accountItems: RowItem[] = [
+    { label: t('Language', 'Language'), value: state.language, onPress: () => router.push('/preferences/language') },
+    { label: t('About Simbazu', 'About Simbazu'), onPress: () => router.push('/about') },
+  ];
 
   const [busy, setBusy] = useState(false);
   const [deleteResult, setDeleteResult] = useState<null | { ok: boolean; message: string }>(null);
@@ -65,9 +67,9 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t('Settings', 'Settings')}</Text>
 
-        <Text style={styles.sectionTitle}>Personal</Text>
+        <Text style={styles.sectionTitle}>{t('Personal', 'Personal')}</Text>
         <View style={styles.sectionList}>
           {personalItems.map((item) => (
             <Pressable key={item.label} style={styles.row} onPress={item.onPress}>
@@ -77,17 +79,17 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Shop</Text>
+        <Text style={styles.sectionTitle}>{t('Shop', 'Shop')}</Text>
         <View style={styles.sectionList}>
           {shopItems.map((item) => (
             <Pressable key={item.label} style={styles.row} onPress={item.onPress}>
               <Text style={styles.rowLabel}>{item.label}</Text>
               <View style={styles.rowRight}>
-                {item.label === 'Country' ? (
+                {item.label === t('Country', 'Country') ? (
                   <Text style={styles.rowValue}>{state.country}</Text>
-                ) : item.label === 'Currency' ? (
+                ) : item.label === t('Currency', 'Currency') ? (
                   <Text style={styles.rowValue}>{state.currency}</Text>
-                ) : item.label === 'Sizes' ? (
+                ) : item.label === t('Sizes', 'Sizes') ? (
                   <Text style={styles.rowValue}>{state.size}</Text>
                 ) : item.value ? (
                   <Text style={styles.rowValue}>{item.value}</Text>
@@ -98,17 +100,13 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.sectionTitle}>{t('Account', 'Account')}</Text>
         <View style={styles.sectionList}>
           {accountItems.map((item) => (
             <Pressable key={item.label} style={styles.row} onPress={item.onPress}>
               <Text style={styles.rowLabel}>{item.label}</Text>
               <View style={styles.rowRight}>
-                {item.label === 'Language' ? (
-                  <Text style={styles.rowValue}>{state.language}</Text>
-                ) : item.value ? (
-                  <Text style={styles.rowValue}>{item.value}</Text>
-                ) : null}
+                {item.value ? <Text style={styles.rowValue}>{item.value}</Text> : null}
                 <Feather name="chevron-right" size={theme.moderateScale(16)} color={theme.colors.mutedLight} />
               </View>
             </Pressable>
@@ -129,17 +127,19 @@ export default function SettingsScreen() {
               }
             }}
           >
-            <Text style={[styles.rowLabel, styles.logoutText]}>Log out</Text>
+            <Text style={[styles.rowLabel, styles.logoutText]}>{t('Log out', 'Log out')}</Text>
           </Pressable>
         </View>
 
         <Pressable onPress={() => setShowDeleteDialog(true)} style={styles.deleteRow}>
-          <Text style={styles.deleteText}>Delete My Account</Text>
+          <Text style={styles.deleteText}>{t('Delete My Account', 'Delete My Account')}</Text>
         </Pressable>
 
         <View style={styles.footer}>
           <Text style={styles.footerTitle}>Simbazu</Text>
-          <Text style={styles.footerBody}>Version 1.0 April, 2020</Text>
+          <Text style={styles.footerBody}>
+            {t('Version :version', 'Version :version', { version: '1.0 April, 2020' })}
+          </Text>
         </View>
       </View>
 
@@ -159,7 +159,10 @@ export default function SettingsScreen() {
             await logout();
             setDeleteResult({
               ok: false,
-              message: 'You are not signed in. Sign in to delete your account.',
+              message: t(
+                'You are not signed in. Sign in to delete your account.',
+                'You are not signed in. Sign in to delete your account.'
+              ),
             });
             return;
           }
@@ -169,12 +172,21 @@ export default function SettingsScreen() {
             await requestAccountDeletion();
             clearLocalState();
             await logout();
-            setDeleteResult({ ok: true, message: 'Your account deletion request was submitted.' });
+            setDeleteResult({
+              ok: true,
+              message: t(
+                'Your account deletion request was submitted.',
+                'Your account deletion request was submitted.'
+              ),
+            });
             router.replace('/(tabs)/home');
           } catch (e) {
             setDeleteResult({
               ok: false,
-              message: 'Unable to delete your account right now. Please try again later.',
+              message: t(
+                'Unable to delete your account right now. Please try again later.',
+                'Unable to delete your account right now. Please try again later.'
+              ),
             });
           } finally {
             setBusy(false);
@@ -185,9 +197,9 @@ export default function SettingsScreen() {
       <StatusDialog
         visible={busy}
         variant="loading"
-        title="Deleting account"
-        message="Please wait while we submit your request."
-        primaryLabel="Hide"
+        title={t('Deleting account', 'Deleting account')}
+        message={t('Please wait while we submit your request.', 'Please wait while we submit your request.')}
+        primaryLabel={t('Hide', 'Hide')}
         onPrimary={() => setBusy(false)}
         onClose={() => setBusy(false)}
       />
@@ -195,9 +207,9 @@ export default function SettingsScreen() {
       <StatusDialog
         visible={deleteResult?.ok === true}
         variant="success"
-        title="Request submitted"
+        title={t('Request submitted', 'Request submitted')}
         message={deleteResult?.message ?? ''}
-        primaryLabel="OK"
+        primaryLabel={t('OK', 'OK')}
         onPrimary={() => setDeleteResult(null)}
         onClose={() => setDeleteResult(null)}
       />
@@ -205,9 +217,9 @@ export default function SettingsScreen() {
       <StatusDialog
         visible={deleteResult?.ok === false}
         variant="error"
-        title="Couldn't delete account"
+        title={t("Couldn't delete account", "Couldn't delete account")}
         message={deleteResult?.message ?? ''}
-        primaryLabel="OK"
+        primaryLabel={t('OK', 'OK')}
         onPrimary={() => setDeleteResult(null)}
         onClose={() => setDeleteResult(null)}
       />

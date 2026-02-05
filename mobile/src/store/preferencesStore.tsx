@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
+import * as Localization from 'expo-localization';
 import { loadPersisted, savePersisted } from './persist';
 import { fetchPreferences, fetchPreferencesLookups, updatePreferences } from '@/src/api/preferences';
 import { setApiCurrency, normalizeCurrency } from '@/src/api/currency';
+import { setApiLocale } from '@/src/api/locale';
 import type { PreferencesLookups, Preferences as ApiPreferences } from '@/src/types/preferences';
 import { useAuth } from '@/lib/authStore';
 
@@ -126,6 +128,11 @@ const reducer = (state: PreferencesState, action: PreferencesAction): Preference
 
 const getDeviceLanguageCode = (): string => {
   try {
+    const locales = Localization.getLocales?.() ?? [];
+    const expoLocale = locales[0]?.languageCode ?? locales[0]?.languageTag;
+    if (expoLocale) {
+      return String(expoLocale).split('-')[0].toLowerCase();
+    }
     const locale =
       (globalThis as any)?.navigator?.language ||
       (globalThis as any)?.Intl?.DateTimeFormat?.().resolvedOptions?.().locale ||
@@ -148,6 +155,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       dispatch({ type: 'setSize', value: data.size });
       dispatch({ type: 'setLanguage', value: data.language });
       setApiCurrency(normalizeCurrency(data.currency));
+      setApiLocale(data.language);
       dispatch({
         type: 'setLanguageSource',
         value: (data as any).languageSource === 'user' ? 'user' : 'device',
@@ -216,6 +224,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
           if (value === state.language) return;
           dispatch({ type: 'setLanguage', value });
           dispatch({ type: 'setLanguageSource', value: 'user' });
+          setApiLocale(value);
           applyUpdate({ language: value });
         },
         setShippingAddress: (value: Partial<ShippingAddress>) =>
@@ -273,6 +282,10 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       active = false;
     };
   }, [status]);
+
+  useEffect(() => {
+    setApiLocale(state.language);
+  }, [state.language]);
 
   useEffect(() => {
     if (!hydrated) return;

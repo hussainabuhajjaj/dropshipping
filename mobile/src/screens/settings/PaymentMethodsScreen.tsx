@@ -9,6 +9,8 @@ import { theme } from '@/src/theme';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
 import { useOrders } from '@/lib/ordersStore';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const accentCycle = [theme.colors.primary, theme.colors.pink, theme.colors.sun];
 
@@ -16,11 +18,12 @@ export default function PaymentMethodsScreen() {
   const [addVisible, setAddVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { state } = usePreferences();
   const { cards } = usePaymentMethods();
   const { orders, loading, error } = useOrders();
   const transactions = orders.slice(0, 6).map((order, index) => ({
     id: `t-${order.number}`,
-    total: `-$${order.total.toFixed(2)}`,
+    total: `-${formatCurrency(order.total, state.currency, state.currency)}`,
     accent: accentCycle[index % accentCycle.length],
     number: order.number,
     date: order.placedAt ?? '—',

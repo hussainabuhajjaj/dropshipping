@@ -13,11 +13,14 @@ import { useToast } from '@/src/overlays/ToastProvider';
 import type { Category, Product } from '@/src/types/storefront';
 import { addSearchHistory, clearSearchHistory, loadSearchHistory } from '@/src/lib/searchHistory';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const fallbackRecommendations: string[] = [];
 
 export default function SearchScreen() {
   const { show } = useToast();
+  const { state } = usePreferences();
   const [discoverItems, setDiscoverItems] = useState<Product[]>([]);
   const [loadingDiscover, setLoadingDiscover] = useState(true);
   const [query, setQuery] = useState('');
@@ -219,7 +222,7 @@ export default function SearchScreen() {
               renderItem={({ item }) => (
                 <ProductCard
                   title={item.name}
-                  price={`$${item.price.toFixed(2)}`}
+                  price={formatCurrency(item.price, item.currency, state.currency)}
                   width={theme.moderateScale(140)}
                   imageHeight={theme.moderateScale(120)}
                   image={item.image ? { uri: item.image } : undefined}
@@ -259,7 +262,7 @@ export default function SearchScreen() {
             return (
               <ProductCard
                 title={item.name}
-                price={`$${item.price.toFixed(2)}`}
+                price={formatCurrency(item.price, item.currency, state.currency)}
                 width={theme.moderateScale(140)}
                 imageHeight={theme.moderateScale(120)}
                 image={item.image ? { uri: item.image } : undefined}

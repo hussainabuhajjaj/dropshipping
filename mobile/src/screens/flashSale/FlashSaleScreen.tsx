@@ -11,6 +11,8 @@ import { theme } from '@/src/theme';
 import { fetchProducts } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const discounts = ['All', '10%', '20%', '30%', '40%', '50%'];
 const mostPopular = [
@@ -22,6 +24,7 @@ const mostPopular = [
 
 export default function FlashSaleScreen() {
   const { show } = useToast();
+  const { state } = usePreferences();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const listItems = useMemo(() => {
@@ -116,8 +119,12 @@ export default function FlashSaleScreen() {
           return (
             <ProductCard
               title={item.name}
-              price={`$${item.price.toFixed(2)}`}
-              oldPrice={hasCompare ? `$${(item.compareAt as number).toFixed(2)}` : undefined}
+              price={formatCurrency(item.price, item.currency, state.currency)}
+              oldPrice={
+                hasCompare
+                  ? formatCurrency(item.compareAt as number, item.currency, state.currency)
+                  : undefined
+              }
               badge={discount ? `-${discount}%` : item.badge ?? undefined}
               width="48%"
               imageHeight={theme.moderateScale(150)}
