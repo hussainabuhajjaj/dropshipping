@@ -87,6 +87,7 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
+    Route::post('translations/register', [MobileTranslationsController::class, 'register']);
     Route::get('orders/track', [MobileOrderController::class, 'track']);
     Route::get('preferences/lookups', [MobilePreferencesController::class, 'lookups']);
     Route::post('newsletter/subscribe', [MobileNewsletterController::class, 'subscribe']);

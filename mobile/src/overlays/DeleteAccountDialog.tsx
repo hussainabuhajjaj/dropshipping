@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { PrimaryButton } from '@/src/components/buttons/PrimaryButton';
 import { TextButton } from '@/src/components/buttons/TextButton';
 import { Dialog } from './Dialog';

@@ -16,9 +16,14 @@ class ApiSetLocale
         $supported = array_filter(array_map('trim', (array) config('services.translation_locales', ['en', 'fr'])));
         $supported = $supported ?: ['en', 'fr'];
 
+        $explicitLocale = $request->header('X-Locale')
+            ?? $request->query('locale')
+            ?? $request->input('locale');
+        $explicitLocale = is_string($explicitLocale) ? strtolower(substr($explicitLocale, 0, 2)) : null;
+
         $headerLocale = $this->resolveFromHeader($request->header('Accept-Language', ''), $supported);
 
-        $locale = $headerLocale;
+        $locale = $explicitLocale ?: $headerLocale;
 
         if (! in_array($locale, $supported, true)) {
             $locale = config('app.locale', 'en');

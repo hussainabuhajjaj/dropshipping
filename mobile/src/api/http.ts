@@ -18,6 +18,7 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     Accept: 'application/json',
     ...(currency ? { 'X-Currency': currency } : {}),
     ...(locale ? { 'Accept-Language': locale } : {}),
+    ...(locale ? { 'X-Locale': locale } : {}),
     ...(init?.headers as Record<string, string> | undefined),
   };
 

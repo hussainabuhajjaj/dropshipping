@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '@/src/theme';
 

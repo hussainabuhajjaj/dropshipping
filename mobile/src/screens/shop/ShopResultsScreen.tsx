@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { CircleIconButton } from '@/src/components/ui/CircleIconButton';
 import { ProductCard } from '@/src/components/ui/ProductCard';
 import { SearchBar } from '@/src/components/ui/SearchBar';

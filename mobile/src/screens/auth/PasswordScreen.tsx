@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/i18n/Text';
 import { router, useLocalSearchParams } from 'expo-router';
 import { PasswordEntry } from './PasswordEntry';
 import { routes } from '@/src/navigation/routes';
