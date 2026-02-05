@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feather } from '@expo/vector-icons';
-import { router, useLocalSearchParams, usePathname } from 'expo-router';
+import { router, Stack, useLocalSearchParams, usePathname } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from '@/src/utils/responsiveStyleSheet';
 import { ProductFilterChips } from '@/src/components/products/ProductFilterChips';
 import { ProductTile } from '@/src/components/products/ProductTile';
@@ -9,6 +9,7 @@ import type { Product } from '@/src/types/storefront';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { theme } from '@/src/theme';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { useTranslations } from '@/src/i18n/TranslationsProvider';
 
 type ProductsScreenProps = {
   filterRoute?: string;
@@ -22,7 +23,8 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   const maxPriceParam = typeof params.max_price === 'string' ? Number(params.max_price) : undefined;
   const sortParam = typeof params.sort === 'string' ? params.sort : '';
   const pathname = usePathname();
-  const [chip, setChip] = useState('Trending');
+  const { t } = useTranslations();
+  const [chip, setChip] = useState('trending');
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   );
   const listData = loading ? skeletonItems : items;
   const displayCategory = useMemo(() => {
-    if (!category) return 'All products';
+    if (!category) return t('All products', 'All products');
     if (category.includes('-') || category.includes('_')) {
       return category
         .replace(/[-_]+/g, ' ')
@@ -50,19 +52,29 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
         .replace(/\b\w/g, (char) => char.toUpperCase());
     }
     return category;
-  }, [category]);
+  }, [category, t]);
+
+  const chipOptions = useMemo(
+    () => [
+      { key: 'trending', label: t('Trending', 'Trending') },
+      { key: 'new', label: t('New', 'New') },
+      { key: 'sale', label: t('Sale', 'Sale') },
+      { key: 'top_rated', label: t('Top Rated', 'Top Rated') },
+    ],
+    [t]
+  );
 
   const chipToSort: Record<string, string> = {
-    Trending: 'popular',
-    New: 'newest',
-    Sale: 'price_desc',
-    'Top Rated': 'rating',
+    trending: 'popular',
+    new: 'newest',
+    sale: 'price_desc',
+    top_rated: 'rating',
   };
   const sortToChip: Record<string, string> = {
-    popular: 'Trending',
-    newest: 'New',
-    price_desc: 'Sale',
-    rating: 'Top Rated',
+    popular: 'trending',
+    newest: 'new',
+    price_desc: 'sale',
+    rating: 'top_rated',
   };
 
   useEffect(() => {
@@ -117,6 +129,7 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View>
+            <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.headerRow}>
               <Pressable style={styles.iconButton} onPress={() => router.back()}>
                 <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -141,10 +154,15 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
                 <Feather name="sliders" size={16} color={theme.colors.inkDark} />
               </Pressable>
             </View>
-            <Text style={styles.subtitle}>{query ? `Results for "${query}"` : 'Fresh picks updated daily.'}</Text>
+            <Text style={styles.subtitle}>
+              {query
+                ? `${t('Results for', 'Results for')} "${query}"`
+                : t('Fresh picks updated daily.', 'Fresh picks updated daily.')}
+            </Text>
             <View style={styles.chips}>
               <ProductFilterChips
                 active={chip}
+                options={chipOptions}
                 onSelect={(value) => {
                   setChip(value);
                   const sort = chipToSort[value] ?? 'popular';
@@ -163,9 +181,15 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
             </View>
             {items.length === 0 && !loading ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>{error ? 'Unable to load products' : 'No products found'}</Text>
+                <Text style={styles.emptyTitle}>
+                  {error
+                    ? t('Unable to load products', 'Unable to load products')
+                    : t('No products found', 'No products found')}
+                </Text>
                 <Text style={styles.emptyBody}>
-                  {error ? 'Please check your connection and try again.' : 'Try adjusting filters or search for a new term.'}
+                  {error
+                    ? t('Please check your connection and try again.', 'Please check your connection and try again.')
+                    : t('Try adjusting filters or search for a new term.', 'Try adjusting filters or search for a new term.')}
                 </Text>
               </View>
             ) : null}
