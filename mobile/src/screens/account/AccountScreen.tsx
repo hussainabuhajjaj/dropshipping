@@ -411,7 +411,8 @@ export default function AccountScreen() {
             <CategoryCard
               loading={'skeleton' in item ? true : loadingHome}
               label={'skeleton' in item ? '' : item.name}
-              count={'skeleton' in item ? 0 : item.count}
+              count={'skeleton' in item ? 0 : item.product_count ?? item.count}
+              previews={'skeleton' in item ? [] : item.subcategory_previews}
               width={gridItemWidth}
               onPress={
                 'skeleton' in item || loadingHome

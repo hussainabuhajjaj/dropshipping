@@ -12,12 +12,15 @@ use App\Models\StorefrontBanner;
 use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
 use App\Models\StorefrontSetting;
+use App\Models\Product;
+use App\Domain\Products\Models\ProductImage;
 use App\Services\Currency\CurrencyConversionService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class HomeController extends ApiController
 {
@@ -35,19 +38,7 @@ class HomeController extends ApiController
         $bestSellers = $sections['bestSellers'];
         $recommended = $sections['recommended'];
 
-        $categories = Category::query()
-            ->withCount(['products as products_count' => fn ($q) => $q->where('is_active', true)])
-            ->with(['translations' => fn ($q) => $q->where('locale', app()->getLocale())])
-            ->whereNull('parent_id')
-            ->where('is_active', true)
-            ->whereHas('products', fn ($q) => $q->where('is_active', true))
-            ->orderByDesc('view_count')
-            ->orderByDesc('products_count')
-            ->take(10)
-            ->get()
-            ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder))
-            ->values()
-            ->all();
+        $categories = $this->buildCategoryCards($homeBuilder);
 
         $homeContent = HomePageSetting::query()->latest()->first();
         $campaignPlacements = app(CampaignPlacementService::class);
@@ -103,7 +94,99 @@ class HomeController extends ApiController
         ]));
     }
 
-    private function mapCategoryCard(Category $category, int $index, HomeBuilderService $homeBuilder): array
+    private function buildCategoryCards(HomeBuilderService $homeBuilder): array
+    {
+        $locale = app()->getLocale();
+
+        return Cache::remember("home:categories:{$locale}", now()->addMinutes(10), function () use ($homeBuilder, $locale) {
+            $childIdsSubquery = Category::query()
+                ->select('id')
+                ->whereColumn('parent_id', 'categories.id');
+
+            $productsCountSubquery = Product::query()
+                ->selectRaw('COUNT(*)')
+                ->where('is_active', true)
+                ->where(function ($query) use ($childIdsSubquery) {
+                    $query->whereColumn('category_id', 'categories.id')
+                        ->orWhereIn('category_id', $childIdsSubquery);
+                });
+
+            $parents = Category::query()
+                ->select('categories.*')
+                ->addSelect(['products_count' => $productsCountSubquery])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+                ->whereNull('parent_id')
+                ->where('is_active', true)
+                ->having('products_count', '>', 0)
+                ->orderByDesc('products_count')
+                ->orderByDesc('updated_at')
+                ->take(10)
+                ->get();
+
+            if ($parents->isEmpty()) {
+                return [];
+            }
+
+            $children = Category::query()
+                ->whereIn('parent_id', $parents->pluck('id'))
+                ->where('is_active', true)
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+                ->orderByDesc('view_count')
+                ->orderByDesc('updated_at')
+                ->get()
+                ->groupBy('parent_id');
+
+            $childIds = $children->flatten()->pluck('id')->unique();
+            $latestProductIdsByCategory = $childIds->isEmpty()
+                ? collect()
+                : Product::query()
+                    ->whereIn('category_id', $childIds)
+                    ->where('is_active', true)
+                    ->selectRaw('MAX(id) as id, category_id')
+                    ->groupBy('category_id')
+                    ->pluck('id', 'category_id');
+
+            $productImages = $latestProductIdsByCategory->isEmpty()
+                ? collect()
+                : ProductImage::query()
+                    ->whereIn('product_id', $latestProductIdsByCategory->values())
+                    ->orderBy('position')
+                    ->get()
+                    ->groupBy('product_id');
+
+            $previewLookup = $parents->mapWithKeys(function (Category $parent) use ($children, $homeBuilder, $latestProductIdsByCategory, $productImages, $locale) {
+                $previews = $children->get($parent->id, collect())
+                    ->take(4)
+                    ->map(function (Category $child) use ($homeBuilder, $latestProductIdsByCategory, $productImages, $locale) {
+                        $image = $homeBuilder->normalizeImage($child->hero_image);
+                        if (! $image) {
+                            $productId = $latestProductIdsByCategory->get($child->id);
+                            $image = $productId
+                                ? $homeBuilder->normalizeImage(optional($productImages->get($productId))->first()?->url)
+                                : null;
+                        }
+
+                        return [
+                            'id' => $child->id,
+                            'name' => $child->translatedValue('name', $locale),
+                            'slug' => $child->slug,
+                            'image_url' => $image,
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return [$parent->id => $previews];
+            });
+
+            return $parents
+                ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder, $previewLookup->get($category->id, [])))
+                ->values()
+                ->all();
+        });
+    }
+
+    private function mapCategoryCard(Category $category, int $index, HomeBuilderService $homeBuilder, array $subcategoryPreviews = []): array
     {
         $image = $homeBuilder->normalizeImage($category->hero_image);
         $locale = app()->getLocale();
@@ -113,9 +196,11 @@ class HomeController extends ApiController
             'name' => $category->translatedValue('name', $locale),
             'slug' => $category->slug,
             'count' => $category->products_count ?? 0,
+            'product_count' => (int) ($category->products_count ?? 0),
             'image' => $image,
             'heroImage' => $image,
             'accent' => $this->accentForIndex($category->id ?: $index),
+            'subcategory_previews' => $subcategoryPreviews,
         ];
     }
 
