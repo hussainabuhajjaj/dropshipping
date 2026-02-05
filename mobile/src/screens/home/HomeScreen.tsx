@@ -15,7 +15,7 @@ import ModalDialog from '@/src/components/ui/ModalDialog';
 import { RoundedInput } from '@/src/components/auth/RoundedInput';
 import { theme } from '@/src/theme';
 import { fetchCategories, fetchHome } from '@/src/api/catalog';
-import type { Banner, BannerGroups, Category, NewsletterPopup, Product, PromoSlide } from '@/src/types/storefront';
+import type { Banner, BannerGroups, Category, NewsletterPopup, Product, PromoSlide, StorefrontSettings } from '@/src/types/storefront';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { subscribeNewsletter } from '@/src/api/newsletter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,6 +42,7 @@ export default function HomeScreen() {
   const [popupEmail, setPopupEmail] = useState('');
   const [popupSubmitting, setPopupSubmitting] = useState(false);
   const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const [storefront, setStorefront] = useState<StorefrontSettings | null>(null);
   const requestId = useRef(0);
   const popupStorageKey = 'newsletterPopupDismissedAt';
   const gridGap = theme.moderateScale(12);
@@ -110,6 +111,7 @@ export default function HomeScreen() {
       setRecommended(Array.isArray(data.recommended) ? data.recommended : []);
       setBanners(data.banners ?? null);
       setNewsletterPopup(data.newsletterPopup ?? null);
+      setStorefront(data.storefront ?? null);
     } catch (err: any) {
       if (id !== requestId.current) return;
       const message = err?.message ?? 'Unable to load home data.';
@@ -305,7 +307,11 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Shop</Text>
+          {storefront?.logo ? (
+            <Image source={{ uri: storefront.logo }} style={styles.logo} resizeMode="contain" />
+          ) : (
+            <Text style={styles.title}>{storefront?.brandName ?? 'Simbazu'}</Text>
+          )}
           <SearchBar
             placeholder="Search"
             onRightPress={() => router.push('/image-search')}
@@ -687,6 +693,10 @@ const styles = StyleSheet.create({
     fontSize: theme.moderateScale(24),
     fontWeight: '700',
     color: theme.colors.ink,
+  },
+  logo: {
+    width: theme.moderateScale(120),
+    height: theme.moderateScale(36),
   },
   banner: {
     marginBottom: theme.moderateScale(20),

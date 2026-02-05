@@ -107,6 +107,11 @@ export type ValueProp = {
   body: string;
 };
 
+export type StorefrontSettings = {
+  brandName?: string | null;
+  logo?: string | null;
+};
+
 export type HomePayload = {
   currency?: string | null;
   hero: PromoSlide[];
@@ -119,4 +124,5 @@ export type HomePayload = {
   seasonalDrops: Record<string, unknown>[];
   banners?: BannerGroups;
   newsletterPopup?: NewsletterPopup | null;
+  storefront?: StorefrontSettings | null;
 };

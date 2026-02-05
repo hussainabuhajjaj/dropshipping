@@ -6,7 +6,7 @@
     <title>{{ $title ?? config('app.name') }}</title>
     <style>
         img { max-width: 100%; height: auto; display: block; }
-        a { color: #0ea5e9; }
+        a { color: #e9a00e; }
         .prose img { border-radius: 10px; }
     </style>
 </head>

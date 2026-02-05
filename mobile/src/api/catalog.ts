@@ -9,6 +9,7 @@ import type {
   NewsletterPopup,
   Product,
   PromoSlide,
+  StorefrontSettings,
   TopStripItem,
   ValueProp,
 } from '@/src/types/storefront';
@@ -37,6 +38,7 @@ type ApiHome = {
   seasonalDrops?: Array<Record<string, unknown>>;
   banners?: Record<string, unknown>;
   newsletterPopup?: Record<string, unknown> | null;
+  storefront?: Record<string, unknown> | null;
 };
 
 const unwrap = <T>(payload: ApiEnvelope<T>): T => {
@@ -306,6 +308,14 @@ const mapValueProps = (items: Array<Record<string, unknown>>): ValueProp[] => {
   }));
 };
 
+const mapStorefront = (payload?: Record<string, unknown> | null): StorefrontSettings | null => {
+  if (!payload) return null;
+  return {
+    brandName: toStringValue(payload.brandName ?? payload.brand_name, ''),
+    logo: toStringValue(payload.logo ?? payload.logo_url, ''),
+  };
+};
+
 const mapHome = (payload: ApiHome): HomePayload => {
   return {
     currency: typeof payload.currency === 'string' ? payload.currency : null,
@@ -319,6 +329,7 @@ const mapHome = (payload: ApiHome): HomePayload => {
     seasonalDrops: Array.isArray(payload.seasonalDrops) ? payload.seasonalDrops : [],
     banners: mapBannerGroups(payload.banners),
     newsletterPopup: mapNewsletterPopup(payload.newsletterPopup),
+    storefront: mapStorefront(payload.storefront),
   };
 };
 

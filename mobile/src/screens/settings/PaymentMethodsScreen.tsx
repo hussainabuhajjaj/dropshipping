@@ -12,6 +12,7 @@ import { useOrders } from '@/lib/ordersStore';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
+import { useTranslations } from '@/src/i18n/TranslationsProvider';
 
 const accentCycle = [theme.colors.primary, theme.colors.pink, theme.colors.sun];
 
@@ -20,6 +21,7 @@ export default function PaymentMethodsScreen() {
   const [editVisible, setEditVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const { state } = usePreferences();
+  const { t } = useTranslations();
   const { cards } = usePaymentMethods();
   const { orders, loading, error } = useOrders();
   const transactions = orders.slice(0, 6).map((order, index) => ({
@@ -37,8 +39,8 @@ export default function PaymentMethodsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Payment Methods</Text>
+        <Text style={styles.title}>{t('Settings', 'Settings')}</Text>
+        <Text style={styles.subtitle}>{t('Payment methods', 'Payment methods')}</Text>
 
         <View style={styles.cardRow}>
           <FlatList
