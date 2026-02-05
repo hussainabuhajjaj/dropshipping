@@ -5,15 +5,17 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/respo
 import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
+import { useTranslations } from '@/src/i18n/TranslationsProvider';
 
 export default function SettingsFullScreen() {
   const { state, setNotification } = usePreferences();
   const [notice, setNotice] = useState(false);
+  const { t } = useTranslations();
 
   const toggles = [
-    { id: 'push' as const, label: 'Push notifications', active: state.notifications.push },
-    { id: 'email' as const, label: 'Email updates', active: state.notifications.email },
-    { id: 'sms' as const, label: 'SMS alerts', active: state.notifications.sms },
+    { id: 'push' as const, label: t('Push notifications', 'Push notifications'), active: state.notifications.push },
+    { id: 'email' as const, label: t('Email updates', 'Email updates'), active: state.notifications.email },
+    { id: 'sms' as const, label: t('SMS alerts', 'SMS alerts'), active: state.notifications.sms },
   ];
 
   return (
@@ -29,7 +31,7 @@ export default function SettingsFullScreen() {
           >
             <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-          <Text style={styles.title}>Preferences</Text>
+          <Text style={styles.title}>{t('Preferences', 'Preferences')}</Text>
           <Pressable
             style={styles.iconButton}
             onPress={() => router.push('/(tabs)/home')}
@@ -71,7 +73,7 @@ export default function SettingsFullScreen() {
           accessibilityRole="button"
           accessibilityLabel="Save preferences"
         >
-          <Text style={styles.primaryText}>Save</Text>
+          <Text style={styles.primaryText}>{t('Save', 'Save')}</Text>
         </Pressable>
       </ScrollView>
 
