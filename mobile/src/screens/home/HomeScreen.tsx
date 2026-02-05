@@ -30,10 +30,13 @@ import { useToast } from '@/src/overlays/ToastProvider';
 import { subscribeNewsletter } from '@/src/api/newsletter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const { show } = useToast();
+  const { state } = usePreferences();
   const [loading, setLoading] = useState(true);
   const [heroSlide, setHeroSlide] = useState<PromoSlide | null>(null);
   const [heroSlides, setHeroSlides] = useState<PromoSlide[]>([]);
@@ -230,17 +233,8 @@ export default function HomeScreen() {
     }
   };
 
-  const formatPrice = (value: number, currency?: string | null) => {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency || 'USD',
-        maximumFractionDigits: 2,
-      }).format(value);
-    } catch {
-      return `$${value.toFixed(2)}`;
-    }
-  };
+  const formatPrice = (value: number, currency?: string | null) =>
+    formatCurrency(value, currency, state.currency);
 
   const topProducts = useMemo(
     () =>

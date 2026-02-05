@@ -12,6 +12,27 @@ class CategoryDetailResource extends JsonResource
     public function toArray(Request $request): array
     {
         $heroImage = data_get($this->resource, 'hero_image');
+        $locale = app()->getLocale();
+        $hasTranslations = method_exists($this->resource, 'translatedValue');
+        $name = $hasTranslations ? $this->resource->translatedValue('name', $locale) : data_get($this->resource, 'name');
+        $description = $hasTranslations
+            ? $this->resource->translatedValue('description', $locale)
+            : data_get($this->resource, 'description');
+        $heroTitle = $hasTranslations
+            ? $this->resource->translatedValue('hero_title', $locale)
+            : data_get($this->resource, 'hero_title');
+        $heroSubtitle = $hasTranslations
+            ? $this->resource->translatedValue('hero_subtitle', $locale)
+            : data_get($this->resource, 'hero_subtitle');
+        $heroCtaLabel = $hasTranslations
+            ? $this->resource->translatedValue('hero_cta_label', $locale)
+            : data_get($this->resource, 'hero_cta_label');
+        $metaTitle = $hasTranslations
+            ? $this->resource->translatedValue('meta_title', $locale)
+            : data_get($this->resource, 'meta_title');
+        $metaDescription = $hasTranslations
+            ? $this->resource->translatedValue('meta_description', $locale)
+            : data_get($this->resource, 'meta_description');
 
         if (
             $heroImage
@@ -25,16 +46,16 @@ class CategoryDetailResource extends JsonResource
 
         return [
             'id' => data_get($this->resource, 'id'),
-            'name' => data_get($this->resource, 'name'),
+            'name' => $name,
             'slug' => data_get($this->resource, 'slug'),
-            'description' => data_get($this->resource, 'description'),
-            'heroTitle' => data_get($this->resource, 'hero_title'),
-            'heroSubtitle' => data_get($this->resource, 'hero_subtitle'),
+            'description' => $description,
+            'heroTitle' => $heroTitle,
+            'heroSubtitle' => $heroSubtitle,
             'heroImage' => $heroImage,
-            'heroCtaLabel' => data_get($this->resource, 'hero_cta_label'),
+            'heroCtaLabel' => $heroCtaLabel,
             'heroCtaLink' => data_get($this->resource, 'hero_cta_link'),
-            'metaTitle' => data_get($this->resource, 'meta_title'),
-            'metaDescription' => data_get($this->resource, 'meta_description'),
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
         ];
     }
 }

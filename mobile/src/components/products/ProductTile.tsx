@@ -7,6 +7,8 @@ import { Skeleton } from '@/src/components/ui/Skeleton';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 type ProductTileProps = {
   product?: Product;
@@ -44,6 +46,7 @@ export function ProductTile({
   const { addItem } = useCart();
   const { toggle, contains } = useWishlist();
   const { show } = useToast();
+  const { state } = usePreferences();
   const wishlistKey = product.id;
   const isWishlisted = contains(wishlistKey);
   const openProduct = onPress ?? (() => router.push(`/products/${product.slug}`));
@@ -90,9 +93,9 @@ export function ProductTile({
           {product.name}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+          <Text style={styles.price}>{formatCurrency(product.price, product.currency, state.currency)}</Text>
           {product.compareAt ? (
-            <Text style={styles.compare}>${product.compareAt.toFixed(2)}</Text>
+            <Text style={styles.compare}>{formatCurrency(product.compareAt, product.currency, state.currency)}</Text>
           ) : null}
         </View>
         <View style={styles.ratingRow}>

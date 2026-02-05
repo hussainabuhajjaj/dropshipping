@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\Mobile\V1\RewardsController as MobileRewardsControl
 use App\Http\Controllers\Api\Mobile\V1\WalletController as MobileWalletController;
 use App\Http\Controllers\Api\Mobile\V1\PreferencesController as MobilePreferencesController;
 use App\Http\Controllers\Api\Mobile\V1\SearchController as MobileSearchController;
+use App\Http\Controllers\Api\Mobile\V1\TranslationsController as MobileTranslationsController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -85,6 +86,7 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('products/{product:slug}', [MobileProductController::class, 'show']);
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
     Route::get('search', [MobileSearchController::class, 'index']);
+    Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::get('orders/track', [MobileOrderController::class, 'track']);
     Route::get('preferences/lookups', [MobilePreferencesController::class, 'lookups']);
     Route::post('newsletter/subscribe', [MobileNewsletterController::class, 'subscribe']);

@@ -18,6 +18,7 @@ import { AddressesProvider } from '@/lib/addressesStore';
 import { WishlistProvider } from '@/lib/wishlistStore';
 import { RecentlyViewedProvider } from '@/lib/recentlyViewedStore';
 import { PreferencesProvider } from '@/src/store/preferencesStore';
+import { TranslationsProvider, useTranslations } from '@/src/i18n/TranslationsProvider';
 import { PortalHost } from '@/src/overlays/PortalHost';
 import { apiBaseUrl } from '@/src/api/config';
 import { requestAppPermissions } from '@/src/lib/permissions';
@@ -40,19 +41,19 @@ const DYNAMIC_TITLE_BY_PARENT: Record<string, string> = {
   legal: 'Legal',
 };
 
-const formatRouteTitle = (routeName: string) => {
+const formatRouteTitle = (routeName: string, t: (key: string, fallback?: string) => string) => {
   const normalized = routeName
     .replace(/\(.*?\)\//g, '')
     .replace(/\/index$/, '')
     .replace(/^index$/, '');
 
   if (!normalized) {
-    return 'Home';
+    return t('Home', 'Home');
   }
 
   const override = ROUTE_TITLE_OVERRIDES[normalized];
   if (override) {
-    return override;
+    return t(override, override);
   }
 
   const parts = normalized.split('/').filter(Boolean);
@@ -60,20 +61,23 @@ const formatRouteTitle = (routeName: string) => {
 
   if (last.startsWith('[') && last.endsWith(']')) {
     const parent = parts[parts.length - 2] ?? '';
-    return DYNAMIC_TITLE_BY_PARENT[parent] ?? 'Details';
+    const fallback = DYNAMIC_TITLE_BY_PARENT[parent] ?? 'Details';
+    return t(fallback, fallback);
   }
 
   const cleaned = last.replace(/-\d+$/, '');
   const segmentOverride = SEGMENT_TITLE_OVERRIDES[cleaned];
   if (segmentOverride) {
-    return segmentOverride;
+    return t(segmentOverride, segmentOverride);
   }
 
-  return cleaned
+  const title = cleaned
     .split('-')
     .filter(Boolean)
     .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
     .join(' ');
+
+  return t(title, title);
 };
 
 export {
@@ -137,34 +141,44 @@ function RootLayoutNav() {
           <ToastProvider>
             <AuthProvider>
               <PreferencesProvider>
-                <CartProvider>
-                  <OrdersProvider>
-                    <PaymentMethodsProvider>
-                      <AddressesProvider>
-                        <WishlistProvider>
-                          <RecentlyViewedProvider>
-                            <Stack
-                              screenOptions={({ route }) => ({
-                                title: formatRouteTitle(route.name),
-                              })}
-                            >
-                              <Stack.Screen name="index" options={{ headerShown: false }} />
-                              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-                            </Stack>
-                            {/* <DebugApiBanner /> */}
-                          </RecentlyViewedProvider>
-                        </WishlistProvider>
-                      </AddressesProvider>
-                    </PaymentMethodsProvider>
-                  </OrdersProvider>
-                </CartProvider>
+                <TranslationsProvider>
+                  <CartProvider>
+                    <OrdersProvider>
+                      <PaymentMethodsProvider>
+                        <AddressesProvider>
+                          <WishlistProvider>
+                            <RecentlyViewedProvider>
+                              <StackWithTranslations />
+                              {/* <DebugApiBanner /> */}
+                            </RecentlyViewedProvider>
+                          </WishlistProvider>
+                        </AddressesProvider>
+                      </PaymentMethodsProvider>
+                    </OrdersProvider>
+                  </CartProvider>
+                </TranslationsProvider>
               </PreferencesProvider>
             </AuthProvider>
           </ToastProvider>
         </PortalHost>
       </ThemeProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function StackWithTranslations() {
+  const { t } = useTranslations();
+
+  return (
+    <Stack
+      screenOptions={({ route }) => ({
+        title: formatRouteTitle(route.name, t),
+      })}
+    >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    </Stack>
   );
 }
 

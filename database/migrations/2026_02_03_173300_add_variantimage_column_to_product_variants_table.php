@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('product_variants', function (Blueprint $table) {
-            $table->string('variant_image')->nullable()->change();
+            $table->string('variant_image')->nullable()->after('compare_at_price');
 
         });
     }

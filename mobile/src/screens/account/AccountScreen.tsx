@@ -28,6 +28,8 @@ import type { HomePayload, Product } from '@/src/types/storefront';
 import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
 import { RefreshControl } from 'react-native';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { formatCurrency } from '@/src/lib/formatCurrency';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const orderTabs = ['To Pay', 'To Receive', 'To Review'];
 const stories = Array.from({ length: 5 }, (_, index) => `story-${index}`);
@@ -49,6 +51,7 @@ const topProductsFallback = [
 export default function AccountScreen() {
   const { width } = useWindowDimensions();
   const { show } = useToast();
+  const { state } = usePreferences();
   const { status, user, updateUser } = useAuth();
   const hasLoadedMe = useRef(false);
   const homeRequestId = useRef(0);
@@ -368,7 +371,7 @@ export default function AccountScreen() {
             return (
               <ProductCard
                 title={item.name}
-                price={`$${item.price.toFixed(2)}`}
+                price={formatCurrency(item.price, item.currency, state.currency)}
                 width={theme.moderateScale(140)}
                 imageHeight={theme.moderateScale(130)}
                 image={item.image ? { uri: item.image } : undefined}
@@ -466,8 +469,12 @@ export default function AccountScreen() {
             return (
               <ProductCard
                 title={item.name}
-                price={`$${item.price.toFixed(2)}`}
-                oldPrice={hasCompare ? `$${(item.compareAt as number).toFixed(2)}` : undefined}
+                price={formatCurrency(item.price, item.currency, state.currency)}
+                oldPrice={
+                  hasCompare
+                    ? formatCurrency(item.compareAt as number, item.currency, state.currency)
+                    : undefined
+                }
                 badge={discount ? `-${discount}%` : item.badge ?? undefined}
                 width={flashItemWidth}
                 imageHeight={theme.moderateScale(90)}
@@ -525,7 +532,7 @@ export default function AccountScreen() {
             return (
               <ProductCard
                 title={item.name}
-                price={`$${item.price.toFixed(2)}`}
+                price={formatCurrency(item.price, item.currency, state.currency)}
                 width={gridItemWidth}
                 imageHeight={theme.moderateScale(160)}
                 image={item.image ? { uri: item.image } : undefined}
