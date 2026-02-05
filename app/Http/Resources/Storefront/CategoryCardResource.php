@@ -11,17 +11,10 @@ class CategoryCardResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $image = data_get($this->resource, 'image', data_get($this->resource, 'hero_image'));
-
-        if (
-            $image
-            && ! str_starts_with($image, 'http://')
-            && ! str_starts_with($image, 'https://')
-            && ! str_starts_with($image, '/storage/')
-            && ! str_starts_with($image, 'storage/')
-        ) {
-            $image = Storage::url($image);
-        }
+        $heroImageRaw = data_get($this->resource, 'hero_image');
+        $image = data_get($this->resource, 'image', $heroImageRaw);
+        $image = $this->resolveImage($image);
+        $heroImage = $this->resolveImage($heroImageRaw);
 
         return [
             'id' => data_get($this->resource, 'id'),
@@ -29,7 +22,23 @@ class CategoryCardResource extends JsonResource
             'slug' => data_get($this->resource, 'slug'),
             'count' => (int) (data_get($this->resource, 'count', data_get($this->resource, 'products_count', 0)) ?? 0),
             'image' => $image,
+            'heroImage' => $heroImage,
             'accent' => data_get($this->resource, 'accent'),
         ];
+    }
+
+    private function resolveImage(?string $image): ?string
+    {
+        if (
+            $image
+            && ! str_starts_with($image, 'http://')
+            && ! str_starts_with($image, 'https://')
+            && ! str_starts_with($image, '/storage/')
+            && ! str_starts_with($image, 'storage/')
+        ) {
+            return url(Storage::url($image));
+        }
+
+        return $image;
     }
 }

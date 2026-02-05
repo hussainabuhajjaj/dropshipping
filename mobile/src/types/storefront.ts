@@ -4,6 +4,13 @@ export type Category = {
   slug?: string;
   count: number;
   image?: string | null;
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroImage?: string | null;
+  heroCtaLabel?: string | null;
+  heroCtaLink?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
   accent?: string | null;
   children?: Category[];
 };

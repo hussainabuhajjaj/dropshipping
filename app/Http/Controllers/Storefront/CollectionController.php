@@ -98,6 +98,6 @@ class CollectionController extends Controller
             return $path;
         }
 
-        return \Storage::url($path);
+        return url(\Storage::url($path));
     }
 }

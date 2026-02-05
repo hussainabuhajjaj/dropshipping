@@ -86,13 +86,65 @@ export const mapCategory = (source: ApiCategory): Category => {
   const children = Array.isArray(source.children)
     ? (source.children as ApiCategory[]).map(mapCategory)
     : [];
+  const heroImage =
+    typeof (source as any).heroImage === 'string'
+      ? (source as any).heroImage
+      : typeof (source as any).hero_image === 'string'
+        ? (source as any).hero_image
+        : null;
+  const heroTitle =
+    typeof (source as any).heroTitle === 'string'
+      ? (source as any).heroTitle
+      : typeof (source as any).hero_title === 'string'
+        ? (source as any).hero_title
+        : null;
+  const heroSubtitle =
+    typeof (source as any).heroSubtitle === 'string'
+      ? (source as any).heroSubtitle
+      : typeof (source as any).hero_subtitle === 'string'
+        ? (source as any).hero_subtitle
+        : null;
+  const heroCtaLabel =
+    typeof (source as any).heroCtaLabel === 'string'
+      ? (source as any).heroCtaLabel
+      : typeof (source as any).hero_cta_label === 'string'
+        ? (source as any).hero_cta_label
+        : null;
+  const heroCtaLink =
+    typeof (source as any).heroCtaLink === 'string'
+      ? (source as any).heroCtaLink
+      : typeof (source as any).hero_cta_link === 'string'
+        ? (source as any).hero_cta_link
+        : null;
+  const metaTitle =
+    typeof (source as any).metaTitle === 'string'
+      ? (source as any).metaTitle
+      : typeof (source as any).meta_title === 'string'
+        ? (source as any).meta_title
+        : null;
+  const metaDescription =
+    typeof (source as any).metaDescription === 'string'
+      ? (source as any).metaDescription
+      : typeof (source as any).meta_description === 'string'
+        ? (source as any).meta_description
+        : null;
 
   return {
     id: toStringValue(source.id),
     name: toStringValue(source.name, 'Category'),
     slug: toStringValue(source.slug),
     count: toNumberValue(source.count ?? source.products_count ?? 0, 0),
-    image: typeof source.image === 'string' ? source.image : null,
+    image:
+      typeof source.image === 'string'
+        ? source.image
+        : heroImage,
+    heroTitle,
+    heroSubtitle,
+    heroImage,
+    heroCtaLabel,
+    heroCtaLink,
+    metaTitle,
+    metaDescription,
     accent: typeof source.accent === 'string' ? source.accent : null,
     children: children.length > 0 ? children : undefined,
   };

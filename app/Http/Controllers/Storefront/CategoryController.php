@@ -82,7 +82,7 @@ class CategoryController extends Controller
 
         $heroImage = $category->hero_image;
         if ($heroImage && !str_starts_with($heroImage, 'http://') && !str_starts_with($heroImage, 'https://')) {
-            $heroImage = Storage::url($heroImage);
+            $heroImage = url(Storage::url($heroImage));
         }
 
         return Inertia::render('Categories/Show', [
