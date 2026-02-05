@@ -3,6 +3,7 @@ export type Category = {
   name: string;
   slug?: string;
   count: number;
+  product_count?: number;
   image?: string | null;
   heroTitle?: string | null;
   heroSubtitle?: string | null;
@@ -13,6 +14,12 @@ export type Category = {
   metaDescription?: string | null;
   accent?: string | null;
   children?: Category[];
+  subcategory_previews?: Array<{
+    id: string;
+    name?: string | null;
+    slug?: string | null;
+    image_url?: string | null;
+  }>;
 };
 
 export type ProductVariant = {

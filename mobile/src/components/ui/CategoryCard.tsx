@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { theme } from '@/src/theme';
@@ -6,12 +6,13 @@ import { theme } from '@/src/theme';
 type CategoryCardProps = {
   label?: string;
   count?: number;
+  previews?: Array<{ id?: string | number; image_url?: string | null }>;
   width: number;
   onPress?: () => void;
   loading?: boolean;
 };
 
-export function CategoryCard({ label, count, width, onPress, loading = false }: CategoryCardProps) {
+export function CategoryCard({ label, count, previews = [], width, onPress, loading = false }: CategoryCardProps) {
   if (loading) {
     return (
       <View style={[styles.card, { width }]}>
@@ -40,10 +41,15 @@ export function CategoryCard({ label, count, width, onPress, loading = false }: 
       accessibilityRole={onPress ? 'button' : undefined}
     >
       <View style={styles.tiles}>
-        <View style={styles.tile} />
-        <View style={styles.tile} />
-        <View style={styles.tile} />
-        <View style={styles.tile} />
+        {[0, 1, 2, 3].map((index) => {
+          const preview = previews[index];
+          const imageUrl = preview?.image_url ?? null;
+          return (
+            <View key={preview?.id ?? `tile-${index}`} style={styles.tile}>
+              {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.tileImage} resizeMode="cover" /> : null}
+            </View>
+          );
+        })}
       </View>
       <View style={styles.footer}>
         <Text style={styles.label}>{label ?? ''}</Text>
@@ -73,6 +79,11 @@ const styles = StyleSheet.create({
     height: theme.moderateScale(32),
     borderRadius: theme.moderateScale(8),
     backgroundColor: theme.colors.primarySoft,
+    overflow: 'hidden',
+  },
+  tileImage: {
+    width: '100%',
+    height: '100%',
   },
   footer: {
     flexDirection: 'row',

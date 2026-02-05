@@ -115,6 +115,15 @@ Artisan::command('reviews:auto-approve', function () {
 })->purpose('Approve pending reviews older than the configured number of days.');
 
 Schedule::command('reviews:auto-approve')->daily();
+Schedule::command('cj:refresh-token')->hourly();
+Schedule::command('cj:sync-linehaul-orders --page=1 --page-size=50')->everyFifteenMinutes();
+Schedule::command('cj:sync-products-v2 --page=1 --size=50 --limit=200')->everySixHours();
+Schedule::command('cj:sync-variants')->everyTwoHours();
+Schedule::command('cj:sync-categories')->dailyAt('02:30');
+Schedule::command('cj:webhooks-cleanup')->dailyAt('03:15');
+Schedule::command('categories:translate --locales=en,fr --source=en --queue')->dailyAt('01:30');
+Schedule::command('products:translate --locales=en,fr --source=en --queue')->dailyAt('02:30');
+Schedule::command('mobile:translations:translate --from=en --to=fr --limit=500')->weeklyOn(0, '03:00');
 
 Artisan::command('cj:token', function () {
     $client = app(CJDropshippingClient::class);

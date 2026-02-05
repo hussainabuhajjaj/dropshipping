@@ -460,7 +460,8 @@ export default function HomeScreen() {
               <CategoryCard
                 loading={loading}
                 label={item.name}
-                count={item.count}
+                count={item.product_count ?? item.count}
+                previews={item.subcategory_previews}
                 width={gridItemWidth}
                 onPress={() => router.push(`/products?category=${encodeURIComponent(item.slug || item.name)}`)}
               />

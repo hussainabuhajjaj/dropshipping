@@ -19,15 +19,35 @@ class CategoryCardResource extends JsonResource
         $name = method_exists($this->resource, 'translatedValue')
             ? $this->resource->translatedValue('name', $locale)
             : data_get($this->resource, 'name');
+        $rawPreviews = data_get($this->resource, 'subcategory_previews', []);
+        $previews = collect($rawPreviews)->map(function ($preview) {
+            $image = $this->resolveImage(data_get($preview, 'image_url'));
+
+            return [
+                'id' => data_get($preview, 'id'),
+                'name' => data_get($preview, 'name'),
+                'slug' => data_get($preview, 'slug'),
+                'image_url' => $image,
+            ];
+        })->values()->all();
+        $productCount = (int) (
+            data_get(
+                $this->resource,
+                'product_count',
+                data_get($this->resource, 'count', data_get($this->resource, 'products_count', 0))
+            ) ?? 0
+        );
 
         return [
             'id' => data_get($this->resource, 'id'),
             'name' => $name,
             'slug' => data_get($this->resource, 'slug'),
-            'count' => (int) (data_get($this->resource, 'count', data_get($this->resource, 'products_count', 0)) ?? 0),
+            'count' => $productCount,
+            'product_count' => $productCount,
             'image' => $image,
             'heroImage' => $heroImage,
             'accent' => data_get($this->resource, 'accent'),
+            'subcategory_previews' => $previews,
         ];
     }
 
