@@ -8,6 +8,7 @@ use App\Http\Requests\Api\Mobile\V1\Product\ProductIndexRequest;
 use App\Http\Resources\Mobile\V1\ProductDetailResource;
 use App\Http\Resources\Mobile\V1\ProductResource;
 use App\Models\Product;
+use App\Models\Category;
 use Illuminate\Http\JsonResponse;
 
 class ProductController extends ApiController
@@ -28,9 +29,29 @@ class ProductController extends ApiController
             ->withCount('reviews');
 
         if ($category) {
-            $productQuery->whereHas('category', function ($builder) use ($category) {
-                $builder->where('name', $category)->orWhere('slug', $category);
-            });
+            $locale = app()->getLocale();
+            $categoryModel = Category::query()
+                ->where('slug', $category)
+                ->orWhere('name', $category)
+                ->orWhereHas('translations', function ($builder) use ($category, $locale) {
+                    $builder->where('locale', $locale)->where('name', $category);
+                })
+                ->first();
+
+            if ($categoryModel) {
+                $categoryIds = Category::query()
+                    ->where('parent_id', $categoryModel->id)
+                    ->pluck('id')
+                    ->push($categoryModel->id)
+                    ->unique()
+                    ->values();
+
+                $productQuery->whereIn('category_id', $categoryIds);
+            } else {
+                $productQuery->whereHas('category', function ($builder) use ($category) {
+                    $builder->where('name', $category)->orWhere('slug', $category);
+                });
+            }
         }
 
         $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
@@ -43,7 +64,10 @@ class ProductController extends ApiController
                     ->where('name', 'like', '%' . $query . '%')
                     ->orWhere('description', 'like', '%' . $query . '%');
                 $builder->orWhereHas('category', function ($categoryBuilder) use ($query) {
-                    $categoryBuilder->where('name', 'like', '%' . $query . '%');
+                    $categoryBuilder->where('name', 'like', '%' . $query . '%')
+                        ->orWhereHas('translations', function ($translationBuilder) use ($query) {
+                            $translationBuilder->where('name', 'like', '%' . $query . '%');
+                        });
                 });
             });
         }

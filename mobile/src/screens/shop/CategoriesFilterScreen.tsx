@@ -100,7 +100,7 @@ export default function CategoriesFilterScreen() {
         <Pressable style={styles.perksRow} onPress={() => router.push('/shipping')}>
           <View style={styles.perkItem}>
             <Feather name="check" size={14} color={theme.colors.green} />
-            <Text style={styles.perkText}>Free shipping</Text>
+            <Text style={styles.perkText}>Fast Shipping</Text>
           </View>
           <View style={styles.perkDivider} />
           <View style={[styles.perkItem, styles.perkItemWide]}>

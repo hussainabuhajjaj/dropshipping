@@ -5,10 +5,15 @@ import { theme } from '@/src/theme';
 type ProductFilterChipsProps = {
   active: string;
   onSelect: (value: string) => void;
-  options?: string[];
+  options?: Array<{ key: string; label: string }>;
 };
 
-const defaultOptions = ['Trending', 'New', 'Sale', 'Top Rated'];
+const defaultOptions = [
+  { key: 'trending', label: 'Trending' },
+  { key: 'new', label: 'New' },
+  { key: 'sale', label: 'Sale' },
+  { key: 'top_rated', label: 'Top Rated' },
+];
 
 export function ProductFilterChips({
   active,
@@ -19,10 +24,10 @@ export function ProductFilterChips({
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
       {options.map((option) => (
         <Chip
-          key={option}
-          label={option}
-          active={active === option}
-          onPress={() => onSelect(option)}
+          key={option.key}
+          label={option.label}
+          active={active === option.key}
+          onPress={() => onSelect(option.key)}
         />
       ))}
     </ScrollView>
@@ -35,4 +40,3 @@ const styles = StyleSheet.create({
     gap: theme.moderateScale(10),
   },
 });
-
