@@ -14,6 +14,38 @@ use Illuminate\Http\JsonResponse;
 
 class CategoryController extends ApiController
 {
+    private function descendantCategoryIds(Category $category): array
+    {
+        $categoryRows = Category::query()
+            ->select(['id', 'parent_id'])
+            ->where('is_active', true)
+            ->get();
+
+        $childrenByParentId = [];
+        foreach ($categoryRows as $categoryRow) {
+            $parentId = $categoryRow->parent_id ?? 0;
+            $childrenByParentId[$parentId][] = (int) $categoryRow->id;
+        }
+
+        $visited = [];
+        $stack = [(int) $category->id];
+
+        while (! empty($stack)) {
+            $current = array_pop($stack);
+            if (isset($visited[$current])) {
+                continue;
+            }
+
+            $visited[$current] = true;
+
+            foreach ($childrenByParentId[$current] ?? [] as $childId) {
+                $stack[] = (int) $childId;
+            }
+        }
+
+        return array_map('intval', array_keys($visited));
+    }
+
     public function index(): JsonResponse
     {
         $locale = app()->getLocale();
@@ -75,7 +107,15 @@ class CategoryController extends ApiController
                     $query
                         ->where('is_active', true)
                         ->orderBy('name')
-                        ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+                        ->with([
+                            'translations' => fn ($q) => $q->where('locale', $locale),
+                            'children' => function ($grandQuery) use ($locale) {
+                                $grandQuery
+                                    ->where('is_active', true)
+                                    ->orderBy('name')
+                                    ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+                            },
+                        ]);
                 },
             ])
             ->orderBy('name')
@@ -110,10 +150,11 @@ class CategoryController extends ApiController
     {
         $validated = $request->validated();
         $perPage = min((int) ($validated['per_page'] ?? 18), 50);
+        $categoryIds = $this->descendantCategoryIds($category);
 
         $productQuery = Product::query()
             ->where('is_active', true)
-            ->where('category_id', $category->id)
+            ->whereIn('category_id', $categoryIds)
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
