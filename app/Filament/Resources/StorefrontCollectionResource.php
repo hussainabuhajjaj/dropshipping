@@ -133,6 +133,22 @@ class StorefrontCollectionResource extends BaseResource
                                 ->maxLength(120),
                             Forms\Components\Textarea::make('hero_subtitle')
                                 ->rows(2),
+                            Forms\Components\TextInput::make('hero_cta_label')
+                                ->label('CTA label')
+                                ->maxLength(80),
+                            Forms\Components\TextInput::make('hero_cta_url')
+                                ->label('CTA URL')
+                                ->placeholder('/collections/global-home-lab')
+                                ->dehydrateStateUsing(fn (?string $state): ?string => self::normalizeRelativeUrl($state)),
+                            Forms\Components\RichEditor::make('content')
+                                ->label('Landing page content')
+                                ->columnSpan('full'),
+                            Forms\Components\TextInput::make('seo_title')
+                                ->label('SEO title')
+                                ->maxLength(180),
+                            Forms\Components\Textarea::make('seo_description')
+                                ->label('SEO description')
+                                ->rows(2),
                             Forms\Components\DateTimePicker::make('starts_at')->native(false),
                             Forms\Components\DateTimePicker::make('ends_at')->native(false),
                             Forms\Components\TextInput::make('timezone')

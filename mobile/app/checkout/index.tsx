@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/lib/cartStore';
 import { useOrders } from '@/lib/ordersStore';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
@@ -241,7 +242,9 @@ export default function PaymentScreen() {
                   </Text>
                 <View style={styles.orderMetaRow}>
                   <Text style={styles.orderMeta}>Qty {item.quantity}</Text>
-                  <Text style={styles.orderPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                  <Text style={styles.orderPrice}>
+                    {formatCurrency(item.price * item.quantity, item.currency, totals.currency)}
+                  </Text>
                 </View>
               </View>
             )}
@@ -253,27 +256,27 @@ export default function PaymentScreen() {
           <Text style={styles.summaryTitle}>Order summary</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${totals.subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(totals.subtotal, totals.currency)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
-            <Text style={styles.summaryValue}>${totals.shipping.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(totals.shipping, totals.currency)}</Text>
           </View>
           {totals.discount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Discount</Text>
-              <Text style={styles.summaryValue}>-${totals.discount.toFixed(2)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(-totals.discount, totals.currency)}</Text>
             </View>
           ) : null}
           {totals.tax > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tax</Text>
-              <Text style={styles.summaryValue}>${totals.tax.toFixed(2)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.tax, totals.currency)}</Text>
             </View>
           ) : null}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotal}>${totals.total.toFixed(2)}</Text>
+            <Text style={styles.summaryTotal}>{formatCurrency(totals.total, totals.currency)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -289,7 +292,7 @@ export default function PaymentScreen() {
       >
         <View>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>${totals.total.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>{formatCurrency(totals.total, totals.currency)}</Text>
         </View>
         <Pressable
           style={[styles.payButton, !canCheckout ? styles.payButtonDisabled : null]}

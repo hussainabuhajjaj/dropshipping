@@ -1,39 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { FlatList, Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { OnboardingBackground } from '@/src/components/onboarding/OnboardingBackground';
 import { OnboardingCard } from '@/src/components/onboarding/OnboardingCard';
 import { PaginationDots } from '@/src/components/onboarding/PaginationDots';
 import { theme } from '@/src/theme';
 import { useAuth } from '@/lib/authStore';
+import { fetchOnboardingSettings } from '@/src/api/onboarding';
 
 type Slide = {
   key: string;
   background: 'hello' | 'ready';
   title: string;
   body: string;
+  image?: string | null;
   imageColors: [string, string];
-  actionLabel?: string;
-  onAction?: () => void;
+  actionHref?: string | null;
 };
 
-const slides: Slide[] = [
+const defaultSlides: Slide[] = [
   {
     key: 'hello',
     background: 'hello',
-    title: 'Hello',
-    body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non consectetur turpis. Morbi eu eleifend lacus.',
+    title: 'Welcome',
+    body: 'Discover trending styles and everyday essentials — delivered to your door.',
     imageColors: ['#ffcad9', '#f39db0'],
   },
   {
     key: 'ready',
     background: 'ready',
-    title: 'Ready?',
-    body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    title: 'Ready to shop?',
+    body: 'Search, filter, and save your favorites. Checkout is fast and secure.',
     imageColors: ['#8ec5ff', '#f5b7c6'],
-    actionLabel: "Let's Start",
-    onAction: () => router.replace('/(tabs)/home'),
+    actionHref: '/(tabs)/home',
   },
 ];
 
@@ -42,6 +42,7 @@ export default function OnboardingSliderScreen() {
   const listRef = useRef<FlatList<Slide> | null>(null);
   const { width } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
+  const [slides, setSlides] = useState<Slide[]>(defaultSlides);
 
   const backgroundVariant = slides[pageIndex]?.background ?? 'hello';
 
@@ -50,6 +51,38 @@ export default function OnboardingSliderScreen() {
       router.replace('/(tabs)/home');
     }
   }, [status]);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchOnboardingSettings()
+      .then((settings) => {
+        if (!active) return;
+        if (settings.configured) {
+          if (!settings.enabled || settings.slides.length === 0) {
+            router.replace('/(tabs)/home');
+            return;
+          }
+          setSlides(settings.slides);
+          setPageIndex(0);
+          listRef.current?.scrollToOffset({ offset: 0, animated: false });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const openHref = (href?: string | null) => {
+    if (!href) return;
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      Linking.openURL(href).catch(() => {});
+      return;
+    }
+    router.replace(href as any);
+  };
 
   const goNext = () => {
     const next = Math.min(slides.length - 1, pageIndex + 1);
@@ -85,9 +118,10 @@ export default function OnboardingSliderScreen() {
               <OnboardingCard
                 title={item.title}
                 body={item.body}
+                imageUri={item.image ?? undefined}
                 imageColors={item.imageColors}
-                actionLabel={item.actionLabel}
-                onAction={item.onAction}
+                actionLabel={index === slides.length - 1 ? 'Start shopping' : undefined}
+                onAction={index === slides.length - 1 ? () => openHref(item.actionHref ?? '/(tabs)/home') : undefined}
               />
             </Pressable>
           </View>

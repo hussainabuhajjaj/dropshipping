@@ -594,7 +594,6 @@ class CjProductImportService
                     \App\Jobs\ImportCjProductJob::dispatch($pid, [
                         'respectSyncFlag' => !$forceUpdate,
                         'defaultSyncEnabled' => true,
-                        // 'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
                     $queued++;
                 } catch (\Throwable) {

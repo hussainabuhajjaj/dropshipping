@@ -164,11 +164,17 @@ export default function CategoriesFilterScreen() {
                     key={item.id}
                     style={[styles.tile, { width: tileWidth }]}
                     disabled={loading}
-                    onPress={() =>
-                      router.push(
-                        `/(tabs)/categories/results?category=${encodeURIComponent(item.slug || item.label)}`
-                      )
-                    }
+                    onPress={() => {
+                      const category = item.slug || item.label;
+                      if (!category) return;
+                      router.push({
+                        pathname: '/(tabs)/categories/results',
+                        params: {
+                          category,
+                          title: item.label || undefined,
+                        },
+                      });
+                    }}
                   >
                     <View style={[styles.tileImageWrap, { width: imageSize, height: imageSize, borderRadius: imageSize / 2 }]}>
                       {loading ? (

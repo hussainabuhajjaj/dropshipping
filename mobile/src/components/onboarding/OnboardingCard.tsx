@@ -1,27 +1,36 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
 import { theme } from '@/src/theme';
 
 type OnboardingCardProps = {
   title: string;
   body: string;
+  imageUri?: string | null;
   imageColors: [string, string];
   actionLabel?: string;
   onAction?: () => void;
 };
 
-export function OnboardingCard({ title, body, imageColors, actionLabel, onAction }: OnboardingCardProps) {
+export function OnboardingCard({ title, body, imageUri, imageColors, actionLabel, onAction }: OnboardingCardProps) {
   return (
     <View style={styles.card}>
       <LinearGradient colors={imageColors} style={styles.imageCard}>
+        {imageUri ? <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" /> : null}
         <View style={styles.imageHighlight} />
       </LinearGradient>
       <View style={styles.copy}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.body}>{body}</Text>
-        {actionLabel ? (
-          <Pressable style={styles.button} onPress={onAction} accessibilityRole="button">
+        {actionLabel && onAction ? (
+          <Pressable
+            style={styles.button}
+            onPress={(event) => {
+              event.stopPropagation();
+              onAction();
+            }}
+            accessibilityRole="button"
+          >
             <Text style={styles.buttonText}>{actionLabel}</Text>
           </Pressable>
         ) : null}
@@ -43,6 +52,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.moderateScale(24),
     borderTopRightRadius: theme.moderateScale(24),
     justifyContent: 'flex-end',
+  },
+  image: {
+    ...StyleSheet.absoluteFillObject,
   },
   imageHighlight: {
     height: theme.moderateScale(40),

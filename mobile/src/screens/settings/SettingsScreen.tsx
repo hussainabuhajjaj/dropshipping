@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
   const { state } = usePreferences();
   const { status, logout } = useAuth();
   const { t } = useTranslations();
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
   const cart = useCart();
   const wishlist = useWishlist();
   const orders = useOrders();
@@ -139,7 +141,7 @@ export default function SettingsScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerTitle}>Simbazu</Text>
           <Text style={styles.footerBody}>
-            {t('Version :version', 'Version :version', { version: '1.0 April, 2020' })}
+            {t('Version :version', 'Version :version', { version: appVersion })}
           </Text>
         </View>
       </View>

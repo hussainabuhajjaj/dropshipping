@@ -13,10 +13,10 @@ use App\Domain\Products\Models\Product;
 use App\Models\SiteSetting;
 use App\Jobs\PollCJFulfillmentStatus;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
-
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+//
+//Artisan::command('inspire', function () {
+//    $this->comment(Inspiring::quote());
+//})->purpose('Display an inspiring quote');
 
 Artisan::command('data:cleanup-customers {--dry-run}', function () {
     $dryRun = (bool) $this->option('dry-run');
@@ -326,3 +326,4 @@ Schedule::call(function () {
         dispatch(new PollCJFulfillmentStatus($jobId))->onConnection('database')->onQueue('default');
     }
 })->everyMinute()->name('cj:poll-fulfillment');
+Schedule::command('queue:work --tries=3 --timeout=90   --stop-when-empty --queue=default')->everyMinute();

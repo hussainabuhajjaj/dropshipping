@@ -88,6 +88,7 @@ export const mapCategory = (source: ApiCategory): Category => {
   const children = Array.isArray(source.children)
     ? (source.children as ApiCategory[]).map(mapCategory)
     : [];
+  const count = toNumberValue(source.product_count ?? source.count ?? source.products_count ?? 0, 0);
   const heroImage =
     typeof (source as any).heroImage === 'string'
       ? (source as any).heroImage
@@ -135,7 +136,8 @@ export const mapCategory = (source: ApiCategory): Category => {
     id: toStringValue(source.id),
     name: toStringValue(source.name, 'Category'),
     slug: toStringValue(source.slug),
-    count: toNumberValue(source.count ?? source.products_count ?? 0, 0),
+    count,
+    product_count: count,
     image:
       typeof source.image === 'string'
         ? source.image

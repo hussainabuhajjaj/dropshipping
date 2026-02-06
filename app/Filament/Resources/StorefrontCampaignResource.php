@@ -143,6 +143,9 @@ class StorefrontCampaignResource extends BaseResource
                                 ->maxLength(120),
                             Forms\Components\Textarea::make('hero_subtitle')
                                 ->rows(2),
+                            Forms\Components\RichEditor::make('content')
+                                ->label('Content')
+                                ->columnSpan('full'),
                             Forms\Components\DateTimePicker::make('starts_at')->native(false),
                             Forms\Components\DateTimePicker::make('ends_at')->native(false),
                             Forms\Components\TextInput::make('timezone')

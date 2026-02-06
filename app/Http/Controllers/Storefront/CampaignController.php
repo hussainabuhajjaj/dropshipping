@@ -68,7 +68,7 @@ class CampaignController extends Controller
             'hero_image' => $campaign->hero_image ? $this->resolveImagePath($campaign->hero_image) : null,
             'theme' => $campaign->theme ?? [],
             'placements' => $campaign->placements ?? [],
-            'content' => $campaign->content,
+            'content' => $campaign->localizedValue('content', $locale),
             'starts_at' => $campaign->starts_at,
             'ends_at' => $campaign->ends_at,
         ];

@@ -130,6 +130,19 @@ class CategoryController extends ApiController
                         ->map(function (DomainCategory $child) use ($countSubtree) {
                             $child->setAttribute('product_count', $countSubtree((int) $child->id));
 
+                            if ($child->relationLoaded('children')) {
+                                $grandchildren = $child->children
+                                    ->map(function (DomainCategory $grandchild) use ($countSubtree) {
+                                        $grandchild->setAttribute('product_count', $countSubtree((int) $grandchild->id));
+
+                                        return $grandchild;
+                                    })
+                                    ->filter(fn (DomainCategory $grandchild) => (int) ($grandchild->product_count ?? 0) > 0)
+                                    ->values();
+
+                                $child->setRelation('children', $grandchildren);
+                            }
+
                             return $child;
                         })
                         ->filter(fn (DomainCategory $child) => (int) ($child->product_count ?? 0) > 0)

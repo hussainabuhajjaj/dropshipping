@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlatList, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -183,7 +183,7 @@ export default function HomeScreen() {
       Linking.openURL(href).catch(() => {});
       return;
     }
-    router.push(href);
+    router.push(href as Href);
   };
 
   const handleBannerPress = (banner?: Banner | null) => {
@@ -255,7 +255,7 @@ export default function HomeScreen() {
     () => (loading ? skeletonProducts.slice(0, 4) : recommended.slice(0, 4)),
     [loading, recommended, skeletonProducts]
   );
-  const heroGradientFor = (slide?: PromoSlide | null) =>
+  const heroGradientFor = (slide?: PromoSlide | null): readonly [string, string] =>
     slide?.tone ? [slide.tone, theme.colors.sand] : ['#f0b61f', '#f3c93a'];
   const resolveResizeMode = (mode?: string | null) =>
     mode === 'contain' || mode === 'split' ? 'contain' : 'cover';
@@ -463,7 +463,17 @@ export default function HomeScreen() {
                 count={item.product_count ?? item.count}
                 previews={item.subcategory_previews}
                 width={gridItemWidth}
-                onPress={() => router.push(`/products?category=${encodeURIComponent(item.slug || item.name)}`)}
+                onPress={() => {
+                  const category = item.slug || item.name;
+                  if (!category) return;
+                  router.push({
+                    pathname: '/products',
+                    params: {
+                      category,
+                      title: item.name || undefined,
+                    },
+                  });
+                }}
               />
             )}
           />
@@ -481,7 +491,13 @@ export default function HomeScreen() {
               <Pressable
                 style={styles.topCard}
                 onPress={() =>
-                  router.push(`/products?category=${encodeURIComponent(item.slug || item.label)}`)
+                  router.push({
+                    pathname: '/products',
+                    params: {
+                      category: item.slug || item.label,
+                      title: item.label || undefined,
+                    },
+                  })
                 }
                 disabled={loading}
               >

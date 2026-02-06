@@ -5,14 +5,17 @@ import { theme } from '@/src/theme';
 import { useOrders } from '@/lib/ordersStore';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 
 export default function PaymentHistoryScreen() {
   const { orders, loading, error } = useOrders();
+  const { state } = usePreferences();
   const payments = orders.map((order) => ({
     id: `pay-${order.number}`,
     title: `Order #${order.number}`,
     date: order.placedAt ?? '—',
-    amount: `$${order.total.toFixed(2)}`,
+    amount: formatCurrency(order.total, state.currency, state.currency),
     status: order.status,
     number: order.number,
   }));

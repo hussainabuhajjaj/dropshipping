@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
-import { useChatStore } from '@/src/state/chatStore';
+import { type ChatMessage, useChatStore } from '@/src/state/chatStore';
 import * as chatSvc from '@/src/services/chatService';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ export default function ChatConversationScreen() {
   const { messages, status, agentType } = useChatStore();
   const [input, setInput] = useState('');
   const [selectedIssue, setSelectedIssue] = useState('');
-  const scrollRef = useRef<ScrollView | null>(null);
+  const listRef = useRef<FlatList<ChatMessage> | null>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function ChatConversationScreen() {
   }, [status]);
 
   useEffect(() => {
-    scrollRef.current?.scrollToEnd?.({ animated: true });
+    listRef.current?.scrollToEnd?.({ animated: true });
   }, [messages.length]);
 
   const statusLabel = useMemo(() => {
@@ -60,69 +60,69 @@ export default function ChatConversationScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
     >
-      <ScrollView
-        ref={scrollRef}
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(message) => message.id}
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: theme.moderateScale(10) + insets.top }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
-      >
-        <View style={styles.headerRow}>
-          <Pressable style={styles.iconButton} onPress={() => router.back()}>
-            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-          </Pressable>
+        ListHeaderComponent={
           <View>
-            <Text style={styles.title}>Live Chat</Text>
-            <Text style={styles.status}>{statusLabel}</Text>
-          </View>
-          <Pressable style={styles.iconButton} onPress={() => router.push('/support')}>
-            <Feather name="x" size={16} color={theme.colors.inkDark} />
-          </Pressable>
-        </View>
-
-        {status === 'connecting' && messages.length === 0 ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator size="small" color={theme.colors.inkDark} />
-            <Text style={styles.loadingText}>Connecting you with support...</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.issueSection}>
-          <Text style={styles.issueTitle}>Choose an issue</Text>
-          <View style={styles.issueList}>
-            {ISSUE_OPTIONS.map((issue) => {
-              const isActive = issue === selectedIssue;
-              return (
-                <Pressable
-                  key={issue}
-                  style={[styles.issueChip, isActive ? styles.issueChipActive : null]}
-                  onPress={() => handleIssueSelect(issue)}
-                >
-                  <Text style={[styles.issueText, isActive ? styles.issueTextActive : null]}>{issue}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.messageGroup}>
-          {messages.map((message) => (
-            <View
-              key={message.id}
-              style={[
-                styles.messageBubble,
-                message.from === 'agent' ? styles.agentBubble : styles.userBubble,
-              ]}
-            >
-              <Text style={message.from === 'agent' ? styles.agentText : styles.userText}>
-                {message.text}
-              </Text>
+            <View style={styles.headerRow}>
+              <Pressable style={styles.iconButton} onPress={() => router.back()}>
+                <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+              </Pressable>
+              <View>
+                <Text style={styles.title}>Live Chat</Text>
+                <Text style={styles.status}>{statusLabel}</Text>
+              </View>
+              <Pressable style={styles.iconButton} onPress={() => router.push('/support')}>
+                <Feather name="x" size={16} color={theme.colors.inkDark} />
+              </Pressable>
             </View>
-          ))}
-        </View>
-      </ScrollView>
+
+            {status === 'connecting' && messages.length === 0 ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="small" color={theme.colors.inkDark} />
+                <Text style={styles.loadingText}>Connecting you with support...</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.issueSection}>
+              <Text style={styles.issueTitle}>Choose an issue</Text>
+              <View style={styles.issueList}>
+                {ISSUE_OPTIONS.map((issue) => {
+                  const isActive = issue === selectedIssue;
+                  return (
+                    <Pressable
+                      key={issue}
+                      style={[styles.issueChip, isActive ? styles.issueChipActive : null]}
+                      onPress={() => handleIssueSelect(issue)}
+                    >
+                      <Text style={[styles.issueText, isActive ? styles.issueTextActive : null]}>{issue}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        }
+        ItemSeparatorComponent={() => <View style={styles.messageSpacer} />}
+        renderItem={({ item: message }) => (
+          <View
+            style={[
+              styles.messageBubble,
+              message.from === 'agent' ? styles.agentBubble : styles.userBubble,
+            ]}
+          >
+            <Text style={message.from === 'agent' ? styles.agentText : styles.userText}>{message.text}</Text>
+          </View>
+        )}
+      />
 
       <View style={[styles.inputRow, { paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
         <TextInput
@@ -224,8 +224,8 @@ const styles = StyleSheet.create({
   issueTextActive: {
     color: theme.colors.white,
   },
-  messageGroup: {
-    gap: 12,
+  messageSpacer: {
+    height: 12,
   },
   messageBubble: {
     maxWidth: '78%',

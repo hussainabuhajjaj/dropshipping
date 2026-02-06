@@ -6,12 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchOrderDetail } from '@/src/api/orders';
 import type { Order } from '@/src/types/orders';
 import { useOrders } from '@/lib/ordersStore';
+import { usePreferences } from '@/src/store/preferencesStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 export default function OrderDetailScreen() {
   const params = useLocalSearchParams();
   const number = typeof params.number === 'string' ? params.number : '';
   const { getOrderByNumber, updateOrder } = useOrders();
+  const { state } = usePreferences();
   const [order, setOrder] = useState<Order | null>(() => getOrderByNumber(number) ?? null);
   const [loading, setLoading] = useState(() => !getOrderByNumber(number));
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +165,7 @@ export default function OrderDetailScreen() {
                   <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemMeta}>Qty {item.quantity}</Text>
                 </View>
-                <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>{formatCurrency(item.price, state.currency, state.currency)}</Text>
               </View>
             ))}
           </View>

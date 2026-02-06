@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, type Href, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { Chip } from '@/src/components/ui/Chip';
@@ -26,6 +26,7 @@ export default function ProductsFilterScreen() {
   const returnTo = typeof params.returnTo === 'string' ? params.returnTo : '/products';
   const query = typeof params.q === 'string' ? params.q : '';
   const initialCategory = typeof params.category === 'string' ? params.category : '';
+  const initialTitle = typeof params.title === 'string' ? params.title : '';
   const initialSort = typeof params.sort === 'string' ? params.sort : '';
   const initialMin = typeof params.min_price === 'string' ? params.min_price : '';
   const initialMax = typeof params.max_price === 'string' ? params.max_price : '';
@@ -67,16 +68,44 @@ export default function ProductsFilterScreen() {
     return categories;
   }, [categories, loadingCategories]);
 
+  const resolveCategoryTitle = useCallback(
+    (value: string) => {
+      const normalized = String(value || '').trim();
+      if (!normalized) return '';
+
+      for (const parent of categories) {
+        const parentValue = parent.slug || parent.name;
+        if (parentValue === normalized) return parent.name;
+        const children = parent.children ?? [];
+        for (const child of children) {
+          const childValue = child.slug || child.name;
+          if (childValue === normalized) return child.name;
+        }
+      }
+
+      if (normalized === initialCategory && initialTitle.trim()) {
+        return initialTitle.trim();
+      }
+
+      return '';
+    },
+    [categories, initialCategory, initialTitle]
+  );
+
   const applyFilters = () => {
     const nextParams: Record<string, string> = {};
     if (query) nextParams.q = query;
-    if (selectedCategory) nextParams.category = selectedCategory;
+    if (selectedCategory) {
+      nextParams.category = selectedCategory;
+      const title = resolveCategoryTitle(selectedCategory);
+      if (title) nextParams.title = title;
+    }
     const minValue = Number(minPrice);
     if (Number.isFinite(minValue) && minPrice.trim() !== '') nextParams.min_price = String(minValue);
     const maxValue = Number(maxPrice);
     if (Number.isFinite(maxValue) && maxPrice.trim() !== '') nextParams.max_price = String(maxValue);
     if (sort) nextParams.sort = sort;
-    router.replace({ pathname: returnTo, params: nextParams });
+    router.replace({ pathname: returnTo, params: nextParams } as Href);
   };
 
   const resetFilters = () => {

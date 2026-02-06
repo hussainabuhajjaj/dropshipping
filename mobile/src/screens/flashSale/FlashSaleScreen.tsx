@@ -15,6 +15,8 @@ import type { Product } from '@/src/types/storefront';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
 
+type ProductGridItem = Product | { id: string; skeleton: true };
+
 const discounts = ['All', '10%', '20%', '30%', '40%', '50%'];
 const mostPopular = [
   { id: 'popular-1', label: 'New', count: '1780' },
@@ -28,9 +30,9 @@ export default function FlashSaleScreen() {
   const { state } = usePreferences();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const listItems = useMemo(() => {
+  const listItems = useMemo<ProductGridItem[]>(() => {
     if (loading) {
-      return Array.from({ length: 8 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }));
+      return Array.from({ length: 8 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }));
     }
     return items;
   }, [items, loading]);
@@ -59,7 +61,7 @@ export default function FlashSaleScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <FlatList
+      <FlatList<ProductGridItem>
         data={listItems}
         keyExtractor={(item) => item.id}
         numColumns={2}

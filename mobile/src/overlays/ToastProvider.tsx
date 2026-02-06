@@ -4,6 +4,7 @@ import { Text } from '@/src/components/i18n/Text';
 import { Feather } from '@expo/vector-icons';
 import { PortalContext } from './PortalHost';
 import { theme } from '@/src/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type ToastType = 'success' | 'warning' | 'error' | 'info';
 
@@ -31,8 +32,9 @@ const TYPE_STYLES: Record<ToastType, { bg: string; text: string; icon: keyof typ
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const portal = useContext(PortalContext);
+  const insets = useSafeAreaInsets();
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const timeouts = useRef<Record<string, NodeJS.Timeout>>({});
+  const timeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const show = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -50,7 +52,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       key: 'toast-stack',
       priority: 9999,
       node: (
-        <View pointerEvents="box-none" style={styles.toastRoot}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.toastRoot, { bottom: theme.moderateScale(24) + insets.bottom }]}
+        >
           {toasts.map((toast) => (
             <ToastCard key={toast.id} toast={toast} />
           ))}
@@ -61,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => {
       portal.remove('toast-stack');
     };
-  }, [portal, toasts]);
+  }, [portal, toasts, insets.bottom]);
 
   const value = useMemo(() => ({ show }), [show]);
 
@@ -109,7 +114,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: theme.moderateScale(16),
     right: theme.moderateScale(16),
-    bottom: theme.moderateScale(24),
     gap: theme.moderateScale(10),
   },
   toastCard: {

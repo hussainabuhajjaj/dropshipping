@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCart } from '@/lib/cartStore';
+import { type CartItem, useCart } from '@/lib/cartStore';
 import { fetchProducts } from '@/src/api/catalog';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import { RemoveCartItemDialog } from '@/src/overlays/RemoveCartItemDialog';
 import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
@@ -12,6 +13,8 @@ import { ProductTile } from '@/src/components/products/ProductTile';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+
+type CartRow = CartItem | { id: string; skeleton: true };
 export default function CartScreen() {
   const {
     items,
@@ -49,6 +52,12 @@ export default function CartScreen() {
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
   const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null);
   const skeletonRows = useMemo(() => Array.from({ length: 3 }, (_, index) => index), []);
+  const listData: CartRow[] = useMemo(() => {
+    if (loading && items.length === 0) {
+      return skeletonRows.map((row) => ({ id: `cart-skeleton-${row}`, skeleton: true as const }));
+    }
+    return items;
+  }, [items, loading, skeletonRows]);
 
   useEffect(() => {
     refreshCart();
@@ -109,38 +118,21 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
+      <FlatList
         style={styles.scroll}
+        data={listData}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.content,
+          styles.list,
           {
             paddingTop: theme.moderateScale(10) + insets.top,
             paddingBottom: theme.moderateScale(120) + insets.bottom,
           },
         ]}
         showsVerticalScrollIndicator={false}
-      >
-        {/* <Text style={styles.title}>Cart</Text> */}
-        <View style={styles.list}>
-          {loading && items.length === 0 ? (
-            <View style={styles.skeletonList}>
-              {skeletonRows.map((row) => (
-                <View key={`cart-skeleton-${row}`} style={styles.itemCard}>
-                  <Skeleton height={theme.moderateScale(18)} width={theme.moderateScale(18)} radius={9} />
-                  <Skeleton height={theme.moderateScale(90)} width={theme.moderateScale(90)} radius={14} />
-                  <View style={styles.itemInfo}>
-                    <Skeleton height={theme.moderateScale(12)} radius={theme.moderateScale(6)} width="80%" />
-                    <Skeleton height={theme.moderateScale(12)} radius={theme.moderateScale(6)} width="40%" />
-                    <View style={styles.qtyRow}>
-                      <Skeleton height={theme.moderateScale(28)} width={theme.moderateScale(28)} radius={14} />
-                      <Skeleton height={theme.moderateScale(12)} radius={theme.moderateScale(6)} width={theme.moderateScale(24)} />
-                      <Skeleton height={theme.moderateScale(28)} width={theme.moderateScale(28)} radius={14} />
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : items.length === 0 ? (
+        ListEmptyComponent={
+          !loading ? (
             <View style={styles.emptyCard}>
               <Feather name="shopping-bag" size={36} color={theme.colors.inkDark} />
               <Text style={styles.emptyTitle}>Your cart is empty</Text>
@@ -149,113 +141,141 @@ export default function CartScreen() {
                 <Text style={styles.primaryText}>Go shopping</Text>
               </Pressable>
             </View>
-          ) : (
-            <>
-              {items.map((item) => (
-                <View key={item.id} style={styles.itemCard}>
-                  <Pressable
-                    style={styles.checkWrap}
-                    onPress={() => toggleSelection(item.productId)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selectedIds.includes(item.productId) }}
-                  >
-                    <Feather
-                      name={selectedIds.includes(item.productId) ? 'check-circle' : 'circle'}
-                      size={18}
-                      color={selectedIds.includes(item.productId) ? theme.colors.primary : theme.colors.mutedLight}
-                    />
-                  </Pressable>
-                  <Pressable
-                    style={styles.itemImageWrap}
-                    onPress={() => {
-                      if (item.slug) {
-                        router.push(`/products/${item.slug}`);
-                      }
-                    }}
-                  >
-                    {item.image ? (
-                      <Image source={{ uri: item.image }} style={styles.itemImage} />
-                    ) : (
-                      <View style={styles.itemImageFallback}>
-                        <Text style={styles.itemImageFallbackText}>
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </Pressable>
-                  <View style={styles.itemInfo}>
-                    <Pressable
-                      onPress={() => {
-                        if (item.slug) {
-                          router.push(`/products/${item.slug}`);
-                        }
-                      }}
-                    >
-                      <Text style={styles.itemName} numberOfLines={2}>
-                        {item.name}
-                      </Text>
-                    </Pressable>
-                    <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-                    <View style={styles.qtyRow}>
-                      <Pressable
-                        style={styles.qtyButton}
-                        onPress={() => updateQty(item.productId, Math.max(1, item.quantity - 1))}
-                        disabled={loading}
-                      >
-                        <Feather name="minus" size={14} color={theme.colors.inkDark} />
-                      </Pressable>
-                      <Text style={styles.qtyValue}>{item.quantity}</Text>
-                      <Pressable
-                        style={styles.qtyButton}
-                        onPress={() => updateQty(item.productId, item.quantity + 1)}
-                        disabled={loading}
-                      >
-                        <Feather name="plus" size={14} color={theme.colors.inkDark} />
-                      </Pressable>
-                      <Pressable
-                        style={styles.removeButton}
-                        onPress={() => confirmRemove(item.name, item.productId)}
-                        disabled={loading}
-                      >
-                        <Feather name="trash-2" size={14} color={theme.colors.inkDark} />
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-              ))}
-
+          ) : null
+        }
+        ListFooterComponent={
+          <View style={styles.footer}>
+            {items.length > 0 ? (
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Subtotal</Text>
-                  <Text style={styles.summaryValue}>${(isAllSelected ? subtotal : selectedSubtotal).toFixed(2)}</Text>
+                  <Text style={styles.summaryValue}>
+                    {formatCurrency(isAllSelected ? subtotal : selectedSubtotal, summary.currency)}
+                  </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Shipping</Text>
-                  <Text style={styles.summaryValue}>${(isAllSelected ? shipping : 0).toFixed(2)}</Text>
+                  <Text style={styles.summaryValue}>
+                    {formatCurrency(isAllSelected ? shipping : 0, summary.currency)}
+                  </Text>
                 </View>
                 {discount > 0 && isAllSelected ? (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Discount</Text>
-                    <Text style={styles.summaryValue}>-${discount.toFixed(2)}</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(-discount, summary.currency)}</Text>
                   </View>
                 ) : null}
                 {tax > 0 && isAllSelected ? (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Tax</Text>
-                    <Text style={styles.summaryValue}>${tax.toFixed(2)}</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(tax, summary.currency)}</Text>
                   </View>
                 ) : null}
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryTotalLabel}>Total</Text>
-                  <Text style={styles.summaryTotal}>${selectedTotal.toFixed(2)}</Text>
+                  <Text style={styles.summaryTotal}>{formatCurrency(selectedTotal, summary.currency)}</Text>
                 </View>
               </View>
-            </>
-          )}
+            ) : null}
 
-          {items.length > 0 || showRecentOnEmpty ? recentSection : null}
-        </View>
-      </ScrollView>
+            {items.length > 0 || showRecentOnEmpty ? recentSection : null}
+          </View>
+        }
+        renderItem={({ item }) => {
+          if ('skeleton' in item) {
+            return (
+              <View style={styles.itemCard}>
+                <Skeleton height={theme.moderateScale(18)} width={theme.moderateScale(18)} radius={9} />
+                <Skeleton height={theme.moderateScale(90)} width={theme.moderateScale(90)} radius={14} />
+                <View style={styles.itemInfo}>
+                  <Skeleton height={theme.moderateScale(12)} radius={theme.moderateScale(6)} width="80%" />
+                  <Skeleton height={theme.moderateScale(12)} radius={theme.moderateScale(6)} width="40%" />
+                  <View style={styles.qtyRow}>
+                    <Skeleton height={theme.moderateScale(28)} width={theme.moderateScale(28)} radius={14} />
+                    <Skeleton
+                      height={theme.moderateScale(12)}
+                      radius={theme.moderateScale(6)}
+                      width={theme.moderateScale(24)}
+                    />
+                    <Skeleton height={theme.moderateScale(28)} width={theme.moderateScale(28)} radius={14} />
+                  </View>
+                </View>
+              </View>
+            );
+          }
+
+          return (
+            <View style={styles.itemCard}>
+              <Pressable
+                style={styles.checkWrap}
+                onPress={() => toggleSelection(item.productId)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selectedIds.includes(item.productId) }}
+              >
+                <Feather
+                  name={selectedIds.includes(item.productId) ? 'check-circle' : 'circle'}
+                  size={18}
+                  color={selectedIds.includes(item.productId) ? theme.colors.primary : theme.colors.mutedLight}
+                />
+              </Pressable>
+              <Pressable
+                style={styles.itemImageWrap}
+                onPress={() => {
+                  if (item.slug) {
+                    router.push(`/products/${item.slug}`);
+                  }
+                }}
+              >
+                {item.image ? (
+                  <Image source={{ uri: item.image }} style={styles.itemImage} />
+                ) : (
+                  <View style={styles.itemImageFallback}>
+                    <Text style={styles.itemImageFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
+                  </View>
+                )}
+              </Pressable>
+              <View style={styles.itemInfo}>
+                <Pressable
+                  onPress={() => {
+                    if (item.slug) {
+                      router.push(`/products/${item.slug}`);
+                    }
+                  }}
+                >
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                </Pressable>
+                <Text style={styles.itemPrice}>{formatCurrency(item.price, item.currency, summary.currency)}</Text>
+                <View style={styles.qtyRow}>
+                  <Pressable
+                    style={styles.qtyButton}
+                    onPress={() => updateQty(item.productId, Math.max(1, item.quantity - 1))}
+                    disabled={loading}
+                  >
+                    <Feather name="minus" size={14} color={theme.colors.inkDark} />
+                  </Pressable>
+                  <Text style={styles.qtyValue}>{item.quantity}</Text>
+                  <Pressable
+                    style={styles.qtyButton}
+                    onPress={() => updateQty(item.productId, item.quantity + 1)}
+                    disabled={loading}
+                  >
+                    <Feather name="plus" size={14} color={theme.colors.inkDark} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.removeButton}
+                    onPress={() => confirmRemove(item.name, item.productId)}
+                    disabled={loading}
+                  >
+                    <Feather name="trash-2" size={14} color={theme.colors.inkDark} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          );
+        }}
+      />
 
       {items.length ? (
         <View
@@ -269,7 +289,7 @@ export default function CartScreen() {
         >
           <View>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${selectedTotal.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(selectedTotal, summary.currency)}</Text>
           </View>
           <Pressable
             style={[styles.checkoutButton, !canCheckout ? styles.checkoutButtonDisabled : null]}
@@ -361,7 +381,7 @@ const styles = StyleSheet.create({
   list: {
     gap: 16,
   },
-  skeletonList: {
+  footer: {
     gap: 16,
   },
   itemCard: {

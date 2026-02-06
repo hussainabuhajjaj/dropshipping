@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
 import { CircleIconButton } from '@/src/components/ui/CircleIconButton';
 import { ProductCard } from '@/src/components/ui/ProductCard';
@@ -12,6 +12,39 @@ import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
+
+type ProductGridItem = Product | { id: string; skeleton: true };
+
+type PaginationMeta = {
+  currentPage: number;
+  lastPage: number;
+  perPage: number;
+  total: number;
+};
+
+const toMetaInt = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+  }
+  return null;
+};
+
+const parseSearchProductsMeta = (meta: Record<string, unknown> | null | undefined): PaginationMeta | null => {
+  if (!meta) return null;
+  const productsMeta = meta.products;
+  if (!productsMeta || typeof productsMeta !== 'object' || Array.isArray(productsMeta)) return null;
+
+  const record = productsMeta as Record<string, unknown>;
+  const currentPage = toMetaInt(record.currentPage ?? record.current_page);
+  const lastPage = toMetaInt(record.lastPage ?? record.last_page);
+  const perPage = toMetaInt(record.perPage ?? record.per_page);
+  const total = toMetaInt(record.total);
+
+  if (currentPage === null || lastPage === null || perPage === null || total === null) return null;
+  return { currentPage, lastPage, perPage, total };
+};
 
 export default function ShopResultsScreen() {
   const { show } = useToast();
@@ -25,35 +58,86 @@ export default function ShopResultsScreen() {
   const pathname = usePathname();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta | null>(null);
+  const requestId = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const perPage = 12;
 
   useEffect(() => {
-    let active = true;
+    const id = ++requestId.current;
     setLoading(true);
+    setLoadingMore(false);
+    loadingMoreRef.current = false;
+    setPaginationMeta(null);
     searchRequest({
       q: query,
       category,
       min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
       max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
       sort: sortParam || undefined,
-      per_page: 12,
+      per_page: perPage,
+      page: 1,
     })
-      .then(({ products }) => {
-        if (!active) return;
+      .then(({ products, meta }) => {
+        if (id !== requestId.current) return;
         setItems(products);
+        setPaginationMeta(parseSearchProductsMeta(meta));
       })
       .catch((err: any) => {
-        if (!active) return;
+        if (id !== requestId.current) return;
         show({ type: 'error', message: err?.message ?? 'Unable to load products.' });
         setItems([]);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (id === requestId.current) setLoading(false);
       });
 
     return () => {
-      active = false;
+      requestId.current += 1;
     };
-  }, [query, category, minPriceParam, maxPriceParam, sortParam, show]);
+  }, [query, category, minPriceParam, maxPriceParam, sortParam, show, perPage]);
+
+  const canLoadMore = useMemo(() => {
+    if (!paginationMeta) return false;
+    return paginationMeta.currentPage < paginationMeta.lastPage;
+  }, [paginationMeta]);
+
+  const loadMore = useCallback(() => {
+    if (loading) return;
+    if (!canLoadMore || !paginationMeta) return;
+    if (loadingMoreRef.current || loadingMore) return;
+
+    const nextPage = paginationMeta.currentPage + 1;
+    if (nextPage > paginationMeta.lastPage) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const id = ++requestId.current;
+
+    searchRequest({
+      q: query,
+      category,
+      min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
+      max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
+      sort: sortParam || undefined,
+      per_page: perPage,
+      page: nextPage,
+    })
+      .then(({ products, meta }) => {
+        if (id !== requestId.current) return;
+        setItems((prev) => [...prev, ...products]);
+        setPaginationMeta(parseSearchProductsMeta(meta));
+      })
+      .catch((err: any) => {
+        if (id !== requestId.current) return;
+        show({ type: 'error', message: err?.message ?? 'Unable to load products.' });
+      })
+      .finally(() => {
+        if (id === requestId.current) setLoadingMore(false);
+        loadingMoreRef.current = false;
+      });
+  }, [loading, canLoadMore, paginationMeta, loadingMore, query, category, minPriceParam, maxPriceParam, sortParam, show, perPage]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -90,10 +174,10 @@ export default function ShopResultsScreen() {
         />
       </View>
 
-      <FlatList
+      <FlatList<ProductGridItem>
         data={
           loading
-            ? Array.from({ length: 6 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+            ? Array.from({ length: 6 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
             : items
         }
         keyExtractor={(item) => item.id}
@@ -101,6 +185,17 @@ export default function ShopResultsScreen() {
         columnWrapperStyle={styles.column}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.55}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerLoading}>
+              <ActivityIndicator size="small" color={theme.colors.inkDark} />
+            </View>
+          ) : (
+            <View style={styles.footerSpacer} />
+          )
+        }
         renderItem={({ item }) => {
           if ('skeleton' in item) {
             return (
@@ -157,5 +252,13 @@ const styles = StyleSheet.create({
   column: {
     justifyContent: 'space-between',
     marginBottom: theme.moderateScale(16),
+  },
+  footerLoading: {
+    paddingVertical: theme.moderateScale(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerSpacer: {
+    height: theme.moderateScale(24),
   },
 });

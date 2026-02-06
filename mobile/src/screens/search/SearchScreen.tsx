@@ -18,6 +18,7 @@ import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
 
 const fallbackRecommendations: string[] = [];
+type ProductRowItem = Product | { id: string; skeleton: true };
 
 export default function SearchScreen() {
   const { show } = useToast();
@@ -240,11 +241,11 @@ export default function SearchScreen() {
         ) : null}
 
         <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Discover</Text>
-        <FlatList
+        <FlatList<ProductRowItem>
           horizontal
           data={
             loadingDiscover
-              ? Array.from({ length: 3 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 3 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : discoverItems
           }
           keyExtractor={(item) => item.id}
