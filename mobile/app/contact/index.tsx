@@ -3,12 +3,14 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ContactScreen() {
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
     return (
-      <View style={styles.successContainer}>
+      <SafeAreaView style={styles.successContainer}>
         <View style={styles.successCard}>
           <Feather name="check-circle" size={26} color={theme.colors.inkDark} />
           <Text style={styles.successTitle}>Message sent</Text>
@@ -17,38 +19,53 @@ export default function ContactScreen() {
             <Text style={styles.primaryText}>Back to support</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Contact us</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>We respond within 24 hours.</Text>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Contact us</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          </View>
+          <Text style={styles.subtitle}>We respond within 24 hours.</Text>
 
-      <View style={styles.card}>
-        <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#b6b6b6" />
-        <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#b6b6b6" />
-        <TextInput style={styles.input} placeholder="Order number (optional)" placeholderTextColor="#b6b6b6" />
-        <TextInput
-          style={[styles.input, styles.message]}
-          placeholder="How can we help?"
-          placeholderTextColor="#b6b6b6"
-          multiline
-        />
-        <Pressable style={styles.primaryButton} onPress={() => setSubmitted(true)}>
-          <Text style={styles.primaryText}>Send message</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+          <View style={styles.card}>
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#b6b6b6" />
+            <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#b6b6b6" />
+            <TextInput style={styles.input} placeholder="Order number (optional)" placeholderTextColor="#b6b6b6" />
+            <TextInput
+              style={[styles.input, styles.message]}
+              placeholder="How can we help?"
+              placeholderTextColor="#b6b6b6"
+              multiline
+            />
+            <Pressable style={styles.primaryButton} onPress={() => setSubmitted(true)}>
+              <Text style={styles.primaryText}>Send message</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -56,6 +73,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

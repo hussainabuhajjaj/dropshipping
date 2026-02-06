@@ -7,6 +7,7 @@ import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { useTranslations } from '@/src/i18n/TranslationsProvider';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const fallbackLanguages = ['English', 'French', 'German', 'Spanish', 'Arabic'];
 
 export default function ChooseLanguageScreen() {
@@ -18,49 +19,51 @@ export default function ChooseLanguageScreen() {
   const languages = state.lookups.languages.length > 0 ? state.lookups.languages : fallbackLanguages;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>{t('Choose language', 'Choose language')}</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.list}>
-        {languages.map((language) => (
-          <Pressable
-            key={language}
-            style={styles.row}
-            disabled={Boolean(updating)}
-            onPress={async () => {
-              if (language === selected || updating) return;
-              setUpdating(language);
-              const result = await setLanguage(language);
-              setUpdating(null);
-              if (result.ok) {
-                show({ type: 'success', message: t('Language updated.', 'Language updated.') });
-                router.back();
-              } else {
-                show({
-                  type: 'error',
-                  message: result.message ?? t('Unable to update language.', 'Unable to update language.'),
-                });
-              }
-            }}
-          >
-            <Text style={styles.rowText}>{language}</Text>
-            {updating === language ? (
-              <ActivityIndicator size="small" color={theme.colors.inkDark} />
-            ) : selected === language ? (
-              <Feather name="check" size={16} color={theme.colors.inkDark} />
-            ) : null}
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>{t('Choose language', 'Choose language')}</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.list}>
+          {languages.map((language) => (
+            <Pressable
+              key={language}
+              style={styles.row}
+              disabled={Boolean(updating)}
+              onPress={async () => {
+                if (language === selected || updating) return;
+                setUpdating(language);
+                const result = await setLanguage(language);
+                setUpdating(null);
+                if (result.ok) {
+                  show({ type: 'success', message: t('Language updated.', 'Language updated.') });
+                  router.back();
+                } else {
+                  show({
+                    type: 'error',
+                    message: result.message ?? t('Unable to update language.', 'Unable to update language.'),
+                  });
+                }
+              }}
+            >
+              <Text style={styles.rowText}>{language}</Text>
+              {updating === language ? (
+                <ActivityIndicator size="small" color={theme.colors.inkDark} />
+              ) : selected === language ? (
+                <Feather name="check" size={16} color={theme.colors.inkDark} />
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -68,6 +71,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

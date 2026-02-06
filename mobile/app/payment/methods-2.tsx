@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
 import { theme } from '@/src/theme';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AddPaymentMethodScreen() {
   const { addCard } = usePaymentMethods();
   const [number, setNumber] = useState('');
@@ -16,62 +18,77 @@ export default function AddPaymentMethodScreen() {
   }, [number, expiry, name]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Add card</Text>
-        <View style={styles.spacer} />
-      </View>
-
-      <View style={styles.form}>
-        <TextInput
-          style={styles.input}
-          placeholder="Card number"
-          placeholderTextColor="#c7c7c7"
-          keyboardType="number-pad"
-          value={number}
-          onChangeText={setNumber}
-        />
-        <View style={styles.row}>
-          <TextInput
-            style={[styles.input, styles.halfInput]}
-            placeholder="MM/YY"
-            placeholderTextColor="#c7c7c7"
-            value={expiry}
-            onChangeText={setExpiry}
-          />
-          <TextInput
-            style={[styles.input, styles.halfInput]}
-            placeholder="CVV"
-            placeholderTextColor="#c7c7c7"
-            keyboardType="number-pad"
-            value={cvv}
-            onChangeText={setCvv}
-          />
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Card holder name"
-          placeholderTextColor="#c7c7c7"
-          value={name}
-          onChangeText={setName}
-        />
-      </View>
-
-      <Pressable
-        style={[styles.primaryButton, !canSave ? { opacity: 0.5 } : null]}
-        onPress={() => {
-          if (!canSave) return;
-          addCard({ name, number, expiry });
-          router.push('/payment/methods');
-        }}
-        disabled={!canSave}
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
       >
-        <Text style={styles.primaryText}>Save card</Text>
-      </Pressable>
-    </ScrollView>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Add card</Text>
+            <View style={styles.spacer} />
+          </View>
+
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Card number"
+              placeholderTextColor="#c7c7c7"
+              keyboardType="number-pad"
+              value={number}
+              onChangeText={setNumber}
+            />
+            <View style={styles.row}>
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder="MM/YY"
+                placeholderTextColor="#c7c7c7"
+                value={expiry}
+                onChangeText={setExpiry}
+              />
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder="CVV"
+                placeholderTextColor="#c7c7c7"
+                keyboardType="number-pad"
+                value={cvv}
+                onChangeText={setCvv}
+              />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Card holder name"
+              placeholderTextColor="#c7c7c7"
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+
+          <Pressable
+            style={[styles.primaryButton, !canSave ? { opacity: 0.5 } : null]}
+            onPress={() => {
+              if (!canSave) return;
+              addCard({ name, number, expiry });
+              router.push('/payment/methods');
+            }}
+            disabled={!canSave}
+          >
+            <Text style={styles.primaryText}>Save card</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -79,6 +96,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

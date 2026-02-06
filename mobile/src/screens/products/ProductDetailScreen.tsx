@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -30,6 +29,21 @@ import type { Product } from '@/src/types/storefront';
 import { getProductShareUrl } from '@/src/lib/shareLinks';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const loadGestureHandlerModule = () => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
+  } catch {
+    return null;
+  }
+};
+
+const gestureHandler = loadGestureHandlerModule();
+const GestureDetector: any = gestureHandler?.GestureDetector ?? (({ children }: any) => children ?? null);
+const Gesture: any = gestureHandler?.Gesture ?? null;
+const gesturesAvailable = Boolean(gestureHandler?.GestureDetector && gestureHandler?.Gesture);
 
 const materials = ['Cotton', 'Polyester'];
 const detailItems = ['Soft-touch knit', 'Breathable fabric', 'Machine washable'];
@@ -64,8 +78,35 @@ function ZoomableImage({ uri, width, height }: ZoomableImageProps) {
   const savedX = useSharedValue(0);
   const savedY = useSharedValue(0);
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const imageNode = (
+    <Animated.Image
+      source={{ uri }}
+      style={[
+        styles.viewerImage,
+        { width: Math.max(width, 1), height: Math.max(height, 1) },
+        animatedStyle,
+      ]}
+    />
+  );
+
+  if (!gesturesAvailable || !Gesture) {
+    return (
+      <View style={[styles.viewerSlide, { width: Math.max(width, 1), height: Math.max(height, 1) }]}>
+        {imageNode}
+      </View>
+    );
+  }
+
   const panGesture = Gesture.Pan()
-    .onUpdate((event) => {
+    .onUpdate((event: any) => {
       if (scale.value <= 1) return;
       translateX.value = savedX.value + event.translationX;
       translateY.value = savedY.value + event.translationY;
@@ -83,7 +124,7 @@ function ZoomableImage({ uri, width, height }: ZoomableImageProps) {
     });
 
   const pinchGesture = Gesture.Pinch()
-    .onUpdate((event) => {
+    .onUpdate((event: any) => {
       const nextScale = Math.min(4, Math.max(1, savedScale.value * event.scale));
       scale.value = nextScale;
       if (nextScale === 1) {
@@ -106,23 +147,12 @@ function ZoomableImage({ uri, width, height }: ZoomableImageProps) {
       savedScale.value = scale.value;
     });
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }));
-
   const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
 
   return (
     <View style={[styles.viewerSlide, { width: Math.max(width, 1), height: Math.max(height, 1) }]}>
       <GestureDetector gesture={composedGesture}>
-        <Animated.Image
-          source={{ uri }}
-          style={[styles.viewerImage, { width: Math.max(width, 1), height: Math.max(height, 1) }, animatedStyle]}
-        />
+        {imageNode}
       </GestureDetector>
     </View>
   );
@@ -150,6 +180,7 @@ export function ProductDetailScreen({
   const resolvedSlug = routeSlug || product?.slug || '';
   const slugParam = resolvedSlug ? encodeURIComponent(resolvedSlug) : '';
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const sliderRef = useRef<FlatList<string>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -232,7 +263,7 @@ export function ProductDetailScreen({
   const cartStartY = useSharedValue(0);
   const cartPadding = theme.moderateScale(16);
   const cartSize = theme.moderateScale(56);
-  const cartBottomInset = theme.moderateScale(90);
+  const cartBottomInset = theme.moderateScale(90) + insets.bottom;
   const cartMaxX = useSharedValue(0);
   const cartMaxY = useSharedValue(0);
 
@@ -241,15 +272,18 @@ export function ProductDetailScreen({
     return Math.min(Math.max(value, min), max);
   };
 
-  const cartDragGesture = Gesture.Pan()
-    .onStart(() => {
-      cartStartX.value = cartX.value;
-      cartStartY.value = cartY.value;
-    })
-    .onUpdate((event) => {
-      cartX.value = clamp(cartStartX.value + event.translationX, cartPadding, cartMaxX.value);
-      cartY.value = clamp(cartStartY.value + event.translationY, cartPadding, cartMaxY.value);
-    });
+  const cartDragGesture =
+    gesturesAvailable && Gesture
+      ? Gesture.Pan()
+          .onStart(() => {
+            cartStartX.value = cartX.value;
+            cartStartY.value = cartY.value;
+          })
+          .onUpdate((event: any) => {
+            cartX.value = clamp(cartStartX.value + event.translationX, cartPadding, cartMaxX.value);
+            cartY.value = clamp(cartStartY.value + event.translationY, cartPadding, cartMaxY.value);
+          })
+      : null;
 
   const cartDragStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: cartX.value }, { translateY: cartY.value }],
@@ -369,7 +403,16 @@ export function ProductDetailScreen({
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.imageWrap} ref={imageWrapRef}>
           <FlatList
             ref={sliderRef}
@@ -401,7 +444,7 @@ export function ProductDetailScreen({
               </View>
             )}
           />
-          <View style={styles.topActions}>
+          <View style={[styles.topActions, { top: insets.top + theme.moderateScale(16) }]}>
             <Pressable
               style={styles.iconButton}
               onPress={handleClose}
@@ -646,7 +689,15 @@ export function ProductDetailScreen({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            height: theme.moderateScale(84) + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <Pressable
           style={styles.likeButton}
           onPress={handleToggle}
@@ -673,7 +724,27 @@ export function ProductDetailScreen({
         />
       ) : null}
 
-      <GestureDetector gesture={cartDragGesture}>
+      {cartDragGesture ? (
+        <GestureDetector gesture={cartDragGesture}>
+          <Animated.View style={[styles.floatingCartWrap, cartDragStyle]}>
+            <View ref={cartFloatRef}>
+              <Pressable
+                style={styles.floatingCartButton}
+                onPress={() => router.push('/(tabs)/cart')}
+                accessibilityRole="button"
+                accessibilityLabel="Open cart"
+              >
+                <Feather name="shopping-bag" size={20} color={theme.colors.white} />
+                {cartCount > 0 ? (
+                  <View style={styles.floatingBadge}>
+                    <Text style={styles.floatingBadgeText}>{cartCount}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
+          </Animated.View>
+        </GestureDetector>
+      ) : (
         <Animated.View style={[styles.floatingCartWrap, cartDragStyle]}>
           <View ref={cartFloatRef}>
             <Pressable
@@ -691,7 +762,7 @@ export function ProductDetailScreen({
             </Pressable>
           </View>
         </Animated.View>
-      </GestureDetector>
+      )}
 
       <Modal
         visible={viewerVisible}
@@ -721,14 +792,14 @@ export function ProductDetailScreen({
             )}
           />
           <Pressable
-            style={styles.viewerClose}
+            style={[styles.viewerClose, { top: insets.top + theme.moderateScale(16) }]}
             onPress={() => setViewerVisible(false)}
             accessibilityRole="button"
             accessibilityLabel="Close image viewer"
           >
             <Feather name="x" size={20} color={theme.colors.white} />
           </Pressable>
-          <View style={styles.viewerCounter}>
+          <View style={[styles.viewerCounter, { bottom: insets.bottom + theme.moderateScale(28) }]}>
             <Text style={styles.viewerCounterText}>
               {imageSlides.length > 0 ? `${viewerIndex + 1} / ${imageSlides.length}` : ''}
             </Text>

@@ -8,6 +8,7 @@ import { fetchRewardSummary, fetchVouchers } from '@/src/api/rewards';
 import type { RewardSummary, Voucher } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function RewardsScreen() {
   const { show } = useToast();
@@ -44,76 +45,78 @@ export default function RewardsScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(loadRewards);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.colors.primary}
-          colors={[theme.colors.primary]}
-        />
-      }
-    >
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Rewards</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.pointsCard}>
-        <Text style={styles.pointsLabel}>Your points</Text>
-        <Text style={styles.pointsValue}>{summary?.pointsBalance ?? 0}</Text>
-        <Text style={styles.pointsBody}>
-          {summary?.pointsToNextTier
-            ? `Only ${summary.pointsToNextTier} points to ${summary.nextTier ?? 'next tier'}.`
-            : 'Keep shopping to unlock rewards.'}
-        </Text>
-        <Pressable style={styles.pointsButton} onPress={() => router.push('/rewards/progress')}>
-          <Text style={styles.pointsButtonText}>View progress</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Active vouchers</Text>
-        <Pressable onPress={() => router.push('/rewards/voucher-reminder')}>
-          <Text style={styles.sectionAction}>Reminders</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.list}>
-        {!loading && vouchers.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No vouchers yet</Text>
-            <Text style={styles.emptyBody}>We’ll drop new rewards as you shop.</Text>
-          </View>
-        ) : null}
-        {vouchers.map((voucher) => (
-          <Pressable
-            key={voucher.id}
-            style={styles.card}
-            onPress={() => router.push(`/rewards/voucher-expire?id=${encodeURIComponent(voucher.id)}`)}
-          >
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{voucher.value ?? 'Reward'}</Text>
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>{voucher.title ?? 'Voucher'}</Text>
-              <Text style={styles.cardSub}>
-                {voucher.endsAt ? `Expires ${new Date(voucher.endsAt).toLocaleDateString()}` : 'No expiry'}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Rewards</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.pointsCard}>
+          <Text style={styles.pointsLabel}>Your points</Text>
+          <Text style={styles.pointsValue}>{summary?.pointsBalance ?? 0}</Text>
+          <Text style={styles.pointsBody}>
+            {summary?.pointsToNextTier
+              ? `Only ${summary.pointsToNextTier} points to ${summary.nextTier ?? 'next tier'}.`
+              : 'Keep shopping to unlock rewards.'}
+          </Text>
+          <Pressable style={styles.pointsButton} onPress={() => router.push('/rewards/progress')}>
+            <Text style={styles.pointsButtonText}>View progress</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Active vouchers</Text>
+          <Pressable onPress={() => router.push('/rewards/voucher-reminder')}>
+            <Text style={styles.sectionAction}>Reminders</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.list}>
+          {!loading && vouchers.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No vouchers yet</Text>
+              <Text style={styles.emptyBody}>We’ll drop new rewards as you shop.</Text>
+            </View>
+          ) : null}
+          {vouchers.map((voucher) => (
+            <Pressable
+              key={voucher.id}
+              style={styles.card}
+              onPress={() => router.push(`/rewards/voucher-expire?id=${encodeURIComponent(voucher.id)}`)}
+            >
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{voucher.value ?? 'Reward'}</Text>
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{voucher.title ?? 'Voucher'}</Text>
+                <Text style={styles.cardSub}>
+                  {voucher.endsAt ? `Expires ${new Date(voucher.endsAt).toLocaleDateString()}` : 'No expiry'}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -121,6 +124,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

@@ -8,6 +8,7 @@ import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function RecentlyViewedDateChosenScreen() {
   const { slugs } = useRecentlyViewed();
   const { show } = useToast();
@@ -45,58 +46,60 @@ export default function RecentlyViewedDateChosenScreen() {
   }, [slugs, show]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Recently viewed</Text>
-        <View style={styles.spacer} />
-      </View>
-
-      <View style={styles.filterRow}>
-        <View style={styles.filterChip}>
-          <Text style={styles.filterText}>Last 7 days</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Recently viewed</Text>
+          <View style={styles.spacer} />
         </View>
-        <Pressable style={styles.clearButton} onPress={() => router.push('/account/recent')}>
-          <Feather name="x" size={14} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
 
-      <View style={styles.grid}>
-        {loading
-          ? Array.from({ length: 6 }, (_, index) => (
-              <View key={`sk-${index}`} style={styles.card}>
-                <Skeleton height={180} radius={16} />
-                <Skeleton height={10} radius={5} style={styles.skeletonGap} />
-                <Skeleton height={12} radius={6} width="40%" style={styles.skeletonGap} />
-              </View>
-            ))
-          : items.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.card}
-                onPress={() => router.push(`/products/${item.slug}`)}
-              >
-                {item.image ? (
-                  <Image source={{ uri: item.image }} style={styles.cardImage} />
-                ) : (
-                  <View style={styles.cardImageFallback} />
-                )}
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
-              </Pressable>
-            ))}
-        {!loading && items.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No recent items</Text>
-            <Text style={styles.emptyBody}>Start browsing to build your recently viewed list.</Text>
+        <View style={styles.filterRow}>
+          <View style={styles.filterChip}>
+            <Text style={styles.filterText}>Last 7 days</Text>
           </View>
-        ) : null}
-      </View>
-    </ScrollView>
+          <Pressable style={styles.clearButton} onPress={() => router.push('/account/recent')}>
+            <Feather name="x" size={14} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.grid}>
+          {loading
+            ? Array.from({ length: 6 }, (_, index) => (
+                <View key={`sk-${index}`} style={styles.card}>
+                  <Skeleton height={180} radius={16} />
+                  <Skeleton height={10} radius={5} style={styles.skeletonGap} />
+                  <Skeleton height={12} radius={6} width="40%" style={styles.skeletonGap} />
+                </View>
+              ))
+            : items.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.card}
+                  onPress={() => router.push(`/products/${item.slug}`)}
+                >
+                  {item.image ? (
+                    <Image source={{ uri: item.image }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.cardImageFallback} />
+                  )}
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+                </Pressable>
+              ))}
+          {!loading && items.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No recent items</Text>
+              <Text style={styles.emptyBody}>Start browsing to build your recently viewed list.</Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -104,6 +107,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

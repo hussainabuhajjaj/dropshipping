@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 import { Pressable, StyleSheet, Text } from '@/src/utils/responsiveStyleSheet';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/src/theme';
 import { useAuth } from '@/lib/authStore';
@@ -159,109 +160,111 @@ export default function SettingsProfileScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
       >
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Profile</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Profile</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          </View>
 
-      <View style={styles.avatarRow}>
-        <View style={styles.avatarWrap}>
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarPlaceholder} />
-          )}
-        </View>
-        <Pressable style={styles.avatarButton} onPress={handlePickAvatar}>
-          <Text style={styles.avatarButtonText}>Change photo</Text>
-        </Pressable>
-      </View>
+          <View style={styles.avatarRow}>
+            <View style={styles.avatarWrap}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholder} />
+              )}
+            </View>
+            <Pressable style={styles.avatarButton} onPress={handlePickAvatar}>
+              <Text style={styles.avatarButtonText}>Change photo</Text>
+            </Pressable>
+          </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>First name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="First name"
-          placeholderTextColor="#b6b6b6"
-          value={firstName}
-          onChangeText={setFirstName}
-        />
-      </View>
-      <View style={styles.field}>
-        <Text style={styles.label}>Last name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Last name"
-          placeholderTextColor="#b6b6b6"
-          value={lastName}
-          onChangeText={setLastName}
-        />
-      </View>
-      <View style={styles.field}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>Email</Text>
-          <Pressable onPress={() => router.replace(`/auth/verify?email=${encodeURIComponent(email)}`)}>
-            <Text style={[styles.badge, isEmailVerified ? styles.badgeSuccess : styles.badgeWarn]}>
-              {isEmailVerified ? 'Verified' : 'Verify'}
-            </Text>
-          </Pressable>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="email@example.com"
-          placeholderTextColor="#b6b6b6"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        {fieldErrors.email?.length ? <Text style={styles.errorText}>{fieldErrors.email[0]}</Text> : null}
-      </View>
-      <View style={styles.field}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>Phone</Text>
-          <Pressable onPress={() => router.replace('/auth/verify-phone')}>
-            <Text style={[styles.badge, isPhoneVerified ? styles.badgeSuccess : styles.badgeWarn]}>
-              {isPhoneVerified ? 'Verified' : 'Verify'}
-            </Text>
-          </Pressable>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="+225 07 12 34 56 78"
-          placeholderTextColor="#b6b6b6"
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
-          onBlur={() => setPhone(formatCIPretty(phone))}
-          autoComplete="tel"
-          textContentType="telephoneNumber"
-          autoCorrect={false}
-        />
-        {fieldErrors.phone?.length ? <Text style={styles.errorText}>{fieldErrors.phone[0]}</Text> : null}
-      </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>First name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="First name"
+              placeholderTextColor="#b6b6b6"
+              value={firstName}
+              onChangeText={setFirstName}
+            />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>Last name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Last name"
+              placeholderTextColor="#b6b6b6"
+              value={lastName}
+              onChangeText={setLastName}
+            />
+          </View>
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Email</Text>
+              <Pressable onPress={() => router.replace(`/auth/verify?email=${encodeURIComponent(email)}`)}>
+                <Text style={[styles.badge, isEmailVerified ? styles.badgeSuccess : styles.badgeWarn]}>
+                  {isEmailVerified ? 'Verified' : 'Verify'}
+                </Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="email@example.com"
+              placeholderTextColor="#b6b6b6"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+            {fieldErrors.email?.length ? <Text style={styles.errorText}>{fieldErrors.email[0]}</Text> : null}
+          </View>
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Phone</Text>
+              <Pressable onPress={() => router.replace('/auth/verify-phone')}>
+                <Text style={[styles.badge, isPhoneVerified ? styles.badgeSuccess : styles.badgeWarn]}>
+                  {isPhoneVerified ? 'Verified' : 'Verify'}
+                </Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="+225 07 12 34 56 78"
+              placeholderTextColor="#b6b6b6"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+              onBlur={() => setPhone(formatCIPretty(phone))}
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              autoCorrect={false}
+            />
+            {fieldErrors.phone?.length ? <Text style={styles.errorText}>{fieldErrors.phone[0]}</Text> : null}
+          </View>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <PrimaryButton label={isSaving ? 'Saving...' : 'Save changes'} onPress={handleSave} disabled={isSaving} />
-    </ScrollView>
-    </KeyboardAvoidingView>
+          <PrimaryButton label={isSaving ? 'Saving...' : 'Save changes'} onPress={handleSave} disabled={isSaving} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -269,6 +272,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/
 import { theme } from '@/src/theme';
 import { createProductReview } from '@/src/api/reviews';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 export default function ReviewScreen() {
   const params = useLocalSearchParams();
   const slug = typeof params.slug === 'string' ? params.slug : '';
@@ -38,93 +39,108 @@ export default function ReviewScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Review</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      {!slug || !orderItemId ? (
-        <View style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>Select an order item to review</Text>
-          <Text style={styles.noticeBody}>
-            Please open this screen from an order item so we can attach your review.
-          </Text>
-        </View>
-      ) : null}
-
-      <Text style={styles.subtitle}>How was your experience?</Text>
-      <View style={styles.starsRow}>
-        {[1, 2, 3, 4, 5].map((item) => (
-          <Pressable key={`star-${item}`} onPress={() => setRating(item)}>
-            <Feather
-              name="star"
-              size={24}
-              color={item <= rating ? theme.colors.sun : theme.colors.inkDark}
-            />
-          </Pressable>
-        ))}
-      </View>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Title (optional)"
-        placeholderTextColor="#c7c7c7"
-        value={title}
-        onChangeText={setTitle}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Write your review"
-        placeholderTextColor="#c7c7c7"
-        multiline
-        numberOfLines={5}
-        textAlignVertical="top"
-        value={body}
-        onChangeText={setBody}
-      />
-
-      <Pressable
-        style={styles.primaryButton}
-        onPress={async () => {
-          if (!slug || !orderItemId || Number.isNaN(orderItemId)) {
-            show({ type: 'error', message: 'Missing order item for this review.' });
-            return;
-          }
-          if (rating < 1) {
-            show({ type: 'error', message: 'Please select a rating.' });
-            return;
-          }
-          if (body.trim().length < 2) {
-            show({ type: 'error', message: 'Please write a short review.' });
-            return;
-          }
-          try {
-            setSubmitting(true);
-            await createProductReview(slug, {
-              order_item_id: orderItemId,
-              rating,
-              title: title.trim() || undefined,
-              body: body.trim(),
-            });
-            setStatus('done');
-          } catch (err: any) {
-            show({ type: 'error', message: err?.message ?? 'Unable to submit review.' });
-          } finally {
-            setSubmitting(false);
-          }
-        }}
-        disabled={submitting}
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
       >
-        <Text style={styles.primaryText}>{submitting ? 'Submitting...' : 'Submit'}</Text>
-      </Pressable>
-    </ScrollView>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Review</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          </View>
+
+          {!slug || !orderItemId ? (
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeTitle}>Select an order item to review</Text>
+              <Text style={styles.noticeBody}>
+                Please open this screen from an order item so we can attach your review.
+              </Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.subtitle}>How was your experience?</Text>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((item) => (
+              <Pressable key={`star-${item}`} onPress={() => setRating(item)}>
+                <Feather
+                  name="star"
+                  size={24}
+                  color={item <= rating ? theme.colors.sun : theme.colors.inkDark}
+                />
+              </Pressable>
+            ))}
+          </View>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Title (optional)"
+            placeholderTextColor="#c7c7c7"
+            value={title}
+            onChangeText={setTitle}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Write your review"
+            placeholderTextColor="#c7c7c7"
+            multiline
+            numberOfLines={5}
+            textAlignVertical="top"
+            value={body}
+            onChangeText={setBody}
+          />
+
+          <Pressable
+            style={styles.primaryButton}
+            onPress={async () => {
+              if (!slug || !orderItemId || Number.isNaN(orderItemId)) {
+                show({ type: 'error', message: 'Missing order item for this review.' });
+                return;
+              }
+              if (rating < 1) {
+                show({ type: 'error', message: 'Please select a rating.' });
+                return;
+              }
+              if (body.trim().length < 2) {
+                show({ type: 'error', message: 'Please write a short review.' });
+                return;
+              }
+              try {
+                setSubmitting(true);
+                await createProductReview(slug, {
+                  order_item_id: orderItemId,
+                  rating,
+                  title: title.trim() || undefined,
+                  body: body.trim(),
+                });
+                setStatus('done');
+              } catch (err: any) {
+                show({ type: 'error', message: err?.message ?? 'Unable to submit review.' });
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+            disabled={submitting}
+          >
+            <Text style={styles.primaryText}>{submitting ? 'Submitting...' : 'Submit'}</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -132,6 +148,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

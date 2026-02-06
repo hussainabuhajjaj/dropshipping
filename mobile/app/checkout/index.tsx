@@ -11,7 +11,8 @@ import {
   TextInput,
   View,
 } from '@/src/utils/responsiveStyleSheet';
-import { Linking } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/lib/cartStore';
 import { useOrders } from '@/lib/ordersStore';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
@@ -50,6 +51,7 @@ export default function PaymentScreen() {
   const { state } = usePreferences();
   const { user } = useAuth();
   const { show } = useToast();
+  const insets = useSafeAreaInsets();
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.productId)),
     [items, selectedIds]
@@ -127,8 +129,25 @@ export default function PaymentScreen() {
 
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: theme.moderateScale(10) + insets.top,
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.headerRow}>
           <Text style={styles.title}>Payment</Text>
           <Pressable style={styles.iconButton} onPress={() => router.push('/shipping')}>
@@ -259,7 +278,15 @@ export default function PaymentScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            height: theme.moderateScale(84) + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <View>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>${totals.total.toFixed(2)}</Text>
@@ -414,7 +441,7 @@ export default function PaymentScreen() {
         }}
         onClose={() => setActiveDialog(null)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

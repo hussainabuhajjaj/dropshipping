@@ -1,7 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { fetchProduct, fetchProducts } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { ProductDetailScreen as ProductDetailContent } from '@/src/screens/products/ProductDetailScreen';
@@ -65,10 +64,10 @@ export default function ProductDetailRoute() {
   }, [slug, show]);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
       <ProductDetailContent product={product} loading={loading} mode="full" related={related} slug={slug} />
-    </GestureHandlerRootView>
+    </View>
   );
 }
 

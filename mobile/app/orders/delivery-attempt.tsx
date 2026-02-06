@@ -2,31 +2,34 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function DeliveryAttemptScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Delivery attempt</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Delivery attempt</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Attempt not successful</Text>
-        <Text style={styles.cardBody}>
-          We tried to deliver your order but no one was available. Please choose a new delivery time or
-          update your address.
-        </Text>
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Attempt not successful</Text>
+          <Text style={styles.cardBody}>
+            We tried to deliver your order but no one was available. Please choose a new delivery time or
+            update your address.
+          </Text>
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/profile-receive')}>
-        <Text style={styles.primaryText}>Update delivery details</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/profile-receive')}>
+          <Text style={styles.primaryText}>Update delivery details</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -34,6 +37,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -87,4 +93,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

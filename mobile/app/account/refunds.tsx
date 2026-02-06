@@ -4,40 +4,43 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/respo
 import { theme } from '@/src/theme';
 import { useOrders } from '@/lib/ordersStore';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function RefundsScreen() {
   const { orders, loading, error } = useOrders();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Refunds</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>Track your refund requests.</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Refunds</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+        <Text style={styles.subtitle}>Track your refund requests.</Text>
 
-      <View style={styles.list}>
-        {loading ? (
-          [0, 1].map((index) => (
-            <View key={`sk-${index}`} style={styles.card}>
-              <Skeleton width="40%" height={12} />
-              <Skeleton width="30%" height={10} style={styles.skeletonGap} />
-              <Skeleton width="25%" height={10} style={styles.skeletonGap} />
+        <View style={styles.list}>
+          {loading ? (
+            [0, 1].map((index) => (
+              <View key={`sk-${index}`} style={styles.card}>
+                <Skeleton width="40%" height={12} />
+                <Skeleton width="30%" height={10} style={styles.skeletonGap} />
+                <Skeleton width="25%" height={10} style={styles.skeletonGap} />
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No refunds yet</Text>
+              <Text style={styles.emptyBody}>{error ?? 'Refund requests will show up here.'}</Text>
             </View>
-          ))
-        ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No refunds yet</Text>
-            <Text style={styles.emptyBody}>{error ?? 'Refund requests will show up here.'}</Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -45,6 +48,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const channels: Array<{
   id: string;
@@ -18,37 +19,39 @@ const channels: Array<{
 
 export default function SupportScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Support</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>We are here to help with every order.</Text>
-
-      <View style={styles.list}>
-        {channels.map((channel) => (
-          <Pressable
-            key={channel.id}
-            style={styles.card}
-            onPress={() => router.push(channel.href)}
-          >
-            <View style={styles.iconWrap}>
-              <Feather name={channel.icon as any} size={16} color={theme.colors.inkDark} />
-            </View>
-            <View style={styles.copy}>
-              <Text style={styles.cardTitle}>{channel.title}</Text>
-              <Text style={styles.cardBody}>{channel.subtitle}</Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="#a1a4ad" />
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Support</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+        <Text style={styles.subtitle}>We are here to help with every order.</Text>
+
+        <View style={styles.list}>
+          {channels.map((channel) => (
+            <Pressable
+              key={channel.id}
+              style={styles.card}
+              onPress={() => router.push(channel.href)}
+            >
+              <View style={styles.iconWrap}>
+                <Feather name={channel.icon as any} size={16} color={theme.colors.inkDark} />
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.cardTitle}>{channel.title}</Text>
+                <Text style={styles.cardBody}>{channel.subtitle}</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#a1a4ad" />
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -56,6 +59,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

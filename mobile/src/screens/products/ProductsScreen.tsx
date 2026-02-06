@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feather } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams, usePathname } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from '@/src/utils/responsiveStyleSheet';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProductFilterChips } from '@/src/components/products/ProductFilterChips';
 import { ProductTile } from '@/src/components/products/ProductTile';
 import { fetchProducts } from '@/src/api/catalog';
@@ -117,7 +118,7 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   const { refreshing, onRefresh } = usePullToRefresh(loadProducts);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={listData}
         keyExtractor={(item) => String(item.id)}
@@ -131,7 +132,16 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
           <View>
             <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.headerRow}>
-              <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Pressable
+                style={styles.iconButton}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                    return;
+                  }
+                  router.replace('/(tabs)/home');
+                }}
+              >
                 <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
               </Pressable>
               <Text style={styles.title}>{displayCategory}</Text>
@@ -208,7 +218,7 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
           );
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

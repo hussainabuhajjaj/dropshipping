@@ -8,6 +8,8 @@ import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 import { addSearchHistory } from '@/src/lib/searchHistory';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function SearchResultsScreen() {
   const params = useLocalSearchParams();
   const query = typeof params.query === 'string' ? params.query : '';
@@ -73,110 +75,125 @@ export default function SearchResultsScreen() {
   }, [query, category, minPriceParam, maxPriceParam, sortParam, show]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Shop</Text>
-        <View style={styles.searchRow}>
-          <View style={styles.searchInput}>
-            <TextInput
-              style={styles.searchText}
-              value={searchTerm}
-              onChangeText={setSearchTerm}
-              placeholder="Search"
-              placeholderTextColor="#8f97a4"
-              returnKeyType="search"
-              onSubmitEditing={() => {
-                const trimmed = searchTerm.trim();
-                if (!trimmed) return;
-                if (trimmed === query) return;
-                router.replace({
-                  pathname: '/search/results',
-                  params: {
-                    query: trimmed,
-                    category: category || undefined,
-                    min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
-                    max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
-                    sort: sortParam || undefined,
-                  },
-                });
-              }}
-            />
-            <Pressable
-              onPress={() => {
-                if (searchTerm.trim().length === 0) {
-                  router.back();
-                  return;
-                }
-                setSearchTerm('');
-              }}
-            >
-              <Feather name="x" size={14} color="#0042e0" />
-            </Pressable>
-            <Pressable onPress={() => router.push('/image-search')}>
-              <Feather name="image" size={16} color="#0042e0" />
-            </Pressable>
-          </View>
-          <Pressable
-            style={styles.filterButton}
-            onPress={() =>
-              router.push({
-                pathname: '/products/filters',
-                params: {
-                  returnTo: pathname,
-                  q: query || undefined,
-                  category: category || undefined,
-                  min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
-                  max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
-                  sort: sortParam || undefined,
-                },
-              })
-            }
-          >
-            <Feather name="sliders" size={14} color={theme.colors.inkDark} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.grid}>
-        {loading
-          ? Array.from({ length: 6 }, (_, index) => (
-              <View key={`sk-${index}`} style={styles.card}>
-                <Skeleton height={181} radius={16} />
-                <Skeleton height={10} radius={5} style={styles.skeletonGap} />
-                <Skeleton height={12} radius={6} width="40%" style={styles.skeletonGap} />
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Shop</Text>
+            <View style={styles.searchRow}>
+              <View style={styles.searchInput}>
+                <TextInput
+                  style={styles.searchText}
+                  value={searchTerm}
+                  onChangeText={setSearchTerm}
+                  placeholder="Search"
+                  placeholderTextColor="#8f97a4"
+                  returnKeyType="search"
+                  onSubmitEditing={() => {
+                    const trimmed = searchTerm.trim();
+                    if (!trimmed) return;
+                    if (trimmed === query) return;
+                    router.replace({
+                      pathname: '/search/results',
+                      params: {
+                        query: trimmed,
+                        category: category || undefined,
+                        min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
+                        max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
+                        sort: sortParam || undefined,
+                      },
+                    });
+                  }}
+                />
+                <Pressable
+                  onPress={() => {
+                    if (searchTerm.trim().length === 0) {
+                      router.back();
+                      return;
+                    }
+                    setSearchTerm('');
+                  }}
+                >
+                  <Feather name="x" size={14} color="#0042e0" />
+                </Pressable>
+                <Pressable onPress={() => router.push('/image-search')}>
+                  <Feather name="image" size={16} color="#0042e0" />
+                </Pressable>
               </View>
-            ))
-          : items.map((item) => (
               <Pressable
-                key={`${item.id}-${item.price}`}
-                style={styles.card}
-                onPress={() => router.push(`/products/${item.slug}`)}
+                style={styles.filterButton}
+                onPress={() =>
+                  router.push({
+                    pathname: '/products/filters',
+                    params: {
+                      returnTo: pathname,
+                      q: query || undefined,
+                      category: category || undefined,
+                      min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
+                      max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
+                      sort: sortParam || undefined,
+                    },
+                  })
+                }
               >
-                {item.image ? (
-                  <Image source={{ uri: item.image }} style={styles.cardImage} />
-                ) : (
-                  <View style={styles.cardImageFallback} />
-                )}
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+                <Feather name="sliders" size={14} color={theme.colors.inkDark} />
               </Pressable>
-            ))}
-        {!loading && items.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>
-              {query.trim().length > 0 ? 'No matches found' : 'Start searching'}
-            </Text>
-            <Text style={styles.emptyBody}>
-              {query.trim().length > 0
-                ? 'Try another keyword or adjust filters.'
-                : 'Enter a keyword to explore products.'}
-            </Text>
+            </View>
           </View>
-        ) : null}
-      </View>
-    </ScrollView>
+
+          <View style={styles.grid}>
+            {loading
+              ? Array.from({ length: 6 }, (_, index) => (
+                  <View key={`sk-${index}`} style={styles.card}>
+                    <Skeleton height={181} radius={16} />
+                    <Skeleton height={10} radius={5} style={styles.skeletonGap} />
+                    <Skeleton height={12} radius={6} width="40%" style={styles.skeletonGap} />
+                  </View>
+                ))
+              : items.map((item) => (
+                  <Pressable
+                    key={`${item.id}-${item.price}`}
+                    style={styles.card}
+                    onPress={() => router.push(`/products/${item.slug}`)}
+                  >
+                    {item.image ? (
+                      <Image source={{ uri: item.image }} style={styles.cardImage} />
+                    ) : (
+                      <View style={styles.cardImageFallback} />
+                    )}
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+                  </Pressable>
+                ))}
+            {!loading && items.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>
+                  {query.trim().length > 0 ? 'No matches found' : 'Start searching'}
+                </Text>
+                <Text style={styles.emptyBody}>
+                  {query.trim().length > 0
+                    ? 'Try another keyword or adjust filters.'
+                    : 'Enter a keyword to explore products.'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -184,6 +201,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

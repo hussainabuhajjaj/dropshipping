@@ -13,6 +13,38 @@ use Illuminate\Http\JsonResponse;
 
 class ProductController extends ApiController
 {
+    private function descendantCategoryIds(Category $category): array
+    {
+        $categoryRows = Category::query()
+            ->select(['id', 'parent_id'])
+            ->where('is_active', true)
+            ->get();
+
+        $childrenByParentId = [];
+        foreach ($categoryRows as $categoryRow) {
+            $parentId = $categoryRow->parent_id ?? 0;
+            $childrenByParentId[$parentId][] = (int) $categoryRow->id;
+        }
+
+        $visited = [];
+        $stack = [(int) $category->id];
+
+        while (! empty($stack)) {
+            $current = array_pop($stack);
+            if (isset($visited[$current])) {
+                continue;
+            }
+
+            $visited[$current] = true;
+
+            foreach ($childrenByParentId[$current] ?? [] as $childId) {
+                $stack[] = (int) $childId;
+            }
+        }
+
+        return array_map('intval', array_keys($visited));
+    }
+
     public function index(ProductIndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -31,20 +63,19 @@ class ProductController extends ApiController
         if ($category) {
             $locale = app()->getLocale();
             $categoryModel = Category::query()
-                ->where('slug', $category)
-                ->orWhere('name', $category)
-                ->orWhereHas('translations', function ($builder) use ($category, $locale) {
-                    $builder->where('locale', $locale)->where('name', $category);
+                ->where('is_active', true)
+                ->where(function ($builder) use ($category, $locale) {
+                    $builder
+                        ->where('slug', $category)
+                        ->orWhere('name', $category)
+                        ->orWhereHas('translations', function ($translationBuilder) use ($category, $locale) {
+                            $translationBuilder->where('locale', $locale)->where('name', $category);
+                        });
                 })
                 ->first();
 
             if ($categoryModel) {
-                $categoryIds = Category::query()
-                    ->where('parent_id', $categoryModel->id)
-                    ->pluck('id')
-                    ->push($categoryModel->id)
-                    ->unique()
-                    ->values();
+                $categoryIds = $this->descendantCategoryIds($categoryModel);
 
                 $productQuery->whereIn('category_id', $categoryIds);
             } else {

@@ -2,11 +2,12 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const ratings = [1, 2, 3, 4, 5];
 
 export default function RateServiceScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -35,7 +36,7 @@ export default function RateServiceScreen() {
       <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
         <Text style={styles.secondaryText}>Maybe later</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -116,4 +117,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

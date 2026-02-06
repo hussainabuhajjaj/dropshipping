@@ -1,4 +1,3 @@
-import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
@@ -6,7 +5,6 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LogBox, StyleSheet, View } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -23,6 +21,26 @@ import { PortalHost } from '@/src/overlays/PortalHost';
 import { apiBaseUrl } from '@/src/api/config';
 import { requestAppPermissions } from '@/src/lib/permissions';
 import { ToastProvider } from '@/src/overlays/ToastProvider';
+
+const loadGestureHandlerModule = () => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
+  } catch {
+    return null;
+  }
+};
+
+const gestureHandler = loadGestureHandlerModule();
+if (!gestureHandler && __DEV__) {
+  // Helps catch "stale dev client" / missing native module issues without crashing the app.
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[native] 'react-native-gesture-handler' is unavailable. If you're using a dev client, rebuild the native app (expo run:*)."
+  );
+}
+
+const GestureRootView: any = gestureHandler?.GestureHandlerRootView ?? View;
 
 const ROUTE_TITLE_OVERRIDES: Record<string, string> = {
   '+not-found': 'Not Found',
@@ -135,13 +153,13 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <GestureHandlerRootView style={styles.gestureRoot}>
+    <GestureRootView style={styles.gestureRoot}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <PortalHost>
-          <ToastProvider>
-            <AuthProvider>
-              <PreferencesProvider>
-                <TranslationsProvider>
+        <AuthProvider>
+          <PreferencesProvider>
+            <TranslationsProvider>
+              <PortalHost>
+                <ToastProvider>
                   <CartProvider>
                     <OrdersProvider>
                       <PaymentMethodsProvider>
@@ -156,13 +174,13 @@ function RootLayoutNav() {
                       </PaymentMethodsProvider>
                     </OrdersProvider>
                   </CartProvider>
-                </TranslationsProvider>
-              </PreferencesProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </PortalHost>
+                </ToastProvider>
+              </PortalHost>
+            </TranslationsProvider>
+          </PreferencesProvider>
+        </AuthProvider>
       </ThemeProvider>
-    </GestureHandlerRootView>
+    </GestureRootView>
   );
 }
 
