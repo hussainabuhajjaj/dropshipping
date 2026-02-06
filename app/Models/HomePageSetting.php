@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class HomePageSetting extends Model
 {
     protected $fillable = [
+        'locale',
         'top_strip',
         'hero_slides',
         'rail_cards',
