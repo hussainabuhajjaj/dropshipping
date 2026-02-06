@@ -16,6 +16,16 @@ import { useTranslations } from '@/src/i18n/TranslationsProvider';
 
 const accentCycle = [theme.colors.primary, theme.colors.pink, theme.colors.sun];
 
+type TransactionRow = {
+  id: string;
+  total: string;
+  accent: string;
+  number: string;
+  date: string;
+};
+
+type TransactionRowItem = TransactionRow | { id: string; skeleton: true };
+
 export default function PaymentMethodsScreen() {
   const [addVisible, setAddVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -24,16 +34,16 @@ export default function PaymentMethodsScreen() {
   const { t } = useTranslations();
   const { cards } = usePaymentMethods();
   const { orders, loading, error } = useOrders();
-  const transactions = orders.slice(0, 6).map((order, index) => ({
+  const transactions: TransactionRow[] = orders.slice(0, 6).map((order, index) => ({
     id: `t-${order.number}`,
     total: `-${formatCurrency(order.total, state.currency, state.currency)}`,
     accent: accentCycle[index % accentCycle.length],
     number: order.number,
     date: order.placedAt ?? '—',
   }));
-  const transactionRows =
+  const transactionRows: TransactionRowItem[] =
     loading
-      ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+      ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
       : transactions;
 
   return (
@@ -79,7 +89,7 @@ export default function PaymentMethodsScreen() {
           </Pressable>
         </View>
 
-        <FlatList
+        <FlatList<TransactionRowItem>
           data={transactionRows}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}

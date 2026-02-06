@@ -9,10 +9,13 @@ import type { GiftCard, Wallet } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 
 export default function WalletScreen() {
   const [redeemed, setRedeemed] = useState(false);
   const { show } = useToast();
+  const { state } = usePreferences();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [loading, setLoading] = useState(true);
   const requestId = useRef(0);
@@ -95,7 +98,7 @@ export default function WalletScreen() {
               >
                 <Text style={styles.cardTitle}>{card.code}</Text>
                 <Text style={styles.cardBody}>
-                  Balance: ${typeof card.balance === 'number' ? card.balance.toFixed(2) : '0.00'}
+                  Balance: {formatCurrency(card.balance ?? 0, card.currency, state.currency)}
                 </Text>
               </Pressable>
             ))}

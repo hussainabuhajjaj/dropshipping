@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, RefreshControl } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
@@ -49,7 +49,7 @@ export default function NotificationsScreen() {
       Linking.openURL(href).catch(() => {});
       return;
     }
-    router.push(href);
+    router.push(href as Href);
   };
 
   const cards = useMemo(() => (loading ? [] : items), [items, loading]);

@@ -8,10 +8,13 @@ import type { Order } from '@/src/types/orders';
 import { theme } from '@/src/theme';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 export default function PaymentHistoryDetailsScreen() {
   const params = useLocalSearchParams();
   const number = typeof params.number === 'string' ? params.number : '';
   const { getOrderByNumber, updateOrder } = useOrders();
+  const { state } = usePreferences();
   const [order, setOrder] = useState<Order | null>(() => getOrderByNumber(number) ?? null);
   const [loading, setLoading] = useState(() => !getOrderByNumber(number));
   const [error, setError] = useState<string | null>(null);
@@ -93,16 +96,16 @@ export default function PaymentHistoryDetailsScreen() {
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Subtotal</Text>
-              <Text style={styles.value}>${order.total.toFixed(2)}</Text>
+              <Text style={styles.value}>{formatCurrency(order.total, state.currency, state.currency)}</Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.label}>Shipping</Text>
-              <Text style={styles.value}>$0.00</Text>
+              <Text style={styles.value}>{formatCurrency(0, state.currency, state.currency)}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.row}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${order.total.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(order.total, state.currency, state.currency)}</Text>
             </View>
           </View>
 
