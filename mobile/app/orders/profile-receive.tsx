@@ -2,31 +2,48 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ProfileToReceiveScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Delivery details</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Delivery details</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          </View>
 
-      <Text style={styles.subtitle}>Confirm how we should contact you for delivery updates.</Text>
+          <Text style={styles.subtitle}>Confirm how we should contact you for delivery updates.</Text>
 
-      <View style={styles.form}>
-        <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#b6b6b6" />
-        <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#b6b6b6" />
-        <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#b6b6b6" />
-      </View>
+          <View style={styles.form}>
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#b6b6b6" />
+            <TextInput style={styles.input} placeholder="Phone number" placeholderTextColor="#b6b6b6" />
+            <TextInput style={styles.input} placeholder="Address" placeholderTextColor="#b6b6b6" />
+          </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.replace('/orders/to-receive')}>
-        <Text style={styles.primaryText}>Save</Text>
-      </Pressable>
-    </ScrollView>
+          <Pressable style={styles.primaryButton} onPress={() => router.replace('/orders/to-receive')}>
+            <Text style={styles.primaryText}>Save</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -34,6 +51,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -88,4 +111,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

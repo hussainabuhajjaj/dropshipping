@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/respo
 import { theme } from '@/src/theme';
 import { useAuth } from '@/lib/authStore';
 import { meRequest } from '@/src/api/auth';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type StatItem = { id: string; label: string; value: string };
 
@@ -44,53 +45,54 @@ export default function FullProfileScreen() {
   }, [status, updateUser]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}
-      >
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Profile</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/settings/profile')}>
-          <Feather name="edit-2" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.profileCard}>
-        <View style={styles.avatarWrap}>
-          {user?.avatar ? (
-            <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarFallback} />
-          )}
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Profile</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/settings/profile')}>
+            <Feather name="edit-2" size={16} color={theme.colors.inkDark} />
+          </Pressable>
         </View>
-        <Text style={styles.name}>{user?.name ?? 'Customer'}</Text>
-        <Text style={styles.email}>{user?.email ?? '—'}</Text>
-        <View style={styles.statRow}>
-          {stats.map((stat) => (
-            <View key={stat.id} style={styles.statCard}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
+
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrap}>
+            {user?.avatar ? (
+              <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarFallback} />
+            )}
+          </View>
+          <Text style={styles.name}>{user?.name ?? 'Customer'}</Text>
+          <Text style={styles.email}>{user?.email ?? '—'}</Text>
+          <View style={styles.statRow}>
+            {stats.map((stat) => (
+              <View key={stat.id} style={styles.statCard}>
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.actionRow}>
-        <Pressable style={styles.actionCard} onPress={() => router.push('/rewards')}>
-          <Feather name="gift" size={16} color={theme.colors.inkDark} />
-          <Text style={styles.actionText}>Rewards</Text>
-        </Pressable>
-        <Pressable style={styles.actionCard} onPress={() => router.push('/settings')}>
-          <Feather name="settings" size={16} color={theme.colors.inkDark} />
-          <Text style={styles.actionText}>Settings</Text>
-        </Pressable>
-      </View>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.actionCard} onPress={() => router.push('/rewards')}>
+            <Feather name="gift" size={16} color={theme.colors.inkDark} />
+            <Text style={styles.actionText}>Rewards</Text>
+          </Pressable>
+          <Pressable style={styles.actionCard} onPress={() => router.push('/settings')}>
+            <Feather name="settings" size={16} color={theme.colors.inkDark} />
+            <Text style={styles.actionText}>Settings</Text>
+          </Pressable>
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/history')}>
-        <Text style={styles.primaryText}>View order history</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/history')}>
+          <Text style={styles.primaryText}>View order history</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -98,6 +100,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

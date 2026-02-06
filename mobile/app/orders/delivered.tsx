@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/util
 import { useOrders } from '@/lib/ordersStore';
 import { theme } from '@/src/theme';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function DeliveredScreen() {
   const { orders, loading, error } = useOrders();
   const order = orders.find((item) => item.status === 'Delivered') ?? orders[0];
@@ -11,55 +12,57 @@ export default function DeliveredScreen() {
   const imageSource = firstItem?.image ?? null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Delivered</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      {loading ? (
-        <View style={styles.card}>
-          <Skeleton width={90} height={90} radius={14} />
-          <View style={styles.cardInfo}>
-            <Skeleton width="70%" height={12} />
-            <Skeleton width="45%" height={10} style={styles.skeletonGap} />
-          </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Delivered</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
         </View>
-      ) : order ? (
-        <>
+
+        {loading ? (
           <View style={styles.card}>
-            {imageSource ? (
-              <Image source={{ uri: imageSource }} style={styles.cardImage} />
-            ) : (
-              <View style={styles.cardImageFallback}>
-                <Text style={styles.cardImageText}>{order.number.slice(0, 2).toUpperCase()}</Text>
-              </View>
-            )}
+            <Skeleton width={90} height={90} radius={14} />
             <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle}>{firstItem?.name ?? `Order #${order.number}`}</Text>
-              <Text style={styles.cardBody}>Delivered • Today</Text>
+              <Skeleton width="70%" height={12} />
+              <Skeleton width="45%" height={10} style={styles.skeletonGap} />
             </View>
           </View>
+        ) : order ? (
+          <>
+            <View style={styles.card}>
+              {imageSource ? (
+                <Image source={{ uri: imageSource }} style={styles.cardImage} />
+              ) : (
+                <View style={styles.cardImageFallback}>
+                  <Text style={styles.cardImageText}>{order.number.slice(0, 2).toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle}>{firstItem?.name ?? `Order #${order.number}`}</Text>
+                <Text style={styles.cardBody}>Delivered • Today</Text>
+              </View>
+            </View>
 
-          <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/review')}>
-            <Text style={styles.primaryText}>Leave a review</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => router.push(`/orders/${order.number}`)}>
-            <Text style={styles.secondaryText}>View order</Text>
-          </Pressable>
-        </>
-      ) : (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No deliveries yet</Text>
-          <Text style={styles.emptyBody}>{error ?? 'Delivered orders will appear here.'}</Text>
-        </View>
-      )}
-    </ScrollView>
+            <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/review')}>
+              <Text style={styles.primaryText}>Leave a review</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={() => router.push(`/orders/${order.number}`)}>
+              <Text style={styles.secondaryText}>View order</Text>
+            </Pressable>
+          </>
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No deliveries yet</Text>
+            <Text style={styles.emptyBody}>{error ?? 'Delivered orders will appear here.'}</Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -67,6 +70,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

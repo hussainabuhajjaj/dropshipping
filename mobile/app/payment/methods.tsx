@@ -3,51 +3,54 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { usePaymentMethods } from '@/lib/paymentMethodsStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PaymentMethodsScreen() {
   const { cards, selectedCard, selectCard } = usePaymentMethods();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Payment method</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/payment/methods-2')}>
-          <Feather name="plus" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.list}>
-        {cards.map((card) => (
-          <Pressable
-            key={card.id}
-            style={styles.card}
-            onPress={() => selectCard(card.id)}
-          >
-            <View style={styles.cardIcon}>
-              <Feather name="credit-card" size={18} color={theme.colors.inkDark} />
-            </View>
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle}>{card.brand === 'visa' ? 'Visa' : 'Mastercard'}</Text>
-              <Text style={styles.cardBody}>•••• {card.last4}</Text>
-            </View>
-            {selectedCard?.id === card.id ? (
-              <View style={styles.checkCircle}>
-                <Feather name="check" size={14} color={theme.colors.inkDark} />
-              </View>
-            ) : (
-              <View style={styles.checkCircleInactive} />
-            )}
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
+          <Text style={styles.title}>Payment method</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/payment/methods-2')}>
+            <Feather name="plus" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.back()}>
-        <Text style={styles.primaryText}>Confirm</Text>
-      </Pressable>
-    </ScrollView>
+        <View style={styles.list}>
+          {cards.map((card) => (
+            <Pressable
+              key={card.id}
+              style={styles.card}
+              onPress={() => selectCard(card.id)}
+            >
+              <View style={styles.cardIcon}>
+                <Feather name="credit-card" size={18} color={theme.colors.inkDark} />
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle}>{card.brand === 'visa' ? 'Visa' : 'Mastercard'}</Text>
+                <Text style={styles.cardBody}>•••• {card.last4}</Text>
+              </View>
+              {selectedCard?.id === card.id ? (
+                <View style={styles.checkCircle}>
+                  <Feather name="check" size={14} color={theme.colors.inkDark} />
+                </View>
+              ) : (
+                <View style={styles.checkCircleInactive} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+
+        <Pressable style={styles.primaryButton} onPress={() => router.back()}>
+          <Text style={styles.primaryText}>Confirm</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -55,6 +58,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

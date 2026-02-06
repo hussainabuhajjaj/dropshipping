@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const fallbackCurrencies = ['USD ($)', 'EUR (€)', 'GBP (£)', 'JPY (¥)'];
 
 export default function ChooseCurrencyScreen() {
@@ -11,33 +12,35 @@ export default function ChooseCurrencyScreen() {
   const currencies = state.lookups.currencies.length > 0 ? state.lookups.currencies : fallbackCurrencies;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Choose currency</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.list}>
-        {currencies.map((currency, index) => (
-          <Pressable
-            key={currency}
-            style={styles.row}
-            onPress={() => {
-              setCurrency(currency);
-              router.back();
-            }}
-          >
-            <Text style={styles.rowText}>{currency}</Text>
-            {selected === currency ? <Feather name="check" size={16} color={theme.colors.inkDark} /> : null}
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Choose currency</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.list}>
+          {currencies.map((currency) => (
+            <Pressable
+              key={currency}
+              style={styles.row}
+              onPress={() => {
+                setCurrency(currency);
+                router.back();
+              }}
+            >
+              <Text style={styles.rowText}>{currency}</Text>
+              {selected === currency ? <Feather name="check" size={16} color={theme.colors.inkDark} /> : null}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -45,6 +48,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

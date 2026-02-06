@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/respo
 import { theme } from '@/src/theme';
 import { useOrders } from '@/lib/ordersStore';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PaymentHistoryScreen() {
   const { orders, loading, error } = useOrders();
@@ -17,55 +18,57 @@ export default function PaymentHistoryScreen() {
   }));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Payment history</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Payment history</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <View style={styles.list}>
-        {loading
-          ? [0, 1, 2].map((index) => (
-              <View key={`sk-${index}`} style={styles.card}>
-                <View style={styles.cardBody}>
-                  <Skeleton width="60%" height={12} />
-                  <Skeleton width="40%" height={10} style={styles.skeletonGap} />
+        <View style={styles.list}>
+          {loading
+            ? [0, 1, 2].map((index) => (
+                <View key={`sk-${index}`} style={styles.card}>
+                  <View style={styles.cardBody}>
+                    <Skeleton width="60%" height={12} />
+                    <Skeleton width="40%" height={10} style={styles.skeletonGap} />
+                  </View>
+                  <View style={styles.amountGroup}>
+                    <Skeleton width={50} height={12} />
+                    <Skeleton width={40} height={10} style={styles.skeletonGap} />
+                  </View>
                 </View>
-                <View style={styles.amountGroup}>
-                  <Skeleton width={50} height={12} />
-                  <Skeleton width={40} height={10} style={styles.skeletonGap} />
-                </View>
-              </View>
-            ))
-          : payments.map((payment) => (
-              <Pressable
-                key={payment.id}
-                style={styles.card}
-                onPress={() => router.push(`/payment/history-details?number=${encodeURIComponent(payment.number)}`)}
-              >
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle}>{payment.title}</Text>
-                  <Text style={styles.cardSub}>{payment.date}</Text>
-                </View>
-                <View style={styles.amountGroup}>
-                  <Text style={styles.amountText}>{payment.amount}</Text>
-                  <Text style={styles.statusText}>{payment.status}</Text>
-                </View>
-              </Pressable>
-            ))}
-        {!loading && payments.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No payments yet</Text>
-            <Text style={styles.emptyBody}>{error ?? 'Completed payments will appear here.'}</Text>
-          </View>
-        ) : null}
-      </View>
-    </ScrollView>
+              ))
+            : payments.map((payment) => (
+                <Pressable
+                  key={payment.id}
+                  style={styles.card}
+                  onPress={() => router.push(`/payment/history-details?number=${encodeURIComponent(payment.number)}`)}
+                >
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle}>{payment.title}</Text>
+                    <Text style={styles.cardSub}>{payment.date}</Text>
+                  </View>
+                  <View style={styles.amountGroup}>
+                    <Text style={styles.amountText}>{payment.amount}</Text>
+                    <Text style={styles.statusText}>{payment.status}</Text>
+                  </View>
+                </Pressable>
+              ))}
+          {!loading && payments.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No payments yet</Text>
+              <Text style={styles.emptyBody}>{error ?? 'Completed payments will appear here.'}</Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -73,6 +76,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

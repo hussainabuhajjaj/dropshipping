@@ -2,33 +2,36 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const dates = ['Today', 'Yesterday', 'Last 7 days', 'Last 30 days'];
 
 export default function RecentlyViewedDateScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Recently viewed</Text>
-        <View style={styles.spacer} />
-      </View>
-
-      <Text style={styles.subtitle}>Choose a date range</Text>
-      <View style={styles.list}>
-        {dates.map((date) => (
-          <Pressable
-            key={date}
-            style={styles.dateRow}
-            onPress={() => router.push('/account/recent-date-chosen')}
-          >
-            <Text style={styles.dateText}>{date}</Text>
-            <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Recently viewed</Text>
+          <View style={styles.spacer} />
+        </View>
+
+        <Text style={styles.subtitle}>Choose a date range</Text>
+        <View style={styles.list}>
+          {dates.map((date) => (
+            <Pressable
+              key={date}
+              style={styles.dateRow}
+              onPress={() => router.push('/account/recent-date-chosen')}
+            >
+              <Text style={styles.dateText}>{date}</Text>
+              <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -36,6 +39,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -88,4 +94,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

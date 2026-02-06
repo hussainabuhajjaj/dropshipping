@@ -4,41 +4,56 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function VoucherScreen() {
   const [code, setCode] = useState('');
   const [visible, setVisible] = useState(false);
 
   return (
-    <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Pressable style={styles.iconButton} onPress={() => router.back()}>
-            <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
-          </Pressable>
-          <Text style={styles.title}>Add voucher</Text>
-          <View style={styles.spacer} />
-        </View>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="arrow-left" size={16} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Add voucher</Text>
+            <View style={styles.spacer} />
+          </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Voucher code</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter code"
-            placeholderTextColor="#c7c7c7"
-            value={code}
-            onChangeText={(value) => setCode(value)}
-          />
-          <Pressable
-            style={[styles.primaryButton, code.trim().length === 0 ? styles.primaryDisabled : null]}
-            onPress={() => {
-              if (code.trim().length === 0) return;
-              setVisible(true);
-            }}
-          >
-            <Text style={styles.primaryText}>Apply</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Voucher code</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter code"
+              placeholderTextColor="#c7c7c7"
+              value={code}
+              onChangeText={(value) => setCode(value)}
+            />
+            <Pressable
+              style={[styles.primaryButton, code.trim().length === 0 ? styles.primaryDisabled : null]}
+              onPress={() => {
+                if (code.trim().length === 0) return;
+                setVisible(true);
+              }}
+            >
+              <Text style={styles.primaryText}>Apply</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <StatusDialog
         visible={visible}
@@ -52,7 +67,7 @@ export default function VoucherScreen() {
         }}
         onClose={() => setVisible(false)}
       />
-    </>
+    </SafeAreaView>
   );
 }
 
@@ -60,6 +75,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

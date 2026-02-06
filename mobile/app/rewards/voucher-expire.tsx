@@ -6,6 +6,7 @@ import { theme } from '@/src/theme';
 import { fetchVouchers } from '@/src/api/rewards';
 import type { Voucher } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function VoucherExpireScreen() {
   const params = useLocalSearchParams();
   const id = typeof params.id === 'string' ? params.id : '';
@@ -32,7 +33,7 @@ export default function VoucherExpireScreen() {
   }, [id, show]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -64,7 +65,7 @@ export default function VoucherExpireScreen() {
       <Pressable style={styles.secondaryButton} onPress={() => router.push('/rewards/voucher-reminder')}>
         <Text style={styles.secondaryText}>Set reminder</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 

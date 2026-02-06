@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const categories = [
   { id: 'dresses', label: 'Dresses', tone: '#f6d9c8' },
   { id: 'pants', label: 'Pants', tone: '#f2caa4' },
@@ -31,13 +32,14 @@ export default function ImageSearchFilterScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Filter</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Filter</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
       <View style={styles.categoryRow}>
         {categories.map((item) => {
@@ -151,7 +153,8 @@ export default function ImageSearchFilterScreen() {
           <Text style={styles.applyText}>Apply</Text>
         </Pressable>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -159,6 +162,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -436,4 +442,3 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 });
-

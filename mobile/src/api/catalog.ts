@@ -152,6 +152,25 @@ export const mapCategory = (source: ApiCategory): Category => {
   };
 };
 
+const pruneEmptyCategories = (items: Category[]): Category[] => {
+  const prune = (category: Category): Category | null => {
+    const children = Array.isArray(category.children) ? category.children : [];
+    const prunedChildren = children
+      .map(prune)
+      .filter((child): child is Category => Boolean(child));
+    const keep = category.count > 0 || prunedChildren.length > 0;
+
+    if (!keep) return null;
+
+    return {
+      ...category,
+      children: prunedChildren.length > 0 ? prunedChildren : undefined,
+    };
+  };
+
+  return items.map(prune).filter((item): item is Category => Boolean(item));
+};
+
 export const mapProduct = (source: ApiProduct): Product => {
   const media = Array.isArray(source.media)
     ? source.media.filter((item) => typeof item === 'string')
@@ -215,7 +234,12 @@ export const mapProduct = (source: ApiProduct): Product => {
       : undefined,
     leadTimeDays:
       typeof source.lead_time_days === 'number' ? source.lead_time_days : null,
-    specs: typeof source.specs === 'object' && source.specs !== null ? source.specs : null,
+    specs:
+      typeof source.specs === 'object' &&
+      source.specs !== null &&
+      !Array.isArray(source.specs)
+        ? (source.specs as Record<string, unknown>)
+        : null,
     metaTitle: typeof source.meta_title === 'string' ? source.meta_title : null,
     metaDescription: typeof source.meta_description === 'string' ? source.meta_description : null,
   };
@@ -340,7 +364,7 @@ export const fetchHome = async (): Promise<HomePayload> => {
 
 export const fetchCategories = async (): Promise<Category[]> => {
   const payload = await apiFetch<ApiEnvelope<ApiCategory[]>>(`${mobileApiBaseUrl}/categories`);
-  return unwrap(payload).map(mapCategory);
+  return pruneEmptyCategories(unwrap(payload).map(mapCategory));
 };
 
 export const fetchCategory = async (slug: string): Promise<{
