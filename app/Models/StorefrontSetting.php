@@ -12,6 +12,7 @@ class StorefrontSetting extends Model
     use HasFactory;
 
     protected $fillable = [
+        'locale',
         'brand_name',
         'footer_blurb',
         'delivery_notice',
