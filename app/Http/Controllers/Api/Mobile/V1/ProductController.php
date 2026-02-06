@@ -74,6 +74,13 @@ class ProductController extends ApiController
                 })
                 ->first();
 
+            if (! $categoryModel && is_string($category) && ctype_digit($category)) {
+                $categoryModel = Category::query()
+                    ->whereKey((int) $category)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
             if ($categoryModel) {
                 $categoryIds = $this->descendantCategoryIds($categoryModel);
 
