@@ -109,7 +109,7 @@ class DeepSeekClient implements TranslationProvider
         return trim($content);
     }
 
-    private function localeToLanguage(string $locale): string
+    public function localeToLanguage(string $locale): string
     {
         $map = [
             'en' => 'English',

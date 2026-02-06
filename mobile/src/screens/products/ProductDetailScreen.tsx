@@ -294,7 +294,7 @@ export function ProductDetailScreen({
     opacity: flyOpacity.value,
   }));
 
-  const measureInWindow = (ref: React.RefObject<View>) =>
+  const measureInWindow = (ref: React.RefObject<View | null>) =>
     new Promise<LayoutRect | null>((resolve) => {
       if (!ref.current) {
         resolve(null);
@@ -341,6 +341,7 @@ export function ProductDetailScreen({
   };
 
   const handleAddToCart = async () => {
+    if (!product) return;
     const ok = await addItem(product);
     if (ok) {
       triggerFlyAnimation();
@@ -717,11 +718,9 @@ export function ProductDetailScreen({
       </View>
 
       {flyVisible && flyImage ? (
-        <Animated.Image
-          pointerEvents="none"
-          source={{ uri: flyImage }}
-          style={[styles.flyImage, flyStyle]}
-        />
+        <Animated.View pointerEvents="none" style={[styles.flyImage, flyStyle]}>
+          <Image source={{ uri: flyImage }} style={styles.flyImageInner} />
+        </Animated.View>
       ) : null}
 
       {cartDragGesture ? (
@@ -930,6 +929,11 @@ const styles = StyleSheet.create({
     height: theme.moderateScale(56),
     borderRadius: theme.moderateScale(12),
     zIndex: 40,
+  },
+  flyImageInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: theme.moderateScale(12),
   },
   floatingCartWrap: {
     position: 'absolute',

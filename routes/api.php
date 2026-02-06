@@ -28,6 +28,8 @@ use App\Http\Controllers\Api\Mobile\V1\WalletController as MobileWalletControlle
 use App\Http\Controllers\Api\Mobile\V1\PreferencesController as MobilePreferencesController;
 use App\Http\Controllers\Api\Mobile\V1\SearchController as MobileSearchController;
 use App\Http\Controllers\Api\Mobile\V1\TranslationsController as MobileTranslationsController;
+use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingController;
+use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -79,6 +81,8 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('login', [MobileAuthController::class, 'login']);
     });
 
+    Route::get('onboarding', [MobileOnboardingController::class, 'index']);
+    Route::get('announcements', [MobileAnnouncementController::class, 'index']);
     Route::get('home', [MobileHomeController::class, 'index']);
     Route::get('categories', [MobileCategoryController::class, 'index']);
     Route::get('categories/{category:slug}', [MobileCategoryController::class, 'show']);

@@ -13,11 +13,14 @@ import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 export default function WishlistScreen() {
   const { items: wishlisted, loading: loadingWish, error, remove, refresh: refreshWishlist } = useWishlist();
   const { slugs: recentSlugs } = useRecentlyViewed();
   const { addItem } = useCart();
   const { show } = useToast();
+  const { state } = usePreferences();
   const recentRequestId = useRef(0);
   const popularRequestId = useRef(0);
   const recentSize = 46;
@@ -209,8 +212,12 @@ export default function WishlistScreen() {
                     {product.name}
                   </Text>
                   <View style={styles.priceRow}>
-                    {compareAt ? <Text style={styles.comparePrice}>${compareAt.toFixed(2)}</Text> : null}
-                    <Text style={styles.itemPrice}>${product.price.toFixed(2)}</Text>
+                    {compareAt ? (
+                      <Text style={styles.comparePrice}>
+                        {formatCurrency(compareAt, product.currency, state.currency)}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.itemPrice}>{formatCurrency(product.price, product.currency, state.currency)}</Text>
                   </View>
                   <View style={styles.metaRow}>
                     <View style={styles.metaChip}>

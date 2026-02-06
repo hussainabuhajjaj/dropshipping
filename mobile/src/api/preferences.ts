@@ -26,15 +26,22 @@ const unwrap = <T>(payload: ApiEnvelope<T>): T => {
 };
 
 const mapPreferences = (source: ApiPreferences): Preferences => {
+  const notifications =
+    typeof source.notifications === 'object' &&
+    source.notifications !== null &&
+    !Array.isArray(source.notifications)
+      ? (source.notifications as Record<string, unknown>)
+      : {};
+
   return {
     country: typeof source.country === 'string' ? source.country : '',
     currency: typeof source.currency === 'string' ? source.currency : '',
     size: typeof source.size === 'string' ? source.size : '',
     language: typeof source.language === 'string' ? source.language : '',
     notifications: {
-      push: Boolean(source.notifications?.push),
-      email: Boolean(source.notifications?.email),
-      sms: Boolean(source.notifications?.sms),
+      push: Boolean(notifications.push),
+      email: Boolean(notifications.email),
+      sms: Boolean(notifications.sms),
     },
   };
 };

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadAuthToken, setAuthToken } from '@/src/api/authToken';
-import { clearExpoPushToken, syncExpoPushToken } from '@/src/lib/pushTokens';
+import { clearExpoPushToken } from '@/src/lib/pushTokens';
 
 export type AuthUser = {
   name: string;
@@ -63,12 +63,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     hydrate();
   }, []);
-
-  useEffect(() => {
-    if (state.status === 'authed') {
-      syncExpoPushToken();
-    }
-  }, [state.status]);
 
   const value = useMemo(() => {
     return {

@@ -2,15 +2,17 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { Linking } from 'react-native';
 import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
 import { useTranslations } from '@/src/i18n/TranslationsProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { clearExpoPushToken, syncExpoPushToken } from '@/src/lib/pushTokens';
 
 export default function SettingsFullScreen() {
   const { state, setNotification } = usePreferences();
-  const [notice, setNotice] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<null | 'push_confirm' | 'push_processing' | 'push_failed'>(null);
   const { t } = useTranslations();
 
   const toggles = [
@@ -52,10 +54,16 @@ export default function SettingsFullScreen() {
                 style={[styles.toggle, item.active ? styles.toggleActive : null]}
                 onPress={() => {
                   const next = !item.active;
-                  setNotification(item.id, next);
-                  if (item.id === 'push' && next) {
-                    setNotice(true);
+                  if (item.id === 'push') {
+                    if (next) {
+                      setActiveDialog('push_confirm');
+                      return;
+                    }
+                    setNotification('push', false);
+                    clearExpoPushToken().catch(() => {});
+                    return;
                   }
+                  setNotification(item.id, next);
                 }}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: item.active }}
@@ -79,13 +87,51 @@ export default function SettingsFullScreen() {
       </ScrollView>
 
       <StatusDialog
-        visible={notice}
+        visible={activeDialog === 'push_confirm'}
         variant="info"
-        title="Push notifications"
-        message="Notifications will ask for permission when the feature is enabled. You can change notification permissions in your device settings anytime."
-        primaryLabel="OK"
-        onPrimary={() => setNotice(false)}
-        onClose={() => setNotice(false)}
+        title={t('Push notifications', 'Push notifications')}
+        message={t(
+          'We will ask for permission to send order updates and important account alerts. You can change this anytime in your device settings.',
+          'We will ask for permission to send order updates and important account alerts. You can change this anytime in your device settings.'
+        )}
+        primaryLabel={t('Enable', 'Enable')}
+        onPrimary={async () => {
+          setActiveDialog('push_processing');
+          const token = await syncExpoPushToken();
+          setNotification('push', true);
+          setActiveDialog(token ? null : 'push_failed');
+        }}
+        secondaryLabel={t('Not now', 'Not now')}
+        onSecondary={() => setActiveDialog(null)}
+        onClose={() => setActiveDialog(null)}
+      />
+
+      <StatusDialog
+        visible={activeDialog === 'push_processing'}
+        variant="loading"
+        title={t('Enabling notifications', 'Enabling notifications')}
+        message={t('Waiting for your permission…', 'Waiting for your permission…')}
+        primaryLabel={t('Hide', 'Hide')}
+        onPrimary={() => setActiveDialog(null)}
+        onClose={() => setActiveDialog(null)}
+      />
+
+      <StatusDialog
+        visible={activeDialog === 'push_failed'}
+        variant="info"
+        title={t('Enable notifications in Settings', 'Enable notifications in Settings')}
+        message={t(
+          'To receive push notifications, allow notifications for Simbazu in your device settings.',
+          'To receive push notifications, allow notifications for Simbazu in your device settings.'
+        )}
+        primaryLabel={t('Open settings', 'Open settings')}
+        onPrimary={() => {
+          Linking.openSettings().catch(() => {});
+          setActiveDialog(null);
+        }}
+        secondaryLabel={t('OK', 'OK')}
+        onSecondary={() => setActiveDialog(null)}
+        onClose={() => setActiveDialog(null)}
       />
     </SafeAreaView>
   );

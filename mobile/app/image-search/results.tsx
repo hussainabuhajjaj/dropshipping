@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { fetchProducts } from '@/src/api/catalog';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 export default function ImageSearchResultsScreen() {
   const { show } = useToast();
+  const { state } = usePreferences();
   const [matches, setMatches] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +79,7 @@ export default function ImageSearchResultsScreen() {
                   <Text style={styles.cardTitle} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+                  <Text style={styles.cardPrice}>{formatCurrency(item.price, item.currency, state.currency)}</Text>
                 </Pressable>
               ))}
           {!loading && matches.length === 0 ? (

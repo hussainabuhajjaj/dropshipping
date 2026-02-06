@@ -5,16 +5,19 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/util
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { fetchProduct, fetchProducts } from '@/src/api/catalog';
 import { useCart } from '@/lib/cartStore';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
 const variations = ['Color', 'Size'];
 
 export default function ProductSaleScreen() {
   const params = useLocalSearchParams();
   const slug = typeof params.slug === 'string' ? params.slug : '';
   const { show } = useToast();
+  const { state } = usePreferences();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const { addItem } = useCart();
@@ -89,9 +92,9 @@ export default function ProductSaleScreen() {
           ) : (
             <View style={styles.priceBlock}>
               {product?.compareAt ? (
-                <Text style={styles.salePrice}>${product.compareAt.toFixed(2)}</Text>
+                <Text style={styles.salePrice}>{formatCurrency(product.compareAt, product.currency, state.currency)}</Text>
               ) : null}
-              <Text style={styles.price}>${product?.price?.toFixed(2) ?? '0.00'}</Text>
+              <Text style={styles.price}>{formatCurrency(product?.price ?? 0, product?.currency, state.currency)}</Text>
             </View>
           )}
           <Pressable style={styles.discountTag}>
@@ -120,7 +123,7 @@ export default function ProductSaleScreen() {
         ) : (
           <Text style={styles.description}>
             {product?.description ??
-              'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam arcu mauris, scelerisque eu mauris id, pretium pulvinar sapien.'}
+              'No description is available for this item yet.'}
           </Text>
         )}
 

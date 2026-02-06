@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { loadPersisted, savePersisted } from './persist';
 import { fetchPreferences, fetchPreferencesLookups, updatePreferences } from '@/src/api/preferences';
 import { setApiCurrency, normalizeCurrency } from '@/src/api/currency';
 import { setApiLocale } from '@/src/api/locale';
 import type { PreferencesLookups, Preferences as ApiPreferences } from '@/src/types/preferences';
 import { useAuth } from '@/lib/authStore';
+import { clearExpoPushToken, syncExpoPushTokenIfPermitted } from '@/src/lib/pushTokens';
 
 export type ShippingAddress = {
   country: string;
@@ -141,6 +142,7 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
   const { status } = useAuth();
   const [state, dispatch] = useReducer(reducer, defaultState);
   const [hydrated, setHydrated] = useState(false);
+  const lastPushSync = useRef<{ status: typeof status; push: boolean } | null>(null);
 
   useEffect(() => {
     loadPersisted<PreferencesState>({ key: 'prefs:v1' }, defaultState).then((data) => {
@@ -300,6 +302,22 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
       }
     }
   }, [hydrated, state.language, state.languageSource, status]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const next = { status, push: state.notifications.push };
+    const prev = lastPushSync.current;
+    if (prev && prev.status === next.status && prev.push === next.push) return;
+    lastPushSync.current = next;
+
+    if (state.notifications.push) {
+      syncExpoPushTokenIfPermitted().catch(() => {});
+      return;
+    }
+
+    clearExpoPushToken().catch(() => {});
+  }, [hydrated, status, state.notifications.push]);
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 };

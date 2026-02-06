@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feather } from '@expo/vector-icons';
-import { router, Stack, useLocalSearchParams, usePathname } from 'expo-router';
-import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from '@/src/utils/responsiveStyleSheet';
+import { router, Stack, type Href, useLocalSearchParams, usePathname } from 'expo-router';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from '@/src/utils/responsiveStyleSheet';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProductFilterChips } from '@/src/components/products/ProductFilterChips';
 import { ProductTile } from '@/src/components/products/ProductTile';
@@ -16,10 +24,39 @@ type ProductsScreenProps = {
   filterRoute?: string;
 };
 
+type PaginationMeta = {
+  currentPage: number;
+  lastPage: number;
+  perPage: number;
+  total: number;
+};
+
+const toMetaInt = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+  }
+  return null;
+};
+
+const parsePaginationMeta = (meta: Record<string, unknown> | null | undefined): PaginationMeta | null => {
+  if (!meta) return null;
+  const currentPage = toMetaInt(meta.currentPage ?? meta.current_page);
+  const lastPage = toMetaInt(meta.lastPage ?? meta.last_page);
+  const perPage = toMetaInt(meta.perPage ?? meta.per_page);
+  const total = toMetaInt(meta.total);
+
+  if (currentPage === null || lastPage === null || perPage === null || total === null) return null;
+  return { currentPage, lastPage, perPage, total };
+};
+
 export default function ProductsScreen({ filterRoute = '/products/filters' }: ProductsScreenProps) {
   const params = useLocalSearchParams();
-  const query = typeof params.q === 'string' ? params.q : '';
+  const query =
+    typeof params.q === 'string' ? params.q : typeof params.query === 'string' ? params.query : '';
   const category = typeof params.category === 'string' ? params.category : '';
+  const categoryTitle = typeof params.title === 'string' ? params.title : '';
   const minPriceParam = typeof params.min_price === 'string' ? Number(params.min_price) : undefined;
   const maxPriceParam = typeof params.max_price === 'string' ? Number(params.max_price) : undefined;
   const sortParam = typeof params.sort === 'string' ? params.sort : '';
@@ -28,8 +65,11 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   const [chip, setChip] = useState('trending');
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta | null>(null);
   const requestId = useRef(0);
+  const loadingMoreRef = useRef(false);
   const { show } = useToast();
   const { width } = useWindowDimensions();
   const horizontalPadding = theme.moderateScale(20);
@@ -44,7 +84,11 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
   );
   const listData = loading ? skeletonItems : items;
   const displayCategory = useMemo(() => {
-    if (!category) return t('All products', 'All products');
+    if (!category) {
+      if (query.trim()) return t('Search results', 'Search results');
+      return t('All products', 'All products');
+    }
+    if (categoryTitle.trim()) return categoryTitle.trim();
     if (category.includes('-') || category.includes('_')) {
       return category
         .replace(/[-_]+/g, ' ')
@@ -53,7 +97,12 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
         .replace(/\b\w/g, (char) => char.toUpperCase());
     }
     return category;
-  }, [category, t]);
+  }, [category, categoryTitle, t]);
+
+  const canLoadMore = useMemo(() => {
+    if (!paginationMeta) return false;
+    return paginationMeta.currentPage < paginationMeta.lastPage;
+  }, [paginationMeta]);
 
   const chipOptions = useMemo(
     () => [
@@ -84,27 +133,51 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
     }
   }, [sortParam, chip]);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (page = 1, mode: 'replace' | 'append' = 'replace') => {
     const id = ++requestId.current;
-    setLoading(true);
-    setError(null);
+    const isAppend = mode === 'append';
+    if (isAppend) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+      setPaginationMeta(null);
+      setError(null);
+    }
     try {
-      const { items: data } = await fetchProducts({
+      const { items: data, meta } = await fetchProducts({
         q: query,
         category,
         min_price: Number.isFinite(minPriceParam) ? minPriceParam : undefined,
         max_price: Number.isFinite(maxPriceParam) ? maxPriceParam : undefined,
         sort: sortParam || chipToSort[chip],
+        page,
       });
       if (id !== requestId.current) return;
-      setItems(data);
+
+      const nextMeta = parsePaginationMeta(meta);
+      setPaginationMeta(nextMeta);
+      setItems((prev) => (isAppend ? [...prev, ...data] : data));
     } catch (err: any) {
       if (id !== requestId.current) return;
       const message = err?.message ?? 'Unable to load products.';
-      setError(message);
       show({ type: 'error', message });
+      if (!isAppend) {
+        setError(message);
+        setItems([]);
+      }
     } finally {
-      if (id === requestId.current) setLoading(false);
+      if (id === requestId.current) {
+        if (isAppend) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
+      }
+      if (isAppend) {
+        loadingMoreRef.current = false;
+      }
     }
   }, [query, category, minPriceParam, maxPriceParam, sortParam, chip, show]);
 
@@ -115,7 +188,19 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
     };
   }, [loadProducts]);
 
-  const { refreshing, onRefresh } = usePullToRefresh(loadProducts);
+  const loadMore = useCallback(() => {
+    if (loading) return;
+    if (!canLoadMore || !paginationMeta) return;
+    if (loadingMoreRef.current || loadingMore) return;
+
+    const nextPage = paginationMeta.currentPage + 1;
+    if (nextPage > paginationMeta.lastPage) return;
+
+    loadingMoreRef.current = true;
+    loadProducts(nextPage, 'append');
+  }, [loading, canLoadMore, paginationMeta, loadingMore, loadProducts]);
+
+  const { refreshing, onRefresh } = usePullToRefresh(() => loadProducts(1, 'replace'));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -126,6 +211,8 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.55}
         columnWrapperStyle={styles.column}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -148,17 +235,20 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
               <Pressable
                 style={styles.iconButton}
                 onPress={() =>
-                  router.push({
-                    pathname: filterRoute || '/products/filters',
-                    params: {
-                      returnTo: pathname,
-                      q: query || undefined,
-                      category: category || undefined,
-                      min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
-                      max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
-                      sort: sortParam || chipToSort[chip],
-                    },
-                  })
+                  router.push(
+                    {
+                      pathname: filterRoute || '/products/filters',
+                      params: {
+                        returnTo: pathname,
+                        q: query || undefined,
+                        category: category || undefined,
+                        title: categoryTitle.trim() ? categoryTitle.trim() : undefined,
+                        min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
+                        max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
+                        sort: sortParam || chipToSort[chip],
+                      },
+                    } as Href
+                  )
                 }
               >
                 <Feather name="sliders" size={16} color={theme.colors.inkDark} />
@@ -176,16 +266,19 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
                 onSelect={(value) => {
                   setChip(value);
                   const sort = chipToSort[value] ?? 'popular';
-                  router.replace({
-                    pathname,
-                    params: {
-                      q: query || undefined,
-                      category: category || undefined,
-                      min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
-                      max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
-                      sort,
-                    },
-                  });
+                  router.replace(
+                    {
+                      pathname,
+                      params: {
+                        q: query || undefined,
+                        category: category || undefined,
+                        title: categoryTitle.trim() ? categoryTitle.trim() : undefined,
+                        min_price: Number.isFinite(minPriceParam) ? String(minPriceParam) : undefined,
+                        max_price: Number.isFinite(maxPriceParam) ? String(maxPriceParam) : undefined,
+                        sort,
+                      },
+                    } as Href
+                  );
                 }}
               />
             </View>
@@ -204,6 +297,15 @@ export default function ProductsScreen({ filterRoute = '/products/filters' }: Pr
               </View>
             ) : null}
           </View>
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerLoading}>
+              <ActivityIndicator size="small" color={theme.colors.inkDark} />
+            </View>
+          ) : (
+            <View style={styles.footerSpacer} />
+          )
         }
         renderItem={({ item }) => {
           const isSkeleton = !('slug' in item);
@@ -284,5 +386,13 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     marginBottom: 12,
+  },
+  footerLoading: {
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerSpacer: {
+    height: 24,
   },
 });

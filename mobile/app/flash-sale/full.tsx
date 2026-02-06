@@ -5,14 +5,17 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/util
 import { Skeleton } from '@/src/components/ui/Skeleton';
 import { fetchProducts } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { formatCurrency } from '@/src/lib/formatCurrency';
 import { theme } from '@/src/theme';
 import type { Product } from '@/src/types/storefront';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePreferences } from '@/src/store/preferencesStore';
 
 const filters = ['All', 'Dresses', 'Tops', 'Bottoms', 'Shoes'];
 
 export default function FlashSaleFullScreen() {
   const { show } = useToast();
+  const { state } = usePreferences();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +115,7 @@ export default function FlashSaleFullScreen() {
               <Text style={styles.cardTitle} numberOfLines={1}>
                 {item.name}
               </Text>
-              <Text style={styles.cardPrice}>${item.price.toFixed(2)}</Text>
+              <Text style={styles.cardPrice}>{formatCurrency(item.price, item.currency, state.currency)}</Text>
             </Pressable>
           );
         })}

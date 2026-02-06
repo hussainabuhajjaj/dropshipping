@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { FlatList, Image, Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/src/components/i18n/Text';
 import { CategoryCard } from '@/src/components/ui/CategoryCard';
 import { Chip } from '@/src/components/ui/Chip';
@@ -16,12 +16,14 @@ import { meRequest } from '@/src/api/auth';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchHome, fetchProductsBySlugs } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
-import type { HomePayload, Product } from '@/src/types/storefront';
+import type { Category, HomePayload, Product } from '@/src/types/storefront';
 import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
 import { RefreshControl } from 'react-native';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
 import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
+import { fetchAnnouncements } from '@/src/api/announcements';
+import type { AnnouncementItem } from '@/src/types/announcements';
 
 const orderTabs = ['To Pay', 'To Receive', 'To Review'];
 const stories = Array.from({ length: 5 }, (_, index) => `story-${index}`);
@@ -32,12 +34,16 @@ const mostPopular = [
   { id: 'popular-3', label: 'Hot', count: '1780' },
 ];
 
-const topProductsFallback = [
-  { id: 'top-1', label: 'Bags' },
-  { id: 'top-2', label: 'Watch' },
-  { id: 'top-3', label: 'Hoodies' },
-  { id: 'top-4', label: 'Shoes' },
-  { id: 'top-5', label: 'Accessories' },
+type ProductRowItem = Product | { id: string; skeleton: true };
+type CategoryGridItem = Category | { id: string; skeleton: true };
+type TopProduct = { id: string; label: string; slug?: string | null };
+
+const topProductsFallback: TopProduct[] = [
+  { id: 'top-1', label: 'Bags', slug: null },
+  { id: 'top-2', label: 'Watch', slug: null },
+  { id: 'top-3', label: 'Hoodies', slug: null },
+  { id: 'top-4', label: 'Shoes', slug: null },
+  { id: 'top-5', label: 'Accessories', slug: null },
 ];
 
 export default function AccountScreen() {
@@ -48,11 +54,14 @@ export default function AccountScreen() {
   const hasLoadedMe = useRef(false);
   const homeRequestId = useRef(0);
   const recentRequestId = useRef(0);
+  const announcementRequestId = useRef(0);
   const { slugs: recentSlugs } = useRecentlyViewed();
   const [home, setHome] = useState<HomePayload | null>(null);
   const [loadingHome, setLoadingHome] = useState(true);
   const [recentItems, setRecentItems] = useState<Product[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [announcement, setAnnouncement] = useState<AnnouncementItem | null>(null);
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState(true);
   const gridGap = theme.moderateScale(12);
   const horizontalPadding = theme.moderateScale(20);
   const gridItemWidth = (width - horizontalPadding * 2 - gridGap) / 2;
@@ -83,6 +92,7 @@ export default function AccountScreen() {
     return categories.slice(0, 5).map((category, index) => ({
       id: `${category.id ?? index}`,
       label: category.name,
+      slug: category.slug ?? null,
     }));
   }, [categories]);
 
@@ -166,9 +176,43 @@ export default function AccountScreen() {
     };
   }, [loadRecent]);
 
+  const loadAnnouncement = useCallback(async () => {
+    const id = ++announcementRequestId.current;
+    setLoadingAnnouncement(true);
+    try {
+      const { items } = await fetchAnnouncements({ per_page: 1 });
+      if (id !== announcementRequestId.current) return;
+      setAnnouncement(items[0] ?? null);
+    } catch {
+      if (id !== announcementRequestId.current) return;
+      setAnnouncement(null);
+    } finally {
+      if (id === announcementRequestId.current) setLoadingAnnouncement(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncement();
+    return () => {
+      announcementRequestId.current += 1;
+    };
+  }, [loadAnnouncement]);
+
   const { refreshing, onRefresh } = usePullToRefresh(async () => {
-    await Promise.all([loadHome(), loadRecent(), loadMe(true)]);
+    await Promise.all([loadHome(), loadRecent(), loadMe(true), loadAnnouncement()]);
   });
+
+  const openHref = (href?: string | null) => {
+    if (!href) {
+      router.push('/account/notifications');
+      return;
+    }
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      Linking.openURL(href).catch(() => {});
+      return;
+    }
+    router.push(href as any);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -243,27 +287,35 @@ export default function AccountScreen() {
           <Text style={styles.greeting}>Hello, {user?.name ?? 'Customer'}!</Text>
         ) : null}
 
-        <View style={styles.announcement}>
-          <View>
-            <Text style={styles.announcementTitle}>Announcement</Text>
-            <Text style={styles.announcementBody}>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas hendrerit luctus libero ac vulputate.
-            </Text>
+        {loadingAnnouncement ? (
+          <View style={styles.announcement}>
+            <View style={{ flex: 1 }}>
+              <Skeleton width={theme.moderateScale(130)} height={theme.moderateScale(14)} radius={theme.moderateScale(7)} />
+              <View style={{ height: theme.moderateScale(8) }} />
+              <Skeleton width={theme.moderateScale(240)} height={theme.moderateScale(12)} radius={theme.moderateScale(6)} />
+            </View>
           </View>
-          <CircleIconButton
-            icon="arrow-right"
-            size={theme.moderateScale(26)}
-            variant="filled"
-            onPress={() => router.push('/stories/banner')}
-          />
-        </View>
+        ) : announcement ? (
+          <View style={styles.announcement}>
+            <View>
+              <Text style={styles.announcementTitle}>{announcement.title || 'Announcement'}</Text>
+              <Text style={styles.announcementBody}>{announcement.body}</Text>
+            </View>
+            <CircleIconButton
+              icon="arrow-right"
+              size={theme.moderateScale(26)}
+              variant="filled"
+              onPress={() => openHref(announcement.actionHref)}
+            />
+          </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Recently viewed</Text>
-        <FlatList
+        <FlatList<ProductRowItem>
           horizontal
           data={
             loadingRecent
-              ? Array.from({ length: 5 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 5 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : recentItems
           }
           keyExtractor={(item) => item.id}
@@ -340,11 +392,11 @@ export default function AccountScreen() {
           <Text style={styles.sectionTitle}>New Items</Text>
           <SeeAllAction onPress={() => router.push('/products')} />
         </View>
-        <FlatList
+        <FlatList<ProductRowItem>
           horizontal
           data={
             loadingHome
-              ? Array.from({ length: 3 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 3 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : newItems
           }
           keyExtractor={(item) => item.id}
@@ -397,10 +449,10 @@ export default function AccountScreen() {
           <Text style={styles.sectionTitle}>Categories</Text>
           <SeeAllAction onPress={() => router.push('/(tabs)/categories')} />
         </View>
-        <FlatList
+        <FlatList<CategoryGridItem>
           data={
             loadingHome
-              ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : categories
           }
           keyExtractor={(item) => item.id}
@@ -417,10 +469,17 @@ export default function AccountScreen() {
               onPress={
                 'skeleton' in item || loadingHome
                   ? undefined
-                  : () =>
-                      router.push(
-                        `/products?category=${encodeURIComponent(item.slug ?? item.name)}`
-                      )
+                  : () => {
+                      const category = item.slug ?? item.name;
+                      if (!category) return;
+                      router.push({
+                        pathname: '/products',
+                        params: {
+                          category,
+                          title: item.name || undefined,
+                        },
+                      });
+                    }
               }
             />
           )}
@@ -435,10 +494,10 @@ export default function AccountScreen() {
             <Text style={styles.timerText}>58</Text>
           </View>
         </View>
-        <FlatList
+        <FlatList<ProductRowItem>
           data={
             loadingHome
-              ? Array.from({ length: 6 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 6 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : flashItems
           }
           keyExtractor={(item) => item.id}
@@ -479,7 +538,7 @@ export default function AccountScreen() {
         />
 
         <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Top Products</Text>
-        <FlatList
+        <FlatList<TopProduct>
           horizontal
           data={topProducts}
           keyExtractor={(item) => item.id}
@@ -488,7 +547,17 @@ export default function AccountScreen() {
           renderItem={({ item }) => (
             <Pressable
               style={styles.topProduct}
-              onPress={() => router.push(`/products?category=${encodeURIComponent(item.label)}`)}
+              onPress={() => {
+                const category = item.slug || item.label;
+                if (!category) return;
+                router.push({
+                  pathname: '/products',
+                  params: {
+                    category,
+                    title: item.label || undefined,
+                  },
+                });
+              }}
             >
               <View style={styles.topProductIcon} />
               <Text style={styles.topProductLabel}>{item.label}</Text>
@@ -502,10 +571,10 @@ export default function AccountScreen() {
             <Feather name="star" size={theme.moderateScale(14)} color={theme.colors.primary} />
           </View>
         </View>
-        <FlatList
+        <FlatList<ProductRowItem>
           data={
             loadingHome
-              ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true }))
+              ? Array.from({ length: 4 }, (_, index) => ({ id: `sk-${index}`, skeleton: true as const }))
               : justForYou
           }
           keyExtractor={(item) => item.id}
