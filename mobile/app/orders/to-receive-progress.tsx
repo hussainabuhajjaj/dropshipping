@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const steps = [
   { title: 'Order confirmed', time: '08:24 AM' },
   { title: 'Package shipped', time: 'Yesterday' },
@@ -11,36 +12,38 @@ const steps = [
 
 export default function ToReceiveProgressScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Tracking</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Tracking</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <View style={styles.timeline}>
-        {steps.map((step, index) => (
-          <View key={step.title} style={styles.stepRow}>
-            <View style={styles.stepIndicator}>
-              <View style={[styles.dot, index <= 2 && styles.dotActive]} />
-              {index < steps.length - 1 ? <View style={styles.line} /> : null}
+        <View style={styles.timeline}>
+          {steps.map((step, index) => (
+            <View key={step.title} style={styles.stepRow}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.dot, index <= 2 && styles.dotActive]} />
+                {index < steps.length - 1 ? <View style={styles.line} /> : null}
+              </View>
+              <View style={styles.stepInfo}>
+                <Text style={styles.stepTitle}>{step.title}</Text>
+                <Text style={styles.stepTime}>{step.time}</Text>
+              </View>
             </View>
-            <View style={styles.stepInfo}>
-              <Text style={styles.stepTitle}>{step.title}</Text>
-              <Text style={styles.stepTime}>{step.time}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/to-receive-failed')}>
-        <Text style={styles.primaryText}>Report issue</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.primaryButton} onPress={() => router.push('/orders/to-receive-failed')}>
+          <Text style={styles.primaryText}>Report issue</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -48,6 +51,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -124,4 +130,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

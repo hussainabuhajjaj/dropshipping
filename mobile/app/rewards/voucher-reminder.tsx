@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const reminders = [
   { id: 'rem-1', label: '2 days before expiry', active: true },
   { id: 'rem-2', label: '1 day before expiry', active: false },
@@ -10,7 +11,7 @@ const reminders = [
 
 export default function VoucherReminderScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -35,7 +36,7 @@ export default function VoucherReminderScreen() {
       <Pressable style={styles.primaryButton} onPress={() => router.push('/rewards')}>
         <Text style={styles.primaryText}>Save reminder</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -116,4 +117,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

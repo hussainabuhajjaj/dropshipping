@@ -66,9 +66,10 @@ export default function CategoriesFilterScreen() {
       .then((data) => {
         if (!active) return;
         setCategories(data);
-        if (!activeCategory && data[0]?.id) {
-          setActiveCategory(String(data[0].id));
-        }
+        setActiveCategory((prev) => {
+          if (prev && data.some((item) => String(item.id) === prev)) return prev;
+          return data[0]?.id ? String(data[0].id) : '';
+        });
       })
       .catch((err: any) => {
         const message = err?.message ?? 'Unable to load categories.';
@@ -145,7 +146,12 @@ export default function CategoriesFilterScreen() {
                 <Text style={styles.statusText}>{error}</Text>
               </View>
             ) : null}
-            {!loading && activeChildren.length === 0 ? (
+            {!loading && !error && categories.length === 0 ? (
+              <View style={styles.statusRow}>
+                <Text style={styles.statusText}>No categories available.</Text>
+              </View>
+            ) : null}
+            {!loading && categories.length > 0 && activeChildren.length === 0 ? (
               <View style={styles.statusRow}>
                 <Text style={styles.statusText}>No subcategories available.</Text>
               </View>

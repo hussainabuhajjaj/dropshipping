@@ -8,6 +8,7 @@ import { useCart } from '@/lib/cartStore';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const variations = ['Color', 'Size'];
 
 export default function ProductSaleScreen() {
@@ -19,6 +20,7 @@ export default function ProductSaleScreen() {
   const { addItem } = useCart();
   const thumbSize = 75;
   const thumbRadius = 12;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     let active = true;
@@ -51,7 +53,16 @@ export default function ProductSaleScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.imageWrap}>
           {loading ? (
             <Skeleton height={439} radius={0} />
@@ -143,7 +154,15 @@ export default function ProductSaleScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            height: theme.moderateScale(84) + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <Pressable style={styles.likeButton}>
           <Feather name="heart" size={16} color={theme.colors.inkDark} />
         </Pressable>

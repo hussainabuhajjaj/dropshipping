@@ -2,53 +2,56 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const avatars = ['A', 'B', 'C', 'D', 'E'];
 
 export default function StoryDotsScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.progressRow}>
-        {[0, 1, 2, 3].map((index) => (
-          <View key={index} style={[styles.progressBar, index === 0 ? styles.progressActive : null]} />
-        ))}
-      </View>
-
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Stories</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.storyCard}>
-        <View style={styles.storyImage} />
-        <View style={styles.storyOverlay}>
-          <Text style={styles.storyTitle}>Weekend essentials</Text>
-          <Text style={styles.storySubtitle}>Tap to explore</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.progressRow}>
+          {[0, 1, 2, 3].map((index) => (
+            <View key={index} style={[styles.progressBar, index === 0 ? styles.progressActive : null]} />
+          ))}
         </View>
-      </View>
 
-      <View style={styles.avatarRow}>
-        {avatars.map((avatar) => (
-          <View key={avatar} style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatar}</Text>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Stories</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.storyCard}>
+          <View style={styles.storyImage} />
+          <View style={styles.storyOverlay}>
+            <Text style={styles.storyTitle}>Weekend essentials</Text>
+            <Text style={styles.storySubtitle}>Tap to explore</Text>
           </View>
-        ))}
-      </View>
+        </View>
 
-      <View style={styles.dotRow}>
-        <View style={[styles.dot, styles.dotActive]} />
-        <View style={styles.dot} />
-        <View style={styles.dot} />
-      </View>
+        <View style={styles.avatarRow}>
+          {avatars.map((avatar) => (
+            <View key={avatar} style={styles.avatar}>
+              <Text style={styles.avatarText}>{avatar}</Text>
+            </View>
+          ))}
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/stories/dots-tap')}>
-        <Text style={styles.primaryText}>Next story</Text>
-      </Pressable>
-    </ScrollView>
+        <View style={styles.dotRow}>
+          <View style={[styles.dot, styles.dotActive]} />
+          <View style={styles.dot} />
+          <View style={styles.dot} />
+        </View>
+
+        <Pressable style={styles.primaryButton} onPress={() => router.push('/stories/dots-tap')}>
+          <Text style={styles.primaryText}>Next story</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -56,6 +59,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -166,4 +172,3 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 });
-

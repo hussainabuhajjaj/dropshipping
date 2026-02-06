@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const fallbackCountries = ['United States', 'United Kingdom', 'France', 'Germany', 'Japan'];
 
 export default function ChooseCountryScreen() {
@@ -11,33 +12,35 @@ export default function ChooseCountryScreen() {
   const countries = state.lookups.countries.length > 0 ? state.lookups.countries : fallbackCountries;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Choose country</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.list}>
-        {countries.map((country, index) => (
-          <Pressable
-            key={country}
-            style={styles.row}
-            onPress={() => {
-              setCountry(country);
-              router.back();
-            }}
-          >
-            <Text style={styles.rowText}>{country}</Text>
-            {selected === country ? <Feather name="check" size={16} color={theme.colors.inkDark} /> : null}
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Choose country</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+
+        <View style={styles.list}>
+          {countries.map((country) => (
+            <Pressable
+              key={country}
+              style={styles.row}
+              onPress={() => {
+                setCountry(country);
+                router.back();
+              }}
+            >
+              <Text style={styles.rowText}>{country}</Text>
+              {selected === country ? <Feather name="check" size={16} color={theme.colors.inkDark} /> : null}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -45,6 +48,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

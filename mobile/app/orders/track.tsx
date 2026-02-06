@@ -7,6 +7,8 @@ import { trackOrder } from '@/src/api/orders';
 import { useOrders } from '@/lib/ordersStore';
 import { theme } from '@/src/theme';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function TrackOrderScreen() {
   const params = useLocalSearchParams();
   const initialNumber = typeof params.number === 'string' ? params.number : '';
@@ -56,83 +58,98 @@ export default function TrackOrderScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Track order</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>Enter your order number and email.</Text>
-      <View style={styles.card}>
-        <TextInput
-          style={styles.input}
-          placeholder="Order number"
-          placeholderTextColor="#b6b6b6"
-          value={number}
-          onChangeText={setNumber}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#b6b6b6"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <Pressable style={styles.primaryButton} onPress={handleTrack}>
-          <Text style={styles.primaryText}>Track</Text>
-        </Pressable>
-      </View>
-
-      {submitted ? (
-        loading ? (
-          <View style={styles.loader}>
-            <Skeleton width="45%" height={12} />
-            {[0, 1, 2].map((index) => (
-              <View key={`sk-${index}`} style={styles.timelineRow}>
-                <Skeleton width={10} height={10} radius={5} />
-                <View style={styles.timelineBody}>
-                  <Skeleton width="50%" height={12} />
-                  <Skeleton width="80%" height={10} style={styles.skeletonGap} />
-                  <Skeleton width="35%" height={10} style={styles.skeletonGap} />
-                </View>
-              </View>
-            ))}
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Track order</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
           </View>
-        ) : events ? (
-          <View style={styles.timeline}>
-            <Text style={styles.sectionTitle}>Tracking timeline</Text>
-            {events.length === 0 ? (
-              <View style={styles.emptyTrackingCard}>
-                <Text style={styles.emptyTrackingTitle}>Updates on the way</Text>
-                <Text style={styles.emptyTrackingBody}>
-                  We will show shipping scans as soon as the carrier updates the route.
-                </Text>
+          <Text style={styles.subtitle}>Enter your order number and email.</Text>
+          <View style={styles.card}>
+            <TextInput
+              style={styles.input}
+              placeholder="Order number"
+              placeholderTextColor="#b6b6b6"
+              value={number}
+              onChangeText={setNumber}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#b6b6b6"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <Pressable style={styles.primaryButton} onPress={handleTrack}>
+              <Text style={styles.primaryText}>Track</Text>
+            </Pressable>
+          </View>
+
+          {submitted ? (
+            loading ? (
+              <View style={styles.loader}>
+                <Skeleton width="45%" height={12} />
+                {[0, 1, 2].map((index) => (
+                  <View key={`sk-${index}`} style={styles.timelineRow}>
+                    <Skeleton width={10} height={10} radius={5} />
+                    <View style={styles.timelineBody}>
+                      <Skeleton width="50%" height={12} />
+                      <Skeleton width="80%" height={10} style={styles.skeletonGap} />
+                      <Skeleton width="35%" height={10} style={styles.skeletonGap} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : events ? (
+              <View style={styles.timeline}>
+                <Text style={styles.sectionTitle}>Tracking timeline</Text>
+                {events.length === 0 ? (
+                  <View style={styles.emptyTrackingCard}>
+                    <Text style={styles.emptyTrackingTitle}>Updates on the way</Text>
+                    <Text style={styles.emptyTrackingBody}>
+                      We will show shipping scans as soon as the carrier updates the route.
+                    </Text>
+                  </View>
+                ) : (
+                  events.map((event) => (
+                    <View key={event.id} style={styles.timelineRow}>
+                      <View style={styles.timelineDot} />
+                      <View style={styles.timelineBody}>
+                        <Text style={styles.timelineStatus}>{event.status}</Text>
+                        <Text style={styles.timelineDesc}>{event.description}</Text>
+                        <Text style={styles.timelineTime}>{event.occurredAt}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
               </View>
             ) : (
-              events.map((event) => (
-                <View key={event.id} style={styles.timelineRow}>
-                  <View style={styles.timelineDot} />
-                  <View style={styles.timelineBody}>
-                    <Text style={styles.timelineStatus}>{event.status}</Text>
-                    <Text style={styles.timelineDesc}>{event.description}</Text>
-                    <Text style={styles.timelineTime}>{event.occurredAt}</Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Order not found</Text>
-            <Text style={styles.errorBody}>{error}</Text>
-          </View>
-        )
-      ) : null}
-    </ScrollView>
+              <View style={styles.errorCard}>
+                <Text style={styles.errorTitle}>Order not found</Text>
+                <Text style={styles.errorBody}>{error}</Text>
+              </View>
+            )
+          ) : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -140,6 +157,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

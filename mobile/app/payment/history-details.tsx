@@ -7,6 +7,7 @@ import { fetchOrderDetail } from '@/src/api/orders';
 import type { Order } from '@/src/types/orders';
 import { theme } from '@/src/theme';
 import { Skeleton } from '@/src/components/ui/Skeleton';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function PaymentHistoryDetailsScreen() {
   const params = useLocalSearchParams();
   const number = typeof params.number === 'string' ? params.number : '';
@@ -54,7 +55,7 @@ export default function PaymentHistoryDetailsScreen() {
   }, [number, getOrderByNumber, updateOrder]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -115,7 +116,7 @@ export default function PaymentHistoryDetailsScreen() {
           <Text style={styles.emptyBody}>{error ?? 'We could not locate that payment.'}</Text>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

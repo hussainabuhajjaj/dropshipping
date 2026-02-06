@@ -2,6 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const messages = [
   { id: 'm1', text: 'Love the new arrivals!', user: 'Lina' },
   { id: 'm2', text: 'Can you show the size guide?', user: 'Amira' },
@@ -9,9 +11,27 @@ const messages = [
 ];
 
 export default function FlashSaleLiveScreen() {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: theme.moderateScale(12) + insets.top,
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.headerRow}>
           <Pressable style={styles.iconButton} onPress={() => router.back()}>
             <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -57,7 +77,7 @@ export default function FlashSaleLiveScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomCard}>
+      <View style={[styles.bottomCard, { bottom: theme.moderateScale(62) + insets.bottom }]}>
         <View style={styles.productThumb} />
         <View style={styles.productCopy}>
           <Text style={styles.productTitle}>Cropped leather jacket</Text>
@@ -68,13 +88,13 @@ export default function FlashSaleLiveScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
         <TextInput style={styles.input} placeholder="Say something" placeholderTextColor="#b6b6b6" />
         <Pressable style={styles.sendButton}>
           <Feather name="send" size={14} color={theme.colors.inkDark} />
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -286,4 +306,3 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-

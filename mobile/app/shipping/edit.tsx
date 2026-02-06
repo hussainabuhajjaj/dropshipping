@@ -7,6 +7,8 @@ import { useAddresses } from '@/lib/addressesStore';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { theme } from '@/src/theme';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type AddressForm = {
   name: string;
@@ -54,7 +56,20 @@ export default function ShippingEditScreen() {
   }, [currentAddress, isEditing]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -199,12 +214,14 @@ export default function ShippingEditScreen() {
           router.replace('/shipping');
         }}
       >
-        <Text style={styles.primaryText}>Save address</Text>
+      <Text style={styles.primaryText}>Save address</Text>
       </Pressable>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </>
       )}
-    </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -212,6 +229,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

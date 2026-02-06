@@ -2,9 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function StoryProductTwoScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.progressRow}>
         {[0, 1, 2, 3].map((index) => (
           <View key={index} style={[styles.progressBar, styles.progressActive]} />
@@ -41,7 +43,8 @@ export default function StoryProductTwoScreen() {
       <Pressable style={styles.primaryButton} onPress={() => router.push('/(tabs)/home')}>
         <Text style={styles.primaryText}>Finish</Text>
       </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -49,6 +52,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -163,4 +169,3 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 });
-

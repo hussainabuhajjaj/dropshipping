@@ -6,6 +6,7 @@ import { theme } from '@/src/theme';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
 import { useTranslations } from '@/src/i18n/TranslationsProvider';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsFullScreen() {
   const { state, setNotification } = usePreferences();
@@ -19,8 +20,8 @@ export default function SettingsFullScreen() {
   ];
 
   return (
-    <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Pressable
             style={styles.iconButton}
@@ -86,7 +87,7 @@ export default function SettingsFullScreen() {
         onPrimary={() => setNotice(false)}
         onClose={() => setNotice(false)}
       />
-    </>
+    </SafeAreaView>
   );
 }
 
@@ -94,6 +95,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

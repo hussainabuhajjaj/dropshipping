@@ -6,6 +6,7 @@ import { theme } from '@/src/theme';
 import { fetchRewardSummary } from '@/src/api/rewards';
 import type { RewardSummary } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function RewardsProgressScreen() {
   const { show } = useToast();
   const [summary, setSummary] = useState<RewardSummary | null>(null);
@@ -31,7 +32,7 @@ export default function RewardsProgressScreen() {
   const progress = Math.min(100, Math.max(0, summary?.progressPercent ?? 0));
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -62,7 +63,7 @@ export default function RewardsProgressScreen() {
           <Text style={styles.primaryText}>View rewards</Text>
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -5,6 +5,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { theme } from '@/src/theme';
 import { useChatStore } from '@/src/state/chatStore';
 import * as chatSvc from '@/src/services/chatService';
+import { KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ISSUE_OPTIONS = [
   'Track my order',
@@ -18,6 +20,7 @@ export default function ChatConversationScreen() {
   const [input, setInput] = useState('');
   const [selectedIssue, setSelectedIssue] = useState('');
   const scrollRef = useRef<ScrollView | null>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (status !== 'idle') return;
@@ -52,12 +55,19 @@ export default function ChatConversationScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+    >
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: theme.moderateScale(10) + insets.top }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
       >
         <View style={styles.headerRow}>
           <Pressable style={styles.iconButton} onPress={() => router.back()}>
@@ -114,7 +124,7 @@ export default function ChatConversationScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.inputRow}>
+      <View style={[styles.inputRow, { paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
         <TextInput
           value={input}
           onChangeText={setInput}
@@ -126,7 +136,7 @@ export default function ChatConversationScreen() {
           <Feather name="send" size={14} color={theme.colors.inkDark} />
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

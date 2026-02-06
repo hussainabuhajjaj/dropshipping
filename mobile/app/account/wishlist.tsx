@@ -12,6 +12,7 @@ import { useRecentlyViewed } from '@/lib/recentlyViewedStore';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function WishlistScreen() {
   const { items: wishlisted, loading: loadingWish, error, remove, refresh: refreshWishlist } = useWishlist();
   const { slugs: recentSlugs } = useRecentlyViewed();
@@ -90,10 +91,10 @@ export default function WishlistScreen() {
   });
 
   return (
-    <>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ title: 'Wish List' }} />
       <ScrollView
-        style={styles.container}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -285,7 +286,7 @@ export default function WishlistScreen() {
         </View>
       ) : null}
       </ScrollView>
-    </>
+    </SafeAreaView>
   );
 }
 
@@ -293,6 +294,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

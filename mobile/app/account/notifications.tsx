@@ -8,6 +8,7 @@ import { fetchNotifications, markNotificationsRead } from '@/src/api/notificatio
 import type { NotificationItem } from '@/src/types/notifications';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NotificationsScreen() {
   const { show } = useToast();
@@ -56,48 +57,50 @@ export default function NotificationsScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(loadNotifications);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.colors.primary}
-          colors={[theme.colors.primary]}
-        />
-      }
-    >
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Notifications</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>Stay on top of every update.</Text>
-
-      <View style={styles.list}>
-        {cards.length === 0 && !loading ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No notifications yet</Text>
-            <Text style={styles.emptyBody}>We’ll let you know when something happens.</Text>
-          </View>
-        ) : null}
-        {cards.map((item) => (
-          <Pressable key={item.id} style={styles.card} onPress={() => openHref(item.actionUrl)}>
-            <Text style={styles.cardTitle}>{item.title ?? 'Update'}</Text>
-            {item.body ? <Text style={styles.cardBody}>{item.body}</Text> : null}
-            <Text style={styles.cardTime}>
-              {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
-            </Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
-    </ScrollView>
+          <Text style={styles.title}>Notifications</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
+        <Text style={styles.subtitle}>Stay on top of every update.</Text>
+
+        <View style={styles.list}>
+          {cards.length === 0 && !loading ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No notifications yet</Text>
+              <Text style={styles.emptyBody}>We’ll let you know when something happens.</Text>
+            </View>
+          ) : null}
+          {cards.map((item) => (
+            <Pressable key={item.id} style={styles.card} onPress={() => openHref(item.actionUrl)}>
+              <Text style={styles.cardTitle}>{item.title ?? 'Update'}</Text>
+              {item.body ? <Text style={styles.cardBody}>{item.body}</Text> : null}
+              <Text style={styles.cardTime}>
+                {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -105,6 +108,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

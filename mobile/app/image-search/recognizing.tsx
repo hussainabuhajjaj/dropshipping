@@ -2,9 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ImageRecognizingScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -26,7 +27,7 @@ export default function ImageRecognizingScreen() {
       <Pressable style={styles.primaryButton} onPress={() => router.push('/image-search/recognized')}>
         <Text style={styles.primaryText}>View results</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -101,4 +102,3 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
   },
 });
-

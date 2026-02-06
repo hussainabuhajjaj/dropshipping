@@ -8,6 +8,7 @@ import { useCart } from '@/lib/cartStore';
 import { theme } from '@/src/theme';
 import { useToast } from '@/src/overlays/ToastProvider';
 import type { Product } from '@/src/types/storefront';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const sizes = ['XS', 'S', 'M', 'L', 'XL'];
 const colors = [theme.colors.sun, theme.colors.orange, theme.colors.inkDark, theme.colors.white];
 
@@ -19,6 +20,7 @@ export default function ProductVariationsScreen() {
   const [loading, setLoading] = useState(true);
   const { addItem } = useCart();
   const canBuy = !loading && product;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     let active = true;
@@ -49,7 +51,17 @@ export default function ProductVariationsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top,
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.imageWrap}>
           {loading ? (
             <Skeleton height={260} radius={20} />
@@ -107,7 +119,15 @@ export default function ProductVariationsScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            height: theme.moderateScale(84) + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <Pressable style={styles.addButton} onPress={() => product && addItem(product)} disabled={!canBuy}>
           <Text style={styles.addText}>Add to cart</Text>
         </Pressable>

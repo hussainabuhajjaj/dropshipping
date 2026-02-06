@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
-import * as Localization from 'expo-localization';
 import { loadPersisted, savePersisted } from './persist';
 import { fetchPreferences, fetchPreferencesLookups, updatePreferences } from '@/src/api/preferences';
 import { setApiCurrency, normalizeCurrency } from '@/src/api/currency';
@@ -128,11 +127,6 @@ const reducer = (state: PreferencesState, action: PreferencesAction): Preference
 
 const getDeviceLanguageCode = (): string => {
   try {
-    const locales = Localization.getLocales?.() ?? [];
-    const expoLocale = locales[0]?.languageCode ?? locales[0]?.languageTag;
-    if (expoLocale) {
-      return String(expoLocale).split('-')[0].toLowerCase();
-    }
     const locale =
       (globalThis as any)?.navigator?.language ||
       (globalThis as any)?.Intl?.DateTimeFormat?.().resolvedOptions?.().locale ||

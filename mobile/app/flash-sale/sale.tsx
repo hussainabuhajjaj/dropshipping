@@ -7,6 +7,7 @@ import { fetchProducts } from '@/src/api/catalog';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { theme } from '@/src/theme';
 import type { Product } from '@/src/types/storefront';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FlashSaleListScreen() {
   const { show } = useToast();
@@ -47,7 +48,8 @@ export default function FlashSaleListScreen() {
   }, [show]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
@@ -132,7 +134,8 @@ export default function FlashSaleListScreen() {
       <Pressable style={styles.primaryButton} onPress={() => router.push('/flash-sale/full')}>
         <Text style={styles.primaryText}>View full flash sale</Text>
       </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -140,6 +143,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

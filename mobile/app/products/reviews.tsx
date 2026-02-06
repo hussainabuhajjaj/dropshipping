@@ -6,6 +6,7 @@ import { theme } from '@/src/theme';
 import { fetchProductReviews } from '@/src/api/reviews';
 import type { ProductReview } from '@/src/types/reviews';
 import { useToast } from '@/src/overlays/ToastProvider';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProductReviewsScreen() {
   const params = useLocalSearchParams();
@@ -50,60 +51,62 @@ export default function ProductReviewsScreen() {
   }, [items]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Reviews</Text>
-        <Pressable style={styles.closeButton} onPress={() => router.back()}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.summaryCard}>
-        <View style={styles.ratingRow}>
-          {[0, 1, 2, 3, 4].map((item) => (
-            <Feather key={`star-${item}`} name="star" size={20} color={theme.colors.inkDark} />
-          ))}
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingBadgeText}>{average}/5</Text>
-          </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Reviews</Text>
+          <Pressable style={styles.closeButton} onPress={() => router.back()}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
         </View>
-        <Text style={styles.summaryText}>
-          {total.toLocaleString()} reviews
-        </Text>
-      </View>
 
-      <View style={styles.list}>
-        {!loading && items.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No reviews yet</Text>
-            <Text style={styles.emptyBody}>Be the first to share your feedback.</Text>
-          </View>
-        ) : null}
-        {items.map((review) => (
-          <View key={review.id} style={styles.reviewCard}>
-            <View style={styles.avatar} />
-            <View style={styles.reviewBody}>
-              <Text style={styles.reviewName}>{review.author ?? 'Verified buyer'}</Text>
-              <View style={styles.starsRow}>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Feather
-                    key={`${review.id}-${index}`}
-                    name="star"
-                    size={14}
-                    color={index < review.rating ? theme.colors.sun : theme.colors.sand}
-                  />
-                ))}
-              </View>
-              <Text style={styles.reviewText}>{review.body ?? ''}</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.ratingRow}>
+            {[0, 1, 2, 3, 4].map((item) => (
+              <Feather key={`star-${item}`} name="star" size={20} color={theme.colors.inkDark} />
+            ))}
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingBadgeText}>{average}/5</Text>
             </View>
           </View>
-        ))}
-      </View>
+          <Text style={styles.summaryText}>
+            {total.toLocaleString()} reviews
+          </Text>
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push(`/orders/review?slug=${slug}`)}>
-        <Text style={styles.primaryText}>Write a review</Text>
-      </Pressable>
-    </ScrollView>
+        <View style={styles.list}>
+          {!loading && items.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No reviews yet</Text>
+              <Text style={styles.emptyBody}>Be the first to share your feedback.</Text>
+            </View>
+          ) : null}
+          {items.map((review) => (
+            <View key={review.id} style={styles.reviewCard}>
+              <View style={styles.avatar} />
+              <View style={styles.reviewBody}>
+                <Text style={styles.reviewName}>{review.author ?? 'Verified buyer'}</Text>
+                <View style={styles.starsRow}>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Feather
+                      key={`${review.id}-${index}`}
+                      name="star"
+                      size={14}
+                      color={index < review.rating ? theme.colors.sun : theme.colors.sand}
+                    />
+                  ))}
+                </View>
+                <Text style={styles.reviewText}>{review.body ?? ''}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <Pressable style={styles.primaryButton} onPress={() => router.push(`/orders/review?slug=${slug}`)}>
+          <Text style={styles.primaryText}>Write a review</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -111,6 +114,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.sand,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/lib/cartStore';
 import { fetchProducts } from '@/src/api/catalog';
 import { theme } from '@/src/theme';
@@ -28,6 +29,7 @@ export default function CartScreen() {
   } = useCart();
   const { slugs } = useRecentlyViewed();
   const { show } = useToast();
+  const insets = useSafeAreaInsets();
   const shipping = summary.shipping;
   const tax = summary.tax;
   const discount = summary.discount;
@@ -107,7 +109,17 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: theme.moderateScale(10) + insets.top,
+            paddingBottom: theme.moderateScale(120) + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* <Text style={styles.title}>Cart</Text> */}
         <View style={styles.list}>
           {loading && items.length === 0 ? (
@@ -246,7 +258,15 @@ export default function CartScreen() {
       </ScrollView>
 
       {items.length ? (
-        <View style={styles.bottomBar}>
+        <View
+          style={[
+            styles.bottomBar,
+            {
+              height: theme.moderateScale(84) + insets.bottom,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+        >
           <View>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>${selectedTotal.toFixed(2)}</Text>

@@ -2,52 +2,55 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 const recentSearches = ['White sneakers', 'Ribbed top', 'Wide leg jeans', 'Mini bag'];
 
 export default function ImageSearchScreen() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Image Search</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-
-      <View style={styles.heroCard}>
-        <View style={styles.heroBadge}>
-          <Feather name="image" size={14} color={theme.colors.inkDark} />
-          <Text style={styles.heroBadgeText}>Search with image</Text>
-        </View>
-        <Text style={styles.heroTitle}>Drop a photo to find matching items.</Text>
-        <Pressable style={styles.heroButton} onPress={() => router.push('/image-search/recognizing')}>
-          <Text style={styles.heroButtonText}>Upload image</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.sectionTitle}>Recent searches</Text>
-      <View style={styles.chipRow}>
-        {recentSearches.map((item) => (
-          <Pressable key={item} style={styles.chip} onPress={() => router.push('/image-search/results')}>
-            <Text style={styles.chipText}>{item}</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
           </Pressable>
-        ))}
-      </View>
+          <Text style={styles.title}>Image Search</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <Pressable style={styles.helperCard} onPress={() => router.push('/image-search/recognizing')}>
-        <View style={styles.helperIcon}>
-          <Feather name="camera" size={16} color={theme.colors.inkDark} />
+        <View style={styles.heroCard}>
+          <View style={styles.heroBadge}>
+            <Feather name="image" size={14} color={theme.colors.inkDark} />
+            <Text style={styles.heroBadgeText}>Search with image</Text>
+          </View>
+          <Text style={styles.heroTitle}>Drop a photo to find matching items.</Text>
+          <Pressable style={styles.heroButton} onPress={() => router.push('/image-search/recognizing')}>
+            <Text style={styles.heroButtonText}>Upload image</Text>
+          </Pressable>
         </View>
-        <View style={styles.helperCopy}>
-          <Text style={styles.helperTitle}>Try scanning now</Text>
-          <Text style={styles.helperBody}>Best results with clear lighting.</Text>
+
+        <Text style={styles.sectionTitle}>Recent searches</Text>
+        <View style={styles.chipRow}>
+          {recentSearches.map((item) => (
+            <Pressable key={item} style={styles.chip} onPress={() => router.push('/image-search/results')}>
+              <Text style={styles.chipText}>{item}</Text>
+            </Pressable>
+          ))}
         </View>
-        <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
-      </Pressable>
-    </ScrollView>
+
+        <Pressable style={styles.helperCard} onPress={() => router.push('/image-search/recognizing')}>
+          <View style={styles.helperIcon}>
+            <Feather name="camera" size={16} color={theme.colors.inkDark} />
+          </View>
+          <View style={styles.helperCopy}>
+            <Text style={styles.helperTitle}>Try scanning now</Text>
+            <Text style={styles.helperBody}>Best results with clear lighting.</Text>
+          </View>
+          <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -55,6 +58,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
@@ -172,4 +178,3 @@ const styles = StyleSheet.create({
     color: theme.colors.mutedDark,
   },
 });
-

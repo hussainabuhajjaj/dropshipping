@@ -7,6 +7,7 @@ import { useAddresses } from '@/lib/addressesStore';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { theme } from '@/src/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ShippingAddressScreen() {
   const { setCountry, setShippingAddress } = usePreferences();
@@ -48,82 +49,84 @@ export default function ShippingAddressScreen() {
   }, [formatted, loading, selectedId, setCountry, setShippingAddress]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Shipping address</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.iconButton} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+          </Pressable>
+          <Text style={styles.title}>Shipping address</Text>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+            <Feather name="x" size={16} color={theme.colors.inkDark} />
+          </Pressable>
+        </View>
 
-      <View style={styles.list}>
-        {loading ? (
-          [0, 1, 2].map((index) => (
-            <View key={`addr-skel-${index}`} style={styles.card}>
-              <Skeleton width={theme.moderateScale(18)} height={theme.moderateScale(18)} radius={9} />
-              <View style={styles.cardBody}>
-                <Skeleton width="45%" height={12} />
-                <Skeleton width="70%" height={10} style={styles.skeletonGap} />
+        <View style={styles.list}>
+          {loading ? (
+            [0, 1, 2].map((index) => (
+              <View key={`addr-skel-${index}`} style={styles.card}>
+                <Skeleton width={theme.moderateScale(18)} height={theme.moderateScale(18)} radius={9} />
+                <View style={styles.cardBody}>
+                  <Skeleton width="45%" height={12} />
+                  <Skeleton width="70%" height={10} style={styles.skeletonGap} />
+                </View>
               </View>
+            ))
+          ) : formatted.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No saved addresses</Text>
+              <Text style={styles.emptyBody}>Add a shipping address to continue checkout.</Text>
             </View>
-          ))
-        ) : formatted.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No saved addresses</Text>
-            <Text style={styles.emptyBody}>Add a shipping address to continue checkout.</Text>
-          </View>
-        ) : (
-          formatted.map((address) => (
-            <Pressable
-              key={address.id}
-              style={styles.card}
-              onPress={() => router.push(`/shipping/edit?id=${address.id}`)}
-            >
+          ) : (
+            formatted.map((address) => (
               <Pressable
-                style={styles.radio}
-                onPress={async (event) => {
-                  event.stopPropagation();
-                  setSelectedId(address.id);
-                  if (address.raw) {
-                    setShippingAddress({
-                      name: address.raw.name ?? '',
-                      phone: address.raw.phone ?? '',
-                      address: address.raw.line1 ?? '',
-                      city: address.raw.city ?? '',
-                      postcode: address.raw.postalCode ?? '',
-                      country: address.raw.country ?? '',
-                    });
-                    setCountry(address.raw.country ?? '');
-                  }
-                  if (!address.isDefault) {
-                    const result = await setDefault(address.id);
-                    if (!result.ok) {
-                      show({ type: 'error', message: result.message ?? 'Unable to set default address.' });
-                    }
-                  }
-                }}
+                key={address.id}
+                style={styles.card}
+                onPress={() => router.push(`/shipping/edit?id=${address.id}`)}
               >
-                {selectedId === address.id ? <View style={styles.radioDot} /> : null}
+                <Pressable
+                  style={styles.radio}
+                  onPress={async (event) => {
+                    event.stopPropagation();
+                    setSelectedId(address.id);
+                    if (address.raw) {
+                      setShippingAddress({
+                        name: address.raw.name ?? '',
+                        phone: address.raw.phone ?? '',
+                        address: address.raw.line1 ?? '',
+                        city: address.raw.city ?? '',
+                        postcode: address.raw.postalCode ?? '',
+                        country: address.raw.country ?? '',
+                      });
+                      setCountry(address.raw.country ?? '');
+                    }
+                    if (!address.isDefault) {
+                      const result = await setDefault(address.id);
+                      if (!result.ok) {
+                        show({ type: 'error', message: result.message ?? 'Unable to set default address.' });
+                      }
+                    }
+                  }}
+                >
+                  {selectedId === address.id ? <View style={styles.radioDot} /> : null}
+                </Pressable>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{address.title}</Text>
+                  <Text style={styles.cardSub}>{address.detail}</Text>
+                  {address.country ? <Text style={styles.cardSub}>{address.country}</Text> : null}
+                </View>
+                <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
               </Pressable>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{address.title}</Text>
-                <Text style={styles.cardSub}>{address.detail}</Text>
-                {address.country ? <Text style={styles.cardSub}>{address.country}</Text> : null}
-              </View>
-              <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
-            </Pressable>
-          ))
-        )}
-        {!loading && error ? <Text style={styles.errorText}>{error}</Text> : null}
-      </View>
+            ))
+          )}
+          {!loading && error ? <Text style={styles.errorText}>{error}</Text> : null}
+        </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => router.push('/shipping/edit')}>
-        <Text style={styles.primaryText}>Add new address</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.primaryButton} onPress={() => router.push('/shipping/edit')}>
+          <Text style={styles.primaryText}>Add new address</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -131,6 +134,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,

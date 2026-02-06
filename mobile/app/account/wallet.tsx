@@ -2,12 +2,13 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
-import { RefreshControl } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
 import { theme } from '@/src/theme';
 import { fetchWallet } from '@/src/api/wallet';
 import type { GiftCard, Wallet } from '@/src/types/rewards';
 import { useToast } from '@/src/overlays/ToastProvider';
 import { usePullToRefresh } from '@/src/hooks/usePullToRefresh';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function WalletScreen() {
   const [redeemed, setRedeemed] = useState(false);
@@ -42,61 +43,72 @@ export default function WalletScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(loadWallet);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={theme.colors.primary}
-          colors={[theme.colors.primary]}
-        />
-      }
-    >
-      <View style={styles.headerRow}>
-        <Pressable style={styles.iconButton} onPress={() => router.back()}>
-          <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
-        </Pressable>
-        <Text style={styles.title}>Wallet</Text>
-        <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
-          <Feather name="x" size={16} color={theme.colors.inkDark} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>Gift cards and saved promos.</Text>
-
-      <View style={styles.redeemCard}>
-        <Text style={styles.sectionTitle}>Redeem gift card</Text>
-        <TextInput style={styles.input} placeholder="Gift card code" placeholderTextColor="#b6b6b6" />
-        <Pressable style={styles.primaryButton} onPress={() => setRedeemed(true)}>
-          <Text style={styles.primaryText}>Redeem</Text>
-        </Pressable>
-        {redeemed ? <Text style={styles.redeemNote}>Added to your wallet balance.</Text> : null}
-      </View>
-
-      <View style={styles.list}>
-        {(wallet?.giftCards ?? []).map((card: GiftCard) => (
-          <Pressable
-            key={card.id}
-            style={styles.card}
-            onPress={() => router.push({ pathname: '/account/wallet-card-details', params: { id: card.id } })}
-            android_ripple={{ color: theme.colors.sand }}
-          >
-            <Text style={styles.cardTitle}>{card.code}</Text>
-            <Text style={styles.cardBody}>
-              Balance: ${typeof card.balance === 'number' ? card.balance.toFixed(2) : '0.00'}
-            </Text>
-          </Pressable>
-        ))}
-        {!loading && (!wallet || (wallet.giftCards ?? []).length === 0) ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No gift cards yet</Text>
-            <Text style={styles.emptyBody}>Add a gift card to use it at checkout.</Text>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
+        >
+          <View style={styles.headerRow}>
+            <Pressable style={styles.iconButton} onPress={() => router.back()}>
+              <Feather name="chevron-left" size={18} color={theme.colors.inkDark} />
+            </Pressable>
+            <Text style={styles.title}>Wallet</Text>
+            <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/home')}>
+              <Feather name="x" size={16} color={theme.colors.inkDark} />
+            </Pressable>
           </View>
-        ) : null}
-      </View>
-    </ScrollView>
+          <Text style={styles.subtitle}>Gift cards and saved promos.</Text>
+
+          <View style={styles.redeemCard}>
+            <Text style={styles.sectionTitle}>Redeem gift card</Text>
+            <TextInput style={styles.input} placeholder="Gift card code" placeholderTextColor="#b6b6b6" />
+            <Pressable style={styles.primaryButton} onPress={() => setRedeemed(true)}>
+              <Text style={styles.primaryText}>Redeem</Text>
+            </Pressable>
+            {redeemed ? <Text style={styles.redeemNote}>Added to your wallet balance.</Text> : null}
+          </View>
+
+          <View style={styles.list}>
+            {(wallet?.giftCards ?? []).map((card: GiftCard) => (
+              <Pressable
+                key={card.id}
+                style={styles.card}
+                onPress={() => router.push({ pathname: '/account/wallet-card-details', params: { id: card.id } })}
+                android_ripple={{ color: theme.colors.sand }}
+              >
+                <Text style={styles.cardTitle}>{card.code}</Text>
+                <Text style={styles.cardBody}>
+                  Balance: ${typeof card.balance === 'number' ? card.balance.toFixed(2) : '0.00'}
+                </Text>
+              </Pressable>
+            ))}
+            {!loading && (!wallet || (wallet.giftCards ?? []).length === 0) ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>No gift cards yet</Text>
+                <Text style={styles.emptyBody}>Add a gift card to use it at checkout.</Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -104,6 +116,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
+  },
+  keyboard: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 20,
