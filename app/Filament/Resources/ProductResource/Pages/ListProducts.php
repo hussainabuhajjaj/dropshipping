@@ -285,9 +285,18 @@ class ListProducts extends ListRecords
 
     protected function getHeaderWidgets(): array
     {
-        return [
-            \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class,
-            \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class,
-        ];
+        $widgets = [];
+
+        $healthWidget = \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class;
+        if (class_exists($healthWidget)) {
+            $widgets[] = $healthWidget;
+        }
+
+        $countWidget = \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class;
+        if (class_exists($countWidget)) {
+            $widgets[] = $countWidget;
+        }
+
+        return $widgets;
     }
 }
