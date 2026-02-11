@@ -95,6 +95,16 @@ return [
         'ship_to_default' => env('CJ_SHIP_TO_DEFAULT'),
     ],
 
+    'queue_reporting' => [
+        'enabled' => env('QUEUE_REPORTING_ENABLED', false),
+        'emails' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('QUEUE_REPORTING_EMAILS', (string) env('CJ_ALERTS_EMAIL', '')))
+        ))),
+        'interval_minutes' => (int) env('QUEUE_REPORTING_INTERVAL_MINUTES', 10),
+        'send_empty' => env('QUEUE_REPORTING_SEND_EMPTY', false),
+    ],
+
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
