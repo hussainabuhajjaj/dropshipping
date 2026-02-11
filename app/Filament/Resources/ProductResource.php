@@ -7,6 +7,7 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Products\Services\CjProductImportService;
+use App\Domain\Products\Services\ProductActivationValidator;
 use App\Domain\Products\Services\PricingService;
 use App\Filament\Resources\ProductResource\Pages;
 use App\Models\Product;
@@ -72,7 +73,17 @@ class ProductResource extends BaseResource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->withCount(['images', 'variants', 'reviews'])
+            ->withCount([
+                'images',
+                'variants',
+                'reviews',
+                'variants as variants_without_price_count' => function (Builder $query): void {
+                    $query->where(function (Builder $inner): void {
+                        $inner->whereNull('price')
+                            ->orWhere('price', '<=', 0);
+                    });
+                },
+            ])
             ->with('images');
     }
 
@@ -402,6 +413,17 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->badge()
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('variants_count')
+                        ->label('Variants')
+                        ->badge()
+                        ->sortable()
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('variants_without_price_count')
+                        ->label('Variants No Price')
+                        ->badge()
+                        ->color(fn (int|string|null $state): string => ((int) $state) > 0 ? 'danger' : 'success')
+                        ->sortable()
+                        ->toggleable(),
                     Tables\Columns\TextColumn::make('reviews_count')
                         ->label('Reviews')
                         ->badge()
@@ -494,6 +516,36 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                 Tables\Filters\Filter::make('missing_images')
                     ->label('Missing Images')
                     ->query(fn ($query) => $query->doesntHave('images'))
+                    ->toggle(),
+                Tables\Filters\Filter::make('selling_price_zero')
+                    ->label('Selling Price = 0')
+                    ->query(function (Builder $query): Builder {
+                        return $query->where(function (Builder $inner): void {
+                            $inner->whereNull('selling_price')
+                                ->orWhere('selling_price', '<=', 0);
+                        });
+                    })
+                    ->toggle(),
+                Tables\Filters\Filter::make('variants_without_price')
+                    ->label('Variants Missing Price')
+                    ->query(function (Builder $query): Builder {
+                        return $query->whereHas('variants', function (Builder $variants): void {
+                            $variants->where(function (Builder $inner): void {
+                                $inner->whereNull('price')
+                                    ->orWhere('price', '<=', 0);
+                            });
+                        });
+                    })
+                    ->toggle(),
+                Tables\Filters\Filter::make('untranslated')
+                    ->label('Untranslated')
+                    ->query(function (Builder $query): Builder {
+                        return $query->where(function (Builder $inner): void {
+                            $inner->whereNull('translation_status')
+                                ->orWhere('translation_status', 'not translated')
+                                ->orWhereDoesntHave('translations');
+                        });
+                    })
                     ->toggle(),
                 Tables\Filters\SelectFilter::make('sync_flag')
                     ->label('Sync')
@@ -726,7 +778,31 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                 Action::make('toggleActive')
                     ->label('Activate/Deactivate')
                     ->icon('heroicon-o-power')
-                    ->action(fn (Product $record) => $record->update(['is_active' => ! $record->is_active])),
+                    ->action(function (Product $record): void {
+                        $newActive = ! $record->is_active;
+
+                        if (! $newActive) {
+                            $record->update(['is_active' => false]);
+                            return;
+                        }
+
+                        $validator = app(ProductActivationValidator::class);
+                        $errors = $validator->errorsForActivation($record->loadMissing('images', 'variants'));
+
+                        if ($errors !== []) {
+                            Notification::make()
+                                ->title('Cannot activate product')
+                                ->body(implode(' ', $errors))
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $record->update([
+                            'is_active' => true,
+                            'status' => 'active',
+                        ]);
+                    }),
                 ])
 
             ])
@@ -1012,9 +1088,11 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             $variantUpdated = 0;
                             $variantSkipped = 0;
                             $compareAtQueued = 0;
+                            $activationSkipped = 0;
                             $logger = app(ProductMarginLogger::class);
+                            $validator = app(ProductActivationValidator::class);
 
-                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, &$compareAtQueued, $logger): void {
+                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, &$compareAtQueued, &$activationSkipped, $logger, $validator): void {
                                 if (! is_numeric($record->cost_price)) {
                                     $skipped++;
                                     return;
@@ -1027,8 +1105,6 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
                                 $record->update([
                                     'selling_price' => $newSelling,
-                                    'is_active' => true,
-                                    'status' => 'active',
                                 ]);
                                 $updated++;
 
@@ -1038,21 +1114,9 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                     'old_selling_price' => $oldSelling,
                                     'new_selling_price' => $newSelling,
                                     'old_status' => $oldStatus,
-                                    'new_status' => 'active',
+                                    'new_status' => $record->status,
                                     'notes' => "Margin set to {$margin}%",
                                 ]);
-
-                                if (! $oldActive) {
-                                    $logger->logProduct($record, [
-                                        'event' => 'activated',
-                                        'source' => 'manual',
-                                        'old_selling_price' => $oldSelling,
-                                        'new_selling_price' => $newSelling,
-                                        'old_status' => $oldStatus,
-                                        'new_status' => 'active',
-                                        'notes' => 'Product activated after margin adjustment',
-                                    ]);
-                                }
 
                                 $needsCompareAt = false;
 
@@ -1090,6 +1154,29 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                     \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false);
                                     $compareAtQueued++;
                                 }
+
+                                if (! $oldActive) {
+                                    $record->loadMissing('images', 'variants');
+                                    $errors = $validator->errorsForActivation($record);
+                                    if ($errors === []) {
+                                        $record->update([
+                                            'is_active' => true,
+                                            'status' => 'active',
+                                        ]);
+
+                                        $logger->logProduct($record, [
+                                            'event' => 'activated',
+                                            'source' => 'manual',
+                                            'old_selling_price' => $oldSelling,
+                                            'new_selling_price' => $newSelling,
+                                            'old_status' => $oldStatus,
+                                            'new_status' => 'active',
+                                            'notes' => 'Product activated after margin adjustment',
+                                        ]);
+                                    } else {
+                                        $activationSkipped++;
+                                    }
+                                }
                             });
 
                             $body = "Updated $updated product(s) and $variantUpdated variant(s).";
@@ -1098,6 +1185,9 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             }
                             if ($compareAtQueued > 0) {
                                 $body .= " Queued compare-at refresh for $compareAtQueued product(s).";
+                            }
+                            if ($activationSkipped > 0) {
+                                $body .= " {$activationSkipped} product(s) were not activated due to activation validation.";
                             }
 
                             Notification::make()
