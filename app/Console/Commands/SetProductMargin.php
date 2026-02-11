@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Products\Services\ProductActivationValidator;
 use App\Jobs\GenerateProductCompareAtJob;
 use App\Models\Product;
 use Illuminate\Console\Command;
@@ -74,6 +75,9 @@ class SetProductMargin extends Command
         $updatedProducts = 0;
         $updatedVariants = 0;
         $queuedCompareAt = 0;
+        $activatedProducts = 0;
+        $activationSkipped = 0;
+        $activationValidator = app(ProductActivationValidator::class);
 
         $bar = $this->output->createProgressBar($total);
         $bar->start();
@@ -87,6 +91,9 @@ class SetProductMargin extends Command
             &$updatedProducts,
             &$updatedVariants,
             &$queuedCompareAt,
+            &$activatedProducts,
+            &$activationSkipped,
+            $activationValidator,
             $bar
         ): void {
             $ids = $products->pluck('id')->all();
@@ -107,8 +114,6 @@ class SetProductMargin extends Command
                     ->whereIn('id', $affectedIds)
                     ->update([
                         'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
-                        'status' => 'active',
-                        'is_active' => true,
                     ]);
             }
 
@@ -130,6 +135,34 @@ class SetProductMargin extends Command
                 }
             }
 
+            if ($affectedIds !== []) {
+                $productsToValidate = Product::query()
+                    ->whereIn('id', $affectedIds)
+                    ->with([
+                        'images:id,product_id',
+                        'variants:id,product_id,price,cost_price',
+                    ])
+                    ->get();
+
+                foreach ($productsToValidate as $product) {
+                    if ($product->is_active) {
+                        continue;
+                    }
+
+                    $errors = $activationValidator->errorsForActivation($product);
+                    if ($errors !== []) {
+                        $activationSkipped++;
+                        continue;
+                    }
+
+                    $product->update([
+                        'is_active' => true,
+                        'status' => 'active',
+                    ]);
+                    $activatedProducts++;
+                }
+            }
+
             $bar->advance(count($ids));
         }, 'id');
 
@@ -141,9 +174,10 @@ class SetProductMargin extends Command
             ['Updated products', $updatedProducts],
             ['Updated variants', $updatedVariants],
             ['Compare-at queued', $queuedCompareAt],
+            ['Activated products', $activatedProducts],
+            ['Activation skipped', $activationSkipped],
         ]);
 
         return self::SUCCESS;
     }
 }
-
