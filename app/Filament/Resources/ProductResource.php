@@ -515,10 +515,8 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         $value = $data['value'] ?? null;
                         if (! is_numeric($value)) {
                             return $query;
-                            dd($query);
                         }
                         return $query->where('category_id', (int) $value);
-                        dd($query);
                     })
                     ->searchable()
                     ->preload(),
