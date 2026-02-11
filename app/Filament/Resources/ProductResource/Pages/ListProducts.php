@@ -286,6 +286,7 @@ class ListProducts extends ListRecords
     protected function getHeaderWidgets(): array
     {
         return [
+            \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class,
             \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class,
         ];
     }
