@@ -191,6 +191,31 @@ class PromotionResource extends Resource
                         ->label('Promotion Conditions')
                         ->createItemButtonLabel('Add Condition'),
                 ]),
+            Section::make('Locale overrides')
+                ->description('Optional translations for promotion name/description per locale.')
+                ->schema([
+                    Forms\Components\Repeater::make('locale_overrides')
+                        ->schema([
+                            Forms\Components\Select::make('locale')
+                                ->options([
+                                    'en' => 'English',
+                                    'fr' => 'French',
+                                ])
+                                ->native(false)
+                                ->required(),
+                            Forms\Components\TextInput::make('name')
+                                ->label('Name override')
+                                ->maxLength(190),
+                            Forms\Components\Textarea::make('description')
+                                ->label('Description override')
+                                ->rows(3)
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(2)
+                        ->default([])
+                        ->reorderable(),
+                ])
+                ->collapsible(),
         ]);
     }
 

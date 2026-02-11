@@ -40,7 +40,7 @@ class HomeController extends ApiController
 
         $categories = $this->buildCategoryCards($homeBuilder);
 
-        $homeContent = HomePageSetting::query()->latest()->first();
+        $homeContent = HomePageSetting::latestForLocale($locale);
         $campaignPlacements = app(CampaignPlacementService::class);
         $campaignHeroBanners = $campaignPlacements->placementBanners('home_hero', $locale, 1);
         $campaignCarouselBanners = $campaignPlacements->placementBanners('home_carousel', $locale);
@@ -230,14 +230,15 @@ class HomeController extends ApiController
     private function mapHeroFromBanners(HomeBuilderService $homeBuilder, ?Collection $banners = null): array
     {
         $banners = $banners ?? $this->heroBannerModels();
+        $locale = app()->getLocale();
 
-        return $banners->map(function (StorefrontBanner $banner, int $index) use ($homeBuilder) {
+        return $banners->map(function (StorefrontBanner $banner, int $index) use ($homeBuilder, $locale) {
             return [
                 'id' => $banner->id,
-                'kicker' => $banner->badge_text ?? 'Featured',
-                'title' => $banner->title ?? 'Shop now',
-                'subtitle' => $banner->description ?? '',
-                'cta' => $banner->cta_text ?? 'Shop now',
+                'kicker' => $banner->localizedValue('badge_text', $locale) ?? 'Featured',
+                'title' => $banner->localizedValue('title', $locale) ?? 'Shop now',
+                'subtitle' => $banner->localizedValue('description', $locale) ?? '',
+                'cta' => $banner->localizedValue('cta_text', $locale) ?? 'Shop now',
                 'href' => $banner->getCtaUrl(),
                 'image' => $this->resolveBannerImage($banner, $homeBuilder),
                 'tone' => $banner->background_color ?? $this->toneForIndex($index),
@@ -324,22 +325,24 @@ class HomeController extends ApiController
 
     private function mapBannerCollection(Collection $banners, HomeBuilderService $homeBuilder): array
     {
-        return $banners->map(function (StorefrontBanner $banner) use ($homeBuilder) {
+        $locale = app()->getLocale();
+
+        return $banners->map(function (StorefrontBanner $banner) use ($homeBuilder, $locale) {
             $targeting = is_array($banner->targeting ?? null) ? $banner->targeting : [];
 
             return [
                 'id' => (string) $banner->id,
-                'title' => $banner->title,
-                'description' => $banner->description,
+                'title' => $banner->localizedValue('title', $locale),
+                'description' => $banner->localizedValue('description', $locale),
                 'type' => $banner->type,
                 'displayType' => $banner->display_type,
                 'image' => $this->resolveBannerImage($banner, $homeBuilder),
                 'imageMode' => $targeting['image_mode'] ?? 'cover',
                 'backgroundColor' => $banner->background_color,
                 'textColor' => $banner->text_color,
-                'badgeText' => $banner->badge_text,
+                'badgeText' => $banner->localizedValue('badge_text', $locale),
                 'badgeColor' => $banner->badge_color,
-                'ctaText' => $banner->cta_text,
+                'ctaText' => $banner->localizedValue('cta_text', $locale),
                 'ctaUrl' => $banner->getCtaUrl(),
                 'endsAt' => $banner->ends_at?->toIso8601String(),
             ];
@@ -437,7 +440,7 @@ class HomeController extends ApiController
 
     private function mapNewsletterPopup(HomeBuilderService $homeBuilder): ?array
     {
-        $settings = StorefrontSetting::query()->latest()->first();
+        $settings = StorefrontSetting::latestForLocale(app()->getLocale());
         if (! $settings?->newsletter_popup_enabled) {
             return null;
         }
@@ -474,7 +477,7 @@ class HomeController extends ApiController
 
     private function mapStorefrontSettings(HomeBuilderService $homeBuilder): array
     {
-        $storefront = StorefrontSetting::query()->latest()->first();
+        $storefront = StorefrontSetting::latestForLocale(app()->getLocale());
         $site = SiteSetting::query()->latest()->first();
 
         return [

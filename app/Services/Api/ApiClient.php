@@ -15,6 +15,8 @@ class ApiClient
         private readonly string $baseUrl,
         private readonly array $defaultHeaders = [],
         private readonly int $timeout = 10,
+        private readonly int $retryTimes = 3,
+        private readonly int $retryDelayMs = 500,
     ) {
     }
 
@@ -23,7 +25,7 @@ class ApiClient
         $headers = $this->defaultHeaders;
         $headers[$header] = str_starts_with(strtolower($header), 'authorization') ? "Bearer {$token}" : $token;
 
-        return new self($this->baseUrl, $headers, $this->timeout);
+        return new self($this->baseUrl, $headers, $this->timeout, $this->retryTimes, $this->retryDelayMs);
     }
 
     public function get(string $path, array $query = []): ApiResponse
@@ -58,7 +60,7 @@ class ApiClient
 
         $request = Http::timeout($this->timeout)
             ->baseUrl($this->baseUrl)
-            ->retry(3, 500, function ($exception, $request) {
+            ->retry($this->retryTimes, $this->retryDelayMs, function ($exception, $request) {
                 if ($exception instanceof ConnectionException) {
                     return true;
                 }

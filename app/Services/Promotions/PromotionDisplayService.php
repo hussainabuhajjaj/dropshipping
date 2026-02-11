@@ -86,6 +86,7 @@ class PromotionDisplayService
 
     public function serializePromotion(Promotion $promo): array
     {
+        $locale = app()->getLocale();
         $targets = $promo->targets ?? collect();
         $conditions = $promo->conditions ?? collect();
         $hasConditions = $conditions->isNotEmpty();
@@ -97,8 +98,8 @@ class PromotionDisplayService
 
         return [
             'id' => $promo->id,
-            'name' => $promo->name,
-            'description' => $promo->description,
+            'name' => $promo->localizedValue('name', $locale),
+            'description' => $promo->localizedValue('description', $locale),
             'type' => $promo->type,
             'value_type' => $promo->value_type,
             'value' => $promo->value,
@@ -148,25 +149,25 @@ class PromotionDisplayService
     private function badgeText(string $intent, Promotion $promotion): string
     {
         return match ($intent) {
-            'shipping_support' => 'Logistics Support',
-            'cart_growth' => 'Cart Booster',
-            'urgency' => $promotion->type === 'flash_sale' ? 'Flash Deal' : 'Limited Drop',
-            'acquisition' => 'Special Offer',
-            default => 'Promotion',
+            'shipping_support' => __('Logistics Support'),
+            'cart_growth' => __('Cart Booster'),
+            'urgency' => $promotion->type === 'flash_sale' ? __('Flash Deal') : __('Limited Drop'),
+            'acquisition' => __('Special Offer'),
+            default => __('Promotion'),
         };
     }
 
     private function applyHint(string $intent, bool $hasConditions, bool $isSitewide): string
     {
         if ($hasConditions || $isSitewide) {
-            return 'Applied at checkout';
+            return __('Applied at checkout');
         }
 
         return match ($intent) {
-            'shipping_support' => 'Applied at checkout',
-            'cart_growth' => 'Unlock in cart',
-            'urgency' => 'Limited time',
-            default => 'Applied automatically',
+            'shipping_support' => __('Applied at checkout'),
+            'cart_growth' => __('Unlock in cart'),
+            'urgency' => __('Limited time'),
+            default => __('Applied automatically'),
         };
     }
 }

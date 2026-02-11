@@ -35,7 +35,7 @@ class CheckStorefrontComingSoon
         // ) {
         //     return $next($request);
         // }
-        $settings = StorefrontSetting::query()->latest()->first();
+        $settings = StorefrontSetting::latestForLocale(app()->getLocale());
        if(!$settings){
         return $next($request);
        }

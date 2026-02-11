@@ -29,6 +29,18 @@ class HomePageSettingResource extends BaseResource
     public static function form(Schema $schema): Schema
     {
         return $schema->schema([
+            Section::make('Locale')
+                ->schema([
+                    Forms\Components\Select::make('locale')
+                        ->options([
+                            'en' => 'English',
+                            'fr' => 'French',
+                        ])
+                        ->native(false)
+                        ->nullable()
+                        ->placeholder('Default')
+                        ->helperText('Leave empty to use this record as the default for all locales.'),
+                ]),
             Section::make('Top strip')
                 ->schema([
                     Forms\Components\Repeater::make('top_strip')
@@ -107,6 +119,9 @@ class HomePageSettingResource extends BaseResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('id')->sortable(),
+                Tables\Columns\TextColumn::make('locale')
+                    ->formatStateUsing(fn (?string $state): string => $state ?: 'Default')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('updated_at')->dateTime(),
             ])
             ->recordActions([

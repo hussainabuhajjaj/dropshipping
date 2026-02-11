@@ -23,6 +23,7 @@ class Coupon extends Model
         'starts_at',
         'ends_at',
         'meta',
+        'locale_overrides',
         'applicable_to',
         'exclude_on_sale',
         'is_one_time_per_customer',
@@ -37,6 +38,7 @@ class Coupon extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'meta' => 'array',
+        'locale_overrides' => 'array',
     ];
 
     public function redemptions(): HasMany
@@ -96,5 +98,29 @@ class Coupon extends Model
         }
 
         return true;
+    }
+
+    public function localeOverrideMap(): array
+    {
+        $overrides = $this->locale_overrides ?? [];
+
+        return collect($overrides)
+            ->filter(fn ($row) => is_array($row) && ! empty($row['locale']))
+            ->keyBy('locale')
+            ->all();
+    }
+
+    public function localizedValue(string $field, ?string $locale): ?string
+    {
+        if (! $locale) {
+            return $this->{$field} ?? null;
+        }
+
+        $override = $this->localeOverrideMap()[$locale] ?? null;
+        if ($override && array_key_exists($field, $override) && $override[$field] !== null && $override[$field] !== '') {
+            return (string) $override[$field];
+        }
+
+        return $this->{$field} ?? null;
     }
 }

@@ -141,6 +141,7 @@ Route::get('/legal/shipping-policy', [PageController::class, 'shippingPolicy'])-
 Route::get('/legal/refund-policy', [PageController::class, 'refundPolicy'])->name('legal.refund');
 Route::get('/legal/privacy-policy', [PageController::class, 'privacyPolicy'])->name('legal.privacy');
 Route::get('/legal/terms-of-service', [PageController::class, 'termsOfService'])->name('legal.terms');
+Route::get('/legal/customs-disclaimer', [PageController::class, 'customsDisclaimer'])->name('legal.customs');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [PageController::class, 'submitContact'])->name('contact.submit');

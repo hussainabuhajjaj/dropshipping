@@ -17,6 +17,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Schemas\Components\Grid;
 
 class SiteSettingResource extends BaseResource
 {
@@ -147,6 +148,58 @@ class SiteSettingResource extends BaseResource
                         ->rows(6)
                         ->columnSpanFull(),
                 ]),
+            Section::make('Locale overrides')
+                ->description('Optional translations for storefront copy (e.g., Legal/About).')
+                ->schema([
+                    Forms\Components\Repeater::make('locale_overrides')
+                        ->schema([
+                            Forms\Components\Select::make('locale')
+                                ->options([
+                                    'en' => 'English',
+                                    'fr' => 'French',
+                                ])
+                                ->native(false)
+                                ->required(),
+                            Grid::make()
+                                ->columns(2)
+                                ->schema([
+                                    Forms\Components\TextInput::make('meta_title')
+                                        ->label('Meta title')
+                                        ->maxLength(120),
+                                    Forms\Components\Textarea::make('meta_description')
+                                        ->label('Meta description')
+                                        ->rows(2),
+                                ]),
+                            Forms\Components\Textarea::make('shipping_policy')
+                                ->label('Shipping policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('refund_policy')
+                                ->label('Refund policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('privacy_policy')
+                                ->label('Privacy policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('terms_of_service')
+                                ->label('Terms of service')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('customs_disclaimer')
+                                ->label('Customs disclaimer')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('about_page_html')
+                                ->label('About page content')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(1)
+                        ->default([])
+                        ->reorderable(),
+                ])
+                ->collapsible(),
             Section::make('Reviews')
                 ->schema([
                     Forms\Components\Toggle::make('auto_approve_reviews')
@@ -204,4 +257,3 @@ class SiteSettingResource extends BaseResource
         return SiteSetting::query()->count() === 0;
     }
 }
-

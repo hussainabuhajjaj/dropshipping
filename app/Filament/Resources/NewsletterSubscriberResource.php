@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\NewsletterSubscriberResource\Pages;
 use App\Models\NewsletterSubscriber;
+use App\Services\AI\ContentTranslationService;
 use App\Services\NewsletterCampaignRenderer;
 use App\Services\NewsletterCampaignService;
 use BackedEnum;
@@ -150,6 +151,21 @@ class NewsletterSubscriberResource extends BaseResource
                             ->maxLength(80)
                             ->default('Shop promotions')
                             ->live(),
+                        Forms\Components\Select::make('recipient_locale')
+                            ->label('Recipients')
+                            ->options([
+                                'all' => 'All subscribers',
+                                'en' => 'English + unknown locale',
+                                'fr' => 'French only',
+                            ])
+                            ->native(false)
+                            ->default('all')
+                            ->helperText('If you have subscriber locales, you can target EN/FR audiences.'),
+                        Forms\Components\Toggle::make('translate_to_fr')
+                            ->label('Translate EN → FR for French recipients')
+                            ->helperText('If Recipients = All, sends EN to non-FR and FR to FR (two campaigns).')
+                            ->default(false)
+                            ->visible(fn (callable $get) => (string) ($get('recipient_locale') ?? 'all') !== 'en'),
                         Forms\Components\TextInput::make('limit')
                             ->numeric()
                             ->minValue(1)
@@ -180,13 +196,33 @@ class NewsletterSubscriberResource extends BaseResource
                             ->collapsible(),
                     ])
                     ->action(function (array $data): void {
+                        $recipientLocale = is_string($data['recipient_locale'] ?? null) ? (string) $data['recipient_locale'] : 'all';
+                        $translateToFr = (bool) ($data['translate_to_fr'] ?? false);
+                        $sendNow = (bool) ($data['send_now'] ?? true);
+
                         $query = NewsletterSubscriber::query()->whereNull('unsubscribed_at');
 
-                        if (! empty($data['limit'])) {
-                            $query->limit((int) $data['limit']);
+                        if ($recipientLocale === 'en') {
+                            $query->where(function (Builder $q) {
+                                $q->whereNull('locale')->orWhere('locale', 'en');
+                            });
+                        } elseif ($recipientLocale === 'fr') {
+                            $query->where('locale', 'fr');
                         }
 
-                        $count = $query->count();
+                        // When limiting, preselect ids so split-by-locale stays within the limit.
+                        $limitedIds = null;
+                        if (! empty($data['limit'])) {
+                            $limit = (int) $data['limit'];
+                            if ($limit > 0) {
+                                $limitedIds = (clone $query)->limit($limit)->pluck('id')->all();
+                                $query = NewsletterSubscriber::query()
+                                    ->whereKey($limitedIds)
+                                    ->whereNull('unsubscribed_at');
+                            }
+                        }
+
+                        $count = $limitedIds !== null ? count($limitedIds) : (clone $query)->count();
 
                         if ($count === 0) {
                             FilamentNotification::make()
@@ -197,6 +233,21 @@ class NewsletterSubscriberResource extends BaseResource
                         }
 
                         if (! empty($data['dry_run'])) {
+                            if ($translateToFr && $recipientLocale === 'all') {
+                                $frCount = (clone $query)->where('locale', 'fr')->count();
+                                $nonFrCount = (clone $query)
+                                    ->where(function (Builder $q) {
+                                        $q->whereNull('locale')->orWhere('locale', '!=', 'fr');
+                                    })
+                                    ->count();
+
+                                FilamentNotification::make()
+                                    ->title("Dry run: {$count} subscribers (EN: {$nonFrCount}, FR: {$frCount})")
+                                    ->info()
+                                    ->send();
+                                return;
+                            }
+
                             FilamentNotification::make()
                                 ->title("Dry run: {$count} subscribers")
                                 ->info()
@@ -204,15 +255,118 @@ class NewsletterSubscriberResource extends BaseResource
                             return;
                         }
 
-                        $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign([
+                        $payloadEn = [
                             'subject' => $data['subject'],
                             'body_markdown' => $data['body_markdown'],
                             'action_url' => $data['action_url'] ?? null,
                             'action_label' => $data['action_label'] ?? null,
-                        ], $query, auth()->user(), (bool) ($data['send_now'] ?? true));
+                        ];
+
+                        if (! $translateToFr || $recipientLocale === 'en') {
+                            $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                $payloadEn,
+                                $query,
+                                auth()->user(),
+                                $sendNow
+                            );
+
+                            FilamentNotification::make()
+                                ->title("Campaign queued for {$campaign->total_subscribers} subscribers")
+                                ->success()
+                                ->send();
+                            return;
+                        }
+
+                        if (empty(config('services.deepseek.key'))) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('DeepSeek not configured')
+                                ->body('Set DEEPSEEK_API_KEY in your .env to enable translations.')
+                                ->send();
+                            return;
+                        }
+
+                        $translator = app(ContentTranslationService::class);
+
+                        $translated = null;
+                        try {
+                            $translated = $translator->translateFields([
+                                'subject' => (string) ($payloadEn['subject'] ?? ''),
+                                'body_markdown' => (string) ($payloadEn['body_markdown'] ?? ''),
+                                'action_label' => (string) ($payloadEn['action_label'] ?? ''),
+                            ], 'en', 'fr');
+                        } catch (\Throwable $e) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('Translation failed')
+                                ->body($e->getMessage())
+                                ->send();
+                            return;
+                        }
+
+                        $payloadFr = [
+                            ...$payloadEn,
+                            'subject' => $translated['subject'] ?? $payloadEn['subject'],
+                            'body_markdown' => $translated['body_markdown'] ?? $payloadEn['body_markdown'],
+                            'action_label' => $translated['action_label'] ?? $payloadEn['action_label'],
+                        ];
+
+                        if ($recipientLocale === 'fr') {
+                            $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                $payloadFr,
+                                $query,
+                                auth()->user(),
+                                $sendNow
+                            );
+
+                            FilamentNotification::make()
+                                ->title("French campaign queued for {$campaign->total_subscribers} subscribers")
+                                ->success()
+                                ->send();
+                            return;
+                        }
+
+                        $frQuery = (clone $query)->where('locale', 'fr');
+                        $nonFrQuery = (clone $query)->where(function (Builder $q) {
+                            $q->whereNull('locale')->orWhere('locale', '!=', 'fr');
+                        });
+
+                        $frCount = (clone $frQuery)->count();
+                        $nonFrCount = (clone $nonFrQuery)->count();
+
+                        $campaignEn = null;
+                        $campaignFr = null;
+
+                        if ($nonFrCount > 0) {
+                            $campaignEn = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                $payloadEn,
+                                $nonFrQuery,
+                                auth()->user(),
+                                $sendNow
+                            );
+                        }
+
+                        if ($frCount > 0) {
+                            $campaignFr = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                $payloadFr,
+                                $frQuery,
+                                auth()->user(),
+                                $sendNow
+                            );
+                        }
+
+                        if ($campaignEn && $campaignFr) {
+                            FilamentNotification::make()
+                                ->title("Campaigns queued (EN: {$campaignEn->total_subscribers}, FR: {$campaignFr->total_subscribers})")
+                                ->success()
+                                ->send();
+                            return;
+                        }
+
+                        $only = $campaignFr ?: $campaignEn;
 
                         FilamentNotification::make()
-                            ->title("Campaign queued for {$campaign->total_subscribers} subscribers")
+                            ->title("Campaign queued for {$only?->total_subscribers} subscribers")
                             ->success()
                             ->send();
                     }),
@@ -248,6 +402,20 @@ class NewsletterSubscriberResource extends BaseResource
                                 ->maxLength(80)
                                 ->default('Shop promotions')
                                 ->live(),
+                            Forms\Components\Select::make('recipient_locale')
+                                ->label('Recipients')
+                                ->options([
+                                    'all' => 'All selected subscribers',
+                                    'en' => 'English + unknown locale',
+                                    'fr' => 'French only',
+                                ])
+                                ->native(false)
+                                ->default('all'),
+                            Forms\Components\Toggle::make('translate_to_fr')
+                                ->label('Translate EN → FR for French recipients')
+                                ->helperText('If Recipients = All, sends EN to non-FR and FR to FR (two campaigns).')
+                                ->default(false)
+                                ->visible(fn (callable $get) => (string) ($get('recipient_locale') ?? 'all') !== 'en'),
                             Forms\Components\Toggle::make('dry_run')
                                 ->label('Dry run')
                                 ->default(false),
@@ -286,24 +454,148 @@ class NewsletterSubscriberResource extends BaseResource
                             }
 
                             if (! empty($data['dry_run'])) {
+                                if (! empty($data['translate_to_fr']) && (($data['recipient_locale'] ?? 'all') === 'all')) {
+                                    $frCount = $records->where('locale', 'fr')->count();
+                                    $nonFrCount = $records->where('locale', '!=', 'fr')->count();
+
+                                    FilamentNotification::make()
+                                        ->title("Dry run: {$count} subscribers (EN: {$nonFrCount}, FR: {$frCount})")
+                                        ->info()
+                                        ->send();
+                                    return;
+                                }
+
                                 FilamentNotification::make()
                                     ->title("Dry run: {$count} subscribers")
                                     ->info()
                                     ->send();
                                 return;
                             }
-                            $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign([
+
+                            $recipientLocale = is_string($data['recipient_locale'] ?? null) ? (string) $data['recipient_locale'] : 'all';
+                            $translateToFr = (bool) ($data['translate_to_fr'] ?? false);
+                            $sendNow = (bool) ($data['send_now'] ?? true);
+
+                            $ids = $records->pluck('id')->all();
+
+                            $baseQuery = NewsletterSubscriber::query()
+                                ->whereKey($ids)
+                                ->whereNull('unsubscribed_at');
+
+                            if ($recipientLocale === 'en') {
+                                $baseQuery->where(function (Builder $q) {
+                                    $q->whereNull('locale')->orWhere('locale', 'en');
+                                });
+                            } elseif ($recipientLocale === 'fr') {
+                                $baseQuery->where('locale', 'fr');
+                            }
+
+                            $payloadEn = [
                                 'subject' => $data['subject'],
                                 'body_markdown' => $data['body_markdown'],
                                 'action_url' => $data['action_url'] ?? null,
                                 'action_label' => $data['action_label'] ?? null,
-                                ], NewsletterSubscriber::query()
-                                ->whereKey($records->pluck('id')->all())
-                                ->whereNull('unsubscribed_at'), auth()->user(), (bool) ($data['send_now'] ?? true));
-                                // dd($campaign);
+                            ];
+
+                            if (! $translateToFr || $recipientLocale === 'en') {
+                                $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                    $payloadEn,
+                                    $baseQuery,
+                                    auth()->user(),
+                                    $sendNow
+                                );
+
+                                FilamentNotification::make()
+                                    ->title("Campaign queued for {$campaign->total_subscribers} subscribers")
+                                    ->success()
+                                    ->send();
+                                return;
+                            }
+
+                            if (empty(config('services.deepseek.key'))) {
+                                FilamentNotification::make()
+                                    ->danger()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable translations.')
+                                    ->send();
+                                return;
+                            }
+
+                            try {
+                                $translated = app(ContentTranslationService::class)->translateFields([
+                                    'subject' => (string) ($payloadEn['subject'] ?? ''),
+                                    'body_markdown' => (string) ($payloadEn['body_markdown'] ?? ''),
+                                    'action_label' => (string) ($payloadEn['action_label'] ?? ''),
+                                ], 'en', 'fr');
+                            } catch (\Throwable $e) {
+                                FilamentNotification::make()
+                                    ->danger()
+                                    ->title('Translation failed')
+                                    ->body($e->getMessage())
+                                    ->send();
+                                return;
+                            }
+
+                            $payloadFr = [
+                                ...$payloadEn,
+                                'subject' => $translated['subject'] ?? $payloadEn['subject'],
+                                'body_markdown' => $translated['body_markdown'] ?? $payloadEn['body_markdown'],
+                                'action_label' => $translated['action_label'] ?? $payloadEn['action_label'],
+                            ];
+
+                            if ($recipientLocale === 'fr') {
+                                $campaign = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                    $payloadFr,
+                                    $baseQuery,
+                                    auth()->user(),
+                                    $sendNow
+                                );
+
+                                FilamentNotification::make()
+                                    ->title("French campaign queued for {$campaign->total_subscribers} subscribers")
+                                    ->success()
+                                    ->send();
+                                return;
+                            }
+
+                            $frQuery = (clone $baseQuery)->where('locale', 'fr');
+                            $nonFrQuery = (clone $baseQuery)->where(function (Builder $q) {
+                                $q->whereNull('locale')->orWhere('locale', '!=', 'fr');
+                            });
+
+                            $campaignEn = null;
+                            $campaignFr = null;
+
+                            if ((clone $nonFrQuery)->count() > 0) {
+                                $campaignEn = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                    $payloadEn,
+                                    $nonFrQuery,
+                                    auth()->user(),
+                                    $sendNow
+                                );
+                            }
+
+                            if ((clone $frQuery)->count() > 0) {
+                                $campaignFr = app(NewsletterCampaignService::class)->createAndQueueCampaign(
+                                    $payloadFr,
+                                    $frQuery,
+                                    auth()->user(),
+                                    $sendNow
+                                );
+                            }
+
+                            if ($campaignEn && $campaignFr) {
+                                FilamentNotification::make()
+                                    ->title("Campaigns queued (EN: {$campaignEn->total_subscribers}, FR: {$campaignFr->total_subscribers})")
+                                    ->success()
+                                    ->send();
+                                return;
+                            }
+
+                            $only = $campaignFr ?: $campaignEn;
                                 
                             FilamentNotification::make()
-                                ->title("Campaign queued for {$campaign->total_subscribers} subscribers")
+                                ->title("Campaign queued for {$only?->total_subscribers} subscribers")
                                 ->success()
                                 ->send();
                         }),

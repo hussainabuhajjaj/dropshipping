@@ -18,12 +18,13 @@ class PageController extends Controller
 {
     public function about(): Response
     {
+        $locale = app()->getLocale();
         $settings = SiteSetting::first();
         
         return Inertia::render('About/Index', [
-            'content' => $settings?->about_page_html ?? '<p>About page coming soon...</p>',
-            'pageTitle' => 'About Us',
-            'pageDescription' => 'Learn more about our story, mission, and values.',
+            'content' => $settings?->localizedValue('about_page_html', $locale) ?? '<p>About page coming soon...</p>',
+            'pageTitle' => __('About Us'),
+            'pageDescription' => __('Learn more about our story, mission, and values.'),
         ]);
     }
 
@@ -36,8 +37,8 @@ class PageController extends Controller
             'supportWhatsapp' => $settings?->support_whatsapp,
             'supportPhone' => $settings?->support_phone,
             'supportHours' => $settings?->support_hours,
-            'pageTitle' => 'Contact Us',
-            'pageDescription' => 'Get in touch with our customer support team.',
+            'pageTitle' => __('Contact Us'),
+            'pageDescription' => __('Get in touch with our customer support team.'),
         ]);
     }
 
@@ -77,45 +78,60 @@ class PageController extends Controller
 
     public function shippingPolicy(): Response
     {
+        $locale = app()->getLocale();
         $settings = SiteSetting::first();
         
         return Inertia::render('Legal/Policy', [
-            'content' => $settings?->shipping_policy ?? '<p>Shipping policy coming soon...</p>',
-            'pageTitle' => 'Shipping Policy',
-            'pageDescription' => 'Learn about our shipping process, delivery times, and costs.',
+            'content' => $settings?->localizedValue('shipping_policy', $locale) ?? '<p>Shipping policy coming soon...</p>',
+            'pageTitle' => __('Shipping Policy'),
+            'pageDescription' => __('Learn about our shipping process, delivery times, and costs.'),
         ]);
     }
 
     public function refundPolicy(): Response
     {
+        $locale = app()->getLocale();
         $settings = SiteSetting::first();
         
         return Inertia::render('Legal/Policy', [
-            'content' => $settings?->refund_policy ?? '<p>Refund policy coming soon...</p>',
-            'pageTitle' => 'Refund & Return Policy',
-            'pageDescription' => 'Understand our return and refund procedures.',
+            'content' => $settings?->localizedValue('refund_policy', $locale) ?? '<p>Refund policy coming soon...</p>',
+            'pageTitle' => __('Refund Policy'),
+            'pageDescription' => __('Understand our return and refund procedures.'),
         ]);
     }
 
     public function privacyPolicy(): Response
     {
+        $locale = app()->getLocale();
         $settings = SiteSetting::first();
         
         return Inertia::render('Legal/Policy', [
-            'content' => $settings?->privacy_policy ?? '<p>Privacy policy coming soon...</p>',
-            'pageTitle' => 'Privacy Policy',
-            'pageDescription' => 'Learn how we collect, use, and protect your personal information.',
+            'content' => $settings?->localizedValue('privacy_policy', $locale) ?? '<p>Privacy policy coming soon...</p>',
+            'pageTitle' => __('Privacy Policy'),
+            'pageDescription' => __('Learn how we collect, use, and protect your personal information.'),
         ]);
     }
 
     public function termsOfService(): Response
     {
+        $locale = app()->getLocale();
         $settings = SiteSetting::first();
         
         return Inertia::render('Legal/Policy', [
-            'content' => $settings?->terms_of_service ?? '<p>Terms of service coming soon...</p>',
-            'pageTitle' => 'Terms of Service',
-            'pageDescription' => 'Read our terms and conditions for using our services.',
+            'content' => $settings?->localizedValue('terms_of_service', $locale) ?? '<p>Terms of service coming soon...</p>',
+            'pageTitle' => __('Terms of Service'),
+            'pageDescription' => __('Read our terms and conditions for using our services.'),
+        ]);
+    }
+
+    public function customsDisclaimer(): Response
+    {
+        $locale = app()->getLocale();
+        $settings = SiteSetting::first();
+
+        return Inertia::render('Legal/CustomsDisclaimer', [
+            'policyHtml' => $settings?->localizedValue('customs_disclaimer', $locale) ?? $settings?->customs_disclaimer ?? '',
+            'supportEmail' => $settings?->support_email,
         ]);
     }
 }

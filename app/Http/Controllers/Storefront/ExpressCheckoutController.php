@@ -139,6 +139,14 @@ class ExpressCheckoutController extends Controller
                 $promotionDiscounts = $discounts['promotion_discounts'] ?? [];
                 $discountSource = $discounts['source'] ?? null;
                 $locale = app()->getLocale();
+                $discountSnapshot = $this->buildDiscountSnapshot(
+                    $discount,
+                    $discounts['label'] ?? null,
+                    $discountSource,
+                    $coupon ? $this->serializeCoupon($couponModel) : null,
+                    $promotionDiscounts,
+                    $cart[0]['currency'] ?? 'USD'
+                );
                 
                 $settings = SiteSetting::query()->first();
                 $shippingTotal = (float) ($shippingQuote['shipping_total'] ?? 0);
@@ -183,6 +191,8 @@ class ExpressCheckoutController extends Controller
                     'tax_total' => $taxTotal,
                     'discount_total' => $discount,
                     'grand_total' => $grandTotal,
+                    'discount_snapshot' => $discountSnapshot,
+                    'discount_source' => $discountSource,
                     'shipping_address_id' => $shippingAddress->id,
                     'billing_address_id' => $shippingAddress->id,
                     'shipping_method' => $shippingQuote['shipping_method'] ?? 'standard',
@@ -345,7 +355,7 @@ class ExpressCheckoutController extends Controller
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
                 'amount' => $couponDiscount,
-                'label' => $couponModel ? ('Coupon: ' . $couponModel->code) : null,
+                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
                 'source' => $couponModel ? 'coupon' : null,
                 'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
                 'coupon_model' => $couponModel,
@@ -371,7 +381,31 @@ class ExpressCheckoutController extends Controller
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
+        ];
+    }
+
+    /**
+     * Build discount snapshot for audit trail.
+     *
+     * @param array<int, array<string, mixed>> $promotionDiscounts
+     */
+    private function buildDiscountSnapshot(
+        float $discountAmount,
+        ?string $label,
+        ?string $source,
+        ?array $coupon,
+        array $promotionDiscounts,
+        string $currency
+    ): array {
+        return [
+            'source' => $source,
+            'label' => $label,
+            'discount_total' => $discountAmount,
+            'currency' => $currency,
+            'coupon' => $coupon,
+            'promotion_discounts' => array_values($promotionDiscounts),
+            'computed_at' => now()->toIso8601String(),
         ];
     }
 

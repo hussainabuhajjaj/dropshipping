@@ -48,6 +48,37 @@ class StorefrontBannerResource extends BaseResource
                         ->required(),
                 ])->columns(2),
 
+            Section::make('Locale overrides')
+                ->description('Optional translations per locale. Leave empty to use the base Banner Details fields.')
+                ->schema([
+                    Forms\Components\Repeater::make('locale_overrides')
+                        ->schema([
+                            Forms\Components\Select::make('locale')
+                                ->options([
+                                    'en' => 'English',
+                                    'fr' => 'French',
+                                ])
+                                ->native(false)
+                                ->required(),
+                            Forms\Components\TextInput::make('title')
+                                ->label('Title')
+                                ->maxLength(255),
+                            Forms\Components\TextInput::make('description')
+                                ->label('Description')
+                                ->maxLength(255),
+                            Forms\Components\TextInput::make('badge_text')
+                                ->label('Badge text')
+                                ->maxLength(120),
+                            Forms\Components\TextInput::make('cta_text')
+                                ->label('CTA text')
+                                ->maxLength(120),
+                        ])
+                        ->columns(2)
+                        ->default([])
+                        ->reorderable(),
+                ])
+                ->collapsible(),
+
             Section::make('Display Settings')
                 ->schema([
                     Forms\Components\Select::make('display_type')

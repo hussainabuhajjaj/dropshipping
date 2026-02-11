@@ -154,6 +154,7 @@ class CJMyProducts extends Page implements HasTable
             $product = $importer->importByPid($pid, [
                 'respectSyncFlag' => false,
                 'defaultSyncEnabled' => true,
+                'syncReviews' => true,
                 'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
             ]);
 

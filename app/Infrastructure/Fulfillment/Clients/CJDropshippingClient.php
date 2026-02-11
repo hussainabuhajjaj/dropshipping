@@ -47,7 +47,7 @@ class CJDropshippingClient
             $headers['CJ-Platform-Token'] = $platformToken;
         }
 
-        $this->client = new ApiClient($this->baseUrl, $headers, $this->timeout);
+        $this->client = new ApiClient($this->baseUrl, $headers, $this->timeout, retryTimes: 4, retryDelayMs: 800);
     }
 
 

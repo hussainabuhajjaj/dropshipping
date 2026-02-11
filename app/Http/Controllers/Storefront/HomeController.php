@@ -34,11 +34,11 @@ class HomeController extends Controller
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
 
-        $homeContent = HomePageSetting::query()->latest()->first();
+        $homeContent = HomePageSetting::latestForLocale($locale);
         $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
         $heroSlides = $homeContent?->hero_slides ?? [];
         if (is_array($heroSlides)) {
-            $heroSlides = collect($heroSlides)->map(function (array $slide) {
+            $heroSlides = collect($heroSlides)->map(function (array $slide) use ($homeBuilder) {
                 $image = $slide['image'] ?? null;
                 if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
                     $slide['image'] = $homeBuilder->normalizeImage($image);
@@ -246,20 +246,21 @@ class HomeController extends Controller
 
     private function transformBanner(StorefrontBanner $banner): array
     {
+        $locale = app()->getLocale();
         $targeting = is_array($banner->targeting ?? null) ? $banner->targeting : [];
 
         return [
             'id' => $banner->id,
-            'title' => $banner->title,
-            'description' => $banner->description,
+            'title' => $banner->localizedValue('title', $locale),
+            'description' => $banner->localizedValue('description', $locale),
             'type' => $banner->type,
             'displayType' => $banner->display_type,
             'imagePath' => $this->resolveBannerImage($banner),
             'backgroundColor' => $banner->background_color,
             'textColor' => $banner->text_color,
-            'badgeText' => $banner->badge_text,
+            'badgeText' => $banner->localizedValue('badge_text', $locale),
             'badgeColor' => $banner->badge_color,
-            'ctaText' => $banner->cta_text,
+            'ctaText' => $banner->localizedValue('cta_text', $locale),
             'ctaUrl' => $banner->getCtaUrl(),
             'imageMode' => $targeting['image_mode'] ?? 'split',
         ];

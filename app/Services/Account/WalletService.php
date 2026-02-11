@@ -122,7 +122,7 @@ class WalletService
         return [
             'id' => $coupon->id,
             'code' => $coupon->code,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,

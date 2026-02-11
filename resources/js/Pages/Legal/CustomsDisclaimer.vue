@@ -48,12 +48,18 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { usePage } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 
+const props = defineProps({
+  policyHtml: { type: String, default: '' },
+  supportEmail: { type: String, default: null },
+})
+
 const site = usePage().props.site
 const { t } = useTranslations()
-const policyHtml = (site?.customs_disclaimer ?? '').trim()
-const supportEmail = site?.support_email ?? 'support@dispatch.store'
+const policyHtml = computed(() => (props.policyHtml || site?.customs_disclaimer || '').trim())
+const supportEmail = computed(() => props.supportEmail || site?.support_email || 'support@dispatch.store')
 </script>
