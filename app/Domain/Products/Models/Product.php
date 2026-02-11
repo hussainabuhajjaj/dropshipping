@@ -161,6 +161,85 @@ class Product extends Model
         });
     }
 
+    public function scopeWithQualityScore(Builder $query, int $staleHours = 24): Builder
+    {
+        $staleHours = max(1, $staleHours);
+        $staleCutoff = now()->subHours($staleHours)->toDateTimeString();
+        $marginFactor = (1 + ((float) config('pricing.min_margin_percent', 20) / 100))
+            * (1 + ((float) config('pricing.shipping_buffer_percent', 10) / 100));
+
+        $sql = <<<SQL
+GREATEST(
+    0,
+    LEAST(
+        100,
+        (
+            100
+            - CASE
+                WHEN products.selling_price IS NULL OR products.selling_price <= 0
+                    THEN 35
+                ELSE 0
+            END
+            - CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM product_variants pv
+                    WHERE pv.product_id = products.id
+                        AND (pv.price IS NULL OR pv.price <= 0)
+                ) THEN 20
+                ELSE 0
+            END
+            - CASE
+                WHEN NOT EXISTS (
+                    SELECT 1
+                    FROM product_images pi
+                    WHERE pi.product_id = products.id
+                ) THEN 10
+                ELSE 0
+            END
+            - CASE
+                WHEN products.translation_status IS NULL
+                    OR products.translation_status = 'not translated'
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM product_translations pt
+                        WHERE pt.product_id = products.id
+                    ) THEN 15
+                ELSE 0
+            END
+            - CASE
+                WHEN products.cost_price IS NULL
+                    OR products.cost_price <= 0
+                    OR products.selling_price < (products.cost_price * ?)
+                    THEN 10
+                ELSE 0
+            END
+            - CASE
+                WHEN products.cj_pid IS NOT NULL
+                    AND products.cj_sync_enabled = 1
+                    AND (products.cj_synced_at IS NULL OR products.cj_synced_at < ?)
+                    THEN 10
+                ELSE 0
+            END
+        )
+    )
+) AS quality_score
+SQL;
+
+        if (empty($query->getQuery()->columns)) {
+            $query->select('products.*');
+        }
+
+        return $query->selectRaw($sql, [$marginFactor, $staleCutoff]);
+    }
+
+    public function scopeWhereQualityScoreBelow(Builder $query, int $maxScore = 60, int $staleHours = 24): Builder
+    {
+        return $query
+            ->withQualityScore($staleHours)
+            ->having('quality_score', '<=', $maxScore);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $product): void {
