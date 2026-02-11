@@ -147,6 +147,23 @@ Schedule::command('products:translate --locales=en,fr --source=en --queue')->dai
 Schedule::command('reviews:auto-approve')->dailyAt('04:30');
 Schedule::command('mobile:translations:translate --from=en --to=fr --limit=500')->weeklyOn(0, '03:00');
 
+// Optional scheduled queue worker for environments without Supervisor/systemd.
+// Enable with: SCHEDULED_QUEUE_WORKER_ENABLED=true
+if (filter_var(env('SCHEDULED_QUEUE_WORKER_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+    $scheduledQueues = env('SCHEDULED_QUEUE_WORKER_QUEUES', 'default,import,variants,media,translations,seo');
+
+    Schedule::command("queue:work --once --queue={$scheduledQueues} --tries=3 --timeout=120 --sleep=0")
+        ->everyTenSeconds()
+        ->withoutOverlapping();
+}
+
+if (filter_var(env('QUEUE_REPORTING_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+    Schedule::command('queue:report-email')
+        ->everyTenMinutes()
+        ->withoutOverlapping()
+        ->runInBackground();
+}
+
 Artisan::command('cj:token', function () {
     $client = app(CJDropshippingClient::class);
     $token = $client->getAccessToken(true);
