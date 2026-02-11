@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Domain\Products\Models\Category;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\ProductActivationValidator;
 use App\Domain\Products\Services\PricingService;
@@ -73,6 +74,7 @@ class ProductResource extends BaseResource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->withQualityScore(self::CJ_SYNC_STALE_HOURS)
             ->withCount([
                 'images',
                 'variants',
@@ -340,6 +342,17 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
                         ->square(),
                     Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(10),
+                    Tables\Columns\TextColumn::make('quality_score')
+                        ->label('Quality')
+                        ->numeric(decimalPlaces: 0)
+                        ->badge()
+                        ->color(fn (int|float|string|null $state): string => match (true) {
+                            (float) $state < 40 => 'danger',
+                            (float) $state < 70 => 'warning',
+                            default => 'success',
+                        })
+                        ->sortable()
+                        ->toggleable(),
                 Tables\Columns\TextColumn::make('cj_pid')->searchable()->sortable()->limit(10),
                     Tables\Columns\TextColumn::make('source')
                         ->label('Source')
@@ -495,6 +508,20 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     ->label('Local')
                     ->query(fn ($query) => $query->whereNull('cj_pid'))
                     ->toggle(),
+                Tables\Filters\SelectFilter::make('category_id')
+                    ->label('Category')
+                    ->options(fn (): array => Category::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+                        if (! is_numeric($value)) {
+                            return $query;
+                            dd($query);
+                        }
+                        return $query->where('category_id', (int) $value);
+                        dd($query);
+                    })
+                    ->searchable()
+                    ->preload(),
                 Tables\Filters\Filter::make('sync_enabled')
                     ->label('Sync Enabled')
                     ->query(fn ($query) => $query->where('cj_sync_enabled', true))
@@ -547,6 +574,14 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         });
                     })
                     ->toggle(),
+                Tables\Filters\Filter::make('low_quality')
+                    ->label('Low Quality (<= 60)')
+                    ->query(fn (Builder $query): Builder => $query->having('quality_score', '<=', 60))
+                    ->toggle(),
+                Tables\Filters\Filter::make('under_one_dollar')
+                    ->label('Under $1')
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('selling_price')->where('selling_price', '<', 1))
+                    ->toggle(),
                 Tables\Filters\SelectFilter::make('sync_flag')
                     ->label('Sync')
                     ->options([
@@ -563,7 +598,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
                         return $query;
                     }),
-            ])
+            ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContent)
             ->recordActions([
                 ActionGroup::make([
                 ViewAction::make(),

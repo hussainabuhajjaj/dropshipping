@@ -147,6 +147,22 @@ Schedule::command('products:translate --locales=en,fr --source=en --queue')->dai
 Schedule::command('reviews:auto-approve')->dailyAt('04:30');
 Schedule::command('mobile:translations:translate --from=en --to=fr --limit=500')->weeklyOn(0, '03:00');
 
+if (filter_var(env('PRODUCT_CATEGORY_REPRICING_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+    Schedule::command('products:reprice-by-category-tiers --chunk=500')
+        ->dailyAt((string) env('PRODUCT_CATEGORY_REPRICING_AT', '04:45'))
+        ->withoutOverlapping(240)
+        ->runInBackground();
+}
+
+if (filter_var(env('PRODUCT_AUTO_HIDE_STALE_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+    $staleHours = max(1, (int) env('PRODUCT_STALE_SYNC_HOURS', 48));
+
+    Schedule::command("products:auto-hide-stale-cj --stale-hours={$staleHours} --chunk=500")
+        ->hourly()
+        ->withoutOverlapping(55)
+        ->runInBackground();
+}
+
 // Optional scheduled queue worker for environments without Supervisor/systemd.
 // Enable with: SCHEDULED_QUEUE_WORKER_ENABLED=true
 if (filter_var(env('SCHEDULED_QUEUE_WORKER_ENABLED', false), FILTER_VALIDATE_BOOL)) {
