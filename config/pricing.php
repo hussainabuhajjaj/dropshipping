@@ -9,4 +9,13 @@ return [
 
     // Maximum discount percent allowed from the computed target price
     'max_discount_percent' => env('PRICING_MAX_DISCOUNT_PERCENT', 30),
+
+    // Category-based margin tiers for repricing command.
+    // Supports either:
+    // 1) JSON map: {"25":35,"80":28}
+    // 2) JSON list: [{"category_id":25,"margin_percent":35},{"category_ids":[80,81],"margin_percent":28}]
+    'category_margin_tiers' => (static function (): array {
+        $decoded = json_decode((string) env('PRICING_CATEGORY_MARGIN_TIERS', '[]'), true);
+        return is_array($decoded) ? $decoded : [];
+    })(),
 ];
