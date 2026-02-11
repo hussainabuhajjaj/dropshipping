@@ -1,5 +1,11 @@
 <?php
 
+$mailScheme = trim((string) env('MAIL_SCHEME', ''));
+$mailScheme = $mailScheme !== '' ? $mailScheme : null;
+
+$mailHost = trim((string) env('MAIL_HOST', '127.0.0.1'));
+$mailHost = preg_replace('/^(ssl|tls):\/\//i', '', $mailHost) ?: '127.0.0.1';
+
 return [
 
     /*
@@ -39,9 +45,9 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            'scheme' => $mailScheme,
             'url' => env('MAIL_URL'),
-            'host' => env('MAIL_HOST', '127.0.0.1'),
+            'host' => $mailHost,
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
