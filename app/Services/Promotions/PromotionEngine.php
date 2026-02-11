@@ -3,6 +3,7 @@
 namespace App\Services\Promotions;
 
 use App\Models\Customer;
+use App\Models\Promotion;
 use Illuminate\Support\Collection;
 use App\Services\Promotions\Concerns\BuildsActivePromotionQuery;
 
@@ -72,6 +73,7 @@ class PromotionEngine
     {
         $applicable = $this->getApplicablePromotions($cart);
         $subtotal = max(0, (float) ($cart['subtotal'] ?? 0));
+        $locale = app()->getLocale();
         $discounts = [];
         $totalDiscount = 0;
 
@@ -101,7 +103,7 @@ class PromotionEngine
             $discount = $this->applyMaxDiscount($promotion, $discount);
             $discounts[] = [
                 'promotion_id' => $promotion->id,
-                'label' => $promotion->name,
+                'label' => $promotion->localizedValue('name', $locale) ?? $promotion->name,
                 'amount' => $discount,
                 'value_type' => $promotion->value_type,
                 'value' => $promotion->value,

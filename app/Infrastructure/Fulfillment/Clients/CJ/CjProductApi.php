@@ -147,6 +147,18 @@ class CjProductApi extends CjBaseApi
         $params = array_filter([
             'pageNum' => $filters['pageNum'] ?? null,
             'pageSize' => $filters['pageSize'] ?? null,
+
+            // ✅ CJ docs for myProduct/query:
+            'keyword' => $filters['keyword'] ?? null,
+            'categoryId' => $filters['categoryId'] ?? null,
+            'startAt' => $filters['startAt'] ?? null,
+            'endAt' => $filters['endAt'] ?? null,
+            'isListed' => $filters['isListed'] ?? null,
+            'visiable' => $filters['visiable'] ?? null,
+            'hasPacked' => $filters['hasPacked'] ?? null,
+            'hasVirPacked' => $filters['hasVirPacked'] ?? null,
+
+            // (Optional legacy keys you had before; keep if you want)
             'productSku' => $filters['productSku'] ?? null,
             'productName' => $filters['productName'] ?? null,
             'storeProductId' => $filters['storeProductId'] ?? null,
@@ -161,15 +173,12 @@ class CjProductApi extends CjBaseApi
             'params' => $params,
         ]);
 
-        if ($method === 'post') {
-            $response = $this->client()->post($endpoint, $params);
-            $this->logMyProductsResponse($response);
-            return $response;
-        }
+        $response = $method === 'post'
+            ? $this->client()->post($endpoint, $params)
+            : $this->client()->get($endpoint, $params);
 
-        // Default GET
-        $response = $this->client()->get($endpoint, $params);
         $this->logMyProductsResponse($response);
+
         return $response;
     }
 

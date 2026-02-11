@@ -53,7 +53,7 @@ class CartController extends Controller
         $couponDiscount = $couponModel ? $couponValidator->calculateDiscount($couponModel, $subtotal) : 0.0;
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             $discount = $couponDiscount;
-            $discountLabel = $coupon ? ('Coupon: ' . ($coupon['code'] ?? '')) : null;
+            $discountLabel = $coupon ? __('Coupon: :code', ['code' => (string) ($coupon['code'] ?? '')]) : null;
         } else {
             $discount = $campaign['amount'] ?? 0.0;
             $discountLabel = $campaign['label'] ?? null;
@@ -69,11 +69,12 @@ class CartController extends Controller
             'user_id' => $customer?->id,
         ];
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $appliedPromotions = $promotionModels->map(function ($promo) {
+        $locale = app()->getLocale();
+        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
             return [
                 'id' => $promo->id,
-                'name' => $promo->name,
-                'description' => $promo->description,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
                 'type' => $promo->type,
                 'value_type' => $promo->value_type,
                 'value' => $promo->value,
@@ -283,7 +284,7 @@ class CartController extends Controller
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
         ]]);
 
         $this->captureAbandonedCart($this->cart());

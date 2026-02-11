@@ -25,6 +25,18 @@ class StorefrontSettingResource extends BaseResource
     public static function form(Schema $schema): Schema
     {
         return $schema->schema([
+            Section::make('Locale')
+                ->schema([
+                    Forms\Components\Select::make('locale')
+                        ->options([
+                            'en' => 'English',
+                            'fr' => 'French',
+                        ])
+                        ->native(false)
+                        ->nullable()
+                        ->placeholder('Default')
+                        ->helperText('Leave empty to use this record as the default for all locales.'),
+                ]),
             Section::make('Branding')
                 ->schema([
                     Forms\Components\TextInput::make('brand_name')->maxLength(120),
@@ -136,6 +148,9 @@ class StorefrontSettingResource extends BaseResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('id')->sortable(),
+                Tables\Columns\TextColumn::make('locale')
+                    ->formatStateUsing(fn (?string $state): string => $state ?: 'Default')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('brand_name'),
                 Tables\Columns\TextColumn::make('updated_at')->dateTime(),
             ])

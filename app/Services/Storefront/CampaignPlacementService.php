@@ -41,9 +41,9 @@ class CampaignPlacementService
                 }
             }
 
-            $campaignBanners = $this->campaignBanners($campaign);
+            $campaignBanners = $this->campaignBanners($campaign, $locale);
             if (empty($campaignBanners)) {
-                $campaignBanners = [$this->mapCampaignBanner($campaign)];
+                $campaignBanners = [$this->mapCampaignBanner($campaign, $locale)];
             }
 
             foreach ($campaignBanners as $banner) {
@@ -74,7 +74,7 @@ class CampaignPlacementService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function campaignBanners(StorefrontCampaign $campaign): array
+    private function campaignBanners(StorefrontCampaign $campaign, ?string $locale = null): array
     {
         $bannerIds = $campaign->bannerIds();
         if (empty($bannerIds)) {
@@ -85,48 +85,48 @@ class CampaignPlacementService
             ->whereIn('id', $bannerIds)
             ->orderBy('display_order')
             ->get()
-            ->map(fn (StorefrontBanner $banner) => $this->mapBanner($banner))
+            ->map(fn (StorefrontBanner $banner) => $this->mapBanner($banner, $locale))
             ->values()
             ->all();
     }
 
     /** @return array<string, mixed> */
-    private function mapBanner(StorefrontBanner $banner): array
+    private function mapBanner(StorefrontBanner $banner, ?string $locale = null): array
     {
         $targeting = is_array($banner->targeting ?? null) ? $banner->targeting : [];
 
         return [
             'id' => $banner->id,
-            'title' => $banner->title,
-            'description' => $banner->description,
+            'title' => $banner->localizedValue('title', $locale),
+            'description' => $banner->localizedValue('description', $locale),
             'type' => $banner->type,
             'displayType' => $banner->display_type,
             'imagePath' => $this->homeBuilder->normalizeImage($banner->image_path),
             'backgroundColor' => $banner->background_color,
             'textColor' => $banner->text_color,
-            'badgeText' => $banner->badge_text,
+            'badgeText' => $banner->localizedValue('badge_text', $locale),
             'badgeColor' => $banner->badge_color,
-            'ctaText' => $banner->cta_text,
+            'ctaText' => $banner->localizedValue('cta_text', $locale),
             'ctaUrl' => $banner->getCtaUrl(),
             'imageMode' => $targeting['image_mode'] ?? 'split',
         ];
     }
 
     /** @return array<string, mixed> */
-    private function mapCampaignBanner(StorefrontCampaign $campaign): array
+    private function mapCampaignBanner(StorefrontCampaign $campaign, ?string $locale = null): array
     {
         return [
             'id' => 'campaign-' . $campaign->id,
-            'title' => $campaign->name,
-            'description' => $campaign->hero_subtitle,
+            'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
+            'description' => $campaign->localizedValue('hero_subtitle', $locale) ?? $campaign->hero_subtitle,
             'type' => 'campaign',
             'displayType' => 'hero',
             'imagePath' => $this->homeBuilder->normalizeImage($campaign->hero_image),
             'backgroundColor' => Arr::get($campaign->theme, 'primary', '#0f172a'),
             'textColor' => '#ffffff',
-            'badgeText' => $campaign->hero_kicker,
+            'badgeText' => $campaign->localizedValue('hero_kicker', $locale) ?? $campaign->hero_kicker,
             'badgeColor' => Arr::get($campaign->theme, 'accent', '#f59e0b'),
-            'ctaText' => 'Explore',
+            'ctaText' => $locale === 'fr' ? 'Explorer' : 'Explore',
             'ctaUrl' => '/campaigns/' . $campaign->slug,
             'imageMode' => Arr::get($campaign->theme, 'image_mode', 'cover'),
         ];

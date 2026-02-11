@@ -128,6 +128,28 @@ class CouponResource extends BaseResource
                         ->label('Active')
                         ->default(true),
                 ])->columns(2),
+
+            Section::make('Locale overrides')
+                ->description('Optional translations for coupon description per locale.')
+                ->schema([
+                    Forms\Components\Repeater::make('locale_overrides')
+                        ->schema([
+                            Forms\Components\Select::make('locale')
+                                ->options([
+                                    'en' => 'English',
+                                    'fr' => 'French',
+                                ])
+                                ->native(false)
+                                ->required(),
+                            Forms\Components\TextInput::make('description')
+                                ->label('Description override')
+                                ->maxLength(255),
+                        ])
+                        ->columns(2)
+                        ->default([])
+                        ->reorderable(),
+                ])
+                ->collapsible(),
         ]);
     }
 
@@ -230,5 +252,4 @@ class CouponResource extends BaseResource
         return $options;
     }
 }
-
 

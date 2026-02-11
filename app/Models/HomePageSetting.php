@@ -24,4 +24,27 @@ class HomePageSetting extends Model
         'category_highlights' => 'array',
         'banner_strip' => 'array',
     ];
+
+    public static function latestForLocale(?string $locale): ?self
+    {
+        $locale = is_string($locale) ? strtolower(trim($locale)) : null;
+
+        if ($locale) {
+            $record = static::query()
+                ->where('locale', $locale)
+                ->latest()
+                ->first();
+
+            if ($record) {
+                return $record;
+            }
+        }
+
+        $default = static::query()
+            ->whereNull('locale')
+            ->latest()
+            ->first();
+
+        return $default ?: static::query()->latest()->first();
+    }
 }

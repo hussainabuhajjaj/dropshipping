@@ -127,6 +127,7 @@ class CJCatalog extends BasePage implements HasTable
                                     $product = $importer->importByPid($pid, [
                                         'respectSyncFlag' => false,
                                         'defaultSyncEnabled' => true,
+                                        'syncReviews' => true,
                                         'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                                     ]);
                                 } catch (\Throwable $e) {
@@ -437,6 +438,7 @@ class CJCatalog extends BasePage implements HasTable
             $product = $importer->importByPid($pid, [
                 'respectSyncFlag' => false,
                 'defaultSyncEnabled' => true,
+                'syncReviews' => true,
                 'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
             ]);
 
@@ -730,6 +732,7 @@ class CJCatalog extends BasePage implements HasTable
                     $product = $importer->importByPid($pid, [
                         'respectSyncFlag' => false,
                         'defaultSyncEnabled' => true,
+                        'syncReviews' => true,
                         'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                     ]);
                 } catch (ApiException $e) {
@@ -1221,6 +1224,7 @@ class CJCatalog extends BasePage implements HasTable
                 $product = $importer->importByPid($pid, [
                     'respectSyncFlag' => false,
                     'defaultSyncEnabled' => true,
+                    'syncReviews' => true,
                     'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                 ]);
             } catch (ApiException $e) {

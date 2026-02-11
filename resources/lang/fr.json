@@ -445,5 +445,18 @@
   "included": "inclus",
   "off": "de réduction",
   "refund policy": "politique de remboursement",
-  "terms": "conditions"
+  "terms": "conditions",
+  "Coupon: :code": "Coupon : :code",
+  "Applied at checkout": "Appliqué au paiement",
+  "Applied automatically": "Appliqué automatiquement",
+  "Cart Booster": "Booster du panier",
+  "First order 10% off": "10 % de réduction sur la première commande",
+  "Flash Deal": "Offre flash",
+  "Limited Drop": "Drop limité",
+  "Limited time": "Temps limité",
+  "Logistics Support": "Support logistique",
+  "Promotion": "Promotion",
+  "Special Offer": "Offre spéciale",
+  "Unlock in cart": "Débloquer dans le panier",
+  "5% off orders over $50": "5 % de réduction sur les commandes de plus de 50 $"
 }

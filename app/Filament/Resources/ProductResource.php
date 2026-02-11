@@ -31,6 +31,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Tables\Columns\TagsColumn;
 use Filament\Infolists\Components\TextEntry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -318,6 +319,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->view('filament.tables.columns.imported-count')
                         ->label('Imported Count')
                         ->visible(fn () => true),
+
                     Tables\Columns\ViewColumn::make('global_sync_status')
                         ->view('filament.tables.columns.global-sync-status')
                         ->label('Global Sync Status')
@@ -327,6 +329,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
                         ->square(),
                     Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(10),
+                Tables\Columns\TextColumn::make('cj_pid')->searchable()->sortable()->limit(10),
                     Tables\Columns\TextColumn::make('source')
                         ->label('Source')
                         ->getStateUsing(fn (Product $record) => self::sourceLabel($record))
@@ -358,6 +361,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\TextColumn::make('cj_pid')
                         ->label('CJ PID')
                         ->copyable()
+                        ->searchable()
                         ->tooltip(fn ($state) => $state)
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('category.name')->label('Category')->sortable()->toggleable(),
@@ -400,8 +404,9 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('reviews_count')
                         ->label('Reviews')
+                        ->badge()
                         ->sortable()
-                        ->toggleable(isToggledHiddenByDefault: true),
+                        ->toggleable(),
                     Tables\Columns\TextColumn::make('supplier.name')->label('Supplier')->sortable()->toggleable(),
                     Tables\Columns\TextColumn::make('defaultFulfillmentProvider.name')
                         ->label('Fulfillment')
@@ -415,9 +420,9 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->dateTime()
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
-                    Tables\Columns\TextColumn::make('cj_last_changed_fields')
+                    TagsColumn::make('cj_last_changed_fields')
                         ->label('Recent changes')
-                        ->formatStateUsing(fn (Product $record) => self::formatChangedFields($record))
+                        ->getStateUsing(fn (Product $record) => is_array($record->cj_last_changed_fields) ? $record->cj_last_changed_fields : [])
                         ->toggleable(isToggledHiddenByDefault: true)
                         ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
                     Tables\Columns\TextColumn::make('media_status')
@@ -726,6 +731,38 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
             ])
             ->toolbarActions([
+                Action::make('cjChunkedImport')
+                    ->label('CJ Chunked Import')
+                    ->icon('heroicon-o-cloud-arrow-up')
+                    ->form([
+                        TextInput::make('page')->label('Start page')->default(1),
+                        TextInput::make('size')->label('CJ page size')->default(50),
+                        TextInput::make('chunk')->label('Chunk size')->default(25),
+                        TextInput::make('limit')->label('Limit (0 = none)')->default(0),
+                        TextInput::make('category')->label('Category ID')->default(''),
+                    ])
+                    ->action(function (array $data): void {
+                        $params = [
+                            '--page' => (int) ($data['page'] ?? 1),
+                            '--size' => (int) ($data['size'] ?? 50),
+                            '--chunk' => (int) ($data['chunk'] ?? 25),
+                        ];
+                        $limit = (int) ($data['limit'] ?? 0);
+                        if ($limit > 0) {
+                            $params['--limit'] = $limit;
+                        }
+                        $category = trim((string) ($data['category'] ?? ''));
+                        if ($category !== '') {
+                            $params['--category'] = $category;
+                        }
+
+                        try {
+                            \App\Jobs\RunCjSyncCommandJob::dispatch($params)->onQueue('import');
+                            Notification::make()->title('Chunked import queued')->success()->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->title('Import enqueue failed')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
                 ActionsBulkActionGroup::make([
                     BulkAction::make('enableSync')
                         ->label('Enable Sync')
@@ -758,12 +795,30 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     BulkAction::make('syncNow')
                         ->label('Sync Now')
                         ->icon('heroicon-o-arrow-path')
+                        ->schema([
+                            Toggle::make('sync_variants')
+                                ->label('Sync variants')
+                                ->default(true),
+                            Toggle::make('import_reviews')
+                                ->label('Import reviews')
+                                ->default(true),
+                            TextInput::make('review_score')
+                                ->label('Review score filter')
+                                ->numeric()
+                                ->minValue(1)
+                                ->maxValue(5)
+                                ->helperText('Optional. Leave empty to import all review scores.'),
+                        ])
                         ->requiresConfirmation()
-                        ->action(function (Collection $records): void {
+                        ->action(function (Collection $records, array $data): void {
                             $importer = app(CjProductImportService::class);
                             $synced = 0;
                             $skipped = 0;
                             $errors = 0;
+                            $syncVariants = (bool) ($data['sync_variants'] ?? true);
+                            $importReviews = (bool) ($data['import_reviews'] ?? true);
+                            $reviewScore = $data['review_score'] ?? null;
+                            $reviewScore = is_numeric($reviewScore) ? max(1, min(5, (int) $reviewScore)) : null;
 
                             foreach ($records as $record) {
                                 if (! $record->cj_pid) {
@@ -780,6 +835,11 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                     $product = $importer->importByPid($record->cj_pid, [
                                         'respectSyncFlag' => true,
                                         'defaultSyncEnabled' => true,
+                                        'respectLocks' => false, // ensure variant/options/attrs refresh
+                                        'syncVariants' => $syncVariants,
+                                        'syncReviews' => $importReviews,
+                                        'reviewScore' => $reviewScore,
+                                        'reviewMaxPages' => 10,
                                         'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
                                     ]);
                                 } catch (\Throwable) {
@@ -870,6 +930,63 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                 ->body("Synced {$synced} product(s), skipped {$skipped}, errors {$errors}.")
                                 ->success()
                                 ->send();
+                        }),
+                    BulkAction::make('chunkedSyncSelected')
+                        ->label('Chunked Sync Selected')
+                        ->icon('heroicon-o-cloud-arrow-up')
+                        ->schema([
+                            TextInput::make('chunk_size')->label('Chunk size')->default(25),
+                            Toggle::make('sync_media')->label('Dispatch media sync')->default(true),
+                            Toggle::make('sync_variants')->label('Dispatch variants sync')->default(true),
+                            Toggle::make('force')->label('Force (ignore sync flag)')->default(false),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $pids = $records->pluck('cj_pid')->filter()->unique()->values()->all();
+                            if (empty($pids)) {
+                                Notification::make()->title('No CJ PIDs selected')->warning()->send();
+                                return;
+                            }
+
+                            $chunkSize = max(1, (int) ($data['chunk_size'] ?? 25));
+                            $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
+                            $claimService = app(\App\Services\CjPidClaimService::class);
+
+                            foreach (array_chunk($pids, $chunkSize) as $pidChunk) {
+                                $payloads = [];
+                                foreach ($pidChunk as $pid) {
+                                    $rec = $records->first(fn($r) => $r->cj_pid === $pid);
+                                    $payload = $rec?->getAttribute('attributes')['cj_payload'] ?? $rec?->cj_last_payload ?? null;
+
+                                    if (! is_array($payload) || $payload === []) {
+                                        try {
+                                            $resp = $client->getProduct($pid);
+                                            $payload = $resp->data ?? null;
+                                        } catch (\Throwable) {
+                                            $payload = null;
+                                        }
+                                    }
+
+                                    if (! is_array($payload) || $payload === []) {
+                                        continue;
+                                    }
+
+                                    try {
+                                        $token = $claimService->claim((string)$pid);
+                                        $payload['_cj_claim_token'] = $token;
+                                    } catch (\Throwable) {
+                                        // ignore claim failures here
+                                    }
+
+                                    $payload['id'] = $pid;
+                                    $payloads[] = $payload;
+                                }
+
+                                if ($payloads !== []) {
+                                    \App\Jobs\ImportCjProductChunkJob::dispatch($payloads)->onQueue('import');
+                                }
+                            }
+
+                            Notification::make()->title('Chunked sync queued')->success()->send();
                         }),
                     BulkAction::make('setMargin')
                         ->label('Set Margin %')
