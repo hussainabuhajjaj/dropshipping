@@ -11,6 +11,7 @@ use Illuminate\Support\ServiceProvider;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -52,5 +53,22 @@ class AppServiceProvider extends ServiceProvider
             });
         Vite::prefetch(concurrency: 3);
         Product::observe(ProductSeoObserver::class);
+        $this->registerFilamentWidgetAliases();
+    }
+
+    private function registerFilamentWidgetAliases(): void
+    {
+        $aliases = [
+            'app.filament.resources.product-resource.widgets.product-health-stats-widget'
+                => \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class,
+            'app.filament.resources.product-resource.widgets.product-count-widget'
+                => \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class,
+        ];
+
+        foreach ($aliases as $alias => $class) {
+            if (class_exists($class)) {
+                Livewire::component($alias, $class);
+            }
+        }
     }
 }
