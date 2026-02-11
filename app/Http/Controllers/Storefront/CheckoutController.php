@@ -91,9 +91,7 @@ class CheckoutController extends Controller
             ->orderBy('id')
             ->first() : null;
 
-        $quotePayload = $this->createQuotePayloadFromAddress($defaultAddress);
-
-        $selectedMethod = $shippingQuote['shipping_method'] ?? 'standard';
+        $selectedMethod = 'standard';
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);
         $discount = $discounts['amount'];
@@ -108,11 +106,12 @@ class CheckoutController extends Controller
 
         $promotionEngine = app(PromotionEngine::class);
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $appliedPromotions = $promotionModels->map(function ($promo) {
+        $locale = app()->getLocale();
+        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
             return [
                 'id' => $promo->id,
-                'name' => $promo->name,
-                'description' => $promo->description,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
                 'type' => $promo->type,
                 'value_type' => $promo->value_type,
                 'value' => $promo->value,
@@ -218,7 +217,16 @@ class CheckoutController extends Controller
                 ->with('minimum_cart_requirement', $minimumRequirement);
         }
 
-        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $subtotal, $shippingTotal, $taxTotal, $grandTotal, $locale) {
+        $discountSnapshot = $this->buildDiscountSnapshot(
+            $discount,
+            $discounts['label'] ?? null,
+            $discountSource,
+            $coupon ? $this->serializeCoupon($couponModel) : null,
+            $promotionDiscounts,
+            $cart[0]['currency'] ?? 'USD'
+        );
+
+        [$order, $payment] = DB::transaction(function () use ($validatedData, $cart, $cart_items, $discount, $coupon, $couponModel, $promotionDiscounts, $discountSource, $discountSnapshot, $subtotal, $shippingTotal, $taxTotal, $grandTotal, $locale) {
             $customer = Auth::guard('customer')->user();
             $isGuest = !$customer;
             if ($customer && $customer->locale !== $locale) {
@@ -259,9 +267,11 @@ class CheckoutController extends Controller
                 'tax_total' => $taxTotal,
                 'discount_total' => $discount,
                 'grand_total' => $grandTotal,
+                'discount_snapshot' => $discountSnapshot,
+                'discount_source' => $discountSource,
                 'shipping_address_id' => $shippingAddress->id,
                 'billing_address_id' => $shippingAddress->id,
-                'shipping_method' => $shippingQuote['shipping_method'] ?? 'standard',
+                'shipping_method' => 'standard',
                 'delivery_notes' => $validatedData['delivery_notes'] ?? null,
                 'coupon_code' => $coupon['code'] ?? null,
                 'placed_at' => now(),
@@ -441,7 +451,7 @@ class CheckoutController extends Controller
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
                 'amount' => $couponDiscount,
-                'label' => $couponModel ? ('Coupon: ' . $couponModel->code) : null,
+                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
                 'source' => $couponModel ? 'coupon' : null,
                 'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
                 'coupon_model' => $couponModel,
@@ -492,7 +502,31 @@ class CheckoutController extends Controller
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
+        ];
+    }
+
+    /**
+     * Build a snapshot of applied discounts for order auditability.
+     *
+     * @param array<int, array<string, mixed>> $promotionDiscounts
+     */
+    private function buildDiscountSnapshot(
+        float $discountAmount,
+        ?string $label,
+        ?string $source,
+        ?array $coupon,
+        array $promotionDiscounts,
+        string $currency
+    ): array {
+        return [
+            'source' => $source,
+            'label' => $label,
+            'discount_total' => $discountAmount,
+            'currency' => $currency,
+            'coupon' => $coupon,
+            'promotion_discounts' => array_values($promotionDiscounts),
+            'computed_at' => now()->toIso8601String(),
         ];
     }
 

@@ -87,6 +87,7 @@ class ListProducts extends ListRecords
                                $product = $importer->importByPid($pid, [
                                    'respectSyncFlag' => false,
                                    'defaultSyncEnabled' => true,
+                                   'syncReviews' => true,
                                    'shipToCountry' => (string)(config('services.cj.ship_to_default') ?? ''),
                                ]);
                            } catch (\Throwable $e) {
@@ -170,6 +171,7 @@ class ListProducts extends ListRecords
                         $product = $importer->importByLookup($lookupType, $lookupValue, [
                             'respectSyncFlag' => false,
                             'defaultSyncEnabled' => true,
+                            'syncReviews' => true,
                             'shipToCountry' => (string)(config('services.cj.ship_to_default') ?? ''),
                         ]);
 

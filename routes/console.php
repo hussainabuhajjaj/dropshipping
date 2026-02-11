@@ -114,15 +114,37 @@ Artisan::command('reviews:auto-approve', function () {
     $this->info("Approved {$count} review(s).");
 })->purpose('Approve pending reviews older than the configured number of days.');
 
-Schedule::command('reviews:auto-approve')->daily();
-Schedule::command('cj:refresh-token')->hourly();
-Schedule::command('cj:sync-linehaul-orders --page=1 --page-size=50')->everyFifteenMinutes();
-Schedule::command('cj:sync-products-v2 --page=1 --size=50 --limit=200')->everySixHours();
-Schedule::command('cj:sync-variants')->everyTwoHours();
-Schedule::command('cj:sync-categories')->dailyAt('02:30');
+Schedule::command('cj:refresh-token')
+    ->hourly()
+    ->withoutOverlapping(50);
+
+Schedule::command('cj:sync-linehaul-orders --page=1 --page-size=50')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(14)
+    ->runInBackground();
+
+Schedule::command('cj:sync-categories')
+    ->dailyAt('02:00')
+    ->withoutOverlapping(120);
+
+Schedule::command('cj:sync-products-v2 --chunk=25')
+    ->everySixHours()
+    ->withoutOverlapping(300)
+    ->runInBackground();
+
+Schedule::command('cj:sync-variants')
+    ->everyTwoHours()
+    ->withoutOverlapping(110);
+
+Schedule::command('cj:fix-product-details --limit=500 --with-variants --with-media --with-reviews')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(240)
+    ->runInBackground();
+
 Schedule::command('cj:webhooks-cleanup')->dailyAt('03:15');
 Schedule::command('categories:translate --locales=en,fr --source=en --queue')->dailyAt('01:30');
-Schedule::command('products:translate --locales=en,fr --source=en --queue')->dailyAt('02:30');
+Schedule::command('products:translate --locales=en,fr --source=en --queue')->dailyAt('03:40');
+Schedule::command('reviews:auto-approve')->dailyAt('04:30');
 Schedule::command('mobile:translations:translate --from=en --to=fr --limit=500')->weeklyOn(0, '03:00');
 
 Artisan::command('cj:token', function () {
@@ -213,7 +235,6 @@ Artisan::command('cj:sync-my-products-job {--start-page=1} {--page-size=24} {--m
     $this->info('All jobs dispatched. Monitor logs for progress.');
 })->purpose('Queue CJ My Products import jobs (skips already imported products)');
 
-Schedule::command('cj:sync-my-products')->hourly()->name('cj:sync-my-products');
 
 Artisan::command('categories:dedupe {--dry-run}', function () {
     $dryRun = (bool) $this->option('dry-run');
@@ -326,4 +347,4 @@ Schedule::call(function () {
         dispatch(new PollCJFulfillmentStatus($jobId))->onConnection('database')->onQueue('default');
     }
 })->everyMinute()->name('cj:poll-fulfillment');
-Schedule::command('queue:work --tries=3 --timeout=90   --stop-when-empty --queue=default')->everyMinute();
+Schedule::command('queue:work --tries=3 --timeout=120   --stop-when-empty --queue=default')->everyMinute();

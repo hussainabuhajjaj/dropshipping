@@ -11,6 +11,7 @@ use App\Models\Promotion;
 use App\Models\StorefrontBanner;
 use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
+use App\Services\Promotions\PromotionDisplayService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,14 +24,20 @@ class CampaignController extends Controller
         $locale = app()->getLocale();
         abort_if(! $campaign->isActiveForLocale($locale), 404);
 
+        $promotionDisplay = app(PromotionDisplayService::class);
         $promotions = Promotion::query()
             ->whereIn('id', $campaign->promotionIds())
+            ->with(['targets', 'conditions'])
             ->orderBy('priority', 'desc')
-            ->get();
+            ->get()
+            ->map(fn (Promotion $promo) => $promotionDisplay->serializePromotion($promo))
+            ->values();
 
         $coupons = Coupon::query()
             ->whereIn('id', $campaign->couponIds())
-            ->get();
+            ->get()
+            ->map(fn (Coupon $coupon) => $this->transformCoupon($coupon, $locale))
+            ->values();
 
         $banners = StorefrontBanner::query()
             ->whereIn('id', $campaign->bannerIds())
@@ -51,6 +58,20 @@ class CampaignController extends Controller
             'banners' => $banners,
             'collections' => $collections,
         ]);
+    }
+
+    private function transformCoupon(Coupon $coupon, ?string $locale): array
+    {
+        return [
+            'id' => $coupon->id,
+            'code' => $coupon->code,
+            'type' => $coupon->type,
+            'amount' => $coupon->amount,
+            'min_order_total' => $coupon->min_order_total,
+            'description' => $coupon->localizedValue('description', $locale) ?? $coupon->description,
+            'starts_at' => $coupon->starts_at,
+            'ends_at' => $coupon->ends_at,
+        ];
     }
 
     private function transformCampaign(StorefrontCampaign $campaign, ?string $locale): array
@@ -90,13 +111,15 @@ class CampaignController extends Controller
 
     private function transformBanner(StorefrontBanner $banner): array
     {
+        $locale = app()->getLocale();
+
         return [
             'id' => $banner->id,
-            'title' => $banner->title,
-            'description' => $banner->description,
+            'title' => $banner->localizedValue('title', $locale),
+            'description' => $banner->localizedValue('description', $locale),
             'imagePath' => $this->resolveImagePath($banner->image_path),
-            'badgeText' => $banner->badge_text,
-            'ctaText' => $banner->cta_text,
+            'badgeText' => $banner->localizedValue('badge_text', $locale),
+            'ctaText' => $banner->localizedValue('cta_text', $locale),
             'ctaUrl' => $banner->getCtaUrl(),
             'backgroundColor' => $banner->background_color,
             'textColor' => $banner->text_color,

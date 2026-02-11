@@ -146,7 +146,7 @@ class CartController extends ApiController
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
         ]]);
 
         return $this->success(new MobileCartResource($this->buildCartPayload($cart, $request)));
@@ -216,11 +216,12 @@ class CartController extends ApiController
             'user_id' => $customer?->id,
         ];
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $appliedPromotions = $promotionModels->map(function ($promo) {
+        $locale = app()->getLocale();
+        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
             return [
                 'id' => $promo->id,
-                'name' => $promo->name,
-                'description' => $promo->description,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
                 'type' => $promo->type,
                 'value_type' => $promo->value_type,
                 'value' => $promo->value,
@@ -272,7 +273,7 @@ class CartController extends ApiController
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
                 'amount' => $couponDiscount,
-                'label' => $couponModel ? ('Coupon: ' . $couponModel->code) : null,
+                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
                 'source' => $couponModel ? 'coupon' : null,
                 'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
                 'coupon_model' => $couponModel,
@@ -298,7 +299,7 @@ class CartController extends ApiController
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
         ];
     }
 

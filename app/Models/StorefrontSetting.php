@@ -46,4 +46,27 @@ class StorefrontSetting extends Model
         'newsletter_popup_delay_seconds' => 'int',
         'newsletter_popup_dismiss_days' => 'int',
     ];
+
+    public static function latestForLocale(?string $locale): ?self
+    {
+        $locale = is_string($locale) ? strtolower(trim($locale)) : null;
+
+        if ($locale) {
+            $record = static::query()
+                ->where('locale', $locale)
+                ->latest()
+                ->first();
+
+            if ($record) {
+                return $record;
+            }
+        }
+
+        $default = static::query()
+            ->whereNull('locale')
+            ->latest()
+            ->first();
+
+        return $default ?: static::query()->latest()->first();
+    }
 }

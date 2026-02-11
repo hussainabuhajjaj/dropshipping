@@ -110,7 +110,7 @@ class Cart extends Model
                     })->toArray(),
                 ];
                 $result = $client->freightCalculate($payload);
-
+//dd($result);
                 if (isset($result->data)) {
                     $data = collect($result->data);
                     $company = $data->sortBy('logisticPrice')->first();
@@ -216,7 +216,7 @@ class Cart extends Model
                     ];
                 }
             }
-
+//dd($weight_breakdown,$total_weight,$product_attrs['cj_payload']['packingWeight']);
             $total_weight += (float) $unit_weight * $item->quantity;
 
         }

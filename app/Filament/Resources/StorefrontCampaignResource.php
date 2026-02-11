@@ -50,8 +50,11 @@ class StorefrontCampaignResource extends BaseResource
                     Forms\Components\Select::make('status')
                         ->options([
                             'draft' => 'Draft',
+                            'pending_approval' => 'Pending Approval',
+                            'approved' => 'Approved',
                             'scheduled' => 'Scheduled',
                             'active' => 'Active',
+                            'rejected' => 'Rejected',
                             'ended' => 'Ended',
                         ])
                         ->required(),
@@ -178,6 +181,11 @@ class StorefrontCampaignResource extends BaseResource
                         ->multiple()
                         ->options(fn () => StorefrontCollection::query()->orderBy('title')->pluck('title', 'id'))
                         ->searchable(),
+                    Forms\Components\Select::make('newsletter_campaign_ids')
+                        ->label('Newsletter Campaigns')
+                        ->multiple()
+                        ->options(fn () => \App\Models\NewsletterCampaign::query()->latest()->pluck('subject', 'id'))
+                        ->searchable(),
                 ])
                 ->columns(2),
         ]);
@@ -189,7 +197,15 @@ class StorefrontCampaignResource extends BaseResource
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('type')->badge()->sortable(),
-                Tables\Columns\TextColumn::make('status')->badge()->sortable(),
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->colors([
+                        'warning' => ['pending_approval', 'scheduled'],
+                        'success' => ['approved', 'active'],
+                        'danger' => ['rejected'],
+                        'gray' => ['ended', 'draft'],
+                    ])
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')->boolean(),
                 Tables\Columns\TextColumn::make('starts_at')->dateTime()->sortable()->toggleable(),
                 Tables\Columns\TextColumn::make('ends_at')->dateTime()->sortable()->toggleable(),

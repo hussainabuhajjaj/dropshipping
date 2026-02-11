@@ -34,6 +34,7 @@ class StorefrontCampaign extends Model
         'coupon_ids',
         'banner_ids',
         'collection_ids',
+        'newsletter_campaign_ids',
     ];
 
     protected $casts = [
@@ -48,6 +49,7 @@ class StorefrontCampaign extends Model
         'coupon_ids' => 'array',
         'banner_ids' => 'array',
         'collection_ids' => 'array',
+        'newsletter_campaign_ids' => 'array',
     ];
 
     public function getRouteKeyName(): string
@@ -120,6 +122,11 @@ class StorefrontCampaign extends Model
             return false;
         }
 
+        $allowedStatuses = ['active', 'approved', 'scheduled'];
+        if (! in_array($this->status, $allowedStatuses, true)) {
+            return false;
+        }
+
         if (! $this->isVisibleForLocale($locale)) {
             return false;
         }
@@ -164,6 +171,11 @@ class StorefrontCampaign extends Model
     public function collectionIds(): array
     {
         return array_values(array_filter(array_map('intval', $this->collection_ids ?? [])));
+    }
+
+    public function newsletterCampaignIds(): array
+    {
+        return array_values(array_filter(array_map('intval', $this->newsletter_campaign_ids ?? [])));
     }
 
     private function parseScheduleDate($value, string $timezone): ?Carbon

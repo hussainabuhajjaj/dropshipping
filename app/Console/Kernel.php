@@ -24,15 +24,16 @@ class Kernel extends ConsoleKernel
      *
      * @var array
      */
-    protected $commands = [
-        CjSyncCatalog::class,
-        TranslateProducts::class,
-        TranslateCategories::class,
-        \App\Console\Commands\TranslateMobileStrings::class,
-        \App\Console\Commands\CjCleanupWebhooks::class,
-        \App\Console\Commands\CjRefreshToken::class,
-        SyncCjVariants::class,
-    ];
+        protected $commands = [
+            CjSyncCatalog::class,
+            TranslateProducts::class,
+            TranslateCategories::class,
+            \App\Console\Commands\TranslateMobileStrings::class,
+            \App\Console\Commands\CjCleanupWebhooks::class,
+            \App\Console\Commands\CjRefreshToken::class,
+            SyncCjVariants::class,
+            \App\Console\Commands\CjFixProductDetails::class,
+        ];
 
     protected function schedule(Schedule $schedule): void
     {

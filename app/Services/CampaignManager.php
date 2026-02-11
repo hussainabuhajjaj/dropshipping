@@ -61,7 +61,7 @@ class CampaignManager
         $amount = min($amount, $cap);
         return $amount > 0 ? [
             'amount' => $amount,
-            'label' => 'First order 10% off',
+            'label' => __('First order 10% off'),
             'source' => 'first_order',
         ] : null;
     }
@@ -77,7 +77,7 @@ class CampaignManager
         $amount = min($amount, $cap);
         return [
             'amount' => $amount,
-            'label' => '5% off orders over $50',
+            'label' => __('5% off orders over $50'),
             'source' => 'high_value',
         ];
     }

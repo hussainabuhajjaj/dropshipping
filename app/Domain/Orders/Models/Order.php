@@ -46,6 +46,8 @@ class Order extends Model
         'shipping_variance',
         'tax_total',
         'discount_total',
+        'discount_snapshot',
+        'discount_source',
         'grand_total',
         'refund_reason',
         'refund_amount',
@@ -87,6 +89,7 @@ class Order extends Model
         'shipping_variance' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'refund_reason' => RefundReasonEnum::class,
+        'discount_snapshot' => 'array',
         // CJ Payment tracking
         'cj_order_created_at' => 'datetime',
         'cj_confirmed_at' => 'datetime',

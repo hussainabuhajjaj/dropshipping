@@ -10,7 +10,7 @@
                 />
             </div>
             <div class="space-y-1">
-                <p class="text-sm font-semibold text-slate-900">{{ line.name }}</p>
+                <p class="text-sm font-semibold text-slate-900">{{ line.name }} </p>
                 <p class="text-xs text-slate-500">{{
                         t('Variant: :variant', {variant: line.variant ?? t('Default')})
                     }}</p>

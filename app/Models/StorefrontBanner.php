@@ -33,6 +33,7 @@ class StorefrontBanner extends Model
         'is_active',
         'display_order',
         'targeting',
+        'locale_overrides',
     ];
 
     protected $casts = [
@@ -40,6 +41,7 @@ class StorefrontBanner extends Model
         'ends_at' => 'datetime',
         'is_active' => 'boolean',
         'targeting' => 'array',
+        'locale_overrides' => 'array',
     ];
 
     public function product(): BelongsTo
@@ -147,5 +149,29 @@ class StorefrontBanner extends Model
         }
 
         return true;
+    }
+
+    public function localeOverrideMap(): array
+    {
+        $overrides = $this->locale_overrides ?? [];
+
+        return collect($overrides)
+            ->filter(fn ($row) => is_array($row) && ! empty($row['locale']))
+            ->keyBy('locale')
+            ->all();
+    }
+
+    public function localizedValue(string $field, ?string $locale): ?string
+    {
+        if (! $locale) {
+            return $this->{$field} ?? null;
+        }
+
+        $override = $this->localeOverrideMap()[$locale] ?? null;
+        if ($override && array_key_exists($field, $override) && $override[$field] !== null && $override[$field] !== '') {
+            return (string) $override[$field];
+        }
+
+        return $this->{$field} ?? null;
     }
 }

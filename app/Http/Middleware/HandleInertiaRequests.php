@@ -65,10 +65,10 @@ class HandleInertiaRequests extends Middleware
         $site = Schema::hasTable('site_settings')
             ? SiteSetting::query()->first()
             : null;
-        $storefront = Schema::hasTable('storefront_settings')
-            ? StorefrontSetting::query()->latest()->first()
-            : null;
         $locale = app()->getLocale();
+        $storefront = Schema::hasTable('storefront_settings')
+            ? StorefrontSetting::latestForLocale($locale)
+            : null;
         $translations = [];
         $translationsPath = resource_path("lang/{$locale}.json");
         if (is_file($translationsPath)) {
@@ -113,8 +113,8 @@ class HandleInertiaRequests extends Middleware
             ],
             'translations' => $translations,
             'seo' => [
-                'title' => $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Simbazu'),
-                'description' => $site?->meta_description ?? $site?->site_description ?? null,
+                'title' => $site?->localizedValue('meta_title', $locale) ?? $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Simbazu'),
+                'description' => $site?->localizedValue('meta_description', $locale) ?? $site?->meta_description ?? $site?->site_description ?? null,
                 'image' => $site?->logo_path ?? null,
             ],
             'categories' => $this->rootCategoriesTree(['children', 'children.children']),
@@ -125,20 +125,22 @@ class HandleInertiaRequests extends Middleware
 
     private function popupBanners(): array
     {
+        $locale = app()->getLocale();
+
         $banners = StorefrontBanner::active()
             ->byDisplayType('popup')
             ->with(['product.images', 'category'])
             ->orderBy('display_order')
             ->get();
 
-        return $banners->map(function (StorefrontBanner $banner) {
+        return $banners->map(function (StorefrontBanner $banner) use ($locale) {
             return [
                 'id' => $banner->id,
-                'title' => $banner->title,
-                'description' => $banner->description,
+                'title' => $banner->localizedValue('title', $locale),
+                'description' => $banner->localizedValue('description', $locale),
                 'imagePath' => $this->resolveBannerImage($banner),
-                'badgeText' => $banner->badge_text,
-                'ctaText' => $banner->cta_text,
+                'badgeText' => $banner->localizedValue('badge_text', $locale),
+                'ctaText' => $banner->localizedValue('cta_text', $locale),
                 'ctaUrl' => $banner->getCtaUrl(),
                 'ends_at' => $banner->ends_at,
                 'promotion' => null,

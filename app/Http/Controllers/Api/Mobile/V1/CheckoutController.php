@@ -72,6 +72,17 @@ class CheckoutController extends ApiController
             return $this->error((string) ($minimumRequirement['message'] ?? 'Minimum cart requirement not met'), 422);
         }
 
+        $discountSnapshot = $this->buildDiscountSnapshot(
+            $discount,
+            $pricing['label'] ?? null,
+            $discountSource,
+            $coupon ? $this->serializeCoupon($couponModel) : null,
+            $promotionDiscounts,
+            $cartItems->first()?->variant?->currency
+                ?? $cartItems->first()?->product?->currency
+                ?? 'USD'
+        );
+
         [$order, $payment] = DB::transaction(function () use (
             $validated,
             $cart,
@@ -81,6 +92,7 @@ class CheckoutController extends ApiController
             $couponModel,
             $promotionDiscounts,
             $discountSource,
+            $discountSnapshot,
             $subtotal,
             $shipping,
             $taxTotal,
@@ -127,6 +139,8 @@ class CheckoutController extends ApiController
                 'tax_total' => $taxTotal,
                 'discount_total' => $discount,
                 'grand_total' => $total,
+                'discount_snapshot' => $discountSnapshot,
+                'discount_source' => $discountSource,
                 'shipping_address_id' => $shippingAddress->id,
                 'billing_address_id' => $shippingAddress->id,
                 'shipping_method' => 'standard',
@@ -242,11 +256,12 @@ class CheckoutController extends ApiController
         ];
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
 
-        $appliedPromotions = $promotionModels->map(function ($promo) {
+        $locale = app()->getLocale();
+        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
             return [
                 'id' => $promo->id,
-                'name' => $promo->name,
-                'description' => $promo->description,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
                 'type' => $promo->type,
                 'value_type' => $promo->value_type,
                 'value' => $promo->value,
@@ -297,7 +312,7 @@ class CheckoutController extends ApiController
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
             return [
                 'amount' => $couponDiscount,
-                'label' => $couponModel ? ('Coupon: ' . $couponModel->code) : null,
+                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
                 'source' => $couponModel ? 'coupon' : null,
                 'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
                 'coupon_model' => $couponModel,
@@ -349,7 +364,29 @@ class CheckoutController extends ApiController
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
-            'description' => $coupon->description,
+            'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $promotionDiscounts
+     */
+    private function buildDiscountSnapshot(
+        float $discountAmount,
+        ?string $label,
+        ?string $source,
+        ?array $coupon,
+        array $promotionDiscounts,
+        string $currency
+    ): array {
+        return [
+            'source' => $source,
+            'label' => $label,
+            'discount_total' => $discountAmount,
+            'currency' => $currency,
+            'coupon' => $coupon,
+            'promotion_discounts' => array_values($promotionDiscounts),
+            'computed_at' => now()->toIso8601String(),
         ];
     }
 
