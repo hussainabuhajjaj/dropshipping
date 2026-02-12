@@ -24,6 +24,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Filament\Support\ArrayRecord;
 use Filament\Support\Contracts\TranslatableContentDriver;
 use App\Filament\Pages\BasePage;
 use Illuminate\Support\Collection;
@@ -921,6 +922,34 @@ class CJCatalog extends BasePage implements HasTable
     {
         $selected = $this->getSelectedTableRecords();
         $pids = $this->selectedPids($selected);
+
+        if ($pids === [] && ! empty($this->selectedTableRecords)) {
+            $pids = collect($this->selectedTableRecords)
+                ->filter(fn (mixed $key): bool => is_string($key) || is_numeric($key))
+                ->map(fn (mixed $key): string => trim((string) $key))
+                ->filter(fn (string $pid): bool => $pid !== '')
+                ->values()
+                ->all();
+        }
+
+        $this->queueImportByPids($pids, 'selected products');
+    }
+
+    /**
+     * Queue import by explicit table row keys sent from the UI.
+     *
+     * @param  array<int, mixed>  $keys
+     */
+    public function queueImportSelectedByKeys(array $keys): void
+    {
+        $pids = collect($keys)
+            ->filter(fn (mixed $key): bool => is_string($key) || is_numeric($key))
+            ->map(fn (mixed $key): string => trim((string) $key))
+            ->filter(fn (string $pid): bool => $pid !== '')
+            ->unique()
+            ->values()
+            ->all();
+
         $this->queueImportByPids($pids, 'selected products');
     }
 
@@ -1116,7 +1145,7 @@ class CJCatalog extends BasePage implements HasTable
             ->values()
             ->map(function (array $record): array {
                 $pid = $this->recordPid($record);
-                $record['__key'] = $pid !== '' ? $pid : md5(json_encode($record, JSON_UNESCAPED_SLASHES));
+                $record[ArrayRecord::getKeyName()] = $pid !== '' ? $pid : md5(json_encode($record, JSON_UNESCAPED_SLASHES));
                 return $record;
             })
             ->all();
@@ -1160,8 +1189,18 @@ class CJCatalog extends BasePage implements HasTable
 
     public function getTableRecordKey($record): string
     {
-        if (is_array($record) && isset($record['__key'])) {
-            return (string) $record['__key'];
+        if (is_array($record)) {
+            $keyName = ArrayRecord::getKeyName();
+
+            if (isset($record[$keyName])) {
+                return (string) $record[$keyName];
+            }
+
+            $pid = $this->recordPid($record);
+
+            if ($pid !== '') {
+                return $pid;
+            }
         }
 
         return md5(json_encode($record, JSON_UNESCAPED_SLASHES));
