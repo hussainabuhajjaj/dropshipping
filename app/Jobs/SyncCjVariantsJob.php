@@ -96,10 +96,17 @@ class SyncCjVariantsJob implements ShouldQueue
             }
 
             // Update product sync timestamp
+            $product->cj_removed_from_shelves_at = null;
+            $product->cj_removed_reason = null;
             $product->cj_synced_at = now();
             $product->save();
 
         } catch (ApiException $e) {
+            if ($this->isRemovedFromShelves($e)) {
+                $this->markProductRemoved($e->getMessage());
+                return;
+            }
+
             Log::warning('CJ variant sync failed', [
                 'cj_pid' => $this->cjPid,
                 'error' => $e->getMessage(),
@@ -121,5 +128,34 @@ class SyncCjVariantsJob implements ShouldQueue
             // For other errors, fail the job
             $this->fail($e);
         }
+    }
+
+    private function isRemovedFromShelves(ApiException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'removed from shelves')
+            || str_contains($message, 'off shelf')
+            || str_contains($message, 'offline')
+            || in_array($e->codeString, ['PRODUCT_OFF_SHELF', '404'], true);
+    }
+
+    private function markProductRemoved(?string $reason = null): void
+    {
+        Product::query()
+            ->where('cj_pid', $this->cjPid)
+            ->update([
+                'status' => 'draft',
+                'is_active' => false,
+                'cj_sync_enabled' => false,
+                'cj_synced_at' => now(),
+                'cj_removed_from_shelves_at' => now(),
+                'cj_removed_reason' => $reason !== null ? substr($reason, 0, 500) : 'Removed from shelves',
+            ]);
+
+        Log::warning('CJ product marked as removed during variants sync', [
+            'cj_pid' => $this->cjPid,
+            'reason' => $reason,
+        ]);
     }
 }

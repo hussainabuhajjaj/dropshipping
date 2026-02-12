@@ -370,6 +370,13 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->badge()
                         ->color(fn (Product $record) => self::syncStatusColor($record))
                         ->toggleable(),
+                    Tables\Columns\TextColumn::make('cj_availability')
+                        ->label('CJ Availability')
+                        ->getStateUsing(fn (Product $record) => self::cjAvailability($record))
+                        ->badge()
+                        ->color(fn (Product $record) => self::cjAvailabilityColor($record))
+                        ->tooltip(fn (Product $record) => $record->cj_removed_reason ?: null)
+                        ->toggleable(),
                     Tables\Columns\TextColumn::make('translation_status')
                         ->label('Translation')
                         ->badge()
@@ -523,6 +530,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                 Tables\Filters\Filter::make('sync_enabled')
                     ->label('Sync Enabled')
                     ->query(fn ($query) => $query->where('cj_sync_enabled', true))
+                    ->toggle(),
+                Tables\Filters\Filter::make('cj_removed')
+                    ->label('Removed from CJ')
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('cj_removed_from_shelves_at'))
                     ->toggle(),
                 Tables\Filters\Filter::make('out_of_sync')
                     ->label('Out of Sync')
@@ -1493,6 +1504,10 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
             return 'Local';
         }
 
+        if ($record->cj_removed_from_shelves_at) {
+            return 'Removed from CJ';
+        }
+
         if (! $record->cj_sync_enabled) {
             return 'Sync off';
         }
@@ -1511,11 +1526,30 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
         return match (self::syncStatus($record)) {
             'Synced' => 'success',
             'Out of sync' => 'warning',
+            'Removed from CJ' => 'danger',
             'Never' => 'danger',
             'Sync off' => 'gray',
             'AliExpress' => 'warning',
             default => 'gray',
         };
+    }
+
+    private static function cjAvailability(Product $record): string
+    {
+        if (! $record->cj_pid) {
+            return 'N/A';
+        }
+
+        return $record->cj_removed_from_shelves_at ? 'Removed' : 'Available';
+    }
+
+    private static function cjAvailabilityColor(Product $record): string
+    {
+        if (! $record->cj_pid) {
+            return 'gray';
+        }
+
+        return $record->cj_removed_from_shelves_at ? 'danger' : 'success';
     }
 
     private static function sourceLabel(Product $record): string

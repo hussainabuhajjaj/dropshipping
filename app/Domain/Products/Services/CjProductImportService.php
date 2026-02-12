@@ -185,6 +185,8 @@ class CjProductImportService
             'attributes' => $attributes,
             'source_url' => $productData['productUrl'] ?? $productData['sourceUrl'] ?? null,
             'cj_synced_at' => now(),
+            'cj_removed_from_shelves_at' => null,
+            'cj_removed_reason' => null,
             'default_fulfillment_provider_id' => 1,
         ];
 
@@ -1181,6 +1183,8 @@ class CjProductImportService
             'is_active' => false,
             'cj_sync_enabled' => false,
             'cj_synced_at' => now(),
+            'cj_removed_from_shelves_at' => now(),
+            'cj_removed_reason' => $reason ? Str::limit($reason, 500) : 'Removed from shelves',
         ];
 
         Product::query()->where('cj_pid', $pid)->update($payload);

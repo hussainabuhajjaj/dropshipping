@@ -54,6 +54,11 @@ class ProductHealthStatsWidget extends StatsOverviewWidget
             })
             ->count();
 
+        $removedFromCjProducts = (clone $baseQuery)
+            ->whereNotNull('cj_pid')
+            ->whereNotNull('cj_removed_from_shelves_at')
+            ->count();
+
         return [
             Stat::make('Active products', (string) $activeProducts)
                 ->description("of {$totalProducts} total")
@@ -73,7 +78,9 @@ class ProductHealthStatsWidget extends StatsOverviewWidget
             Stat::make('Variants no price', (string) $variantsWithoutPriceProducts)
                 ->description('Products with invalid variant prices')
                 ->color($variantsWithoutPriceProducts > 0 ? 'danger' : 'success'),
+            Stat::make('Removed from CJ', (string) $removedFromCjProducts)
+                ->description('No longer available on CJ')
+                ->color($removedFromCjProducts > 0 ? 'danger' : 'success'),
         ];
     }
 }
-
