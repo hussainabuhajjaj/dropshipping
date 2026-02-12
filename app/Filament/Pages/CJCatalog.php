@@ -8,26 +8,41 @@ use App\Domain\Products\Models\Product;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\CjProductMediaService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Jobs\ImportCjProductJob;
 use App\Jobs\SyncCjProductsJob;
+use App\Models\CjCatalogFilterPreset;
 use App\Services\Api\ApiException;
+use App\Services\Cj\CjCatalogImportTracker;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Notifications\Notification;
+use Filament\Support\Contracts\TranslatableContentDriver;
 use App\Filament\Pages\BasePage;
-use Illuminate\Support\Str;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use UnitEnum;
 
 class CJCatalog extends BasePage implements HasTable
 {
     use InteractsWithTable;
+
+    private const DEFAULT_PAGE_SIZE = 24;
+    private const MIN_PAGE_SIZE = 10;
+    private const MAX_PAGE_SIZE = 200;
+    private const MAX_BULK_IMPORT_FROM_PAGE = 15;
+    private const MY_PRODUCTS_FETCH_SIZE = 50;
+    private const LISTED_PRODUCTS_FETCH_SIZE = 200;
+    private const ALLOWED_SORTS = ['1', '2', '5', '6'];
+    private const PRESET_MAX_COUNT = 20;
+    private const IMPORT_TRACKING_POLL_SECONDS = 5;
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cloud-arrow-down';
     protected static UnitEnum|string|null $navigationGroup = 'Integrations';
@@ -38,7 +53,7 @@ class CJCatalog extends BasePage implements HasTable
     public array $items = [];
     public array $existingCatalog = [];
     public int $pageNum = 1;
-    public int $pageSize = 24;
+    public int $pageSize = self::DEFAULT_PAGE_SIZE;
     public int $total = 0;
     public int $totalPages = 1;
     public bool $totalPagesKnown = false;
@@ -66,112 +81,129 @@ class CJCatalog extends BasePage implements HasTable
     public string $sort = '';
     public ?string $storeProductId = null;
     public ?string $shipToCountry = null;
+    public ?string $categorySearch = null;
+
+    public ?string $presetName = null;
+    public ?int $selectedPresetId = null;
+    public array $presetOptions = [];
+
+    public ?string $activeImportTrackingKey = null;
+    /** @var array<string, mixed> */
+    public array $queueImportStatus = [];
+    public bool $queueImportCompletionNotified = false;
+
     public int $syncEnabledCount = 0;
     public int $syncDisabledCount = 0;
     public int $syncStaleCount = 0;
     public ?string $lastCommandMessage = null;
     public ?string $lastCommandAt = null;
 
+    /**
+     * HasTable includes translation support in Filament v4.
+     */
+    public function makeFilamentTranslatableContentDriver(): ?TranslatableContentDriver
+    {
+        return null;
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\CJCatalogStatsWidget::class,
+        ];
+    }
+
+    /**
+     * Pass page state into header widgets using documented Filament API.
+     *
+     * @return array<string, mixed>
+     */
+    public function getWidgetData(): array
+    {
+        return array_merge(parent::getWidgetData(), [
+            'total' => $this->total,
+            'pageNum' => $this->pageNum,
+            'totalPages' => $this->totalPages,
+            'totalPagesKnown' => $this->totalPagesKnown,
+            'avgPrice' => $this->avgPrice,
+            'loaded' => $this->loaded,
+            'inventoryTotal' => $this->inventoryTotal,
+            'withImages' => $this->withImages,
+            'syncEnabledCount' => $this->syncEnabledCount,
+            'syncDisabledCount' => $this->syncDisabledCount,
+            'syncStaleCount' => $this->syncStaleCount,
+        ]);
+    }
+
+    public function getHeaderWidgetsColumns(): int|array
+    {
+        return 1;
+    }
+
+    public function getImportPollIntervalSeconds(): int
+    {
+        return self::IMPORT_TRACKING_POLL_SECONDS;
+    }
+
     public function table(Table $table): Table
     {
         return $table
             ->records(fn (?string $search, ?string $sortColumn, ?string $sortDirection): array => $this->buildTableRecords($search, $sortColumn, $sortDirection))
-            ->headerActions([
-                Action::make('syncListedCjProducts')
-                    ->label('Sync Listed CJ Products')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('primary')
-                    ->action(function (): void {
-                        try {
-                            $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
-                            $resp = $client->listMyProducts([
-                                'pageNum' => 1,
-                                'pageSize' => 200,
-                            ]);
-                            $data = $resp->data ?? [];
-                            // dd($data);
-                            $list = [];
-                            // Normalize response to array of products
-                            if (is_array($data)) {
-                                if (!empty($data['content']) && is_array($data['content'])) {
-                                    foreach ($data['content'] as $entry) {
-                                        if (is_array($entry) && isset($entry['productList']) && is_array($entry['productList'])) {
-                                            $list = array_merge($list, $entry['productList']);
-                                        } elseif (is_array($entry)) {
-                                            $list[] = $entry;
-                                        }
-                                    }
-                                } elseif (!empty($data['productList']) && is_array($data['productList'])) {
-                                    $list = $data['productList'];
-                                } elseif (!empty($data['content']) && is_array($data['content'])) {
-                                    $list = $data['content'];
-                                } else {
-                                    $numericKeys = array_filter(array_keys($data), 'is_int');
-                                    if ($numericKeys !== []) {
-                                        $list = $data;
-                                    }
-                                }
-                            }
-                            // Filter for listed products only
-                            $listed = array_filter($list, function ($item) {
-                                return is_array($item) && !empty($item['listedShopNum']) && (int)$item['listedShopNum'] > 0;
-                            });
-                            $importer = app(\App\Domain\Products\Services\CjProductImportService::class);
-                            $count = 0;
-                            foreach ($listed as $record) {
-                                $pid = $record['pid'] ?? $record['productId'] ?? $record['id'] ?? null;
-                                if (!$pid) {
-                                    continue;
-                                }
-                                try {
-                                    $product = $importer->importByPid($pid, [
-                                        'respectSyncFlag' => false,
-                                        'defaultSyncEnabled' => true,
-                                        'syncReviews' => true,
-                                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-                                    ]);
-                                } catch (\Throwable $e) {
-                                    \Filament\Notifications\Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                                    continue;
-                                }
-                                if ($product) {
-                                    $count++;
-                                }
-                            }
-                            $message = $count > 0 ? "Imported {$count} listed CJ products." : 'No listed CJ products were imported.';
-                            \Filament\Notifications\Notification::make()->title('Listed Products')->body($message)->success()->send();
-                            $this->recordCommandMessage($message);
-                            $this->fetch();
-                        } catch (\Throwable $e) {
-                            \Filament\Notifications\Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
-                        }
-                    }),
-                Action::make('setShipTo')
-                    ->label('Ship-to Filter')
-                    ->icon('heroicon-o-globe-alt')
-                    ->color('secondary')
-                    ->schema([
-                        \Filament\Forms\Components\TextInput::make('country')
-                            ->label('Country code (e.g., US, GB)')
-                            ->maxLength(2)
-                            ->default(strtoupper((string) (config('services.cj.ship_to_default') ?? ''))),
-                    ])
-                    ->action(function (array $data): void {
-                        $code = strtoupper(trim((string) ($data['country'] ?? '')));
-                        $this->shipToCountry = $code !== '' ? $code : null;
-                        $this->flushCachedTableRecords();
-                    }),
-                Action::make('clearShipTo')
-                    ->label('Clear Ship-to')
-                    ->icon('heroicon-o-x-mark')
-                    ->color('gray')
-                    ->action(function (): void {
-                        $this->shipToCountry = null;
-                        $this->flushCachedTableRecords();
-                    }),
-            ])
-            ->columns([
-                ImageColumn::make('image')
+            ->headerActions($this->tableHeaderActions())
+            ->columns($this->tableColumns())
+            ->recordActions($this->tableRecordActions())
+            ->bulkActions($this->tableBulkActions())
+            ->striped()
+            ->selectable()
+            ->paginated(false)
+            ->defaultKeySort(false)
+            ->emptyStateHeading('No CJ products found')
+            ->emptyStateDescription('Adjust your filters or refresh the catalog.');
+    }
+
+    /**
+     * @return array<int, Action>
+     */
+    private function tableHeaderActions(): array
+    {
+        return [
+            Action::make('syncListedCjProducts')
+                ->label('Sync Listed CJ Products')
+                ->icon('heroicon-o-arrow-path')
+                ->color('primary')
+                ->action(fn (): mixed => $this->syncListedCjProducts()),
+            Action::make('setShipTo')
+                ->label('Ship-to Filter')
+                ->icon('heroicon-o-globe-alt')
+                ->color('secondary')
+                ->schema([
+                    TextInput::make('country')
+                        ->label('Country code (e.g., US, GB)')
+                        ->maxLength(2)
+                        ->default(strtoupper((string) (config('services.cj.ship_to_default') ?? ''))),
+                ])
+                ->action(function (array $data): void {
+                    $this->shipToCountry = $this->normalizeCountryCode($data['country'] ?? null);
+                    $this->flushCachedTableRecords();
+                }),
+            Action::make('clearShipTo')
+                ->label('Clear Ship-to')
+                ->icon('heroicon-o-x-mark')
+                ->color('gray')
+                ->action(function (): void {
+                    $this->shipToCountry = null;
+                    $this->flushCachedTableRecords();
+                }),
+        ];
+    }
+
+    /**
+     * @return array<int, TextColumn|ImageColumn>
+     */
+    private function tableColumns(): array
+    {
+        return [
+            ImageColumn::make('image')
                     ->label('Image')
                     ->getStateUsing(fn (array $record): ?string => $this->recordImage($record))
                     ->square()
@@ -236,59 +268,68 @@ class CJCatalog extends BasePage implements HasTable
                     ->getStateUsing(fn (array $record): ?string => $this->recordSku($record))
                     ->placeholder('--')
                     ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->recordActions([
-                Action::make('import')
-                    ->label('Import')
-                    ->action(function (array $record): void {
-                        $this->import($this->recordPid($record));
-                    })
-                    ->requiresConfirmation()
-                    ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
-                Action::make('add_to_my')
-                    ->label(label: 'Add to My')
-                    ->color('gray')
-                    ->action(function (array $record): void {
-                        $this->addToMyProducts($this->recordPid($record));
-                    })
-                    ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
-                Action::make('stock')
-                    ->label('Stock')
-                    ->color('gray')
-                    ->action(function (array $record): void {
-                        $this->checkStock($this->recordPid($record));
-                    })
-                    ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
-                Action::make('edit')
-                    ->label('Edit')
-                    ->color('gray')
-                    ->url(fn (array $record): ?string => $this->recordEditUrl($record))
-                    ->openUrlInNewTab()
-                    ->visible(fn (array $record): bool => $this->recordEditUrl($record) !== null),
-            ])
-            ->bulkActions([
-                BulkAction::make('importSelected')
-                    ->label('Import selected')
-                    ->icon('heroicon-o-cloud-arrow-down')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->action(function (Collection $records): void {
-                        $this->importSelected($records);
-                    }),
-                BulkAction::make('addSelected')
-                    ->label('Add selection to My Products')
-                    ->icon('heroicon-o-plus')
-                    ->color('secondary')
-                    ->action(function (Collection $records): void {
-                        $this->addSelectedToMyProducts($records);
-                    }),
-            ])
-            ->striped()
-            ->selectable()
-            ->paginated(false)
-            ->defaultKeySort(false)
-            ->emptyStateHeading('No CJ products found')
-            ->emptyStateDescription('Adjust your filters or refresh the catalog.');
+        ];
+    }
+
+    /**
+     * @return array<int, Action>
+     */
+    private function tableRecordActions(): array
+    {
+        return [
+            Action::make('import')
+                ->label('Import')
+                ->action(function (array $record): void {
+                    $this->import($this->recordPid($record));
+                })
+                ->requiresConfirmation()
+                ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
+            Action::make('add_to_my')
+                ->label(label: 'Add to My')
+                ->color('gray')
+                ->action(function (array $record): void {
+                    $this->addToMyProducts($this->recordPid($record));
+                })
+                ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
+            Action::make('stock')
+                ->label('Stock')
+                ->color('gray')
+                ->action(function (array $record): void {
+                    $this->checkStock($this->recordPid($record));
+                })
+                ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
+            Action::make('edit')
+                ->label('Edit')
+                ->color('gray')
+                ->url(fn (array $record): ?string => $this->recordEditUrl($record))
+                ->openUrlInNewTab()
+                ->visible(fn (array $record): bool => $this->recordEditUrl($record) !== null),
+        ];
+    }
+
+    /**
+     * @return array<int, BulkAction>
+     */
+    private function tableBulkActions(): array
+    {
+        return [
+            BulkAction::make('importSelected')
+                ->label('Queue import selected')
+                ->icon('heroicon-o-cloud-arrow-down')
+                ->color('primary')
+                ->requiresConfirmation()
+                ->action(function (Collection $records): void {
+                    $pids = $this->selectedPids($records);
+                    $this->queueImportByPids($pids, 'selected products');
+                }),
+            BulkAction::make('addSelected')
+                ->label('Add selection to My Products')
+                ->icon('heroicon-o-plus')
+                ->color('secondary')
+                ->action(function (Collection $records): void {
+                    $this->addSelectedToMyProducts($records);
+                }),
+        ];
     }
 
     public function getStatsData(): array
@@ -344,17 +385,18 @@ class CJCatalog extends BasePage implements HasTable
 
     public function mount(): void
     {
-        $default = strtoupper((string) (config('services.cj.ship_to_default') ?? ''));
-        $this->shipToCountry = $default !== '' ? $default : null;
+        $this->shipToCountry = $this->normalizeCountryCode(config('services.cj.ship_to_default'));
         $this->loadCategories();
         $this->loadWarehouses();
+        $this->loadPresetOptions();
+        $this->hydrateActiveImportStatus();
         $this->fetch();
     }
 
     private function loadCategories(): void
     {
         try {
-            $resp = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class)->listCategories();
+            $resp = $this->catalogClient()->listCategories();
             $tree = $resp->data ?? [];
             $this->categoryOptions = $this->flattenCategories(is_array($tree) ? $tree : []);
         } catch (\Throwable $e) {
@@ -390,13 +432,145 @@ class CJCatalog extends BasePage implements HasTable
         }
     }
 
+    public function filteredCategoryOptions(): array
+    {
+        $search = trim((string) $this->categorySearch);
+        if ($search === '') {
+            return $this->categoryOptions;
+        }
+
+        $needle = Str::lower($search);
+
+        return collect($this->categoryOptions)
+            ->filter(fn (string $label): bool => Str::contains(Str::lower($label), $needle))
+            ->all();
+    }
+
+    public function saveFilterPreset(): void
+    {
+        $userId = $this->currentUserId();
+        if (! $userId) {
+            $this->notifyError('No authenticated user found');
+            return;
+        }
+
+        $name = trim((string) $this->presetName);
+        if ($name === '') {
+            Notification::make()->title('Preset name required')->warning()->send();
+            return;
+        }
+
+        $count = CjCatalogFilterPreset::query()->where('user_id', $userId)->count();
+        if ($count >= self::PRESET_MAX_COUNT) {
+            Notification::make()->title('Preset limit reached')->body('Delete an old preset before saving a new one.')->warning()->send();
+            return;
+        }
+
+        $preset = CjCatalogFilterPreset::query()->updateOrCreate(
+            ['user_id' => $userId, 'name' => $name],
+            ['filters' => $this->currentFilterPayload()]
+        );
+
+        $this->selectedPresetId = (int) $preset->id;
+        $this->presetName = null;
+        $this->loadPresetOptions();
+
+        Notification::make()->title('Preset saved')->body($preset->name)->success()->send();
+    }
+
+    public function applySelectedPreset(): void
+    {
+        $userId = $this->currentUserId();
+        if (! $userId || ! $this->selectedPresetId) {
+            Notification::make()->title('Select a preset first')->warning()->send();
+            return;
+        }
+
+        $preset = CjCatalogFilterPreset::query()
+            ->where('user_id', $userId)
+            ->whereKey($this->selectedPresetId)
+            ->first();
+
+        if (! $preset) {
+            Notification::make()->title('Preset not found')->warning()->send();
+            return;
+        }
+
+        $filters = is_array($preset->filters) ? $preset->filters : [];
+        $this->applyFilterPayload($filters);
+        $this->pageNum = 1;
+        $this->fetch();
+
+        Notification::make()->title('Preset applied')->body($preset->name)->success()->send();
+    }
+
+    public function deleteSelectedPreset(): void
+    {
+        $userId = $this->currentUserId();
+        if (! $userId || ! $this->selectedPresetId) {
+            Notification::make()->title('Select a preset first')->warning()->send();
+            return;
+        }
+
+        $preset = CjCatalogFilterPreset::query()
+            ->where('user_id', $userId)
+            ->whereKey($this->selectedPresetId)
+            ->first();
+
+        if (! $preset) {
+            Notification::make()->title('Preset not found')->warning()->send();
+            return;
+        }
+
+        $deletedName = $preset->name;
+        $preset->delete();
+
+        $this->selectedPresetId = null;
+        $this->loadPresetOptions();
+        Notification::make()->title('Preset deleted')->body($deletedName)->success()->send();
+    }
+
+    public function refreshQueueImportStatus(): void
+    {
+        if (! $this->activeImportTrackingKey) {
+            return;
+        }
+
+        $status = $this->importTracker()->get($this->activeImportTrackingKey);
+        if (! is_array($status)) {
+            return;
+        }
+
+        $this->queueImportStatus = $status;
+
+        $isDone = in_array((string) ($status['status'] ?? ''), ['completed', 'completed_with_failures'], true);
+        if ($isDone && ! $this->queueImportCompletionNotified) {
+            $failed = (int) ($status['failed'] ?? 0);
+            $total = (int) ($status['total'] ?? 0);
+            $success = (int) ($status['success'] ?? 0);
+
+            $notification = Notification::make()
+                ->title($failed > 0 ? 'Queue import completed with failures' : 'Queue import completed')
+                ->body("Processed {$total}, success {$success}, failed {$failed}.")
+                ->seconds(8);
+
+            if ($failed > 0) {
+                $notification->warning();
+            } else {
+                $notification->success();
+            }
+
+            $notification->send();
+            $this->queueImportCompletionNotified = true;
+            $this->fetch(notify: false);
+        }
+    }
+
     public function fetch(bool $append = false, bool $notify = true): void
     {
         try {
-            $this->pageNum = max(1, $this->pageNum);
-            $this->pageSize = min(200, max(10, $this->pageSize));
-
-            $sort = in_array($this->sort, ['1', '2', '5', '6'], true) ? $this->sort : null;
+            $this->normalizePagination();
+            $sort = $this->normalizeSortValue($this->sort);
 
             $filters = [
                 'pageNum' => $this->pageNum,
@@ -411,72 +585,62 @@ class CJCatalog extends BasePage implements HasTable
                 'sort' => $sort,
             ];
 
-            $client = app(CJDropshippingClient::class);
+            $client = $this->catalogClient();
             $resp = $this->storeProductId
                 ? $client->listMyProducts($filters)
                 : $client->listProducts($filters);
             $this->products = $resp->data ?? null;
             $this->hydrateResults($append);
             if ($notify) {
-                Notification::make()
-                    ->title($append ? 'Loaded more CJ products' : 'Loaded CJ catalog')
-                    ->success()
-                    ->send();
+                $this->notifySuccess($append ? 'Loaded more CJ products' : 'Loaded CJ catalog');
             }
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->icon('heroicon-o-exclamation-circle')->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
     public function import(string $pid): void
     {
-        $importer = app(CjProductImportService::class);
-
         try {
-            $product = $importer->importByPid($pid, [
-                'respectSyncFlag' => false,
-                'defaultSyncEnabled' => true,
-                'syncReviews' => true,
-                'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-            ]);
+            $product = $this->importService()->importByPid($pid, $this->defaultImportOptions());
 
             if (! $product) {
-                Notification::make()->title('CJ product not found')->danger()->send();
+                $this->notifyError('CJ product not found');
                 return;
             }
 
-            Notification::make()->title("Imported {$product->name}")->success()->send();
+            $this->notifySuccess("Imported {$product->name}");
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
     public function addToMyProducts(string $pid): void
     {
         try {
-            app(CJDropshippingClient::class)->addToMyProducts($pid);
-            Notification::make()->title('Added to My Products')->success()->send();
+            $this->catalogClient()->addToMyProducts($pid);
+            $this->notifySuccess('Added to My Products');
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
     public function checkStock(string $pid): void
     {
         try {
-            $resp = app(CJDropshippingClient::class)->getStockByPid($pid);
+            $resp = $this->catalogClient()->getStockByPid($pid);
             $total = $this->sumStorage($resp->data ?? null);
             Notification::make()->title('CJ stock')->body("PID {$pid}: {$total}")->send();
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -520,7 +684,7 @@ class CJCatalog extends BasePage implements HasTable
     private function loadProductMedia(string $pid, ?string $fallbackUrl = null): void
     {
         try {
-            $client = app(CJDropshippingClient::class);
+            $client = $this->catalogClient();
             $productResp = $client->getProduct($pid);
             $productData = $productResp->data ?? null;
             if (! is_array($productData)) {
@@ -550,9 +714,9 @@ class CJCatalog extends BasePage implements HasTable
                 $this->imagePreviewUrl = $images[0];
             }
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -639,8 +803,7 @@ class CJCatalog extends BasePage implements HasTable
 
     public function applyFilters(): void
     {
-        $this->pageNum = max(1, $this->pageNum);
-        $this->pageSize = min(200, max(10, $this->pageSize));
+        $this->normalizePagination();
         $this->fetch();
     }
 
@@ -650,12 +813,13 @@ class CJCatalog extends BasePage implements HasTable
         $this->productSku = null;
         $this->materialKey = null;
         $this->categoryId = null;
+        $this->categorySearch = null;
         $this->warehouseId = null;
         $this->inStockOnly = false;
         $this->sort = '';
         $this->storeProductId = null;
         $this->pageNum = 1;
-        $this->pageSize = 24;
+        $this->pageSize = self::DEFAULT_PAGE_SIZE;
         $this->fetch();
     }
 
@@ -691,7 +855,7 @@ class CJCatalog extends BasePage implements HasTable
 
     public function importDisplayedProducts(): void
     {
-        $batch = array_slice($this->items, 0, 15);
+        $batch = array_slice($this->items, 0, self::MAX_BULK_IMPORT_FROM_PAGE);
         $pids = collect($batch)
             ->map(fn ($record) => $this->recordPid($record))
             ->filter()
@@ -699,6 +863,18 @@ class CJCatalog extends BasePage implements HasTable
             ->all();
 
         $this->bulkImportByPids($pids, 'from this page');
+    }
+
+    public function queueImportDisplayedProducts(): void
+    {
+        $batch = array_slice($this->items, 0, self::MAX_BULK_IMPORT_FROM_PAGE);
+        $pids = collect($batch)
+            ->map(fn ($record) => $this->recordPid($record))
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->queueImportByPids($pids, 'current page');
     }
 
     public function queueSyncJob(): void
@@ -712,57 +888,55 @@ class CJCatalog extends BasePage implements HasTable
     public function importMyProductsNow(): void
     {
         try {
-            $client = app(CJDropshippingClient::class);
+            $client = $this->catalogClient();
             $resp = $client->listMyProducts([
                 'pageNum' => 1,
-                'pageSize' => 50,
+                'pageSize' => self::MY_PRODUCTS_FETCH_SIZE,
             ]);
 
             [, $list] = $this->resolveCatalogPayload((array) ($resp->data ?? []));
-            $importer = app(CjProductImportService::class);
-            $count = 0;
-
-            foreach ($list as $record) {
-                $pid = $this->recordPid($record);
-                if ($pid === '') {
-                    continue;
-                }
-
-                try {
-                    $product = $importer->importByPid($pid, [
-                        'respectSyncFlag' => false,
-                        'defaultSyncEnabled' => true,
-                        'syncReviews' => true,
-                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-                    ]);
-                } catch (ApiException $e) {
-                    Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                    continue;
-                }
-
-                if ($product) {
-                    $count++;
-                }
-            }
+            $count = $this->importPids(
+                collect($list)->map(fn (array $record): string => $this->recordPid($record))->filter()->values()->all(),
+            );
 
             $message = $count > 0 ? "Imported {$count} of your CJ My Products." : 'No CJ My Products were imported.';
             Notification::make()->title('My Products')->body($message)->success()->send();
             $this->recordCommandMessage($message);
             $this->fetch();
         } catch (ApiException $e) {
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+            $this->notifyApiError($e);
         } catch (\Throwable $e) {
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            $this->notifyError($e->getMessage());
         }
     }
 
     public function importSelected(Collection $records): void
     {
 
-        ini_set('memory_limit', '-1');
-        ini_set('max_execution_time', 100);
         $pids = $this->selectedPids($records);
         $this->bulkImportByPids($pids, 'from your selection');
+    }
+
+    public function queueImportSelectedProducts(): void
+    {
+        $selected = $this->getSelectedTableRecords();
+        $pids = $this->selectedPids($selected);
+        $this->queueImportByPids($pids, 'selected products');
+    }
+
+    public function retryFailedQueuedImports(): void
+    {
+        $failedPids = collect($this->queueImportStatus['failed_pids'] ?? [])
+            ->filter(fn (mixed $pid): bool => is_string($pid) && $pid !== '')
+            ->values()
+            ->all();
+
+        if ($failedPids === []) {
+            Notification::make()->title('No failed PID to retry')->warning()->send();
+            return;
+        }
+
+        $this->queueImportByPids($failedPids, 'retry failed products');
     }
 
     public function addSelectedToMyProducts(Collection $records): void
@@ -794,10 +968,10 @@ class CJCatalog extends BasePage implements HasTable
         }
 
         $pageNumValue = $this->extractNumeric($content, $payload, ['pageNum', 'page', 'current', 'pageNumber']) ?? $this->pageNum ?? 1;
-        $pageSizeValue = $this->extractNumeric($content, $payload, ['pageSize', 'size', 'limit']) ?? $this->pageSize ?? 24;
+        $pageSizeValue = $this->extractNumeric($content, $payload, ['pageSize', 'size', 'limit']) ?? $this->pageSize ?? self::DEFAULT_PAGE_SIZE;
 
         $this->pageNum = max(1, $pageNumValue);
-        $this->pageSize = max(10, $pageSizeValue);
+        $this->pageSize = max(self::MIN_PAGE_SIZE, $pageSizeValue);
 
         $totalPagesValue = $this->extractNumeric($content, $payload, ['totalPages', 'totalPage', 'pages']);
         if ($totalPagesValue !== null) {
@@ -1216,29 +1390,7 @@ class CJCatalog extends BasePage implements HasTable
             return;
         }
 
-        $importer = app(CjProductImportService::class);
-        $imported = 0;
-
-        foreach ($pids as $pid) {
-            try {
-                $product = $importer->importByPid($pid, [
-                    'respectSyncFlag' => false,
-                    'defaultSyncEnabled' => true,
-                    'syncReviews' => true,
-                    'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-                ]);
-            } catch (ApiException $e) {
-                Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                continue;
-            } catch (\Throwable $e) {
-                Notification::make()->title('Error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
-                continue;
-            }
-
-            if ($product) {
-                $imported++;
-            }
-        }
+        $imported = $this->importPids($pids);
 
         $message = $imported > 0
             ? "Imported {$imported} CJ products {$context}."
@@ -1249,6 +1401,35 @@ class CJCatalog extends BasePage implements HasTable
         $this->fetch();
     }
 
+    private function queueImportByPids(array $pids, string $context): void
+    {
+        $pids = array_values(array_unique(array_filter($pids, fn (mixed $pid): bool => is_string($pid) && $pid !== '')));
+        if ($pids === []) {
+            Notification::make()->title('Queue import')->body('No CJ products selected.')->warning()->send();
+            return;
+        }
+
+        $userId = $this->currentUserId();
+        if (! $userId) {
+            $this->notifyError('No authenticated user found');
+            return;
+        }
+
+        $trackingKey = $this->importTracker()->start($userId, $pids, $context);
+        $this->activeImportTrackingKey = $trackingKey;
+        $this->queueImportCompletionNotified = false;
+        $this->hydrateActiveImportStatus();
+
+        foreach ($pids as $pid) {
+            ImportCjProductJob::dispatch($pid, $this->defaultImportOptions(), $trackingKey)
+                ->onQueue('import');
+        }
+
+        $message = 'Queued ' . count($pids) . " products for {$context}.";
+        $this->recordCommandMessage($message);
+        Notification::make()->title('Queue import started')->body($message)->success()->send();
+    }
+
     private function bulkAddToMyProducts(array $pids): void
     {
         if ($pids === []) {
@@ -1256,17 +1437,17 @@ class CJCatalog extends BasePage implements HasTable
             return;
         }
 
-        $client = app(CJDropshippingClient::class);
+        $client = $this->catalogClient();
         $added = 0;
 
         foreach ($pids as $pid) {
             try {
                 $client->addToMyProducts($pid);
             } catch (ApiException $e) {
-                Notification::make()->title('CJ error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                $this->notifyApiError($e, $pid);
                 continue;
             } catch (\Throwable $e) {
-                Notification::make()->title('Error')->body("{$pid}: {$e->getMessage()}")->danger()->send();
+                $this->notifyError($e->getMessage(), $pid);
                 continue;
             }
             $added++;
@@ -1278,6 +1459,238 @@ class CJCatalog extends BasePage implements HasTable
 
         Notification::make()->title('Bulk add')->body($message)->success()->send();
         $this->recordCommandMessage($message);
+    }
+
+    public function syncListedCjProducts(): void
+    {
+        try {
+            $resp = $this->catalogClient()->listMyProducts([
+                'pageNum' => 1,
+                'pageSize' => self::LISTED_PRODUCTS_FETCH_SIZE,
+            ]);
+
+            $listed = $this->filterListedRecords((array) ($resp->data ?? []));
+            $pids = collect($listed)
+                ->map(fn (array $record): string => $this->recordPid($record))
+                ->filter()
+                ->values()
+                ->all();
+
+            $imported = $this->importPids($pids);
+            $message = $imported > 0
+                ? "Imported {$imported} listed CJ products."
+                : 'No listed CJ products were imported.';
+
+            Notification::make()->title('Listed Products')->body($message)->success()->send();
+            $this->recordCommandMessage($message);
+            $this->fetch();
+        } catch (ApiException $e) {
+            $this->notifyApiError($e);
+        } catch (\Throwable $e) {
+            $this->notifyError($e->getMessage());
+        }
+    }
+
+    private function importPids(array $pids): int
+    {
+        $imported = 0;
+
+        foreach ($pids as $pid) {
+            try {
+                $product = $this->importService()->importByPid($pid, $this->defaultImportOptions());
+            } catch (ApiException $e) {
+                $this->notifyApiError($e, $pid);
+                continue;
+            } catch (\Throwable $e) {
+                $this->notifyError($e->getMessage(), $pid);
+                continue;
+            }
+
+            if ($product) {
+                $imported++;
+            }
+        }
+
+        return $imported;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterListedRecords(array $payload): array
+    {
+        [, $records] = $this->resolveCatalogPayload($payload);
+
+        return array_values(array_filter(
+            $records,
+            fn (mixed $item): bool => is_array($item) && (int) ($item['listedShopNum'] ?? 0) > 0
+        ));
+    }
+
+    private function loadPresetOptions(): void
+    {
+        $userId = $this->currentUserId();
+        if (! $userId) {
+            $this->presetOptions = [];
+            $this->selectedPresetId = null;
+            return;
+        }
+
+        $this->presetOptions = CjCatalogFilterPreset::query()
+            ->where('user_id', $userId)
+            ->latest('updated_at')
+            ->limit(self::PRESET_MAX_COUNT)
+            ->pluck('name', 'id')
+            ->map(fn (string $name): string => $name)
+            ->all();
+
+        if ($this->selectedPresetId && ! array_key_exists($this->selectedPresetId, $this->presetOptions)) {
+            $this->selectedPresetId = null;
+        }
+    }
+
+    private function hydrateActiveImportStatus(): void
+    {
+        $userId = $this->currentUserId();
+        if (! $userId) {
+            return;
+        }
+
+        $trackingKey = $this->importTracker()->getActiveKey($userId);
+        if (! $trackingKey) {
+            return;
+        }
+
+        $this->activeImportTrackingKey = $trackingKey;
+        $status = $this->importTracker()->get($trackingKey);
+        if (is_array($status)) {
+            $this->queueImportStatus = $status;
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function currentFilterPayload(): array
+    {
+        return [
+            'productName' => $this->productName,
+            'productSku' => $this->productSku,
+            'materialKey' => $this->materialKey,
+            'categoryId' => $this->categoryId,
+            'categorySearch' => $this->categorySearch,
+            'warehouseId' => $this->warehouseId,
+            'inStockOnly' => $this->inStockOnly,
+            'sort' => $this->sort,
+            'storeProductId' => $this->storeProductId,
+            'pageSize' => $this->pageSize,
+            'shipToCountry' => $this->shipToCountry,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function applyFilterPayload(array $payload): void
+    {
+        $this->productName = $this->nullableString($payload['productName'] ?? null);
+        $this->productSku = $this->nullableString($payload['productSku'] ?? null);
+        $this->materialKey = $this->nullableString($payload['materialKey'] ?? null);
+        $this->categoryId = $this->nullableString($payload['categoryId'] ?? null);
+        $this->categorySearch = $this->nullableString($payload['categorySearch'] ?? null);
+        $this->warehouseId = $this->nullableString($payload['warehouseId'] ?? null);
+        $this->inStockOnly = (bool) ($payload['inStockOnly'] ?? false);
+        $this->sort = (string) ($payload['sort'] ?? '');
+        $this->storeProductId = $this->nullableString($payload['storeProductId'] ?? null);
+        $this->pageSize = is_numeric($payload['pageSize'] ?? null) ? (int) $payload['pageSize'] : self::DEFAULT_PAGE_SIZE;
+        $this->shipToCountry = $this->normalizeCountryCode($payload['shipToCountry'] ?? $this->shipToCountry);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $text = trim((string) ($value ?? ''));
+
+        return $text !== '' ? $text : null;
+    }
+
+    private function currentUserId(): ?int
+    {
+        $id = auth(config('filament.auth.guard', 'admin'))->id();
+
+        return is_numeric($id) ? (int) $id : null;
+    }
+
+    private function defaultImportOptions(): array
+    {
+        return [
+            'respectSyncFlag' => false,
+            'defaultSyncEnabled' => true,
+            'syncReviews' => true,
+            'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+        ];
+    }
+
+    private function normalizeCountryCode(mixed $country): ?string
+    {
+        $code = strtoupper(trim((string) ($country ?? '')));
+
+        return $code !== '' ? $code : null;
+    }
+
+    private function normalizePagination(): void
+    {
+        $this->pageNum = max(1, $this->pageNum);
+        $this->pageSize = min(self::MAX_PAGE_SIZE, max(self::MIN_PAGE_SIZE, $this->pageSize));
+    }
+
+    private function normalizeSortValue(?string $sort): ?string
+    {
+        return in_array($sort, self::ALLOWED_SORTS, true) ? $sort : null;
+    }
+
+    private function catalogClient()
+    {
+        return app(CJDropshippingClient::class);
+    }
+
+    private function importService()
+    {
+        return app(CjProductImportService::class);
+    }
+
+    private function importTracker(): CjCatalogImportTracker
+    {
+        return app(CjCatalogImportTracker::class);
+    }
+
+    private function notifySuccess(string $title, ?string $body = null): void
+    {
+        $notification = Notification::make()->title($title)->success();
+
+        if ($body) {
+            $notification->body($body);
+        }
+
+        $notification->send();
+    }
+
+    private function notifyError(string $message, ?string $pid = null): void
+    {
+        $body = $pid ? "{$pid}: {$message}" : $message;
+
+        Notification::make()->title('Error')->body($body)->danger()->send();
+    }
+
+    private function notifyApiError(ApiException $exception, ?string $pid = null): void
+    {
+        $body = $pid ? "{$pid}: {$exception->getMessage()}" : $exception->getMessage();
+
+        Notification::make()
+            ->title('CJ error')
+            ->body($body)
+            ->danger()
+            ->icon('heroicon-o-exclamation-circle')
+            ->send();
     }
 
     private function resolveCatalogPayload(array $payload): array
