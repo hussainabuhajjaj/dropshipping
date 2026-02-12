@@ -18,4 +18,10 @@ return [
         $decoded = json_decode((string) env('PRICING_CATEGORY_MARGIN_TIERS', '[]'), true);
         return is_array($decoded) ? $decoded : [];
     })(),
+
+    // Dedicated queue for bulk margin and repricing workloads.
+    'bulk_margin_queue' => env('PRICING_BULK_QUEUE', 'pricing'),
+
+    // Queue used for compare-at jobs triggered by repricing.
+    'compare_at_queue' => env('PRICING_COMPARE_AT_QUEUE', env('PRICING_BULK_QUEUE', 'pricing')),
 ];

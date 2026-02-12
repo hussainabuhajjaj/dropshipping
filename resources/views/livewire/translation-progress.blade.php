@@ -1,4 +1,9 @@
-<div class="w-full">
+<div
+    class="w-full"
+    @if ($isOpen && count($products) > 0)
+        wire:poll.15s="loadProducts"
+    @endif
+>
     @if ($isOpen || request()->routeIs('filament.admin.resources.products.index'))
         <!-- Embedded View (on Products List Page) -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -86,7 +91,7 @@
             <!-- Footer -->
             <div class="bg-gray-50 p-3 border-t border-gray-200 text-xs text-gray-500">
                 <div class="flex justify-between items-center">
-                    <span>Auto-updating every second</span>
+                    <span>Auto-updating every 15 seconds</span>
                     <span class="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 </div>
             </div>
@@ -100,11 +105,4 @@
         </button>
     @endif
 
-    <!-- Auto-refresh every 1 second -->
-    <script>
-        setInterval(() => {
-            @this.loadProducts();
-        }, 1000);
-    </script>
 </div>
-

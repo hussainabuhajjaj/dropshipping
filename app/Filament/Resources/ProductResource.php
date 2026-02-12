@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 namespace App\Filament\Resources;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Products\Models\Category;
@@ -11,6 +10,7 @@ use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\ProductActivationValidator;
 use App\Domain\Products\Services\PricingService;
 use App\Filament\Resources\ProductResource\Pages;
+use App\Jobs\ApplyProductMarginChunkJob;
 use App\Models\Product;
 use App\Jobs\TranslateProductJob;
 use BackedEnum;
@@ -47,6 +47,8 @@ class ProductResource extends BaseResource
     protected static ?int $navigationSort = 10;
 
     private const CJ_SYNC_STALE_HOURS = 24;
+    private const BULK_MARGIN_QUEUE_THRESHOLD = 150;
+    private const BULK_MARGIN_QUEUE_CHUNK = 200;
     // Livewire property for imported products count (read from cache)
     public static function getImportedCount(): int
     {
@@ -86,7 +88,7 @@ class ProductResource extends BaseResource
                     });
                 },
             ])
-            ->with('images');
+            ->with(['images', 'latestMarginLog']);
     }
 
     public static function form(Schema $schema): Schema
@@ -318,14 +320,8 @@ class ProductResource extends BaseResource
                 ->visible(fn ($record) => filled($record?->cj_pid)),
         ]);
     }
-protected function paginateTableQuery(Builder $query): CursorPaginator
-{
-    return $query->cursorPaginate(($this->getTableRecordsPerPage() === 'all') ? $query->count() : $this->getTableRecordsPerPage());
-}
     public static function table(Table $table): Table
     {
-        $globalSyncStatus = self::getGlobalSyncStatus();
-        $importedCount = self::getImportedCount();
         return $table
             ->columns([
                     Tables\Columns\ViewColumn::make('imported_count')
@@ -400,16 +396,29 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                     Tables\Columns\IconColumn::make('is_featured')->boolean()->label('Featured')->toggleable(),
                     Tables\Columns\TextColumn::make('selling_price')->money('USD')->sortable(),
                     Tables\Columns\TextColumn::make('cost_price')->money('USD')->sortable(),
+                    Tables\Columns\TextColumn::make('latestMarginLog.old_selling_price')
+                        ->label('Old Price')
+                        ->money('USD')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('latestMarginLog.new_selling_price')
+                        ->label('New Price')
+                        ->money('USD')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('latestMarginLog.created_at')
+                        ->label('Margin Updated At')
+                        ->dateTime()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\BadgeColumn::make('margin_status')
                         ->label('Margin Status')
                         ->getStateUsing(function ($record) {
-                            $cost = $record->cost_price;
-                            $selling = $record->selling_price;
-                            if (is_null($cost) || is_null($selling)) {
+                            $cost = self::normalizeAmount($record->cost_price);
+                            $selling = self::normalizeAmount($record->selling_price);
+                            if ($cost === null || $selling === null) {
                                 return 'Missing';
                             }
                             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                            $min = $pricing->minSellingPrice((float) $cost);
+                            $min = $pricing->minSellingPrice($cost);
                             if ($selling < $min) {
                                 return 'Below Required';
                             }
@@ -638,6 +647,154 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             'is_active' => (bool) ($data['is_active'] ?? $record->is_active),
                             'is_featured' => (bool) ($data['is_featured'] ?? $record->is_featured),
                         ]);
+                    }),
+                Action::make('setMargin')
+                    ->label('Set margin')
+                    ->icon('heroicon-o-calculator')
+                    ->schema([
+                        TextInput::make('margin_percent')
+                            ->label('Margin %')
+                            ->numeric()
+                            ->default(35)
+                            ->minValue(0)
+                            ->maxValue(500)
+                            ->required(),
+                        Toggle::make('apply_to_variants')
+                            ->label('Apply to variants')
+                            ->default(true),
+                        Toggle::make('queue_compare_at')
+                            ->label('Queue compare-at refresh')
+                            ->default(true),
+                        Toggle::make('activate_if_valid')
+                            ->label('Activate if valid')
+                            ->default(true),
+                    ])
+                    ->action(function (Product $record, array $data): void {
+                        try {
+                            $margin = (float) ($data['margin_percent'] ?? 0);
+                            if ($margin < 0) {
+                                Notification::make()
+                                    ->title('Invalid margin')
+                                    ->body('Margin must be greater than or equal to 0.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            $cost = self::normalizeAmount($record->cost_price);
+                            if ($cost === null || $cost < 0) {
+                                Notification::make()
+                                    ->title('Missing cost price')
+                                    ->body('Set a valid cost price before applying margin.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            $applyVariants = (bool) ($data['apply_to_variants'] ?? true);
+                            $queueCompareAt = (bool) ($data['queue_compare_at'] ?? true);
+                            $activateIfValid = (bool) ($data['activate_if_valid'] ?? true);
+
+                            $oldSelling = self::normalizeAmount($record->selling_price);
+                            $oldStatus = $record->status;
+                            $oldActive = (bool) $record->is_active;
+                            $newSelling = round($cost * (1 + $margin / 100), 2);
+
+                            $record->update([
+                                'selling_price' => $newSelling,
+                            ]);
+
+                            $logger = app(ProductMarginLogger::class);
+                            $logger->logProduct($record, [
+                                'event' => 'margin_updated',
+                                'source' => 'manual',
+                                'old_selling_price' => $oldSelling,
+                                'new_selling_price' => $newSelling,
+                                'old_status' => $oldStatus,
+                                'new_status' => $record->status,
+                                'notes' => "Margin set to {$margin}% (single product)",
+                                'skip_sales_count' => true,
+                            ]);
+
+                            $variantUpdated = 0;
+                            $variantSkipped = 0;
+
+                            if ($applyVariants) {
+                                $record->loadMissing('variants');
+                                foreach ($record->variants as $variant) {
+                                    $variant->setRelation('product', $record);
+                                    $variantCost = self::normalizeAmount($variant->cost_price);
+                                    if ($variantCost === null || $variantCost < 0) {
+                                        $variantSkipped++;
+                                        continue;
+                                    }
+
+                                    $oldVariantPrice = self::normalizeAmount($variant->price);
+                                    $newVariantPrice = round($variantCost * (1 + $margin / 100), 2);
+                                    $variant->update([
+                                        'price' => $newVariantPrice,
+                                    ]);
+                                    $variantUpdated++;
+
+                                    $logger->logVariant($variant, [
+                                        'event' => 'variant_margin_updated',
+                                        'source' => 'manual',
+                                        'old_selling_price' => $oldVariantPrice,
+                                        'new_selling_price' => $newVariantPrice,
+                                        'notes' => "Margin set to {$margin}% for variant",
+                                        'skip_sales_count' => true,
+                                    ]);
+                                }
+                            }
+
+                            $activationNote = '';
+                            if ($activateIfValid && ! $oldActive) {
+                                $validator = app(ProductActivationValidator::class);
+                                $record->loadMissing('images', 'variants');
+                                $errors = $validator->errorsForActivation($record);
+                                if ($errors === []) {
+                                    $record->update([
+                                        'is_active' => true,
+                                        'status' => 'active',
+                                    ]);
+                                    $logger->logProduct($record, [
+                                        'event' => 'activated',
+                                        'source' => 'manual',
+                                        'old_selling_price' => $oldSelling,
+                                        'new_selling_price' => $newSelling,
+                                        'old_status' => $oldStatus,
+                                        'new_status' => 'active',
+                                        'notes' => 'Product activated after single-product margin update',
+                                        'skip_sales_count' => true,
+                                    ]);
+                                    $activationNote = ' Product activated.';
+                                } else {
+                                    $activationNote = ' Activation skipped: ' . implode(' ', $errors);
+                                }
+                            }
+
+                            if ($queueCompareAt) {
+                                \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false)
+                                    ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
+                            }
+
+                            $oldLabel = $oldSelling !== null ? '$' . number_format($oldSelling, 2) : 'N/A';
+                            $newLabel = '$' . number_format($newSelling, 2);
+                            $body = "Old: {$oldLabel} -> New: {$newLabel}. Variants updated: {$variantUpdated}, skipped: {$variantSkipped}.{$activationNote}";
+
+                            Notification::make()
+                                ->title('Margin updated')
+                                ->body($body)
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $e) {
+                            report($e);
+                            Notification::make()
+                                ->title('Failed to update margin')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Action::make('syncMedia')
                     ->label('Sync media')
@@ -1112,18 +1269,128 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                         ->label('Set Margin %')
                         ->icon('heroicon-o-calculator')
                         ->schema([
+                            Select::make('margin_preset')
+                                ->label('Margin preset')
+                                ->options([
+                                    '20' => '20%',
+                                    '25' => '25%',
+                                    '30' => '30%',
+                                    '35' => '35%',
+                                    '40' => '40%',
+                                    '50' => '50%',
+                                    'custom' => 'Custom',
+                                ])
+                                ->default('35')
+                                ->native(false)
+                                ->required(),
                             TextInput::make('margin_percent')
-                                ->label('Margin %')
+                                ->label('Custom margin %')
                                 ->numeric()
-                                ->required()
-                                ->minValue(0),
+                                ->minValue(0)
+                                ->maxValue(500)
+                                ->step('0.01')
+                                ->required(fn (callable $get): bool => (string) $get('margin_preset') === 'custom')
+                                ->visible(fn (callable $get): bool => (string) $get('margin_preset') === 'custom'),
                             Toggle::make('apply_to_variants')
                                 ->label('Apply to variants')
                                 ->default(true),
+                            Toggle::make('use_low_cost_rule')
+                                ->label('Use special margin for low-cost products')
+                                ->default(true),
+                            TextInput::make('low_cost_min')
+                                ->label('Low-cost min ($)')
+                                ->numeric()
+                                ->default(0.01)
+                                ->minValue(0)
+                                ->step('0.01')
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
+                            TextInput::make('low_cost_max')
+                                ->label('Low-cost max ($)')
+                                ->numeric()
+                                ->default(1)
+                                ->minValue(0.01)
+                                ->step('0.01')
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
+                            TextInput::make('low_cost_margin_percent')
+                                ->label('Low-cost margin %')
+                                ->numeric()
+                                ->default(300)
+                                ->minValue(0)
+                                ->maxValue(2000)
+                                ->step('0.01')
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
                         ])
                         ->action(function (Collection $records, array $data): void {
-                            $margin = (float) $data['margin_percent'];
+                            $preset = (string) ($data['margin_preset'] ?? '35');
+                            $margin = $preset === 'custom'
+                                ? (float) ($data['margin_percent'] ?? 0)
+                                : (float) $preset;
+
+                            if ($margin < 0) {
+                                Notification::make()
+                                    ->title('Invalid margin')
+                                    ->body('Margin must be greater than or equal to 0.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
                             $applyVariants = (bool) ($data['apply_to_variants'] ?? true);
+                            $useLowCostRule = (bool) ($data['use_low_cost_rule'] ?? true);
+                            $lowCostMin = is_numeric($data['low_cost_min'] ?? null) ? (float) $data['low_cost_min'] : 0.01;
+                            $lowCostMax = is_numeric($data['low_cost_max'] ?? null) ? (float) $data['low_cost_max'] : 1.0;
+                            $lowCostMargin = is_numeric($data['low_cost_margin_percent'] ?? null) ? (float) $data['low_cost_margin_percent'] : 300.0;
+
+                            if ($useLowCostRule && $lowCostMax < $lowCostMin) {
+                                Notification::make()
+                                    ->title('Invalid low-cost range')
+                                    ->body('Low-cost max must be greater than or equal to low-cost min.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            $selectedIds = $records
+                                ->pluck('id')
+                                ->filter(fn (mixed $id): bool => is_numeric($id))
+                                ->map(fn (mixed $id): int => (int) $id)
+                                ->values()
+                                ->all();
+
+                            if ($selectedIds === []) {
+                                Notification::make()
+                                    ->title('No selected products')
+                                    ->body('Please select at least one product.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            if (count($selectedIds) > self::BULK_MARGIN_QUEUE_THRESHOLD) {
+                                $jobCount = 0;
+                                $queueName = (string) config('pricing.bulk_margin_queue', 'pricing');
+                                foreach (array_chunk($selectedIds, self::BULK_MARGIN_QUEUE_CHUNK) as $idsChunk) {
+                                    ApplyProductMarginChunkJob::dispatch(
+                                        productIds: $idsChunk,
+                                        margin: $margin,
+                                        applyVariants: $applyVariants,
+                                        useLowCostRule: $useLowCostRule,
+                                        lowCostMin: $lowCostMin,
+                                        lowCostMax: $lowCostMax,
+                                        lowCostMargin: $lowCostMargin,
+                                    )->onQueue($queueName);
+                                    $jobCount++;
+                                }
+
+                                $message = "Queued " . count($selectedIds) . " product(s) in {$jobCount} job(s) on '{$queueName}' queue. Products without cost price will be skipped automatically.";
+
+                                Notification::make()
+                                    ->title('Margin update queued')
+                                    ->body($message)
+                                    ->success()
+                                    ->send();
+                                return;
+                            }
 
                             $records->load('variants');
 
@@ -1133,11 +1400,35 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             $variantSkipped = 0;
                             $compareAtQueued = 0;
                             $activationSkipped = 0;
+                            $lowCostProductApplied = 0;
+                            $lowCostVariantApplied = 0;
+                            $logRows = [];
+                            $logsInserted = 0;
                             $logger = app(ProductMarginLogger::class);
                             $validator = app(ProductActivationValidator::class);
 
-                            $records->each(function (Product $record) use ($margin, $applyVariants, &$updated, &$skipped, &$variantUpdated, &$variantSkipped, &$compareAtQueued, &$activationSkipped, $logger, $validator): void {
-                                if (! is_numeric($record->cost_price)) {
+                            $records->each(function (Product $record) use (
+                                $margin,
+                                $applyVariants,
+                                $useLowCostRule,
+                                $lowCostMin,
+                                $lowCostMax,
+                                $lowCostMargin,
+                                &$updated,
+                                &$skipped,
+                                &$variantUpdated,
+                                &$variantSkipped,
+                                &$compareAtQueued,
+                                &$activationSkipped,
+                                &$lowCostProductApplied,
+                                &$lowCostVariantApplied,
+                                &$logRows,
+                                &$logsInserted,
+                                $logger,
+                                $validator
+                            ): void {
+                                $productCost = self::normalizeAmount($record->cost_price);
+                                if ($productCost === null || $productCost < 0) {
                                     $skipped++;
                                     return;
                                 }
@@ -1145,43 +1436,77 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                 $oldSelling = $record->selling_price;
                                 $oldStatus = $record->status;
                                 $oldActive = $record->is_active;
-                                $newSelling = round(((float) $record->cost_price) * (1 + $margin / 100), 2);
+                                $appliedMargin = $margin;
+                                if ($useLowCostRule && $productCost >= $lowCostMin && $productCost <= $lowCostMax) {
+                                    $appliedMargin = $lowCostMargin;
+                                    $lowCostProductApplied++;
+                                }
+                                $newSelling = round($productCost * (1 + $appliedMargin / 100), 2);
 
                                 $record->update([
                                     'selling_price' => $newSelling,
                                 ]);
                                 $updated++;
 
-                                $logger->logProduct($record, [
+                                $logRows[] = $logger->prepareProductRow($record, [
                                     'event' => 'margin_updated',
                                     'source' => 'manual',
                                     'old_selling_price' => $oldSelling,
                                     'new_selling_price' => $newSelling,
                                     'old_status' => $oldStatus,
                                     'new_status' => $record->status,
-                                    'notes' => "Margin set to {$margin}%",
+                                    'notes' => "Margin set to {$appliedMargin}%",
+                                    'skip_sales_count' => true,
                                 ]);
+                                if (count($logRows) >= 500) {
+                                    $logsInserted += $logger->insertMany($logRows);
+                                    $logRows = [];
+                                }
 
                                 $needsCompareAt = false;
 
                                 if ($applyVariants) {
-                                    $record->variants->each(function ($variant) use ($margin, &$variantUpdated, &$variantSkipped, &$needsCompareAt, $logger): void {
-                                        if (! is_numeric($variant->cost_price)) {
+                                    $record->variants->each(function ($variant) use (
+                                        $margin,
+                                        $useLowCostRule,
+                                        $lowCostMin,
+                                        $lowCostMax,
+                                        $lowCostMargin,
+                                        &$variantUpdated,
+                                        &$variantSkipped,
+                                        &$needsCompareAt,
+                                        &$lowCostVariantApplied,
+                                        &$logRows,
+                                        &$logsInserted,
+                                        $logger
+                                    ): void {
+                                        $variantCost = self::normalizeAmount($variant->cost_price);
+                                        if ($variantCost === null || $variantCost < 0) {
                                             $variantSkipped++;
                                             return;
                                         }
+                                        $variantMargin = $margin;
+                                        if ($useLowCostRule && $variantCost >= $lowCostMin && $variantCost <= $lowCostMax) {
+                                            $variantMargin = $lowCostMargin;
+                                            $lowCostVariantApplied++;
+                                        }
                                         $oldVariantPrice = $variant->price;
                                         $variant->update([
-                                            'price' => round(((float) $variant->cost_price) * (1 + $margin / 100), 2),
+                                            'price' => round($variantCost * (1 + $variantMargin / 100), 2),
                                         ]);
                                         $variantUpdated++;
-                                        $logger->logVariant($variant, [
+                                        $logRows[] = $logger->prepareVariantRow($variant, [
                                             'event' => 'variant_margin_updated',
                                             'source' => 'manual',
                                             'old_selling_price' => $oldVariantPrice,
                                             'new_selling_price' => $variant->price,
-                                            'notes' => "Margin set to {$margin}% for variant",
+                                            'notes' => "Margin set to {$variantMargin}% for variant",
+                                            'skip_sales_count' => true,
                                         ]);
+                                        if (count($logRows) >= 500) {
+                                            $logsInserted += $logger->insertMany($logRows);
+                                            $logRows = [];
+                                        }
 
                                         if (is_numeric($oldVariantPrice) && is_numeric($variant->compare_at_price)) {
                                             $price = (float) $variant->price;
@@ -1195,7 +1520,8 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                 }
 
                                 if ($needsCompareAt) {
-                                    \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false);
+                                    \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false)
+                                        ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
                                     $compareAtQueued++;
                                 }
 
@@ -1208,7 +1534,7 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                             'status' => 'active',
                                         ]);
 
-                                        $logger->logProduct($record, [
+                                        $logRows[] = $logger->prepareProductRow($record, [
                                             'event' => 'activated',
                                             'source' => 'manual',
                                             'old_selling_price' => $oldSelling,
@@ -1216,12 +1542,21 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                                             'old_status' => $oldStatus,
                                             'new_status' => 'active',
                                             'notes' => 'Product activated after margin adjustment',
+                                            'skip_sales_count' => true,
                                         ]);
+                                        if (count($logRows) >= 500) {
+                                            $logsInserted += $logger->insertMany($logRows);
+                                            $logRows = [];
+                                        }
                                     } else {
                                         $activationSkipped++;
                                     }
                                 }
                             });
+
+                            if ($logRows !== []) {
+                                $logsInserted += $logger->insertMany($logRows);
+                            }
 
                             $body = "Updated $updated product(s) and $variantUpdated variant(s).";
                             if ($skipped > 0 || $variantSkipped > 0) {
@@ -1232,6 +1567,12 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
                             }
                             if ($activationSkipped > 0) {
                                 $body .= " {$activationSkipped} product(s) were not activated due to activation validation.";
+                            }
+                            if ($useLowCostRule) {
+                                $body .= " Applied low-cost margin to {$lowCostProductApplied} product(s) and {$lowCostVariantApplied} variant(s).";
+                            }
+                            if ($logsInserted > 0) {
+                                $body .= " Logged {$logsInserted} margin event(s).";
                             }
 
                             Notification::make()
@@ -1482,16 +1823,60 @@ protected function paginateTableQuery(Builder $query): CursorPaginator
 
     private static function marginWarning($selling, $cost): ?string
     {
-        if (! $selling || ! $cost) {
+        $sellingValue = self::normalizeAmount($selling);
+        $costValue = self::normalizeAmount($cost);
+
+        if ($sellingValue === null || $costValue === null) {
             return null;
         }
 
         $pricing = PricingService::makeFromConfig();
-        $min = $pricing->minSellingPrice((float) $cost);
+        $min = $pricing->minSellingPrice($costValue);
 
-        return $selling < $min
+        return $sellingValue < $min
             ? "Warning: selling price is below required margin (min {$min})."
             : null;
+    }
+
+    private static function normalizeAmount(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $number = (float) $value;
+
+            return is_finite($number) ? $number : null;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^0-9,.\-]/', '', $normalized) ?? '';
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $normalized = str_replace(',', '', $normalized);
+        } elseif (str_contains($normalized, ',')) {
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        if (! is_numeric($normalized)) {
+            return null;
+        }
+
+        $number = (float) $normalized;
+
+        return is_finite($number) ? $number : null;
     }
 
     private static function syncStatus(Product $record): string

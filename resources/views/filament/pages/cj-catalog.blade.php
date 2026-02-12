@@ -283,10 +283,23 @@
                     @else
                         {{ $this->table }}
 
-                        <div class="sticky bottom-4 z-20 mt-4 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+                        <div
+                            class="sticky bottom-4 z-20 mt-4 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+                            x-data="{
+                                selectedCount: 0,
+                                refresh() {
+                                    this.selectedCount = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).length
+                                },
+                                init() {
+                                    this.refresh()
+                                    this._interval = setInterval(() => this.refresh(), 400)
+                                }
+                            }"
+                            x-init="init()"
+                        >
                             <div class="mb-2 flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300">
                                 <span>Page {{ $pageNum }} / {{ $totalPagesKnown ? $totalPages : '--' }}</span>
-                                <span>Selected {{ $selectedCount }}</span>
+                                <span>Selected <span x-text="selectedCount"></span></span>
                             </div>
                             <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
                                 <x-filament::button
@@ -328,8 +341,8 @@
                                 <x-filament::button
                                     type="button"
                                     color="primary"
-                                    wire:click="queueImportSelectedProducts"
-                                    :disabled="$selectedCount < 1"
+                                    x-on:click.prevent="$wire.queueImportSelectedByKeys(Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value))"
+                                    x-bind:disabled="selectedCount < 1"
                                     wire:loading.attr="disabled"
                                     class="justify-center"
                                 >
