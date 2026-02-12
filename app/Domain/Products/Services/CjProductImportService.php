@@ -7,6 +7,7 @@ namespace App\Domain\Products\Services;
 use App\Domain\Products\Models\Category;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
+use App\Jobs\GenerateProductCompareAtJob;
 use App\Jobs\GenerateProductSeoJob;
 use App\Jobs\TranslateProductJob;
 use App\Jobs\TranslateProductsChunkJob;
