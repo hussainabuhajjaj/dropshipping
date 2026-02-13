@@ -10,16 +10,20 @@ use CWSPS154\UsersRolesPermissions\Models\HasRole;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Filament\Support\Concerns\HasMediaFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens , Panel\Concerns\HasAvatars;
+
+    protected static ?bool $hasIsActiveColumn = null;
 
     /**
      * The attributes that are mass assignable.
@@ -84,5 +88,31 @@ class User extends Authenticatable implements FilamentUser
     public function supportMessages(): HasMany
     {
         return $this->hasMany(SupportMessage::class, 'sender_user_id');
+    }
+
+    public function scopeSupportAgents(Builder $query): Builder
+    {
+        $query->whereIn('role', ['admin', 'staff']);
+
+        if (self::hasIsActiveColumn()) {
+            $query->where('is_active', true);
+        }
+
+        return $query;
+    }
+
+    protected static function hasIsActiveColumn(): bool
+    {
+        if (self::$hasIsActiveColumn !== null) {
+            return self::$hasIsActiveColumn;
+        }
+
+        try {
+            self::$hasIsActiveColumn = Schema::hasColumn((new static)->getTable(), 'is_active');
+        } catch (\Throwable) {
+            self::$hasIsActiveColumn = false;
+        }
+
+        return self::$hasIsActiveColumn;
     }
 }

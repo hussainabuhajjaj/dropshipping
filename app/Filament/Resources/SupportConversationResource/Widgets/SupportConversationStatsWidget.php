@@ -13,6 +13,8 @@ class SupportConversationStatsWidget extends StatsOverviewWidget
     protected function getStats(): array
     {
         $baseQuery = SupportConversation::query();
+        $slaMinutes = max(1, (int) config('support_chat.escalation.sla_minutes', 15));
+        $slaThreshold = now()->subMinutes($slaMinutes);
 
         $pendingAgent = (clone $baseQuery)
             ->where('status', 'pending_agent')
@@ -30,6 +32,10 @@ class SupportConversationStatsWidget extends StatsOverviewWidget
 
         $resolvedToday = (clone $baseQuery)
             ->whereDate('resolved_at', now()->toDateString())
+            ->count();
+
+        $overdueSla = (clone $baseQuery)
+            ->overdueSla($slaThreshold)
             ->count();
 
         $myOpen = 0;
@@ -51,6 +57,9 @@ class SupportConversationStatsWidget extends StatsOverviewWidget
             Stat::make('Unassigned Pending', (string) $unassignedPending)
                 ->description('Needs assignment')
                 ->color($unassignedPending > 0 ? 'danger' : 'success'),
+            Stat::make('Overdue SLA', (string) $overdueSla)
+                ->description("Waiting > {$slaMinutes} minutes")
+                ->color($overdueSla > 0 ? 'danger' : 'success'),
             Stat::make('My Open', (string) $myOpen)
                 ->description('Assigned to me')
                 ->color($myOpen > 0 ? 'info' : 'gray'),
@@ -60,4 +69,3 @@ class SupportConversationStatsWidget extends StatsOverviewWidget
         ];
     }
 }
-

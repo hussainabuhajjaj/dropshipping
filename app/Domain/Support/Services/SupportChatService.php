@@ -291,6 +291,11 @@ class SupportChatService
             ]);
     }
 
+    public function alertAdmins(SupportConversation $conversation, string $reason): void
+    {
+        $this->notifyAdmins($conversation, $reason);
+    }
+
     /**
      * @return Collection<int, SupportMessage>
      */
@@ -553,10 +558,7 @@ class SupportChatService
 
     private function notifyAdmins(SupportConversation $conversation, string $reason): void
     {
-        $admins = User::query()
-            ->whereIn('role', ['admin', 'staff'])
-            ->where('is_active', true)
-            ->get();
+        $admins = User::query()->supportAgents()->get();
 
         foreach ($admins as $admin) {
             $admin->notify(new AdminSupportConversationAlert($conversation, $reason));

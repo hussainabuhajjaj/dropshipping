@@ -6,6 +6,7 @@ namespace App\Filament\Resources\SupportConversationResource\RelationManagers;
 
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Services\SupportChatService;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -48,7 +49,7 @@ class MessagesRelationManager extends RelationManager
                     ->label('Internal notes'),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('reply')
+                Action::make('reply')
                     ->label('Reply')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')

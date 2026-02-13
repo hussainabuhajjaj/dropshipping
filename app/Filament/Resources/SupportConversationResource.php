@@ -10,6 +10,8 @@ use App\Filament\Resources\SupportConversationResource\Pages;
 use App\Filament\Resources\SupportConversationResource\RelationManagers\MessagesRelationManager;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup as ActionsBulkActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -18,6 +20,8 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use UnitEnum;
 
@@ -84,9 +88,7 @@ class SupportConversationResource extends BaseResource
                         ->relationship(
                             name: 'assignedUser',
                             titleAttribute: 'name',
-                            modifyQueryUsing: fn (Builder $query): Builder => $query
-                                ->whereIn('role', ['admin', 'staff'])
-                                ->where('is_active', true)
+                            modifyQueryUsing: fn (Builder $query): Builder => $query->supportAgents()
                         )
                         ->searchable()
                         ->preload(),
@@ -194,6 +196,14 @@ class SupportConversationResource extends BaseResource
                 Tables\Filters\Filter::make('unassigned')
                     ->label('Unassigned')
                     ->query(fn (Builder $query): Builder => $query->whereNull('assigned_user_id')),
+                Tables\Filters\Filter::make('overdue_sla')
+                    ->label('Overdue SLA')
+                    ->query(function (Builder $query): Builder {
+                        $slaMinutes = max(1, (int) config('support_chat.escalation.sla_minutes', 15));
+                        $threshold = now()->subMinutes($slaMinutes);
+
+                        return $query->overdueSla($threshold);
+                    }),
             ])
             ->recordActions([
                 Action::make('assign_to_me')
@@ -216,6 +226,33 @@ class SupportConversationResource extends BaseResource
                         Notification::make()
                             ->success()
                             ->title('Conversation assigned to you')
+                            ->send();
+                    }),
+                Action::make('snooze_escalation')
+                    ->label('Snooze SLA alerts')
+                    ->icon('heroicon-o-bell-slash')
+                    ->color('gray')
+                    ->form([
+                        Forms\Components\TextInput::make('minutes')
+                            ->label('Snooze minutes')
+                            ->numeric()
+                            ->minValue(5)
+                            ->maxValue(1440)
+                            ->default(60)
+                            ->required(),
+                    ])
+                    ->action(function (SupportConversation $record, array $data): void {
+                        $minutes = max(5, (int) ($data['minutes'] ?? 60));
+                        Cache::put(
+                            'support:sla-alert:conversation:' . $record->id,
+                            now()->toIso8601String(),
+                            now()->addMinutes($minutes)
+                        );
+
+                        Notification::make()
+                            ->success()
+                            ->title('SLA alerts snoozed')
+                            ->body("Conversation #{$record->id} alerts snoozed for {$minutes} minutes.")
                             ->send();
                     }),
                 Action::make('ai_summary')
@@ -251,6 +288,93 @@ class SupportConversationResource extends BaseResource
                         'resolved_at' => now(),
                         'handoff_requested' => false,
                     ])),
+            ])
+            ->toolbarActions([
+                ActionsBulkActionGroup::make([
+                    BulkAction::make('escalate_now')
+                        ->label('Escalate now')
+                        ->icon('heroicon-o-bell-alert')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records): void {
+                            $admin = auth(config('filament.auth.guard', 'admin'))->user();
+                            if (! $admin) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Admin session required')
+                                    ->send();
+
+                                return;
+                            }
+
+                            $targets = $records->filter(
+                                fn (SupportConversation $record): bool => ! in_array($record->status, ['resolved', 'closed'], true)
+                            );
+
+                            if ($targets->isEmpty()) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('No open conversations selected')
+                                    ->send();
+
+                                return;
+                            }
+
+                            $service = app(SupportChatService::class);
+                            $count = 0;
+                            foreach ($targets as $conversation) {
+                                $conversation->update([
+                                    'status' => 'pending_agent',
+                                    'active_agent' => 'human',
+                                    'requested_agent' => 'human',
+                                    'ai_enabled' => false,
+                                    'handoff_requested' => true,
+                                    'resolved_at' => null,
+                                    'last_message_at' => now(),
+                                ]);
+
+                                $service->alertAdmins(
+                                    $conversation->fresh(),
+                                    'Manual escalation requested by admin #' . $admin->id . '.'
+                                );
+                                $count++;
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Conversations escalated')
+                                ->body("Escalated {$count} conversation(s).")
+                                ->send();
+                        }),
+                    BulkAction::make('resolve_selected')
+                        ->label('Resolve selected')
+                        ->icon('heroicon-o-check-badge')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records): void {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if (in_array($record->status, ['resolved', 'closed'], true)) {
+                                    continue;
+                                }
+
+                                $record->update([
+                                    'status' => 'resolved',
+                                    'resolved_at' => now(),
+                                    'handoff_requested' => false,
+                                ]);
+                                $count++;
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Conversations resolved')
+                                ->body("Resolved {$count} conversation(s).")
+                                ->send();
+                        }),
+                ]),
             ])
             ->defaultSort('last_message_at', 'desc');
     }
