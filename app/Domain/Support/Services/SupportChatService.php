@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Support\Services;
 
+use App\Events\Support\SupportMessageCreated;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Models\SupportMessage;
 use App\Models\Customer;
@@ -102,12 +103,13 @@ class SupportChatService
         SupportConversation $conversation,
         Customer $customer,
         string $body,
-        array $metadata = []
+        array $metadata = [],
+        string $messageType = 'text'
     ): SupportMessage {
         $message = $conversation->messages()->create([
             'sender_type' => 'customer',
             'sender_customer_id' => $customer->id,
-            'message_type' => 'text',
+            'message_type' => $messageType,
             'body' => trim($body),
             'metadata' => $metadata ?: null,
         ]);
@@ -118,6 +120,8 @@ class SupportChatService
             'resolved_at' => null,
             'status' => $conversation->active_agent === 'human' ? 'pending_agent' : 'open',
         ]);
+
+        $this->dispatchRealtimeMessage($conversation, $message);
 
         return $message;
     }
@@ -198,6 +202,42 @@ class SupportChatService
         ];
     }
 
+    /**
+     * @param array<string, mixed> $attachmentMetadata
+     * @return array{ack: string, messages: array<int, SupportMessage>}
+     */
+    public function forwardAttachmentToHuman(
+        SupportConversation $conversation,
+        Customer $customer,
+        array $attachmentMetadata,
+        ?string $caption = null
+    ): array {
+        $messageType = (string) ($attachmentMetadata['attachment_type'] ?? 'file');
+        if (! in_array($messageType, ['image', 'file'], true)) {
+            $messageType = 'file';
+        }
+
+        $name = (string) ($attachmentMetadata['attachment_name'] ?? 'Attachment');
+        $body = trim((string) ($caption ?? ''));
+        if ($body === '') {
+            $body = $messageType === 'image' ? "Image: {$name}" : "File: {$name}";
+        }
+
+        $customerMessage = $this->receiveCustomerMessage(
+            $conversation,
+            $customer,
+            $body,
+            $attachmentMetadata + ['source' => 'attachment'],
+            $messageType
+        );
+        $system = $this->requestHumanHandoff($conversation, 'Customer sent an attachment to human support.');
+
+        return [
+            'ack' => $system->body,
+            'messages' => [$customerMessage, $system],
+        ];
+    }
+
     public function addAdminReply(
         SupportConversation $conversation,
         User $admin,
@@ -228,6 +268,7 @@ class SupportChatService
         }
 
         $this->markMessagesReadByAdmin($conversation);
+        $this->dispatchRealtimeMessage($conversation, $message);
 
         return $message;
     }
@@ -540,6 +581,8 @@ class SupportChatService
             'last_agent_message_at' => now(),
         ]);
 
+        $this->dispatchRealtimeMessage($conversation, $message);
+
         return $message;
     }
 
@@ -548,12 +591,16 @@ class SupportChatService
         string $body,
         array $metadata = []
     ): SupportMessage {
-        return $conversation->messages()->create([
+        $message = $conversation->messages()->create([
             'sender_type' => 'system',
             'message_type' => 'text',
             'body' => trim($body),
             'metadata' => $metadata ?: null,
         ]);
+
+        $this->dispatchRealtimeMessage($conversation, $message);
+
+        return $message;
     }
 
     private function notifyAdmins(SupportConversation $conversation, string $reason): void
@@ -573,5 +620,31 @@ class SupportChatService
         }
 
         $customer->notify(new CustomerSupportReplyNotification($conversation, $message));
+    }
+
+    private function dispatchRealtimeMessage(SupportConversation $conversation, SupportMessage $message): void
+    {
+        if (! (bool) config('support_chat.realtime.enabled', true)) {
+            return;
+        }
+
+        if ((bool) ($message->is_internal_note ?? false)) {
+            return;
+        }
+
+        event(new SupportMessageCreated(
+            (string) $conversation->uuid,
+            [
+                'id' => (int) $message->id,
+                'conversation_id' => (int) $message->conversation_id,
+                'sender_type' => (string) $message->sender_type,
+                'body' => (string) $message->body,
+                'message_type' => (string) ($message->message_type ?? 'text'),
+                'metadata' => is_array($message->metadata) ? $message->metadata : null,
+                'is_internal_note' => (bool) ($message->is_internal_note ?? false),
+                'read_at' => optional($message->read_at)?->toIso8601String(),
+                'created_at' => optional($message->created_at)?->toIso8601String(),
+            ]
+        ));
     }
 }

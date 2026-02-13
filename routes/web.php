@@ -156,6 +156,7 @@ Route::middleware(['auth:customer', 'throttle:60,1'])
         Route::post('/start', [SupportChatController::class, 'start'])->name('start');
         Route::post('/respond', [SupportChatController::class, 'respond'])->name('respond');
         Route::post('/forward', [SupportChatController::class, 'forward'])->name('forward');
+        Route::post('/attachment', [SupportChatController::class, 'attachment'])->name('attachment');
         Route::get('/messages', [SupportChatController::class, 'messages'])->name('messages');
     });
 

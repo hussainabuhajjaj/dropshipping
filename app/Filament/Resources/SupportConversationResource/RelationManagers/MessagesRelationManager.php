@@ -17,32 +17,51 @@ class MessagesRelationManager extends RelationManager
 {
     protected static string $relationship = 'messages';
 
+    protected static ?string $title = 'Live Chat';
+
+    protected static ?string $modelLabel = 'Message';
+
+    protected function getListeners(): array
+    {
+        return [
+            ...parent::getListeners(),
+            'echo-private:support.admin,support.message.created' => 'handleSupportMessageCreated',
+        ];
+    }
+
+    public function handleSupportMessageCreated(array $payload = []): void
+    {
+        $conversation = $this->getOwnerRecord();
+        if (! $conversation instanceof SupportConversation) {
+            return;
+        }
+
+        $eventConversationUuid = (string) data_get($payload, 'conversation_uuid', '');
+        if ($eventConversationUuid === '' || $eventConversationUuid !== (string) $conversation->uuid) {
+            return;
+        }
+
+        if ((string) data_get($payload, 'message.sender_type', '') === 'customer') {
+            app(SupportChatService::class)->markMessagesReadByAdmin($conversation);
+        }
+
+        $this->flushCachedTableRecords();
+    }
+
     public function table(Table $table): Table
     {
+        $conversation = $this->getOwnerRecord();
+        if ($conversation instanceof SupportConversation) {
+            app(SupportChatService::class)->markMessagesReadByAdmin($conversation);
+        }
+
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with(['senderUser:id,name', 'senderCustomer:id,first_name,last_name']))
+            ->poll('8s')
             ->columns([
-                Tables\Columns\TextColumn::make('sender_type')
-                    ->label('Sender')
-                    ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'customer' => 'gray',
-                        'agent' => 'success',
-                        'ai' => 'primary',
-                        'system' => 'warning',
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('body')
-                    ->wrap()
-                    ->searchable(),
-                Tables\Columns\IconColumn::make('is_internal_note')
-                    ->label('Internal')
-                    ->boolean(),
-                Tables\Columns\TextColumn::make('senderUser.name')
-                    ->label('Admin')
-                    ->placeholder('-'),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable(),
+                Tables\Columns\ViewColumn::make('chat_message')
+                    ->label('')
+                    ->view('filament.support.messages.chat-bubble'),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_internal_note')
@@ -50,13 +69,19 @@ class MessagesRelationManager extends RelationManager
             ])
             ->headerActions([
                 Action::make('reply')
-                    ->label('Reply')
+                    ->label('Send message')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('success')
+                    ->slideOver()
+                    ->modalHeading('Send reply')
+                    ->modalDescription('Reply to customer or add an internal note.')
+                    ->modalWidth('3xl')
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
                     ->form([
                         Forms\Components\Textarea::make('body')
                             ->label('Message')
-                            ->rows(4)
+                            ->rows(8)
                             ->required()
                             ->maxLength(4000),
                         Forms\Components\Toggle::make('internal_note')
@@ -89,6 +114,11 @@ class MessagesRelationManager extends RelationManager
             ])
             ->actions([])
             ->bulkActions([])
-            ->defaultSort('id', 'desc');
+            ->recordClasses(fn () => 'align-top !border-0')
+            ->paginated([25, 50, 100])
+            ->defaultPaginationPageOption(50)
+            ->defaultSort('id', 'asc')
+            ->emptyStateHeading('No messages yet')
+            ->emptyStateDescription('This thread is ready for the first support reply.');
     }
 }

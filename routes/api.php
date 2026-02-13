@@ -153,6 +153,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('chat/start', [MobileChatController::class, 'start']);
         Route::post('chat/respond', [MobileChatController::class, 'respond']);
         Route::post('chat/forward', [MobileChatController::class, 'forward']);
+        Route::post('chat/attachment', [MobileChatController::class, 'attachment']);
         Route::get('chat/messages', [MobileChatController::class, 'messages']);
     });
       Route::post('notifications/expo-token', [MobileNotificationController::class, 'registerExpoToken']);

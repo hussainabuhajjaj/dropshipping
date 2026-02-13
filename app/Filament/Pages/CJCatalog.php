@@ -43,7 +43,7 @@ class CJCatalog extends BasePage implements HasTable
     private const LISTED_PRODUCTS_FETCH_SIZE = 200;
     private const ALLOWED_SORTS = ['1', '2', '5', '6'];
     private const PRESET_MAX_COUNT = 20;
-    private const IMPORT_TRACKING_POLL_SECONDS = 5;
+    private const IMPORT_TRACKING_POLL_SECONDS = 60;
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cloud-arrow-down';
     protected static UnitEnum|string|null $navigationGroup = 'Integrations';

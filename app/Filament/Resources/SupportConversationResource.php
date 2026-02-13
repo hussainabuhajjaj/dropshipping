@@ -58,9 +58,10 @@ class SupportConversationResource extends BaseResource
     public static function form(Schema $schema): Schema
     {
         return $schema->schema([
-            Section::make('Conversation')
+            Section::make('Chat workspace')
                 ->schema([
                     Forms\Components\TextInput::make('uuid')
+                        ->label('Conversation UUID')
                         ->disabled(),
                     Forms\Components\Select::make('status')
                         ->options([
@@ -83,17 +84,6 @@ class SupportConversationResource extends BaseResource
                         ->label('Handoff requested'),
                     Forms\Components\Toggle::make('ai_enabled')
                         ->label('AI enabled'),
-                    Forms\Components\Select::make('assigned_user_id')
-                        ->label('Assigned admin')
-                        ->relationship(
-                            name: 'assignedUser',
-                            titleAttribute: 'name',
-                            modifyQueryUsing: fn (Builder $query): Builder => $query->supportAgents()
-                        )
-                        ->searchable()
-                        ->preload(),
-                    Forms\Components\TextInput::make('topic')
-                        ->maxLength(120),
                     Forms\Components\Select::make('priority')
                         ->options([
                             'low' => 'Low',
@@ -103,8 +93,25 @@ class SupportConversationResource extends BaseResource
                         ])
                         ->native(false)
                         ->required(),
+                    Forms\Components\TextInput::make('topic')
+                        ->maxLength(120)
+                        ->columnSpanFull(),
                 ])
-                ->columns(2),
+                ->columns(3),
+            Section::make('Assignment & routing')
+                ->schema([
+                    Forms\Components\Select::make('assigned_user_id')
+                        ->label('Assigned admin')
+                        ->relationship(
+                            name: 'assignedUser',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn (Builder $query): Builder => $query->supportAgents()
+                        )
+                        ->searchable()
+                        ->preload(),
+                ])
+                ->columns(1)
+                ->collapsed(),
         ]);
     }
 

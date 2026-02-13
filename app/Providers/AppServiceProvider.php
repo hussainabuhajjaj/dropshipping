@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Support\Filament\AdminPanelNotification;
+use Filament\Notifications\Notification as FilamentNotification;
 use App\Models\Product;
 use App\Models\User;
 use App\Observers\ProductSeoObserver;
@@ -37,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
                 \App\Services\AI\LibreTranslateClient::class
             ),
         };
+
+        $this->app->bind(FilamentNotification::class, function ($app, array $parameters) {
+            $id = (string) ($parameters['id'] ?? Str::orderedUuid());
+
+            return new AdminPanelNotification($id);
+        });
     }
 
     /**
