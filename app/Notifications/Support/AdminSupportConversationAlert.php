@@ -18,6 +18,7 @@ class AdminSupportConversationAlert extends Notification implements ShouldQueue
         private readonly SupportConversation $conversation,
         private readonly string $reason
     ) {
+        $this->onQueue((string) config('support_chat.queue', 'support'));
     }
 
     public function via(object $notifiable): array
@@ -58,4 +59,3 @@ class AdminSupportConversationAlert extends Notification implements ShouldQueue
             ->action('Open conversation', $url);
     }
 }
-

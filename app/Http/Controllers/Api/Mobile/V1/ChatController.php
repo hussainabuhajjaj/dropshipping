@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Domain\Support\Models\SupportConversation;
+use App\Domain\Support\Services\SupportAttachmentService;
 use App\Domain\Support\Services\SupportChatService;
 use App\Http\Resources\Mobile\V1\SupportMessageResource;
 use App\Models\Customer;
@@ -14,9 +15,10 @@ use Illuminate\Validation\Rule;
 
 class ChatController extends ApiController
 {
-    public function __construct(private readonly SupportChatService $chatService)
-    {
-    }
+    public function __construct(
+        private readonly SupportChatService $chatService,
+        private readonly SupportAttachmentService $attachmentService
+    ) {}
 
     public function start(Request $request): JsonResponse
     {
@@ -173,5 +175,66 @@ class ChatController extends ApiController
             'next_after_id' => optional($messages->last())->id,
             'unread_for_customer' => 0,
         ]);
+    }
+
+    public function attachment(Request $request): JsonResponse
+    {
+        $customer = $request->user();
+        if (! $customer instanceof Customer) {
+            return $this->unauthorized();
+        }
+
+        $maxKb = max(1024, (int) config('support_chat.attachments.max_kb', 10240));
+        $mimeRule = $this->attachmentMimeRule();
+        $validated = $request->validate([
+            'session_id' => ['required', 'string', 'max:80'],
+            'message' => ['nullable', 'string', 'max:500'],
+            'file' => array_values(array_filter(['required', 'file', 'max:' . $maxKb, $mimeRule])),
+        ]);
+
+        $conversation = SupportConversation::query()
+            ->where('uuid', $validated['session_id'])
+            ->where('customer_id', $customer->id)
+            ->first();
+
+        if (! $conversation) {
+            return $this->notFound('Support conversation not found.');
+        }
+
+        $file = $request->file('file');
+        if (! $file) {
+            return $this->error(
+                'Attachment file is required.',
+                \Symfony\Component\HttpFoundation\Response::HTTP_UNPROCESSABLE_ENTITY,
+                ['file' => ['Attachment file is required.']]
+            );
+        }
+
+        $attachment = $this->attachmentService->store($file);
+
+        $result = $this->chatService->forwardAttachmentToHuman(
+            $conversation,
+            $customer,
+            $attachment,
+            isset($validated['message']) ? (string) $validated['message'] : null
+        );
+
+        return $this->success([
+            'session_id' => $conversation->uuid,
+            'status' => $conversation->fresh()->status,
+            'agent_type' => 'human',
+            'ack' => $result['ack'],
+            'messages' => SupportMessageResource::collection(collect($result['messages']))->resolve(),
+        ]);
+    }
+
+    private function attachmentMimeRule(): ?string
+    {
+        $allowed = $this->attachmentService->allowedMimes();
+        if ($allowed === []) {
+            return null;
+        }
+
+        return 'mimetypes:' . implode(',', $allowed);
     }
 }

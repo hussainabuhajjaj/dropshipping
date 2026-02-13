@@ -84,6 +84,17 @@ export async function apiPost<T>(url: string, body: unknown, init?: RequestInit)
   });
 }
 
+export async function apiPostForm<T>(url: string, body: FormData, init?: RequestInit): Promise<T> {
+  return apiFetch<T>(url, {
+    method: 'POST',
+    ...init,
+    headers: {
+      ...(init?.headers as Record<string, string> | undefined),
+    },
+    body,
+  });
+}
+
 export async function apiPatch<T>(url: string, body: unknown, init?: RequestInit): Promise<T> {
   return apiFetch<T>(url, {
     method: 'PATCH',

@@ -21,6 +21,7 @@ import { PortalHost } from '@/src/overlays/PortalHost';
 import { apiBaseUrl } from '@/src/api/config';
 import { requestAppPermissions } from '@/src/lib/permissions';
 import { ToastProvider } from '@/src/overlays/ToastProvider';
+import { registerSupportChatNotificationHandlers } from '@/src/lib/supportChatNotifications';
 
 const loadGestureHandlerModule = () => {
   try {
@@ -151,6 +152,10 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    return registerSupportChatNotificationHandlers();
+  }, []);
 
   return (
     <GestureRootView style={styles.gestureRoot}>

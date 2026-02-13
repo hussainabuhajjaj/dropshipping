@@ -19,6 +19,7 @@ class SupportEscalationDigestNotification extends Notification implements Should
     public function __construct(
         private readonly array $summary,
     ) {
+        $this->onQueue((string) config('support_chat.queue', 'support'));
     }
 
     public function via(object $notifiable): array
