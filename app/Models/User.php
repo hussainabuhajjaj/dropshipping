@@ -3,11 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Domain\Support\Models\SupportConversation;
+use App\Domain\Support\Models\SupportMessage;
 use App\Notifications\AdminResetPasswordNotification;
 use CWSPS154\UsersRolesPermissions\Models\HasRole;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Filament\Support\Concerns\HasMediaFilter;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -71,5 +74,15 @@ class User extends Authenticatable implements FilamentUser
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new AdminResetPasswordNotification($token));
+    }
+
+    public function assignedSupportConversations(): HasMany
+    {
+        return $this->hasMany(SupportConversation::class, 'assigned_user_id');
+    }
+
+    public function supportMessages(): HasMany
+    {
+        return $this->hasMany(SupportMessage::class, 'sender_user_id');
     }
 }

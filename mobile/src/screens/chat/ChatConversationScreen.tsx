@@ -16,7 +16,7 @@ const ISSUE_OPTIONS = [
 ];
 
 export default function ChatConversationScreen() {
-  const { messages, status, agentType } = useChatStore();
+  const { messages, status, agentType, sessionId } = useChatStore();
   const [input, setInput] = useState('');
   const [selectedIssue, setSelectedIssue] = useState('');
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
@@ -26,6 +26,17 @@ export default function ChatConversationScreen() {
     if (status !== 'idle') return;
     chatSvc.startChat('auto').catch(() => {});
   }, [status]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    chatSvc.pollMessages().catch(() => {});
+    const timer = setInterval(() => {
+      chatSvc.pollMessages().catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [sessionId]);
 
   useEffect(() => {
     listRef.current?.scrollToEnd?.({ animated: true });

@@ -25,6 +25,7 @@ use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PromotionController;
 use App\Http\Controllers\Storefront\NewsletterController;
 use App\Http\Controllers\Storefront\NewsletterTrackingController;
+use App\Http\Controllers\Storefront\SupportChatController;
 
 // --- Webhook Controllers ---
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
@@ -147,6 +148,16 @@ Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [PageController::class, 'submitContact'])->name('contact.submit');
 Route::inertia('/support', 'Support/Index')->name('support');
 Route::inertia('/faq', 'Faq/Index')->name('faq');
+
+Route::middleware(['auth:customer', 'throttle:60,1'])
+    ->prefix('/support/chat')
+    ->name('support.chat.')
+    ->group(function () {
+        Route::post('/start', [SupportChatController::class, 'start'])->name('start');
+        Route::post('/respond', [SupportChatController::class, 'respond'])->name('respond');
+        Route::post('/forward', [SupportChatController::class, 'forward'])->name('forward');
+        Route::get('/messages', [SupportChatController::class, 'messages'])->name('messages');
+    });
 
 // Redirect legacy /policies/* routes to /legal/* for backward compatibility
 Route::redirect('/policies/shipping', '/legal/shipping-policy', 301);

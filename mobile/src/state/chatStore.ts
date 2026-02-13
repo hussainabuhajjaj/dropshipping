@@ -8,6 +8,13 @@ export type ChatMessage = {
   ts: number;
 };
 
+export type ServerChatMessage = {
+  id: number;
+  sender_type: 'customer' | 'agent' | 'ai' | 'system';
+  body: string;
+  created_at?: string | null;
+};
+
 type ChatState = {
   status: 'idle' | 'connecting' | 'connected';
   agentType?: 'ai' | 'human' | null;
@@ -24,6 +31,7 @@ type ChatState = {
   setConnected: (agentType: 'ai' | 'human') => void;
   setSessionId: (id: string | null) => void;
   addMessage: (m: Omit<ChatMessage, 'id' | 'ts'>) => void;
+  mergeServerMessages: (messages: ServerChatMessage[]) => void;
   setPrompt: (prompt: string) => void;
   setTopic: (topic: string) => void;
   setTag: (tag: string) => void;
@@ -59,6 +67,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const msg: ChatMessage = { id: nanoid(), ts: Date.now(), ...payload } as ChatMessage;
     set((s: any) => ({ messages: [...s.messages, msg] }));
   },
+  mergeServerMessages(serverMessages) {
+    const mapped = serverMessages.map((message) => {
+      const from: ChatMessage['from'] =
+        message.sender_type === 'customer'
+          ? 'user'
+          : message.sender_type === 'system'
+            ? 'system'
+            : 'agent';
+
+      return {
+        id: `srv-${message.id}`,
+        from,
+        text: String(message.body ?? ''),
+        ts: message.created_at ? Date.parse(message.created_at) || Date.now() : Date.now(),
+      } as ChatMessage;
+    });
+
+    set((state) => {
+      const existingIds = new Set(state.messages.map((message) => message.id));
+      const next = [...state.messages];
+
+      for (const message of mapped) {
+        if (!existingIds.has(message.id)) {
+          next.push(message);
+        }
+      }
+
+      next.sort((left, right) => left.ts - right.ts);
+
+      return { messages: next };
+    });
+  },
   setPrompt(prompt) {
     set({ prompt });
   },
@@ -85,6 +125,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       status: 'idle',
       agentType: null,
+      sessionId: null,
       prompt: '',
       topic: '',
       tag: '',

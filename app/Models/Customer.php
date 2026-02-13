@@ -12,6 +12,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Domain\Common\Models\Address;
+use App\Domain\Support\Models\SupportConversation;
+use App\Domain\Support\Models\SupportMessage;
 use YieldStudio\LaravelExpoNotifier\Models\ExpoToken;
 
 class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePreference
@@ -90,6 +92,16 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
     public function expoTokens(): MorphMany
     {
         return $this->morphMany(ExpoToken::class, 'owner');
+    }
+
+    public function supportConversations(): HasMany
+    {
+        return $this->hasMany(SupportConversation::class);
+    }
+
+    public function supportMessages(): HasMany
+    {
+        return $this->hasMany(SupportMessage::class, 'sender_customer_id');
     }
 
     public function getNameAttribute(): string
