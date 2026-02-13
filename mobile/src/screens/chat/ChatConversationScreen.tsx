@@ -21,6 +21,7 @@ export default function ChatConversationScreen() {
   const [selectedIssue, setSelectedIssue] = useState('');
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
   const insets = useSafeAreaInsets();
+  const inputBarHeight = theme.moderateScale(72);
 
   useEffect(() => {
     if (status !== 'idle') return;
@@ -68,15 +69,21 @@ export default function ChatConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(20) : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? theme.moderateScale(12) : 0}
     >
       <FlatList
         ref={listRef}
         data={messages}
         keyExtractor={(message) => message.id}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: theme.moderateScale(10) + insets.top }]}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: theme.moderateScale(10) + insets.top,
+            paddingBottom: inputBarHeight + insets.bottom + theme.moderateScale(12),
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -135,7 +142,7 @@ export default function ChatConversationScreen() {
         )}
       />
 
-      <View style={[styles.inputRow, { paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
+      <View style={[styles.inputRow, { minHeight: inputBarHeight, paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
         <TextInput
           value={input}
           onChangeText={setInput}
