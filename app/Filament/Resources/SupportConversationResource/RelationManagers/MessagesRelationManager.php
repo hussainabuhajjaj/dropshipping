@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\SupportConversationResource\RelationManagers;
 
 use App\Domain\Support\Models\SupportConversation;
+use App\Domain\Support\Services\SupportAttachmentService;
 use App\Domain\Support\Services\SupportChatService;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -12,6 +13,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\ValidationException;
 
 class MessagesRelationManager extends RelationManager
 {
@@ -82,8 +85,14 @@ class MessagesRelationManager extends RelationManager
                         Forms\Components\Textarea::make('body')
                             ->label('Message')
                             ->rows(8)
-                            ->required()
-                            ->maxLength(4000),
+                            ->maxLength(4000)
+                            ->placeholder('Type a message, or send an attachment.'),
+                        Forms\Components\FileUpload::make('attachment')
+                            ->label('Attachment')
+                            ->storeFiles(false)
+                            ->acceptedFileTypes(app(SupportAttachmentService::class)->allowedMimes())
+                            ->maxSize(max(1024, (int) config('support_chat.attachments.max_kb', 10240)))
+                            ->columnSpanFull(),
                         Forms\Components\Toggle::make('internal_note')
                             ->label('Internal note (not visible to customer)')
                             ->default(false),
@@ -99,17 +108,49 @@ class MessagesRelationManager extends RelationManager
                             return;
                         }
 
-                        app(SupportChatService::class)->addAdminReply(
-                            $conversation,
-                            $user,
-                            (string) $data['body'],
-                            (bool) ($data['internal_note'] ?? false)
-                        );
+                        $body = trim((string) ($data['body'] ?? ''));
+                        $internalNote = (bool) ($data['internal_note'] ?? false);
+                        $attachmentFile = $this->extractUploadedFile($data['attachment'] ?? null);
 
-                        Notification::make()
-                            ->success()
-                            ->title((bool) ($data['internal_note'] ?? false) ? 'Internal note added' : 'Reply sent')
-                            ->send();
+                        if ($body === '' && ! $attachmentFile) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Message or attachment is required')
+                                ->send();
+
+                            return;
+                        }
+
+                        try {
+                            if ($attachmentFile) {
+                                $attachmentMetadata = app(SupportAttachmentService::class)->store($attachmentFile);
+                                app(SupportChatService::class)->addAdminAttachmentReply(
+                                    $conversation,
+                                    $user,
+                                    $attachmentMetadata,
+                                    $body !== '' ? $body : null,
+                                    $internalNote
+                                );
+                            } else {
+                                app(SupportChatService::class)->addAdminReply(
+                                    $conversation,
+                                    $user,
+                                    $body,
+                                    $internalNote
+                                );
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title($internalNote ? 'Internal note added' : 'Reply sent')
+                                ->send();
+                        } catch (ValidationException $exception) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Attachment validation failed')
+                                ->body((string) collect($exception->errors())->flatten()->first())
+                                ->send();
+                        }
                     }),
             ])
             ->actions([])
@@ -120,5 +161,22 @@ class MessagesRelationManager extends RelationManager
             ->defaultSort('id', 'asc')
             ->emptyStateHeading('No messages yet')
             ->emptyStateDescription('This thread is ready for the first support reply.');
+    }
+
+    private function extractUploadedFile(mixed $value): ?UploadedFile
+    {
+        if ($value instanceof UploadedFile) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if ($item instanceof UploadedFile) {
+                    return $item;
+                }
+            }
+        }
+
+        return null;
     }
 }

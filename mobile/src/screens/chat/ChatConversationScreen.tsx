@@ -18,7 +18,7 @@ const ISSUE_OPTIONS = [
 ];
 
 export default function ChatConversationScreen() {
-  const { messages, status, agentType, sessionId } = useChatStore();
+  const { messages, status, agentType, sessionId, realtimeConnected, realtimeMode } = useChatStore();
   const { status: authStatus } = useAuth();
   const [input, setInput] = useState('');
   const [selectedIssue, setSelectedIssue] = useState('');
@@ -93,6 +93,14 @@ export default function ChatConversationScreen() {
     if (agentType === 'ai') return 'AI assistant';
     return 'Support';
   }, [status, agentType, authStatus]);
+
+  const transportLabel = useMemo(() => {
+    if (authStatus !== 'authed') return '';
+    if (status === 'connecting') return 'Transport: connecting';
+    if (realtimeConnected) return 'Transport: realtime';
+    if (realtimeMode === 'polling') return 'Transport: polling';
+    return 'Transport: offline';
+  }, [authStatus, status, realtimeConnected, realtimeMode]);
 
   const handleSend = () => {
     if (authStatus !== 'authed' || uploadingAttachment) return;
@@ -191,6 +199,7 @@ export default function ChatConversationScreen() {
               <View>
                 <Text style={styles.title}>Live Chat</Text>
                 <Text style={styles.status}>{statusLabel}</Text>
+                {transportLabel ? <Text style={styles.status}>{transportLabel}</Text> : null}
               </View>
               <Pressable style={styles.iconButton} onPress={() => router.push('/support')}>
                 <Feather name="x" size={16} color={theme.colors.inkDark} />

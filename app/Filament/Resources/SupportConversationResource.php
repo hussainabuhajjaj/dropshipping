@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources;
 
+use App\Filament\Pages\SupportChatCenter;
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Services\SupportChatService;
 use App\Filament\Resources\SupportConversationResource\Pages;
@@ -283,6 +284,13 @@ class SupportConversationResource extends BaseResource
                             ->body(Str::limit($note->body, 140))
                             ->send();
                     }),
+                Action::make('workspace')
+                    ->label('Open Workspace')
+                    ->icon('heroicon-o-chat-bubble-left-right')
+                    ->color('gray')
+                    ->url(fn (SupportConversation $record): string => SupportChatCenter::getUrl([
+                        'conversation' => $record->id,
+                    ])),
                 EditAction::make(),
                 Action::make('resolve')
                     ->label('Resolve')

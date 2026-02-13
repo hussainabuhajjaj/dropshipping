@@ -60,7 +60,7 @@
                             rel="noopener noreferrer"
                             class="mt-2 inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-700 ring-1 ring-gray-300 transition hover:bg-white dark:bg-gray-900/80 dark:text-gray-100 dark:ring-gray-600"
                         >
-                            <x-filament::icon icon="heroicon-o-paperclip" class="h-4 w-4" />
+                            <x-filament::icon icon="heroicon-o-paper-clip" class="h-4 w-4" />
                             <span>{{ $attachmentName !== '' ? $attachmentName : 'Open attachment' }}</span>
                         </a>
                     </div>
