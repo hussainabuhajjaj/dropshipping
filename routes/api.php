@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\Mobile\V1\SearchController as MobileSearchControlle
 use App\Http\Controllers\Api\Mobile\V1\TranslationsController as MobileTranslationsController;
 use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingController;
 use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
+use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -148,6 +149,11 @@ Route::prefix('mobile/v1')->group(function () {
 
         Route::post('payments/korapay/init', [MobilePaymentController::class, 'init']);
         Route::get('payments/korapay/verify', [MobilePaymentController::class, 'verify']);
+
+        Route::post('chat/start', [MobileChatController::class, 'start']);
+        Route::post('chat/respond', [MobileChatController::class, 'respond']);
+        Route::post('chat/forward', [MobileChatController::class, 'forward']);
+        Route::get('chat/messages', [MobileChatController::class, 'messages']);
     });
       Route::post('notifications/expo-token', [MobileNotificationController::class, 'registerExpoToken']);
         Route::delete('notifications/expo-token', [MobileNotificationController::class, 'removeExpoToken']);
