@@ -181,7 +181,7 @@
     'app.filament.widgets.top-customers-widget' => 'App\\Filament\\Widgets\\TopCustomersWidget',
     'app.filament.widgets.top-products-widget' => 'App\\Filament\\Widgets\\TopProductsWidget',
     'app.filament.widgets.top-sellers-table' => 'App\\Filament\\Widgets\\TopSellersTable',
-    'filament.livewire.database-notifications' => 'Filament\\Livewire\\DatabaseNotifications',
+    'app.filament.livewire.admin-database-notifications' => 'App\\Filament\\Livewire\\AdminDatabaseNotifications',
     'filament.auth.pages.edit-profile' => 'Filament\\Auth\\Pages\\EditProfile',
     'filament.livewire.global-search' => 'Filament\\Livewire\\GlobalSearch',
     'filament.livewire.notifications' => 'Filament\\Livewire\\Notifications',
