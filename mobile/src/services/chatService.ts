@@ -2,6 +2,25 @@ import { type ServerChatMessage, useChatStore } from '@/src/state/chatStore';
 import { backendApiBaseUrl } from '@/src/api/config';
 import { apiFetch, apiPost } from '@/src/api/http';
 
+type ChatApiPayload = {
+  session_id?: string;
+  status?: string;
+  agent_type?: 'ai' | 'human';
+  welcome?: string;
+  reply?: string;
+  ack?: string;
+  messages?: ServerChatMessage[];
+  next_after_id?: number;
+};
+
+function unwrapPayload(response: any): ChatApiPayload {
+  if (response && typeof response === 'object' && 'data' in response && response.data && typeof response.data === 'object') {
+    return response.data as ChatApiPayload;
+  }
+
+  return (response ?? {}) as ChatApiPayload;
+}
+
 async function backendPost(path: string, body: unknown) {
   const base = backendApiBaseUrl.replace(/\/$/, '');
   const url = `${base}/${path.replace(/^\//, '')}`;
@@ -37,7 +56,8 @@ export async function startChat(agent: 'ai' | 'human' | 'auto' = 'auto') {
   store.startConnecting(agent);
 
   try {
-    const resp = await backendPost('/mobile/v1/chat/start', { agent });
+    const raw = await backendPost('/mobile/v1/chat/start', { agent });
+    const resp = unwrapPayload(raw);
     const { session_id, agent_type } = resp || {};
     if (session_id) store.setSessionId(session_id);
     const chosen = agent_type || (agent === 'auto' ? 'ai' : agent);
@@ -76,7 +96,8 @@ export async function sendMessage(text: string) {
 
   if (agentType === 'ai') {
     try {
-      const resp = await backendPost('/mobile/v1/chat/respond', { session_id: sessionId, input: text });
+      const raw = await backendPost('/mobile/v1/chat/respond', { session_id: sessionId, input: text });
+      const resp = unwrapPayload(raw);
       const nextAgent = resp?.agent_type as 'ai' | 'human' | undefined;
       if (nextAgent) {
         store.setConnected(nextAgent);
@@ -96,7 +117,8 @@ export async function sendMessage(text: string) {
   }
 
   try {
-    const resp = await backendPost('/mobile/v1/chat/forward', { session_id: sessionId, message: text });
+    const raw = await backendPost('/mobile/v1/chat/forward', { session_id: sessionId, message: text });
+    const resp = unwrapPayload(raw);
     const messages = Array.isArray(resp?.messages) ? (resp.messages as ServerChatMessage[]) : [];
     if (messages.length) {
       store.mergeServerMessages(messages);
@@ -116,11 +138,12 @@ export async function pollMessages() {
   const afterId = lastServerMessageId(store.messages);
 
   try {
-    const resp = await backendGet('/mobile/v1/chat/messages', {
+    const raw = await backendGet('/mobile/v1/chat/messages', {
       session_id: sessionId,
       after_id: afterId,
       limit: 50,
     });
+    const resp = unwrapPayload(raw);
     const messages = Array.isArray(resp?.messages) ? (resp.messages as ServerChatMessage[]) : [];
     if (messages.length) {
       store.mergeServerMessages(messages);
