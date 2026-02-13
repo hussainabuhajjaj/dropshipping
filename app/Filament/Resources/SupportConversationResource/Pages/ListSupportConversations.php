@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\SupportConversationResource\Pages;
 
+use App\Filament\Pages\SupportChatCenter;
 use App\Filament\Resources\SupportConversationResource;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Str;
@@ -45,7 +47,12 @@ class ListSupportConversations extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Action::make('open_workspace')
+                ->label('Open Chat Workspace')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->url(fn (): string => SupportChatCenter::getUrl()),
+        ];
     }
 
     protected function getHeaderWidgets(): array

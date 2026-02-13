@@ -15,6 +15,12 @@ type ChatApiPayload = {
   next_after_id?: number;
 };
 
+type SessionClosedPayload = {
+  session_id?: string;
+  session_status?: string;
+  requires_new_session?: boolean;
+};
+
 export type ChatAttachmentInput = {
   uri: string;
   name: string;
@@ -41,6 +47,48 @@ function chatErrorMessage(error: unknown): string {
   }
 
   return 'Unable to contact support right now. Please try again.';
+}
+
+function parseSessionClosed(error: unknown): SessionClosedPayload | null {
+  const apiError = error as ApiError | undefined;
+  if (apiError?.status !== 409) {
+    return null;
+  }
+
+  if (apiError.bodyText) {
+    try {
+      const parsed = JSON.parse(apiError.bodyText) as {
+        data?: SessionClosedPayload;
+        errors?: Record<string, string[]>;
+      };
+
+      if (parsed?.data?.requires_new_session) {
+        return parsed.data;
+      }
+
+      if (Array.isArray(parsed?.errors?.session_id) && parsed.errors?.session_id.includes('Session closed')) {
+        return parsed.data ?? { requires_new_session: true };
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  if (Array.isArray(apiError.errors?.session_id) && apiError.errors?.session_id.includes('Session closed')) {
+    return { requires_new_session: true };
+  }
+
+  return null;
+}
+
+async function restartResolvedSession(preferredAgent: 'auto' | 'ai' | 'human' = 'auto'): Promise<boolean> {
+  const store = useChatStore.getState();
+  store.setSessionId(null);
+  disconnectSupportRealtime();
+  store.setRealtimeStatus(false, 'polling');
+  const agent = await startChat(preferredAgent);
+
+  return Boolean(agent && useChatStore.getState().sessionId);
 }
 
 async function backendPost(path: string, body: unknown) {
@@ -89,9 +137,10 @@ export async function startChat(agent: 'ai' | 'human' | 'auto' = 'auto') {
     const { session_id, agent_type } = resp || {};
     if (session_id) store.setSessionId(session_id);
     if (session_id) {
-      await connectToSupportRealtime(session_id, (message) => {
+      const connected = await connectToSupportRealtime(session_id, (message) => {
         useChatStore.getState().mergeServerMessages([message]);
       });
+      store.setRealtimeStatus(connected, connected ? 'realtime' : 'polling');
     }
     const chosen = agent_type || (agent === 'auto' ? 'ai' : agent);
     store.setConnected(chosen as 'ai' | 'human');
@@ -117,7 +166,7 @@ export async function startChat(agent: 'ai' | 'human' | 'auto' = 'auto') {
   }
 }
 
-export async function sendMessage(text: string) {
+export async function sendMessage(text: string, retryCount = 0) {
   const store = useChatStore.getState();
 
   if (!store.agentType) {
@@ -144,6 +193,18 @@ export async function sendMessage(text: string) {
         store.addMessage({ from: 'agent', text: String(reply) });
       }
     } catch (e) {
+      if (retryCount < 1 && parseSessionClosed(e)?.requires_new_session) {
+        store.addMessage({
+          from: 'system',
+          text: 'Your previous support session was resolved. Starting a new support session.',
+        });
+        const restarted = await restartResolvedSession('auto');
+        if (restarted) {
+          await sendMessage(text, retryCount + 1);
+          return;
+        }
+      }
+
       store.addMessage({ from: 'agent', text: 'AI service error: please try again later.' });
     }
     return;
@@ -159,6 +220,18 @@ export async function sendMessage(text: string) {
       store.addMessage({ from: 'agent', text: String(resp?.ack ?? 'Message sent to support.') });
     }
   } catch (e) {
+    if (retryCount < 1 && parseSessionClosed(e)?.requires_new_session) {
+      store.addMessage({
+        from: 'system',
+        text: 'Your previous support session was resolved. Starting a new support session.',
+      });
+      const restarted = await restartResolvedSession('auto');
+      if (restarted) {
+        await sendMessage(text, retryCount + 1);
+        return;
+      }
+    }
+
     store.addMessage({ from: 'agent', text: 'Unable to forward to human agent right now.' });
   }
 }
@@ -186,27 +259,35 @@ export async function pollMessages() {
     if (nextAgent) {
       store.setConnected(nextAgent);
     }
-  } catch {
-    // silent polling failure
+  } catch (e) {
+    if (parseSessionClosed(e)?.requires_new_session) {
+      await restartResolvedSession('auto');
+    }
   }
 }
 
 export async function connectRealtime(): Promise<boolean> {
-  const { sessionId } = useChatStore.getState();
+  const store = useChatStore.getState();
+  const { sessionId } = store;
   if (!sessionId) {
+    store.setRealtimeStatus(false, 'polling');
     return false;
   }
 
-  return connectToSupportRealtime(sessionId, (message) => {
+  const connected = await connectToSupportRealtime(sessionId, (message) => {
     useChatStore.getState().mergeServerMessages([message]);
   });
+  store.setRealtimeStatus(connected, connected ? 'realtime' : 'polling');
+
+  return connected;
 }
 
 export function disconnectRealtime(): void {
   disconnectSupportRealtime();
+  useChatStore.getState().setRealtimeStatus(false, 'polling');
 }
 
-export async function sendAttachment(input: ChatAttachmentInput) {
+export async function sendAttachment(input: ChatAttachmentInput, retryCount = 0) {
   const store = useChatStore.getState();
 
   if (!store.agentType) {
@@ -234,8 +315,23 @@ export async function sendAttachment(input: ChatAttachmentInput) {
     if (messages.length) {
       store.mergeServerMessages(messages);
     }
-    store.setConnected('human');
+    const nextAgent = resp?.agent_type as 'ai' | 'human' | undefined;
+    if (nextAgent) {
+      store.setConnected(nextAgent);
+    }
   } catch (e) {
+    if (retryCount < 1 && parseSessionClosed(e)?.requires_new_session) {
+      store.addMessage({
+        from: 'system',
+        text: 'Your previous support session was resolved. Starting a new support session.',
+      });
+      const restarted = await restartResolvedSession('auto');
+      if (restarted) {
+        await sendAttachment(input, retryCount + 1);
+        return;
+      }
+    }
+
     store.addMessage({ from: 'agent', text: chatErrorMessage(e) });
   }
 }

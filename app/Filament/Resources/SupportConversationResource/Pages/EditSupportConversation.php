@@ -6,6 +6,7 @@ namespace App\Filament\Resources\SupportConversationResource\Pages;
 
 use App\Domain\Support\Models\SupportConversation;
 use App\Domain\Support\Services\SupportChatService;
+use App\Filament\Pages\SupportChatCenter;
 use App\Filament\Resources\SupportConversationResource;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -78,6 +79,13 @@ class EditSupportConversation extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('open_workspace')
+                ->label('Open workspace')
+                ->icon('heroicon-o-chat-bubble-left-right')
+                ->color('gray')
+                ->url(fn (): string => SupportChatCenter::getUrl([
+                    'conversation' => $this->record->id,
+                ])),
             Action::make('mark_resolved')
                 ->label('Mark resolved')
                 ->icon('heroicon-o-check-badge')

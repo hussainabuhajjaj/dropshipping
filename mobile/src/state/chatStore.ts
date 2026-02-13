@@ -24,6 +24,8 @@ export type ServerChatMessage = {
 
 type ChatState = {
   status: 'idle' | 'connecting' | 'connected';
+  realtimeConnected: boolean;
+  realtimeMode: 'realtime' | 'polling';
   agentType?: 'ai' | 'human' | null;
   sessionId?: string | null;
   messages: ChatMessage[];
@@ -37,6 +39,7 @@ type ChatState = {
   startConnecting: (agent?: 'ai' | 'human' | 'auto') => void;
   setIdle: () => void;
   setConnected: (agentType: 'ai' | 'human') => void;
+  setRealtimeStatus: (connected: boolean, mode?: 'realtime' | 'polling') => void;
   setSessionId: (id: string | null) => void;
   addMessage: (m: Omit<ChatMessage, 'id' | 'ts'>) => void;
   mergeServerMessages: (messages: ServerChatMessage[]) => void;
@@ -52,6 +55,8 @@ type ChatState = {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   status: 'idle',
+  realtimeConnected: false,
+  realtimeMode: 'polling',
   agentType: null,
   messages: [],
   prompt: '',
@@ -66,10 +71,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // actual connection is implemented in chatService
   },
   setIdle() {
-    set({ status: 'idle', agentType: null, sessionId: null });
+    set({ status: 'idle', agentType: null, sessionId: null, realtimeConnected: false, realtimeMode: 'polling' });
   },
   setConnected(agentType) {
     set({ status: 'connected', agentType });
+  },
+  setRealtimeStatus(connected, mode = connected ? 'realtime' : 'polling') {
+    set({ realtimeConnected: connected, realtimeMode: mode });
   },
   setSessionId(id) {
     set({ sessionId: id });
@@ -137,6 +145,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       status: 'idle',
+      realtimeConnected: false,
+      realtimeMode: 'polling',
       agentType: null,
       sessionId: null,
       prompt: '',

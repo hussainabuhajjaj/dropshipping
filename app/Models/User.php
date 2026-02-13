@@ -24,6 +24,11 @@ class User extends Authenticatable implements FilamentUser
     use HasFactory, Notifiable, HasApiTokens , Panel\Concerns\HasAvatars;
 
     /**
+     * @var array<string, bool>
+     */
+    protected static array $isActiveColumnCache = [];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -101,10 +106,21 @@ class User extends Authenticatable implements FilamentUser
 
     protected static function hasIsActiveColumn(): bool
     {
+        $instance = new static;
+        $connection = $instance->getConnectionName() ?? config('database.default');
+        $table = $instance->getTable();
+        $cacheKey = $connection . ':' . $table;
+
+        if (array_key_exists($cacheKey, self::$isActiveColumnCache)) {
+            return self::$isActiveColumnCache[$cacheKey];
+        }
+
         try {
-            return Schema::hasColumn((new static)->getTable(), 'is_active');
+            $columns = Schema::connection($connection)->getColumnListing($table);
+
+            return self::$isActiveColumnCache[$cacheKey] = in_array('is_active', $columns, true);
         } catch (\Throwable) {
-            return false;
+            return self::$isActiveColumnCache[$cacheKey] = false;
         }
     }
 }

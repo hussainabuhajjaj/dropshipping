@@ -12,6 +12,7 @@ class BroadcastServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $adminPath = trim((string) config('filament.path', 'admin'), '/');
+        $adminGuard = (string) config('filament.auth.guard', 'admin');
 
         Broadcast::routes([
             'middleware' => ['web', 'auth:customer'],
@@ -19,7 +20,7 @@ class BroadcastServiceProvider extends ServiceProvider
 
         Broadcast::routes([
             'prefix' => $adminPath,
-            'middleware' => ['web', 'auth:admin'],
+            'middleware' => ['web', 'auth:' . $adminGuard],
         ]);
 
         Broadcast::routes([
