@@ -20,6 +20,8 @@
 /storage/pail
 /storage/framework/views
 /storage/framework/cache
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
 /vendor
 Homestead.json
 Homestead.yaml
@@ -33,5 +35,4 @@ Thumbs.db
 /mobile/.expo
 *.txt
 /docs
-
 
