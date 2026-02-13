@@ -180,6 +180,20 @@ if (filter_var(env('QUEUE_REPORTING_ENABLED', false), FILTER_VALIDATE_BOOL)) {
         ->runInBackground();
 }
 
+if (filter_var(env('SUPPORT_CHAT_ESCALATION_ENABLED', true), FILTER_VALIDATE_BOOL)) {
+    Schedule::command('support:escalate-pending')
+        ->everyFiveMinutes()
+        ->withoutOverlapping(4)
+        ->runInBackground();
+}
+
+if (filter_var(env('SUPPORT_CHAT_DIGEST_ENABLED', true), FILTER_VALIDATE_BOOL)) {
+    Schedule::command('support:escalation-digest')
+        ->everyThirtyMinutes()
+        ->withoutOverlapping(25)
+        ->runInBackground();
+}
+
 Artisan::command('cj:token', function () {
     $client = app(CJDropshippingClient::class);
     $token = $client->getAccessToken(true);
