@@ -23,8 +23,6 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens , Panel\Concerns\HasAvatars;
 
-    protected static ?bool $hasIsActiveColumn = null;
-
     /**
      * The attributes that are mass assignable.
      *
@@ -103,16 +101,10 @@ class User extends Authenticatable implements FilamentUser
 
     protected static function hasIsActiveColumn(): bool
     {
-        if (self::$hasIsActiveColumn !== null) {
-            return self::$hasIsActiveColumn;
-        }
-
         try {
-            self::$hasIsActiveColumn = Schema::hasColumn((new static)->getTable(), 'is_active');
+            return Schema::hasColumn((new static)->getTable(), 'is_active');
         } catch (\Throwable) {
-            self::$hasIsActiveColumn = false;
+            return false;
         }
-
-        return self::$hasIsActiveColumn;
     }
 }

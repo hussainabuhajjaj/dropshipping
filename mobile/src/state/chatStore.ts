@@ -6,6 +6,10 @@ export type ChatMessage = {
   from: 'user' | 'agent' | 'system';
   text: string;
   ts: number;
+  serverId?: number | null;
+  readAt?: number | null;
+  messageType?: 'text' | 'image' | 'file';
+  metadata?: Record<string, unknown> | null;
 };
 
 export type ServerChatMessage = {
@@ -13,6 +17,9 @@ export type ServerChatMessage = {
   sender_type: 'customer' | 'agent' | 'ai' | 'system';
   body: string;
   created_at?: string | null;
+  read_at?: string | null;
+  message_type?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type ChatState = {
@@ -28,6 +35,7 @@ type ChatState = {
   hasImage: boolean;
   hasFile: boolean;
   startConnecting: (agent?: 'ai' | 'human' | 'auto') => void;
+  setIdle: () => void;
   setConnected: (agentType: 'ai' | 'human') => void;
   setSessionId: (id: string | null) => void;
   addMessage: (m: Omit<ChatMessage, 'id' | 'ts'>) => void;
@@ -57,6 +65,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ status: 'connecting' });
     // actual connection is implemented in chatService
   },
+  setIdle() {
+    set({ status: 'idle', agentType: null, sessionId: null });
+  },
   setConnected(agentType) {
     set({ status: 'connected', agentType });
   },
@@ -81,20 +92,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         from,
         text: String(message.body ?? ''),
         ts: message.created_at ? Date.parse(message.created_at) || Date.now() : Date.now(),
+        serverId: Number.isFinite(Number(message.id)) ? Number(message.id) : null,
+        readAt: message.read_at ? Date.parse(message.read_at) || Date.now() : null,
+        messageType: message.message_type === 'image' ? 'image' : message.message_type === 'file' ? 'file' : 'text',
+        metadata: message.metadata && typeof message.metadata === 'object' ? message.metadata : null,
       } as ChatMessage;
     });
 
     set((state) => {
-      const existingIds = new Set(state.messages.map((message) => message.id));
-      const next = [...state.messages];
+      const nextById = new Map(state.messages.map((message) => [message.id, message]));
 
       for (const message of mapped) {
-        if (!existingIds.has(message.id)) {
-          next.push(message);
-        }
+        const existing = nextById.get(message.id);
+        nextById.set(message.id, existing ? { ...existing, ...message } : message);
       }
 
-      next.sort((left, right) => left.ts - right.ts);
+      const next = [...nextById.values()].sort((left, right) => left.ts - right.ts);
 
       return { messages: next };
     });

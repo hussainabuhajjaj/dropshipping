@@ -1,12 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
+import { ActivityIndicator, FlatList, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from '@/src/utils/responsiveStyleSheet';
 import { theme } from '@/src/theme';
 import { type ChatMessage, useChatStore } from '@/src/state/chatStore';
 import * as chatSvc from '@/src/services/chatService';
-import { KeyboardAvoidingView, Platform } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/lib/authStore';
+import * as ImagePicker from 'expo-image-picker';
 
 const ISSUE_OPTIONS = [
   'Track my order',
@@ -17,40 +19,83 @@ const ISSUE_OPTIONS = [
 
 export default function ChatConversationScreen() {
   const { messages, status, agentType, sessionId } = useChatStore();
+  const { status: authStatus } = useAuth();
   const [input, setInput] = useState('');
   const [selectedIssue, setSelectedIssue] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
   const insets = useSafeAreaInsets();
   const inputBarHeight = theme.moderateScale(72);
 
   useEffect(() => {
+    if (authStatus !== 'authed') return;
     if (status !== 'idle') return;
     chatSvc.startChat('auto').catch(() => {});
-  }, [status]);
+  }, [status, authStatus]);
 
   useEffect(() => {
     if (!sessionId) return;
 
-    chatSvc.pollMessages().catch(() => {});
-    const timer = setInterval(() => {
-      chatSvc.pollMessages().catch(() => {});
-    }, 5000);
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
-    return () => clearInterval(timer);
+    const run = async () => {
+      await chatSvc.pollMessages().catch(() => {});
+      const realtimeConnected = await chatSvc.connectRealtime().catch(() => false);
+      if (cancelled) return;
+
+      timer = setInterval(() => {
+        chatSvc.pollMessages().catch(() => {});
+      }, realtimeConnected ? 15000 : 5000);
+    };
+
+    run().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearInterval(timer);
+      }
+      chatSvc.disconnectRealtime();
+    };
   }, [sessionId]);
 
   useEffect(() => {
     listRef.current?.scrollToEnd?.({ animated: true });
   }, [messages.length]);
 
+  useEffect(() => {
+    const onShow = (event: any) => {
+      if (Platform.OS !== 'android') return;
+      const height = Math.max(0, (event?.endCoordinates?.height ?? 0) - insets.bottom);
+      setKeyboardHeight(height);
+    };
+    const onHide = () => {
+      if (Platform.OS !== 'android') return;
+      setKeyboardHeight(0);
+    };
+
+    const showSub = Keyboard.addListener('keyboardDidShow', onShow);
+    const hideSub = Keyboard.addListener('keyboardDidHide', onHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [insets.bottom]);
+
   const statusLabel = useMemo(() => {
+    if (authStatus === 'loading') return 'Preparing chat...';
+    if (authStatus === 'guest') return 'Sign in required';
     if (status === 'connecting') return 'Connecting...';
     if (agentType === 'human') return 'Support agent';
     if (agentType === 'ai') return 'AI assistant';
     return 'Support';
-  }, [status, agentType]);
+  }, [status, agentType, authStatus]);
 
   const handleSend = () => {
+    if (authStatus !== 'authed' || uploadingAttachment) return;
     const value = input.trim();
     if (!value) return;
     setInput('');
@@ -59,11 +104,59 @@ export default function ChatConversationScreen() {
   };
 
   const handleIssueSelect = (issue: string) => {
+    if (authStatus !== 'authed') return;
     setSelectedIssue(issue);
     setInput('');
     chatSvc.sendMessage(issue).finally(() => {
       setSelectedIssue('');
     });
+  };
+
+  const openAttachmentLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // noop
+    }
+  };
+
+  const handleAttachment = async () => {
+    if (authStatus !== 'authed' || uploadingAttachment) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      allowsEditing: false,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    if (!asset?.uri) {
+      return;
+    }
+
+    setUploadingAttachment(true);
+    try {
+      await chatSvc.sendAttachment({
+        uri: asset.uri,
+        name: asset.fileName ?? `support-image-${Date.now()}.jpg`,
+        type: asset.mimeType ?? 'image/jpeg',
+        caption: input.trim() || undefined,
+      });
+      if (input.trim() !== '') {
+        setInput('');
+      }
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   return (
@@ -81,7 +174,8 @@ export default function ChatConversationScreen() {
           styles.content,
           {
             paddingTop: theme.moderateScale(10) + insets.top,
-            paddingBottom: inputBarHeight + insets.bottom + theme.moderateScale(12),
+            paddingBottom:
+              inputBarHeight + insets.bottom + keyboardHeight + theme.moderateScale(12),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -107,6 +201,11 @@ export default function ChatConversationScreen() {
               <View style={styles.loadingCard}>
                 <ActivityIndicator size="small" color={theme.colors.inkDark} />
                 <Text style={styles.loadingText}>Connecting you with support...</Text>
+              </View>
+            ) : null}
+            {authStatus === 'guest' ? (
+              <View style={styles.loadingCard}>
+                <Text style={styles.loadingText}>Please sign in to start support chat.</Text>
               </View>
             ) : null}
 
@@ -137,20 +236,65 @@ export default function ChatConversationScreen() {
               message.from === 'agent' ? styles.agentBubble : styles.userBubble,
             ]}
           >
+            {message.messageType === 'image' && typeof message.metadata?.attachment_url === 'string' ? (
+              <Pressable onPress={() => openAttachmentLink(String(message.metadata?.attachment_url))}>
+                <Image source={{ uri: String(message.metadata?.attachment_url) }} style={styles.attachmentImage} />
+              </Pressable>
+            ) : null}
+            {message.messageType === 'file' && typeof message.metadata?.attachment_url === 'string' ? (
+              <Pressable
+                style={styles.fileRow}
+                onPress={() => openAttachmentLink(String(message.metadata?.attachment_url))}
+              >
+                <Feather
+                  name="paperclip"
+                  size={14}
+                  color={message.from === 'agent' ? theme.colors.inkDark : theme.colors.white}
+                />
+                <Text style={message.from === 'agent' ? styles.agentText : styles.userText}>
+                  {String(message.metadata?.attachment_name ?? 'Open attachment')}
+                </Text>
+              </Pressable>
+            ) : null}
             <Text style={message.from === 'agent' ? styles.agentText : styles.userText}>{message.text}</Text>
+            {message.from === 'user' ? (
+              <Text style={styles.userMeta}>
+                {message.readAt ? 'Seen' : message.serverId ? 'Delivered' : 'Sending'}
+              </Text>
+            ) : null}
           </View>
         )}
       />
 
-      <View style={[styles.inputRow, { minHeight: inputBarHeight, paddingBottom: theme.moderateScale(12) + insets.bottom }]}>
+      <View
+        style={[
+          styles.inputRow,
+          {
+            minHeight: inputBarHeight,
+            paddingBottom: theme.moderateScale(12) + insets.bottom,
+            marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+          },
+        ]}
+      >
         <TextInput
           value={input}
           onChangeText={setInput}
           style={styles.input}
           placeholder="Type a message"
           placeholderTextColor="#b6b6b6"
+          editable={authStatus === 'authed' && !uploadingAttachment}
         />
-        <Pressable style={styles.sendButton} onPress={handleSend}>
+        <Pressable
+          style={[styles.attachButton, authStatus !== 'authed' || uploadingAttachment ? styles.sendButtonDisabled : null]}
+          onPress={handleAttachment}
+        >
+          {uploadingAttachment ? (
+            <ActivityIndicator size="small" color={theme.colors.inkDark} />
+          ) : (
+            <Feather name="paperclip" size={14} color={theme.colors.inkDark} />
+          )}
+        </Pressable>
+        <Pressable style={[styles.sendButton, authStatus !== 'authed' || uploadingAttachment ? styles.sendButtonDisabled : null]} onPress={handleSend}>
           <Feather name="send" size={14} color={theme.colors.inkDark} />
         </Pressable>
       </View>
@@ -269,6 +413,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.white,
   },
+  userMeta: {
+    marginTop: 6,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'right',
+    fontWeight: '600',
+  },
+  attachmentImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#f2f2f2',
+  },
+  fileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -287,6 +451,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
+  attachButton: {
+    marginLeft: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: theme.colors.sand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sendButton: {
     marginLeft: 10,
     width: 34,
@@ -295,5 +468,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.sun,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    opacity: 0.4,
   },
 });

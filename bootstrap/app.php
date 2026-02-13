@@ -7,6 +7,7 @@ use App\Providers\AppServiceProvider;
 use App\Providers\FulfillmentServiceProvider;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\AuthServiceProvider;
+use App\Providers\BroadcastServiceProvider;
 use App\Providers\EventServiceProvider;
 use App\Providers\HorizonServiceProvider;
 use App\Providers\QueueServiceProvider;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         FulfillmentServiceProvider::class,
         AdminPanelProvider::class,
         AuthServiceProvider::class,
+        BroadcastServiceProvider::class,
         EventServiceProvider::class,
         HorizonServiceProvider::class,
         QueueServiceProvider::class,

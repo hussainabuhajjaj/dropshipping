@@ -166,7 +166,7 @@ if (filter_var(env('PRODUCT_AUTO_HIDE_STALE_ENABLED', false), FILTER_VALIDATE_BO
 // Optional scheduled queue worker for environments without Supervisor/systemd.
 // Enable with: SCHEDULED_QUEUE_WORKER_ENABLED=true
 if (filter_var(env('SCHEDULED_QUEUE_WORKER_ENABLED', false), FILTER_VALIDATE_BOOL)) {
-    $scheduledQueues = env('SCHEDULED_QUEUE_WORKER_QUEUES', 'default,import,variants,media,translations,seo');
+    $scheduledQueues = env('SCHEDULED_QUEUE_WORKER_QUEUES', 'default,import,variants,media,translations,seo,pricing,support');
 
     Schedule::command("queue:work --once --queue={$scheduledQueues} --tries=3 --timeout=120 --sleep=0")
         ->everyTenSeconds()

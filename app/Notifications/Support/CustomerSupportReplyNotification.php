@@ -21,6 +21,7 @@ class CustomerSupportReplyNotification extends Notification implements ShouldQue
         private readonly SupportConversation $conversation,
         private readonly SupportMessage $message
     ) {
+        $this->onQueue((string) config('support_chat.queue', 'support'));
     }
 
     public function via(object $notifiable): array
@@ -50,6 +51,7 @@ class CustomerSupportReplyNotification extends Notification implements ShouldQue
             'conversation_uuid' => $this->conversation->uuid,
             'message_id' => $this->message->id,
             'message' => $this->message->body,
+            'chat_path' => '/chat',
         ];
     }
 
@@ -80,7 +82,7 @@ class CustomerSupportReplyNotification extends Notification implements ShouldQue
                 'type' => 'support_reply',
                 'conversation_uuid' => $this->conversation->uuid,
                 'message_id' => $this->message->id,
+                'chat_path' => '/chat',
             ]);
     }
 }
-

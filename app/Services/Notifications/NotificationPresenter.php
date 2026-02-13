@@ -72,6 +72,16 @@ class NotificationPresenter
         if (str_contains($type, 'ReviewRequestNotification')) {
             return 'Review your purchase';
         }
+        if (($data['type'] ?? null) === 'support_conversation_alert' || str_contains($type, 'AdminSupportConversationAlert')) {
+            $conversationId = (int) ($data['conversation_id'] ?? 0);
+
+            return $conversationId > 0
+                ? "Support conversation #{$conversationId} needs attention"
+                : 'Support conversation needs attention';
+        }
+        if (($data['type'] ?? null) === 'support_escalation_digest' || str_contains($type, 'SupportEscalationDigestNotification')) {
+            return 'Support SLA digest';
+        }
 
         return $data['title'] ?? 'Notification';
     }
@@ -134,6 +144,28 @@ class NotificationPresenter
         if (str_contains($type, 'ReviewRequestNotification')) {
             $product = $data['product_name'] ?? null;
             return $product ? "How was your {$product}?" : 'Tell us about your purchase.';
+        }
+        if (($data['type'] ?? null) === 'support_conversation_alert' || str_contains($type, 'AdminSupportConversationAlert')) {
+            $reason = trim((string) ($data['reason'] ?? ''));
+            $status = trim((string) ($data['status'] ?? ''));
+            $parts = array_filter([
+                $reason !== '' ? $reason : null,
+                $status !== '' ? 'Status: ' . $status : null,
+            ]);
+
+            return $parts !== [] ? implode(' · ', $parts) : 'A support conversation requires an agent reply.';
+        }
+        if (($data['type'] ?? null) === 'support_escalation_digest' || str_contains($type, 'SupportEscalationDigestNotification')) {
+            $summary = is_array($data['summary'] ?? null) ? $data['summary'] : [];
+            $overdueCount = (int) ($summary['overdue_count'] ?? 0);
+            $oldestMinutes = (int) ($summary['oldest_wait_minutes'] ?? 0);
+
+            $parts = array_filter([
+                $overdueCount > 0 ? "Overdue: {$overdueCount}" : null,
+                $oldestMinutes > 0 ? "Oldest wait: {$oldestMinutes} min" : null,
+            ]);
+
+            return $parts !== [] ? implode(' · ', $parts) : 'Support escalation digest generated.';
         }
 
         return $data['body'] ?? 'You have a new notification.';
