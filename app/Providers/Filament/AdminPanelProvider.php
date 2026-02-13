@@ -35,6 +35,7 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName(env('APP_NAME' ).' Admin')
             ->favicon(asset('favicon.ico'))
+            ->profile()
             ->colors([
                 'primary' => Color::Slate,
             ])

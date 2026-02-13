@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\Filament\AdminPanelNotification;
+use App\Filament\Livewire\AdminDatabaseNotifications;
 use Filament\Notifications\Notification as FilamentNotification;
 use App\Models\Product;
 use App\Models\User;
@@ -71,6 +72,8 @@ class AppServiceProvider extends ServiceProvider
                 => \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class,
             'app.filament.resources.product-resource.widgets.product-count-widget'
                 => \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class,
+            'app.filament.livewire.admin-database-notifications'
+                => AdminDatabaseNotifications::class,
         ];
 
         foreach ($aliases as $alias => $class) {

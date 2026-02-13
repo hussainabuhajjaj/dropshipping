@@ -12,13 +12,21 @@ class NotificationPresenter
     {
         $data = is_array($notification->data ?? null) ? $notification->data : [];
         $type = $notification->type;
+        $actionUrl = $data['action_url'] ?? $data['tracking_url'] ?? $data['order_url'] ?? $data['admin_url'] ?? null;
+
+        if (! $actionUrl && (($data['type'] ?? null) === 'support_conversation_alert' || str_contains($type, 'AdminSupportConversationAlert'))) {
+            $conversationId = (int) ($data['conversation_id'] ?? 0);
+            if ($conversationId > 0) {
+                $actionUrl = rtrim((string) config('app.url'), '/') . "/admin/support-conversations/{$conversationId}/edit";
+            }
+        }
 
         return [
             'id' => $notification->id,
             'type' => $type,
             'title' => $data['title'] ?? $this->notificationTitle($type, $data),
             'body' => $data['body'] ?? $this->notificationBody($type, $data),
-            'action_url' => $data['action_url'] ?? $data['tracking_url'] ?? $data['order_url'] ?? $data['admin_url'] ?? null,
+            'action_url' => $actionUrl,
             'action_label' => $data['action_label'] ?? null,
             'read_at' => $notification->read_at,
             'created_at' => $notification->created_at,

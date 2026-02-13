@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Livewire;
 
 use App\Services\Notifications\NotificationPresenter;
+use Filament\Actions\Action;
 use Filament\Notifications\Livewire\DatabaseNotifications;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
@@ -48,6 +49,16 @@ class AdminDatabaseNotifications extends DatabaseNotifications
 
         if ($body !== '') {
             $filamentNotification->body(Str::limit($body, 300));
+        }
+
+        $actionUrl = trim((string) ($formatted['action_url'] ?? ''));
+        if ($actionUrl !== '') {
+            $filamentNotification->actions([
+                Action::make('open')
+                    ->label((string) ($formatted['action_label'] ?? 'Open'))
+                    ->url($actionUrl, shouldOpenInNewTab: true)
+                    ->button(),
+            ]);
         }
 
         return $filamentNotification;
