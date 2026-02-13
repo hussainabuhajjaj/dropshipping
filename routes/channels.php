@@ -23,6 +23,9 @@ Broadcast::channel('support.admin', function ($user): bool {
         return false;
     }
 
+    if (method_exists($user, 'isSupportAgent')) {
+        return (bool) $user->isSupportAgent();
+    }
+
     return in_array((string) $user->role, ['admin', 'staff'], true);
 });
-

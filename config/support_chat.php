@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 return [
     'queue' => env('SUPPORT_CHAT_QUEUE', 'support'),
+    'ai_only' => (bool) env('SUPPORT_CHAT_AI_ONLY', true),
     'attachments' => [
         'disk' => env('SUPPORT_CHAT_ATTACHMENT_DISK', 'public'),
         'max_kb' => (int) env('SUPPORT_CHAT_ATTACHMENT_MAX_KB', 10240),

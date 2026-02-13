@@ -86,6 +86,10 @@ class ChatController extends ApiController
             return $this->notFound('Support conversation not found.');
         }
 
+        if ($this->chatService->requiresNewSession($conversation)) {
+            return $this->sessionClosedResponse($conversation);
+        }
+
         $result = $this->chatService->replyToCustomer(
             $conversation,
             $customer,
@@ -122,16 +126,22 @@ class ChatController extends ApiController
             return $this->notFound('Support conversation not found.');
         }
 
+        if ($this->chatService->requiresNewSession($conversation)) {
+            return $this->sessionClosedResponse($conversation);
+        }
+
         $result = $this->chatService->forwardToHuman(
             $conversation,
             $customer,
             (string) $validated['message']
         );
 
+        $freshConversation = $conversation->fresh();
+
         return $this->success([
             'session_id' => $conversation->uuid,
-            'status' => $conversation->fresh()->status,
-            'agent_type' => 'human',
+            'status' => $freshConversation?->status,
+            'agent_type' => ($freshConversation?->active_agent ?? 'ai') === 'human' ? 'human' : 'ai',
             'ack' => $result['ack'],
             'messages' => SupportMessageResource::collection(collect($result['messages']))->resolve(),
         ]);
@@ -157,6 +167,10 @@ class ChatController extends ApiController
 
         if (! $conversation) {
             return $this->notFound('Support conversation not found.');
+        }
+
+        if ($this->chatService->requiresNewSession($conversation)) {
+            return $this->sessionClosedResponse($conversation);
         }
 
         $messages = $this->chatService->getMessages(
@@ -201,6 +215,10 @@ class ChatController extends ApiController
             return $this->notFound('Support conversation not found.');
         }
 
+        if ($this->chatService->requiresNewSession($conversation)) {
+            return $this->sessionClosedResponse($conversation);
+        }
+
         $file = $request->file('file');
         if (! $file) {
             return $this->error(
@@ -219,10 +237,12 @@ class ChatController extends ApiController
             isset($validated['message']) ? (string) $validated['message'] : null
         );
 
+        $freshConversation = $conversation->fresh();
+
         return $this->success([
             'session_id' => $conversation->uuid,
-            'status' => $conversation->fresh()->status,
-            'agent_type' => 'human',
+            'status' => $freshConversation?->status,
+            'agent_type' => ($freshConversation?->active_agent ?? 'ai') === 'human' ? 'human' : 'ai',
             'ack' => $result['ack'],
             'messages' => SupportMessageResource::collection(collect($result['messages']))->resolve(),
         ]);
@@ -236,5 +256,19 @@ class ChatController extends ApiController
         }
 
         return 'mimetypes:' . implode(',', $allowed);
+    }
+
+    private function sessionClosedResponse(SupportConversation $conversation): JsonResponse
+    {
+        return $this->error(
+            'This support session has been resolved. Start a new support session for a new issue.',
+            \Symfony\Component\HttpFoundation\Response::HTTP_CONFLICT,
+            ['session_id' => ['Session closed']],
+            [
+                'session_id' => $conversation->uuid,
+                'session_status' => $conversation->status,
+                'requires_new_session' => true,
+            ]
+        );
     }
 }

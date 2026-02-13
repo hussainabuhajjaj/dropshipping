@@ -1,6 +1,7 @@
 import { getAuthToken } from '@/src/api/authToken';
 import { supportChatRealtime } from '@/src/api/config';
 import type { ServerChatMessage } from '@/src/state/chatStore';
+import { NativeModules } from 'react-native';
 
 type PusherModule = {
   default?: any;
@@ -13,11 +14,24 @@ let channel: any = null;
 let connectedConversationUuid: string | null = null;
 let messageCallback: RealtimeCallback | null = null;
 
+const isSubscribed = (value: any): boolean => Boolean(value?.subscribed);
+
 const loadPusherModule = (): PusherModule | null => {
+  const nativeModules = NativeModules as Record<string, unknown> | undefined;
+  if (!nativeModules?.RNCNetInfo) {
+    console.warn(
+      'Support chat realtime disabled: @react-native-community/netinfo native module is missing. Rebuild the development client to enable realtime.'
+    );
+
+    return null;
+  }
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('pusher-js/react-native') as PusherModule;
-  } catch {
+  } catch (error) {
+    console.warn('Support chat realtime disabled: failed to load pusher react-native module.', error);
+
     return null;
   }
 };
@@ -61,7 +75,7 @@ export async function connectToSupportRealtime(
     return false;
   }
 
-  if (connectedConversationUuid === conversationUuid && channel) {
+  if (connectedConversationUuid === conversationUuid && channel && isSubscribed(channel)) {
     messageCallback = onMessage;
 
     return true;
@@ -76,10 +90,12 @@ export async function connectToSupportRealtime(
     forceTLS: supportChatRealtime.forceTLS,
     enabledTransports: ['ws', 'wss'],
     authEndpoint: supportChatRealtime.authEndpoint,
+    authTransport: 'ajax',
     auth: {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
       },
     },
   };
@@ -113,8 +129,14 @@ export async function connectToSupportRealtime(
       resolve(value);
     };
 
+    channel.bind('pusher:subscription_error', (error: unknown) => {
+      console.warn('Support chat realtime subscription error', error);
+      finish(false);
+    });
     channel.bind('pusher:subscription_succeeded', () => finish(true));
-    channel.bind('pusher:subscription_error', () => finish(false));
+    pusher.connection.bind('error', (error: unknown) => {
+      console.warn('Support chat realtime connection error', error);
+    });
     setTimeout(() => finish(false), 4000);
   });
 }

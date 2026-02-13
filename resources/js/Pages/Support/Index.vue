@@ -19,7 +19,7 @@
               {{ statusLabel }}
             </span>
             <button
-              v-if="isLoggedIn && agentType !== 'human'"
+              v-if="isLoggedIn && !isAiOnly && agentType !== 'human'"
               type="button"
               class="btn-ghost text-xs"
               @click="requestHumanAgent"
@@ -58,6 +58,27 @@
                       ? 'border border-amber-200 bg-amber-50 text-amber-900'
                       : 'border border-slate-200 bg-white text-slate-800'"
                 >
+                  <template v-if="message.messageType === 'image' && message.metadata?.attachment_url">
+                    <a :href="message.metadata.attachment_url" target="_blank" rel="noopener noreferrer" class="mb-2 block">
+                      <img
+                        :src="message.metadata.attachment_url"
+                        :alt="message.metadata?.attachment_name || 'Attachment'"
+                        class="max-h-52 w-auto max-w-full rounded-xl border border-black/10 object-cover"
+                      >
+                    </a>
+                  </template>
+
+                  <template v-if="message.messageType === 'file' && message.metadata?.attachment_url">
+                    <a
+                      :href="message.metadata.attachment_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="mb-2 inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    >
+                      <span>{{ message.metadata?.attachment_name || t('Open attachment') }}</span>
+                    </a>
+                  </template>
+
                   {{ message.body }}
                 </div>
               </div>
@@ -83,6 +104,21 @@
                 :placeholder="t('Type your message')"
                 @keydown.enter.prevent="sendChatMessage()"
               >
+              <input
+                ref="attachmentInputRef"
+                type="file"
+                class="hidden"
+                accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
+                @change="handleAttachmentSelected"
+              >
+              <button
+                type="button"
+                class="btn-ghost h-11 px-4"
+                :disabled="sending"
+                @click="openAttachmentPicker"
+              >
+                {{ sending ? t('Uploading...') : t('Attach') }}
+              </button>
               <button
                 type="button"
                 class="btn-primary h-11 px-5"
@@ -144,6 +180,7 @@ const supportPhone = page.props.site?.support_phone ?? null
 const supportHours = page.props.site?.support_hours ?? 'Mon-Sat, 9:00-18:00 GMT'
 
 const isLoggedIn = computed(() => Boolean(page.props.auth?.user))
+const isAiOnly = computed(() => Boolean(page.props.supportChatRealtime?.ai_only ?? true))
 const quickIssues = [
   'Track my order',
   'Payment problem',
@@ -159,6 +196,11 @@ const inputMessage = ref('')
 const sending = ref(false)
 const chatError = ref('')
 const chatListRef = ref(null)
+const attachmentInputRef = ref(null)
+const realtimeConnected = ref(false)
+const realtimeChannel = ref(null)
+const realtimeClient = ref(null)
+const realtimeScriptLoading = ref(false)
 
 let pollTimer = null
 
@@ -185,7 +227,31 @@ function mapServerMessage(message) {
     senderType: String(message.sender_type ?? 'system'),
     body: String(message.body ?? ''),
     createdAt: message.created_at ?? null,
+    messageType: String(message.message_type ?? 'text'),
+    metadata: message.metadata && typeof message.metadata === 'object' ? message.metadata : null,
   }
+}
+
+function isSessionClosedError(error) {
+  const status = Number(error?.response?.status ?? 0)
+  if (status !== 409) return false
+
+  const payload = error?.response?.data ?? {}
+  if (payload?.data?.requires_new_session) return true
+
+  return Array.isArray(payload?.errors?.session_id) && payload.errors.session_id.includes('Session closed')
+}
+
+async function restartResolvedSession() {
+  disconnectRealtime()
+  stopPolling()
+  sessionId.value = null
+  agentType.value = isAiOnly.value ? 'ai' : 'auto'
+  chatStatus.value = 'idle'
+  chatMessages.value = []
+  await startChat('auto')
+
+  return Boolean(sessionId.value)
 }
 
 function mergeMessages(messages) {
@@ -226,10 +292,14 @@ function stopPolling() {
 }
 
 function startPolling() {
+  startPollingWithInterval(5000)
+}
+
+function startPollingWithInterval(intervalMs = 5000) {
   stopPolling()
   pollTimer = setInterval(() => {
     pollMessages()
-  }, 5000)
+  }, intervalMs)
 }
 
 async function startChat(agent = 'auto') {
@@ -245,14 +315,16 @@ async function startChat(agent = 'auto') {
     agentType.value = payload.agent_type ?? 'ai'
     chatStatus.value = 'connected'
     mergeMessages(payload.messages ?? [])
-    startPolling()
+    await initializeRealtimeAndPolling()
   } catch (error) {
     chatStatus.value = 'idle'
     chatError.value = error?.response?.data?.message ?? t('Unable to start support chat right now.')
+    realtimeConnected.value = false
+    startPollingWithInterval(5000)
   }
 }
 
-async function sendChatMessage(quickText = null) {
+async function sendChatMessage(quickText = null, retryCount = 0) {
   const text = (quickText ?? inputMessage.value).trim()
   if (!text || sending.value || !isLoggedIn.value) return
 
@@ -282,13 +354,98 @@ async function sendChatMessage(quickText = null) {
     chatStatus.value = 'connected'
     mergeMessages(payload.messages ?? [])
   } catch (error) {
+    if (retryCount < 1 && isSessionClosedError(error)) {
+      chatError.value = t('Your previous support session was resolved. Starting a new session.')
+      const restarted = await restartResolvedSession()
+      if (restarted) {
+        await sendChatMessage(text, retryCount + 1)
+        return
+      }
+    }
+
     chatError.value = error?.response?.data?.message ?? t('Unable to send your message right now.')
   } finally {
     sending.value = false
   }
 }
 
+function openAttachmentPicker() {
+  if (sending.value) return
+  attachmentInputRef.value?.click()
+}
+
+async function uploadAttachment(file, caption = '', retryCount = 0) {
+  const formData = new FormData()
+  formData.append('session_id', sessionId.value)
+  if (caption.trim()) {
+    formData.append('message', caption.trim())
+  }
+  formData.append('file', file)
+
+  try {
+    const response = await axios.post('/support/chat/attachment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+
+    const payload = normalizePayload(response)
+    agentType.value = payload.agent_type ?? agentType.value
+    mergeMessages(payload.messages ?? [])
+    return true
+  } catch (error) {
+    if (retryCount < 1 && isSessionClosedError(error)) {
+      chatError.value = t('Your previous support session was resolved. Starting a new session.')
+      const restarted = await restartResolvedSession()
+      if (restarted) {
+        return uploadAttachment(file, caption, retryCount + 1)
+      }
+    }
+
+    chatError.value = error?.response?.data?.message ?? t('Unable to upload attachment right now.')
+    return false
+  }
+}
+
+async function handleAttachmentSelected(event) {
+  const input = event?.target
+  const file = input?.files?.[0]
+  if (!file || sending.value || !isLoggedIn.value) {
+    if (input) input.value = ''
+    return
+  }
+
+  if (!sessionId.value) {
+    await startChat('human')
+  }
+
+  if (!sessionId.value) {
+    chatError.value = t('Unable to create support session.')
+    if (input) input.value = ''
+    return
+  }
+
+  sending.value = true
+  chatError.value = ''
+
+  try {
+    const caption = inputMessage.value
+    const sent = await uploadAttachment(file, caption)
+    if (sent && caption.trim()) {
+      inputMessage.value = ''
+    }
+  } finally {
+    sending.value = false
+    if (input) input.value = ''
+  }
+}
+
 async function requestHumanAgent() {
+  if (isAiOnly.value) {
+    chatError.value = t('AI support is enabled for this store.')
+    return
+  }
+
   if (!sessionId.value) {
     await startChat('human')
     return
@@ -300,9 +457,18 @@ async function requestHumanAgent() {
       message: t('I need a human support agent.'),
     })
     const payload = normalizePayload(response)
-    agentType.value = 'human'
+    agentType.value = payload.agent_type ?? 'human'
     mergeMessages(payload.messages ?? [])
   } catch (error) {
+    if (isSessionClosedError(error)) {
+      chatError.value = t('Your previous support session was resolved. Starting a new session.')
+      const restarted = await restartResolvedSession()
+      if (restarted) {
+        await requestHumanAgent()
+        return
+      }
+    }
+
     chatError.value = error?.response?.data?.message ?? t('Unable to request a human agent now.')
   }
 }
@@ -321,14 +487,139 @@ async function pollMessages() {
     const payload = normalizePayload(response)
     agentType.value = payload.agent_type ?? agentType.value
     mergeMessages(payload.messages ?? [])
-  } catch {
-    // silent polling failure to avoid noisy UI
+  } catch (error) {
+    if (isSessionClosedError(error)) {
+      await restartResolvedSession()
+    }
   }
+}
+
+function supportRealtimeConfig() {
+  const cfg = page.props.supportChatRealtime ?? {}
+  return {
+    enabled: Boolean(cfg.enabled),
+    driver: String(cfg.driver ?? ''),
+    key: String(cfg.key ?? ''),
+    cluster: String(cfg.cluster ?? ''),
+    wsHost: String(cfg.ws_host ?? '').trim(),
+    wsPort: Number(cfg.ws_port ?? 443),
+    wssPort: Number(cfg.wss_port ?? 443),
+    forceTLS: Boolean(cfg.force_tls ?? true),
+  }
+}
+
+async function ensurePusherLoaded() {
+  if (window.Pusher) return true
+  if (realtimeScriptLoading.value) return false
+
+  realtimeScriptLoading.value = true
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/pusher-js@8.4.0/dist/web/pusher.min.js'
+      script.async = true
+      script.onload = () => resolve(true)
+      script.onerror = () => reject(new Error('Failed to load Pusher client'))
+      document.head.appendChild(script)
+    })
+
+    return Boolean(window.Pusher)
+  } catch {
+    return false
+  } finally {
+    realtimeScriptLoading.value = false
+  }
+}
+
+function disconnectRealtime() {
+  try {
+    if (realtimeChannel.value && sessionId.value) {
+      realtimeClient.value?.unsubscribe(`private-support.customer.${sessionId.value}`)
+    }
+  } catch {
+    // noop
+  }
+
+  try {
+    realtimeClient.value?.disconnect?.()
+  } catch {
+    // noop
+  }
+
+  realtimeChannel.value = null
+  realtimeClient.value = null
+  realtimeConnected.value = false
+}
+
+async function connectRealtime() {
+  disconnectRealtime()
+
+  const config = supportRealtimeConfig()
+  if (!config.enabled || config.driver !== 'pusher' || !sessionId.value || !config.key) {
+    return false
+  }
+
+  const loaded = await ensurePusherLoaded()
+  if (!loaded || !window.Pusher) {
+    return false
+  }
+
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
+  const options = {
+    cluster: config.cluster || undefined,
+    wsHost: config.wsHost || undefined,
+    wsPort: Number.isFinite(config.wsPort) ? config.wsPort : 443,
+    wssPort: Number.isFinite(config.wssPort) ? config.wssPort : 443,
+    forceTLS: config.forceTLS,
+    enabledTransports: ['ws', 'wss'],
+    channelAuthorization: {
+      endpoint: '/broadcasting/auth',
+      transport: 'ajax',
+      headers: csrf ? { 'X-CSRF-TOKEN': csrf } : {},
+    },
+  }
+
+  realtimeClient.value = new window.Pusher(config.key, options)
+  const channelName = `private-support.customer.${sessionId.value}`
+  realtimeChannel.value = realtimeClient.value.subscribe(channelName)
+
+  realtimeChannel.value.bind('support.message.created', (payload) => {
+    if (payload?.conversation_uuid !== sessionId.value) return
+    if (payload?.message && typeof payload.message === 'object') {
+      mergeMessages([payload.message])
+    }
+  })
+
+  const connected = await new Promise((resolve) => {
+    let done = false
+    const finish = (ok) => {
+      if (done) return
+      done = true
+      resolve(ok)
+    }
+
+    realtimeChannel.value.bind('pusher:subscription_succeeded', () => finish(true))
+    realtimeChannel.value.bind('pusher:subscription_error', () => finish(false))
+    setTimeout(() => finish(false), 4000)
+  })
+
+  realtimeConnected.value = Boolean(connected)
+  if (!realtimeConnected.value) {
+    disconnectRealtime()
+  }
+
+  return realtimeConnected.value
+}
+
+async function initializeRealtimeAndPolling() {
+  const connected = await connectRealtime()
+  startPollingWithInterval(connected ? 15000 : 5000)
 }
 
 watch(isLoggedIn, (value) => {
   if (!value) {
     stopPolling()
+    disconnectRealtime()
     sessionId.value = null
     chatMessages.value = []
   }
@@ -342,5 +633,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopPolling()
+  disconnectRealtime()
 })
 </script>
