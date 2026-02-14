@@ -33,6 +33,7 @@ class CjProductImportService
     public function __construct(
         private readonly CJDropshippingClient  $client,
         private readonly CjProductMediaService $mediaService,
+        private readonly ?CjCategoryResolver $categoryResolver = null,
     )
     {
     }
@@ -1292,27 +1293,12 @@ class CjProductImportService
 
     private function resolveCategoryFromPayload(array $productData): ?Category
     {
-        // Categories are pre-synced from CJ; never create categories here.
-        // Prefer the deepest CJ category id (level 3), then fall back to level 2/1 ids.
-        $candidateIds = [
-            (string)($productData['categoryId'] ?? ''),
-            (string)($productData['twoCategoryId'] ?? ''),
-            (string)($productData['oneCategoryId'] ?? ''),
-        ];
+        return $this->categoryResolver()->resolveFromPayload($productData, createMissing: true);
+    }
 
-        foreach ($candidateIds as $cjId) {
-            $cjId = trim($cjId);
-            if ($cjId === '') {
-                continue;
-            }
-
-            $category = Category::query()->where('cj_id', $cjId)->first();
-            if ($category) {
-                return $category;
-            }
-        }
-
-        return null;
+    private function categoryResolver(): CjCategoryResolver
+    {
+        return $this->categoryResolver ?? app(CjCategoryResolver::class);
     }
 
     private function diffFields(Product $product, array $incoming): array
