@@ -99,7 +99,7 @@
                     </label>
                     <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                         <x-filament::input.checkbox wire:model.defer="sendPush" />
-                        Push (broadcast)
+                        Push (Expo mobile)
                     </label>
                     <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                         <x-filament::input.checkbox wire:model.defer="sendMail" />

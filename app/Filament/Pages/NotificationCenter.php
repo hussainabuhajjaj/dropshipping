@@ -16,6 +16,7 @@ use App\Filament\Pages\BasePage;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use UnitEnum;
+use YieldStudio\LaravelExpoNotifier\Models\ExpoToken;
 
 class NotificationCenter extends BasePage
 {
@@ -87,10 +88,27 @@ class NotificationCenter extends BasePage
             NotificationFacade::send($chunk, $notification);
         });
 
+        $recipientCount = $recipients->count();
+        $customerIds = $recipients
+            ->filter(fn ($recipient): bool => $recipient instanceof Customer)
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+        $pushTokenCustomers = $this->sendPush && $customerIds !== []
+            ? ExpoToken::query()
+                ->where('owner_type', app(Customer::class)->getMorphClass())
+                ->whereIn('owner_id', $customerIds)
+                ->distinct('owner_id')
+                ->count('owner_id')
+            : 0;
+
         $this->reset(['notificationTitle', 'body', 'actionUrl', 'actionLabel', 'recipientEmails']);
 
         Notification::make()
             ->title('Notification sent')
+            ->body("Queued for {$recipientCount} recipients" . ($this->sendPush ? " · Push-capable customers: {$pushTokenCustomers}" : '') . '.')
             ->success()
             ->send();
     }
@@ -107,7 +125,7 @@ class NotificationCenter extends BasePage
         }
 
         if ($this->sendPush) {
-            $channels[] = 'broadcast';
+            $channels[] = 'push';
         }
 
         if ($this->sendMail) {
@@ -205,4 +223,3 @@ class NotificationCenter extends BasePage
             ->send();
     }
 }
-

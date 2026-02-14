@@ -28,6 +28,13 @@ const loadNotificationsModule = () => {
   }
 };
 
+const debug = (message: string, context?: Record<string, unknown>) => {
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.warn(`[pushTokens] ${message}`, context ?? {});
+  }
+};
+
 export const getStoredExpoToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(EXPO_TOKEN_KEY);
@@ -55,16 +62,29 @@ const storeExpoToken = async (token: string, synced: boolean) => {
 
 export const syncExpoPushToken = async (): Promise<string | null> => {
   try {
-    if (Platform.OS === 'web') return null;
-    if (!Device.isDevice) return null;
-    if (isExpoGo()) return null;
+    if (Platform.OS === 'web') {
+      debug('skipped on web');
+      return null;
+    }
+    if (!Device.isDevice) {
+      debug('requires physical device');
+      return null;
+    }
+    if (isExpoGo()) {
+      debug('Expo Go detected - use development/production build for push token sync');
+      return null;
+    }
 
     const Notifications = loadNotificationsModule();
-    if (!Notifications) return null;
+    if (!Notifications) {
+      debug('expo-notifications module not available');
+      return null;
+    }
     const permission = await Notifications.getPermissionsAsync();
     if (!permission.granted) {
       const request = await Notifications.requestPermissionsAsync();
       if (!request.granted) {
+        debug('permission denied by user');
         return null;
       }
     }
@@ -74,7 +94,10 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
       ? await Notifications.getExpoPushTokenAsync({ projectId })
       : await Notifications.getExpoPushTokenAsync();
     const token = response?.data ?? null;
-    if (!token) return null;
+    if (!token) {
+      debug('no token returned by Expo');
+      return null;
+    }
 
     const [stored, synced] = await Promise.all([getStoredExpoToken(), isStoredTokenSynced()]);
     if (stored === token && synced) {
@@ -84,21 +107,27 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
     await storeExpoToken(token, false);
     const registered = await registerExpoToken(token)
       .then(() => true)
-      .catch(() => false);
+      .catch((error) => {
+        debug('registerExpoToken failed', {
+          message: error?.message,
+          status: error?.status,
+          url: error?.url,
+        });
+        return false;
+      });
     if (registered) {
       await storeExpoToken(token, true);
     }
     return token;
   } catch {
+    debug('syncExpoPushToken unexpected error');
     return null;
   }
 };
 
 export const syncExpoPushTokenIfPermitted = async (): Promise<string | null> => {
   try {
-    if (Platform.OS === 'web') return null;
-    if (!Device.isDevice) return null;
-    if (isExpoGo()) return null;
+    if (Platform.OS === 'web' || !Device.isDevice || isExpoGo()) return null;
 
     const Notifications = loadNotificationsModule();
     if (!Notifications) return null;
@@ -120,7 +149,14 @@ export const syncExpoPushTokenIfPermitted = async (): Promise<string | null> => 
     await storeExpoToken(token, false);
     const registered = await registerExpoToken(token)
       .then(() => true)
-      .catch(() => false);
+      .catch((error) => {
+        debug('registerExpoToken (permitted) failed', {
+          message: error?.message,
+          status: error?.status,
+          url: error?.url,
+        });
+        return false;
+      });
     if (registered) {
       await storeExpoToken(token, true);
     }
