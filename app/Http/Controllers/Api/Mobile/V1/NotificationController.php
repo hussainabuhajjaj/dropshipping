@@ -83,6 +83,10 @@ class NotificationController extends ApiController
         $customer = $request->user();
 
         if (! $customer instanceof Customer) {
+            logger()->warning('Mobile Expo token register rejected: unauthenticated customer', [
+                'user_type' => is_object($customer) ? get_class($customer) : gettype($customer),
+                'has_bearer_token' => filled($request->bearerToken()),
+            ]);
             return $this->unauthorized();
         }
 
@@ -119,6 +123,10 @@ class NotificationController extends ApiController
         $customer = $request->user();
 
         if (! $customer instanceof Customer) {
+            logger()->warning('Mobile Expo token delete rejected: unauthenticated customer', [
+                'user_type' => is_object($customer) ? get_class($customer) : gettype($customer),
+                'has_bearer_token' => filled($request->bearerToken()),
+            ]);
             return $this->unauthorized();
         }
 

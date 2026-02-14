@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+import { meRequest } from '@/src/api/auth';
 import { registerExpoToken, removeExpoToken } from '@/src/api/notifications';
 
 const EXPO_TOKEN_KEY = 'push.expo.token';
@@ -142,9 +143,7 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
         const url = typeof error?.url === 'string' ? error.url : undefined;
         lastPushSyncFailureContext = { status, message, url };
 
-        if (status === 401 || status === 403) {
-          lastPushSyncFailureReason = 'auth_required';
-        } else if (status === 0 || /network request failed/i.test(message ?? '')) {
+        if (status === 0 || /network request failed/i.test(message ?? '')) {
           lastPushSyncFailureReason = 'network';
         } else {
           lastPushSyncFailureReason = 'register_failed';
@@ -159,6 +158,19 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
       });
 
     if (!registered) {
+      if (lastPushSyncFailureReason === 'register_failed') {
+        const isAuthenticated = await meRequest()
+          .then(() => true)
+          .catch((error) => {
+            const status = typeof error?.status === 'number' ? error.status : undefined;
+            return status !== 401 && status !== 403;
+          });
+
+        if (!isAuthenticated) {
+          lastPushSyncFailureReason = 'auth_required';
+        }
+      }
+
       return null;
     }
 

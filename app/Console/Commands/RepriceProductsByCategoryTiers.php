@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Products\Services\ProductActivationValidator;
 use App\Infrastructure\Fulfillment\Clients\CJ\CjAlertService;
 use App\Jobs\GenerateProductCompareAtJob;
 use App\Models\Product;
@@ -16,6 +17,8 @@ class RepriceProductsByCategoryTiers extends Command
         {--chunk=500 : Chunk size}
         {--without-variants : Do not update variant prices}
         {--without-compare-at : Do not queue compare-at refresh}
+        {--without-activation : Do not activate inactive products that pass validation}
+        {--min-quality-score=60 : Minimum quality score required for activation}
         {--dry-run : Preview only, do not update records}';
 
     protected $description = 'Apply category-based margin tiers and optionally queue compare-at regeneration.';
@@ -31,11 +34,17 @@ class RepriceProductsByCategoryTiers extends Command
         $chunk = max(1, (int) $this->option('chunk'));
         $applyVariants = ! (bool) $this->option('without-variants');
         $queueCompareAt = ! (bool) $this->option('without-compare-at');
+        $activateIfValid = ! (bool) $this->option('without-activation');
+        $minQualityScore = max(0, min(100, (int) $this->option('min-quality-score')));
         $dryRun = (bool) $this->option('dry-run');
+        $activationValidator = app(ProductActivationValidator::class);
 
         $totalUpdatedProducts = 0;
         $totalUpdatedVariants = 0;
         $totalComparedQueued = 0;
+        $totalActivated = 0;
+        $totalActivationValidationSkipped = 0;
+        $totalActivationQualitySkipped = 0;
         $totalScanned = 0;
         $tierSummary = [];
 
@@ -53,6 +62,9 @@ class RepriceProductsByCategoryTiers extends Command
             $updatedProducts = 0;
             $updatedVariants = 0;
             $compareAtQueued = 0;
+            $activated = 0;
+            $activationValidationSkipped = 0;
+            $activationQualitySkipped = 0;
             $scanned = 0;
 
             if ($candidates === 0) {
@@ -63,6 +75,8 @@ class RepriceProductsByCategoryTiers extends Command
                     'products' => 0,
                     'variants' => 0,
                     'compare_at' => 0,
+                    'activated' => 0,
+                    'activation_skipped' => 0,
                 ];
                 continue;
             }
@@ -71,11 +85,17 @@ class RepriceProductsByCategoryTiers extends Command
                 $dryRun,
                 $applyVariants,
                 $queueCompareAt,
+                $activateIfValid,
+                $minQualityScore,
                 $factorSql,
                 &$scanned,
                 &$updatedProducts,
                 &$updatedVariants,
-                &$compareAtQueued
+                &$compareAtQueued,
+                &$activated,
+                &$activationValidationSkipped,
+                &$activationQualitySkipped,
+                $activationValidator
             ): void {
                 $ids = $rows->pluck('id')->all();
                 $scanned += count($ids);
@@ -117,12 +137,53 @@ class RepriceProductsByCategoryTiers extends Command
                         $compareAtQueued++;
                     }
                 }
+
+                if ($activateIfValid) {
+                    $productsToValidate = Product::query()
+                        ->whereIn('id', $affectedIds)
+                        ->with([
+                            'images:id,product_id',
+                            'variants:id,product_id,price,cost_price',
+                        ])
+                        ->withQualityScore()
+                        ->get();
+
+                    foreach ($productsToValidate as $product) {
+                        if ($product->is_active) {
+                            continue;
+                        }
+
+                        $qualityScore = is_numeric($product->quality_score ?? null)
+                            ? (float) $product->quality_score
+                            : 0.0;
+
+                        if ($qualityScore < $minQualityScore) {
+                            $activationQualitySkipped++;
+                            continue;
+                        }
+
+                        $errors = $activationValidator->errorsForActivation($product);
+                        if ($errors !== []) {
+                            $activationValidationSkipped++;
+                            continue;
+                        }
+
+                        $product->update([
+                            'is_active' => true,
+                            'status' => 'active',
+                        ]);
+                        $activated++;
+                    }
+                }
             }, 'id');
 
             $totalScanned += $scanned;
             $totalUpdatedProducts += $updatedProducts;
             $totalUpdatedVariants += $updatedVariants;
             $totalComparedQueued += $compareAtQueued;
+            $totalActivated += $activated;
+            $totalActivationValidationSkipped += $activationValidationSkipped;
+            $totalActivationQualitySkipped += $activationQualitySkipped;
 
             $tierSummary[] = [
                 'categories' => implode(',', $categoryIds),
@@ -131,11 +192,13 @@ class RepriceProductsByCategoryTiers extends Command
                 'products' => $updatedProducts,
                 'variants' => $updatedVariants,
                 'compare_at' => $compareAtQueued,
+                'activated' => $activated,
+                'activation_skipped' => $activationValidationSkipped + $activationQualitySkipped,
             ];
         }
 
         $this->table(
-            ['Categories', 'Margin', 'Scanned', 'Products Updated', 'Variants Updated', 'Compare-at Queued'],
+            ['Categories', 'Margin', 'Scanned', 'Products Updated', 'Variants Updated', 'Compare-at Queued', 'Activated', 'Activation Skipped'],
             array_map(static fn (array $row): array => [
                 $row['categories'],
                 $row['margin'],
@@ -143,6 +206,8 @@ class RepriceProductsByCategoryTiers extends Command
                 (string) $row['products'],
                 (string) $row['variants'],
                 (string) $row['compare_at'],
+                (string) $row['activated'],
+                (string) $row['activation_skipped'],
             ], $tierSummary)
         );
 
@@ -153,6 +218,10 @@ class RepriceProductsByCategoryTiers extends Command
             ['Total products updated', (string) $totalUpdatedProducts],
             ['Total variants updated', (string) $totalUpdatedVariants],
             ['Total compare-at queued', (string) $totalComparedQueued],
+            ['Total activated', (string) $totalActivated],
+            ['Activation skipped (quality)', (string) $totalActivationQualitySkipped],
+            ['Activation skipped (validation)', (string) $totalActivationValidationSkipped],
+            ['Min quality score', (string) $minQualityScore],
         ]);
 
         if (! $dryRun) {
@@ -161,6 +230,10 @@ class RepriceProductsByCategoryTiers extends Command
                 'products_updated' => $totalUpdatedProducts,
                 'variants_updated' => $totalUpdatedVariants,
                 'compare_at_queued' => $totalComparedQueued,
+                'activated' => $totalActivated,
+                'activation_skipped_quality' => $totalActivationQualitySkipped,
+                'activation_skipped_validation' => $totalActivationValidationSkipped,
+                'min_quality_score' => $minQualityScore,
                 'tiers' => $tierSummary,
             ]);
         }
