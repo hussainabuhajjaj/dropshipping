@@ -5,7 +5,7 @@ import { setApiCurrency, normalizeCurrency } from '@/src/api/currency';
 import { setApiLocale } from '@/src/api/locale';
 import type { PreferencesLookups, Preferences as ApiPreferences } from '@/src/types/preferences';
 import { useAuth } from '@/lib/authStore';
-import { clearExpoPushToken, syncExpoPushTokenIfPermitted } from '@/src/lib/pushTokens';
+import { clearExpoPushToken, primeExpoPushToken, syncExpoPushTokenIfPermitted } from '@/src/lib/pushTokens';
 
 export type ShippingAddress = {
   country: string;
@@ -312,7 +312,11 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
     lastPushSync.current = next;
 
     if (state.notifications.push) {
-      syncExpoPushTokenIfPermitted().catch(() => {});
+      if (status === 'authed') {
+        syncExpoPushTokenIfPermitted().catch(() => {});
+      } else {
+        primeExpoPushToken().catch(() => {});
+      }
       return;
     }
 

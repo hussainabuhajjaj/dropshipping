@@ -52,6 +52,11 @@ export default function SettingsScreen() {
   ];
 
   const accountItems: RowItem[] = [
+    {
+      label: t('Notifications', 'Notifications'),
+      value: state.notifications.push ? t('Push on', 'Push on') : t('Push off', 'Push off'),
+      onPress: () => router.push('/settings/full'),
+    },
     { label: t('Language', 'Language'), value: state.language, onPress: () => router.push('/preferences/language') },
     { label: t('About Simbazu', 'About Simbazu'), onPress: () => router.push('/about') },
   ];

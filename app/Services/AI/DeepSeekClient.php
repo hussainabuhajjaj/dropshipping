@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -13,7 +14,10 @@ class DeepSeekClient implements TranslationProvider
     private string $baseUrl;
     private string $model;
     private string $apiKey;
+    private int $connectTimeout;
     private int $timeout;
+    private int $retryTimes;
+    private int $retryDelayMs;
     private int $rateLimit = 60;
     private int $ratePeriod = 60;
 
@@ -23,7 +27,10 @@ class DeepSeekClient implements TranslationProvider
         $this->baseUrl = rtrim((string) ($config['base_url'] ?? 'https://api.deepseek.com'), '/');
         $this->model = (string) ($config['model'] ?? 'deepseek-chat');
         $this->apiKey = (string) ($config['key'] ?? '');
-        $this->timeout = (int) ($config['timeout'] ?? 20);
+        $this->connectTimeout = (int) ($config['connect_timeout'] ?? 10);
+        $this->timeout = (int) ($config['timeout'] ?? 45);
+        $this->retryTimes = max(0, (int) ($config['retry_times'] ?? 3));
+        $this->retryDelayMs = max(0, (int) ($config['retry_delay_ms'] ?? 500));
         // optional rate limit settings
         $this->rateLimit = (int) ($config['rate_limit'] ?? $this->rateLimit);
         $this->ratePeriod = (int) ($config['rate_limit_period'] ?? $this->ratePeriod);
@@ -79,14 +86,30 @@ class DeepSeekClient implements TranslationProvider
             }
         }
 
-        $response = Http::withToken($this->apiKey)
-            ->timeout($this->timeout)
-            ->retry(2, 100)
-            ->post("{$this->baseUrl}/v1/chat/completions", [
-                'model' => $this->model,
-                'temperature' => $temperature,
-                'messages' => $messages,
-            ]);
+        try {
+            $response = Http::withToken($this->apiKey)
+                ->connectTimeout($this->connectTimeout)
+                ->timeout($this->timeout)
+                ->retry($this->retryTimes, $this->retryDelayMs, function ($exception): bool {
+                    if ($exception instanceof ConnectionException) {
+                        return true;
+                    }
+
+                    if ($exception instanceof RequestException) {
+                        $status = $exception->response?->status();
+                        return in_array($status, [408, 425, 429, 500, 502, 503, 504], true);
+                    }
+
+                    return false;
+                })
+                ->post("{$this->baseUrl}/v1/chat/completions", [
+                    'model' => $this->model,
+                    'temperature' => $temperature,
+                    'messages' => $messages,
+                ]);
+        } catch (ConnectionException $exception) {
+            throw new RuntimeException('DeepSeek request failed: ' . $exception->getMessage(), 0, $exception);
+        }
 
         try {
             $response->throw();

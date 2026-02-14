@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadAuthToken, setAuthToken } from '@/src/api/authToken';
+import { meRequest } from '@/src/api/auth';
 import { clearExpoPushToken } from '@/src/lib/pushTokens';
 
 export type AuthUser = {
@@ -55,6 +56,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const user = rawUser ? (JSON.parse(rawUser) as AuthUser) : null;
 
       if (token) {
+        try {
+          const profile = await meRequest();
+          const fullName = `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim();
+          const hydratedUser: AuthUser = {
+            name: profile.name ?? (fullName || user?.name || 'Customer'),
+            email: profile.email ?? user?.email,
+            avatar: profile.avatar ?? user?.avatar ?? null,
+            phone: profile.phone ?? user?.phone ?? null,
+          };
+          AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(hydratedUser)).catch(() => {});
+          dispatch({ type: 'login', user: hydratedUser, token });
+          return;
+        } catch (error: any) {
+          if (error?.status === 401 || error?.status === 403) {
+            setAuthToken(null);
+            AsyncStorage.removeItem(AUTH_USER_KEY).catch(() => {});
+            dispatch({ type: 'logout' });
+            return;
+          }
+        }
+
         dispatch({ type: 'login', user: user ?? { name: 'Customer' }, token });
       } else {
         dispatch({ type: 'logout' });

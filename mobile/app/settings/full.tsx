@@ -8,12 +8,23 @@ import { usePreferences } from '@/src/store/preferencesStore';
 import { StatusDialog } from '@/src/overlays/StatusDialog';
 import { useTranslations } from '@/src/i18n/TranslationsProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { clearExpoPushToken, syncExpoPushToken } from '@/src/lib/pushTokens';
+import {
+  clearExpoPushToken,
+  getLastPushSyncFailureContext,
+  getLastPushSyncFailureReason,
+  primeExpoPushToken,
+  type PushSyncFailureReason,
+  syncExpoPushToken,
+} from '@/src/lib/pushTokens';
 import { mobileApiBaseUrl } from '@/src/api/config';
+import { useAuth } from '@/lib/authStore';
 
 export default function SettingsFullScreen() {
   const { state, setNotification } = usePreferences();
+  const { status } = useAuth();
   const [activeDialog, setActiveDialog] = useState<null | 'push_confirm' | 'push_processing' | 'push_failed'>(null);
+  const [pushFailureMessage, setPushFailureMessage] = useState<string | null>(null);
+  const [pushFailureReason, setPushFailureReason] = useState<PushSyncFailureReason>(null);
   const { t } = useTranslations();
 
   const toggles = [
@@ -102,12 +113,64 @@ export default function SettingsFullScreen() {
         primaryLabel={t('Enable', 'Enable')}
         onPrimary={async () => {
           setActiveDialog('push_processing');
-          const token = await syncExpoPushToken();
+          const token = status === 'authed' ? await syncExpoPushToken() : await primeExpoPushToken();
           if (token) {
             setNotification('push', true);
+            setPushFailureMessage(null);
+            setPushFailureReason(null);
             setActiveDialog(null);
             return;
           }
+
+          const reason = getLastPushSyncFailureReason();
+          const context = getLastPushSyncFailureContext();
+          setPushFailureReason(reason);
+          const message = (() => {
+            if (reason === 'simulator') {
+              return t(
+                'Push notifications require a physical device. Android emulator and iOS simulator are not supported for remote push.',
+                'Push notifications require a physical device. Android emulator and iOS simulator are not supported for remote push.'
+              );
+            }
+            if (reason === 'expo_go') {
+              return t(
+                'Push notifications are not available in Expo Go. Use a development build or production build.',
+                'Push notifications are not available in Expo Go. Use a development build or production build.'
+              );
+            }
+            if (reason === 'auth_required') {
+              return t(
+                'Session expired. Please sign in again, then retry enabling push notifications.',
+                'Session expired. Please sign in again, then retry enabling push notifications.'
+              );
+            }
+            if (reason === 'network') {
+              const statusSuffix = context?.status ? ` (status: ${context.status})` : '';
+              return t(
+                `Network error while registering the push token${statusSuffix}. Check internet and API endpoint: ${mobileApiBaseUrl}`,
+                `Network error while registering the push token${statusSuffix}. Check internet and API endpoint: ${mobileApiBaseUrl}`
+              );
+            }
+            if (reason === 'register_failed') {
+              const statusSuffix = context?.status ? ` (status: ${context.status})` : '';
+              return t(
+                `Permission is granted, but token registration with the server failed${statusSuffix}. Check API URL, login session, and network.`,
+                `Permission is granted, but token registration with the server failed${statusSuffix}. Check API URL, login session, and network.`
+              );
+            }
+            if (reason === 'permission_denied') {
+              return t(
+                'To receive push notifications, allow notifications for Simbazu in your device settings.',
+                'To receive push notifications, allow notifications for Simbazu in your device settings.'
+              );
+            }
+            return t(
+              'Push setup failed. Please try again. If it keeps failing, check app logs for [pushTokens] details.',
+              'Push setup failed. Please try again. If it keeps failing, check app logs for [pushTokens] details.'
+            );
+          })();
+
+          setPushFailureMessage(message);
           setNotification('push', false);
           setActiveDialog('push_failed');
         }}
@@ -129,15 +192,31 @@ export default function SettingsFullScreen() {
       <StatusDialog
         visible={activeDialog === 'push_failed'}
         variant="info"
-        title={t('Enable notifications in Settings', 'Enable notifications in Settings')}
-        message={t(
-          'To receive push notifications, allow notifications for Simbazu in your device settings.',
-          'To receive push notifications, allow notifications for Simbazu in your device settings.'
-        )}
-        primaryLabel={t('Open settings', 'Open settings')}
+        title={
+          pushFailureReason === 'permission_denied'
+            ? t('Enable notifications in Settings', 'Enable notifications in Settings')
+            : t('Push setup failed', 'Push setup failed')
+        }
+        message={
+          pushFailureMessage ??
+          t(
+            'To receive push notifications, allow notifications for Simbazu in your device settings.',
+            'To receive push notifications, allow notifications for Simbazu in your device settings.'
+          )
+        }
+        primaryLabel={
+          pushFailureReason === 'permission_denied'
+            ? t('Open settings', 'Open settings')
+            : t('Retry', 'Retry')
+        }
         onPrimary={() => {
-          Linking.openSettings().catch(() => {});
-          setActiveDialog(null);
+          if (pushFailureReason === 'permission_denied') {
+            Linking.openSettings().catch(() => {});
+            setActiveDialog(null);
+            return;
+          }
+
+          setActiveDialog('push_confirm');
         }}
         secondaryLabel={t('OK', 'OK')}
         onSecondary={() => setActiveDialog(null)}
