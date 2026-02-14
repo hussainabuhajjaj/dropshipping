@@ -10,6 +10,11 @@ use Illuminate\Support\Str;
 
 class CjCategoryResolver
 {
+    public function normalizeCategoryDisplayName(string $rawName): string
+    {
+        return $this->extractLeafCategoryName($rawName);
+    }
+
     /**
      * Resolve a category from CJ payload. Optionally creates a placeholder when
      * category IDs are present but not yet synced in local categories.
