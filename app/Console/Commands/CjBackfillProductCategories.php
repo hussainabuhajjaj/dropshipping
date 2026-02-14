@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Products\Services\CjCategoryResolver;
+use App\Models\CjProductSnapshot;
 use App\Models\Product;
 use Illuminate\Console\Command;
 
@@ -29,6 +30,10 @@ class CjBackfillProductCategories extends Command
             ->orderBy('id');
 
         $products = $query->limit($limit)->get();
+        $snapshotsByPid = CjProductSnapshot::query()
+            ->whereIn('pid', $products->pluck('cj_pid')->filter()->all())
+            ->get()
+            ->keyBy('pid');
 
         if ($products->isEmpty()) {
             $this->info('No products with missing category_id were found.');
@@ -41,24 +46,42 @@ class CjBackfillProductCategories extends Command
         $wouldCreate = 0;
         $noPayload = 0;
         $unresolved = 0;
+        $resolvedFromSnapshots = 0;
 
         foreach ($products as $product) {
             $scanned++;
 
             $payload = $this->extractPayload($product);
-            if ($payload === null) {
+            $snapshotPayload = $this->extractSnapshotPayload(
+                $snapshotsByPid->get((string) $product->cj_pid)
+            );
+
+            if ($payload === null && $snapshotPayload === null) {
                 $noPayload++;
                 continue;
             }
 
-            $candidateIds = $resolver->extractCandidateIds($payload);
-            if ($candidateIds === []) {
-                $unresolved++;
-                continue;
+            $category = null;
+            $hadExistingCategory = false;
+
+            if ($payload !== null) {
+                $candidateIds = $resolver->extractCandidateIds($payload);
+                if ($candidateIds !== []) {
+                    $hadExistingCategory = $this->categoryExistsForAnyCjId($candidateIds);
+                    $category = $resolver->resolveFromPayload($payload, $createMissing && ! $dryRun);
+                }
             }
 
-            $hadExistingCategory = $this->categoryExistsForAnyCjId($candidateIds);
-            $category = $resolver->resolveFromPayload($payload, $createMissing && ! $dryRun);
+            if (! $category && $snapshotPayload !== null) {
+                $snapshotCandidateIds = $resolver->extractCandidateIds($snapshotPayload);
+                if ($snapshotCandidateIds !== []) {
+                    $hadExistingCategory = $hadExistingCategory || $this->categoryExistsForAnyCjId($snapshotCandidateIds);
+                    $category = $resolver->resolveFromPayload($snapshotPayload, $createMissing && ! $dryRun);
+                    if ($category) {
+                        $resolvedFromSnapshots++;
+                    }
+                }
+            }
 
             if (! $category) {
                 if ($dryRun && $createMissing) {
@@ -85,6 +108,7 @@ class CjBackfillProductCategories extends Command
             ['Scanned', $scanned],
             ['Assigned category_id', $assigned],
             ['Created placeholder categories', $createdPlaceholders],
+            ['Resolved from snapshots', $resolvedFromSnapshots],
             ['Would create placeholders (dry-run)', $wouldCreate],
             ['No CJ payload', $noPayload],
             ['Unresolved', $unresolved],
@@ -117,6 +141,27 @@ class CjBackfillProductCategories extends Command
         return null;
     }
 
+    private function extractSnapshotPayload(?CjProductSnapshot $snapshot): ?array
+    {
+        if (! $snapshot) {
+            return null;
+        }
+
+        $payload = is_array($snapshot->payload) ? $snapshot->payload : [];
+        $snapshotCategoryId = is_scalar($snapshot->category_id) ? trim((string) $snapshot->category_id) : '';
+
+        if ($snapshotCategoryId !== '') {
+            $payload['categoryId'] = $payload['categoryId'] ?? $snapshotCategoryId;
+            $payload['cj_category_id'] = $payload['cj_category_id'] ?? $snapshotCategoryId;
+        }
+
+        if ($payload === []) {
+            return null;
+        }
+
+        return $payload;
+    }
+
     /**
      * @param array<int, string> $candidateIds
      */
@@ -127,4 +172,3 @@ class CjBackfillProductCategories extends Command
             ->exists();
     }
 }
-

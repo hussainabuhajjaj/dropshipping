@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Domain\Products\Models\Category;
+use App\Models\CjProductSnapshot;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -58,5 +59,32 @@ class CjBackfillProductCategoriesCommandTest extends TestCase
         $this->assertNull($product->category_id);
         $this->assertDatabaseMissing('categories', ['cj_id' => 'CAT-701']);
     }
-}
 
+    public function test_it_backfills_from_snapshot_when_product_payload_has_no_category_id(): void
+    {
+        $product = Product::factory()->create([
+            'cj_pid' => 'PID-702',
+            'category_id' => null,
+            'cj_last_payload' => [
+                'nameEn' => 'Sample Product',
+            ],
+        ]);
+
+        CjProductSnapshot::query()->create([
+            'pid' => 'PID-702',
+            'category_id' => 'CAT-702',
+            'payload' => [
+                'categoryName' => 'Lingerie',
+            ],
+            'synced_at' => now(),
+        ]);
+
+        Artisan::call('cj:backfill-product-categories', [
+            '--limit' => 100,
+        ]);
+
+        $product->refresh();
+        $this->assertNotNull($product->category_id);
+        $this->assertDatabaseHas('categories', ['cj_id' => 'CAT-702']);
+    }
+}
