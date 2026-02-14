@@ -254,6 +254,7 @@ class CommandCenter extends BasePage
 
         $this->runCommand('data:cleanup-customers', array_filter([
             '--dry-run' => $this->cleanupDryRun ?: null,
+            '--force' => $this->cleanupDryRun ? null : true,
         ], fn ($value) => $value !== null && $value !== ''));
     }
 
@@ -489,4 +490,3 @@ class CommandCenter extends BasePage
         return null;
     }
 }
-

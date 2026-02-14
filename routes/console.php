@@ -18,8 +18,20 @@ use App\Domain\Fulfillment\Models\FulfillmentJob;
 //    $this->comment(Inspiring::quote());
 //})->purpose('Display an inspiring quote');
 
-Artisan::command('data:cleanup-customers {--dry-run}', function () {
+Artisan::command('data:cleanup-customers {--dry-run} {--force}', function () {
     $dryRun = (bool) $this->option('dry-run');
+    $force = (bool) $this->option('force');
+
+    if (app()->isProduction()) {
+        $this->error('This command is blocked in production.');
+        return 1;
+    }
+
+    if (! $dryRun && ! $force) {
+        $this->error('Refusing to run destructive cleanup without --force.');
+        $this->line('Use --dry-run to preview, then rerun with --force to apply changes.');
+        return 1;
+    }
 
     $this->info($dryRun ? 'Running in dry-run mode.' : 'Running cleanup.');
 
@@ -94,7 +106,7 @@ Artisan::command('data:cleanup-customers {--dry-run}', function () {
     }
 
     $this->info('Cleanup complete.');
-})->purpose('Deduplicate customers and backfill customer relationships.');
+})->purpose('Deduplicate customers and backfill customer relationships (requires --force outside dry-run, blocked in production).');
 
 Artisan::command('reviews:auto-approve', function () {
     $settings = SiteSetting::query()->first();
