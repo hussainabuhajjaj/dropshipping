@@ -41,7 +41,8 @@
         "ACCESS_COARSE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
-      "package": "com.simbazu.mobile"
+      "package": "com.simbazu.mobile",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "202253424453",
+    "project_id": "simbazu-2b93e",
+    "storage_bucket": "simbazu-2b93e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:202253424453:android:da3d80a41a6d0dd5f0902c",
+        "android_client_info": {
+          "package_name": "com.simbazu.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCKGm4h_mDfagwnfLIVDjVjgSrqiCGNCg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

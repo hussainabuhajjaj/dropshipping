@@ -12,6 +12,7 @@ use App\Http\Resources\Mobile\V1\NotificationMarkReadResource;
 use App\Http\Resources\Mobile\V1\NotificationResource;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 use YieldStudio\LaravelExpoNotifier\Contracts\ExpoTokenStorageInterface;
 use YieldStudio\LaravelExpoNotifier\Models\ExpoToken;
 
@@ -86,11 +87,30 @@ class NotificationController extends ApiController
         }
 
         $token = (string) $request->validated()['token'];
+        $alreadyRegistered = ExpoToken::query()
+            ->where('owner_type', $customer->getMorphClass())
+            ->where('owner_id', $customer->getKey())
+            ->where('value', $token)
+            ->exists();
+
         $tokenStorage->store($token, $customer);
+        $tokenCount = (int) ExpoToken::query()
+            ->where('owner_type', $customer->getMorphClass())
+            ->where('owner_id', $customer->getKey())
+            ->count();
+
+        logger()->info('Mobile Expo token registered', [
+            'customer_id' => $customer->getKey(),
+            'already_registered' => $alreadyRegistered,
+            'token_count' => $tokenCount,
+            'token_preview' => Str::limit($token, 24, '...'),
+        ]);
 
         return $this->success([
             'ok' => true,
             'token' => $token,
+            'already_registered' => $alreadyRegistered,
+            'token_count' => $tokenCount,
         ]);
     }
 
@@ -118,9 +138,23 @@ class NotificationController extends ApiController
                 ->delete();
         }
 
+        $tokenCount = (int) ExpoToken::query()
+            ->where('owner_type', $customer->getMorphClass())
+            ->where('owner_id', $customer->getKey())
+            ->count();
+
+        logger()->info('Mobile Expo token removed', [
+            'customer_id' => $customer->getKey(),
+            'removed' => $exists,
+            'token_count' => $tokenCount,
+            'token_preview' => Str::limit($token, 24, '...'),
+        ]);
+
         return $this->success([
             'ok' => true,
             'token' => $token,
+            'removed' => $exists,
+            'token_count' => $tokenCount,
         ]);
     }
 }
