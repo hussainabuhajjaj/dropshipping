@@ -19,22 +19,13 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::updateOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'name' => 'Test User',
-                'role' => 'admin',
-                'email_verified_at' => now(),
-                'password' => Hash::make('password'),
-            ]
-        );
+    
 
         $this->call(\Database\Seeders\CJSeeder::class);
         $this->call(\Database\Seeders\MobileTranslationsSeeder::class);
         $this->call(\Database\Seeders\LocalWareHouseSeeder::class);
         $this->call(\Database\Seeders\HomePageSettingSeeder::class);
         $this->call(\Database\Seeders\StorefrontSeasonalSeeder::class);
-        $this->call(\Database\Seeders\LiveLegalAndFooterSeeder::class);
         $this->call(\Database\Seeders\PromotionSeeder::class);
     }
 }
