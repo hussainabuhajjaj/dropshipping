@@ -84,6 +84,8 @@ class CjCategoryResolver
             'categorySecondId',
             'oneCategoryId',
             'categoryFirstId',
+            'cjCategoryId',
+            'cj_category_id',
             'category_id',
         ];
 
