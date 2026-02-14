@@ -8,6 +8,8 @@ use Filament\Notifications\Notification as FilamentNotification;
 use App\Models\Product;
 use App\Models\User;
 use App\Observers\ProductSeoObserver;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -53,6 +55,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registerProductionCommandGuard();
+
         Gate::define('viewApiDocs', function (User $user) {
             return in_array($user->email, ['admin@admin.com']);
         });
@@ -63,6 +67,34 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
         Product::observe(ProductSeoObserver::class);
         $this->registerFilamentWidgetAliases();
+    }
+
+    private function registerProductionCommandGuard(): void
+    {
+        if (! app()->runningInConsole() || ! app()->isProduction()) {
+            return;
+        }
+
+        Event::listen(CommandStarting::class, function (CommandStarting $event): void {
+            $command = strtolower(trim((string) $event->command));
+            $name = Str::before($command, ' ');
+
+            $blocked = [
+                'db:wipe',
+                'migrate:fresh',
+                'migrate:refresh',
+                'migrate:reset',
+                'schema:drop',
+            ];
+
+            if (! in_array($name, $blocked, true)) {
+                return;
+            }
+
+            $event->output->writeln('<error>Blocked destructive command in production: ' . $name . '</error>');
+
+            throw new \RuntimeException('Destructive artisan command blocked in production: ' . $name);
+        });
     }
 
     private function registerFilamentWidgetAliases(): void
