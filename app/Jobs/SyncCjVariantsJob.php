@@ -42,13 +42,22 @@ class SyncCjVariantsJob implements ShouldQueue
 
             // Get variants from CJ API
             $resp = $client->getVariantsByPid($this->cjPid);
-            
-            if (!isset($resp->data['variants']) || !is_array($resp->data['variants'])) {
-                Log::warning('No variants found in CJ response', ['cj_pid' => $this->cjPid]);
+
+            $variants = $this->extractVariants($resp->data ?? null);
+            if ($variants === null) {
+                $data = $resp->data ?? null;
+                Log::warning('No variants found in CJ response', [
+                    'cj_pid' => $this->cjPid,
+                    'data_type' => gettype($data),
+                    'data_keys' => is_array($data) ? array_keys(array_slice($data, 0, 20, true)) : null,
+                ]);
                 return;
             }
 
-            $variants = $resp->data['variants'];
+            if ($variants === []) {
+                Log::info('CJ response returned empty variants list', ['cj_pid' => $this->cjPid]);
+                return;
+            }
 
             foreach ($variants as $variantData) {
                 $vid = (string) ($variantData['vid'] ?? '');
@@ -77,8 +86,9 @@ class SyncCjVariantsJob implements ShouldQueue
                 $variant->cj_stock_synced_at = now();
 
                 // Update pricing if available
-                if (isset($variantData['variantPrice'])) {
-                    $variant->price = (float) $variantData['variantPrice'];
+                $variantPrice = $variantData['variantPrice'] ?? $variantData['variantSellPrice'] ?? null;
+                if (is_numeric($variantPrice)) {
+                    $variant->price = (float) $variantPrice;
                 }
 
                 // Update variant name/title
@@ -128,6 +138,46 @@ class SyncCjVariantsJob implements ShouldQueue
             // For other errors, fail the job
             $this->fail($e);
         }
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function extractVariants(mixed $data): ?array
+    {
+        if (! is_array($data)) {
+            return null;
+        }
+
+        if (array_is_list($data)) {
+            return $data;
+        }
+
+        $candidates = [
+            $data['variants'] ?? null,
+            $data['list'] ?? null,
+            $data['data'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (! is_array($candidate)) {
+                continue;
+            }
+
+            if (array_is_list($candidate)) {
+                return $candidate;
+            }
+
+            if (isset($candidate['variants']) && is_array($candidate['variants'])) {
+                return $candidate['variants'];
+            }
+
+            if (isset($candidate['list']) && is_array($candidate['list'])) {
+                return $candidate['list'];
+            }
+        }
+
+        return null;
     }
 
     private function isRemovedFromShelves(ApiException $e): bool

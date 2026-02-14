@@ -8,6 +8,22 @@ import { registerExpoToken, removeExpoToken } from '@/src/api/notifications';
 const EXPO_TOKEN_KEY = 'push.expo.token';
 const EXPO_TOKEN_SYNCED_KEY = 'push.expo.token.synced';
 
+export type PushSyncFailureReason =
+  | null
+  | 'web'
+  | 'simulator'
+  | 'expo_go'
+  | 'no_notifications_module'
+  | 'permission_denied'
+  | 'no_token'
+  | 'auth_required'
+  | 'network'
+  | 'register_failed'
+  | 'unknown';
+
+let lastPushSyncFailureReason: PushSyncFailureReason = null;
+let lastPushSyncFailureContext: { message?: string; status?: number; url?: string } | null = null;
+
 const resolveProjectId = (): string | undefined => {
   const eas = (Constants.expoConfig as { extra?: { eas?: { projectId?: string } } } | undefined)?.extra?.eas;
   const easConfig = (Constants as { easConfig?: { projectId?: string } }).easConfig;
@@ -43,6 +59,10 @@ export const getStoredExpoToken = async (): Promise<string | null> => {
   }
 };
 
+export const getLastPushSyncFailureReason = (): PushSyncFailureReason => lastPushSyncFailureReason;
+export const getLastPushSyncFailureContext = (): { message?: string; status?: number; url?: string } | null =>
+  lastPushSyncFailureContext;
+
 const isStoredTokenSynced = async (): Promise<boolean> => {
   try {
     return (await AsyncStorage.getItem(EXPO_TOKEN_SYNCED_KEY)) === 'true';
@@ -62,21 +82,28 @@ const storeExpoToken = async (token: string, synced: boolean) => {
 
 export const syncExpoPushToken = async (): Promise<string | null> => {
   try {
+    lastPushSyncFailureReason = null;
+    lastPushSyncFailureContext = null;
+
     if (Platform.OS === 'web') {
+      lastPushSyncFailureReason = 'web';
       debug('skipped on web');
       return null;
     }
     if (!Device.isDevice) {
+      lastPushSyncFailureReason = 'simulator';
       debug('requires physical device');
       return null;
     }
     if (isExpoGo()) {
+      lastPushSyncFailureReason = 'expo_go';
       debug('Expo Go detected - use development/production build for push token sync');
       return null;
     }
 
     const Notifications = loadNotificationsModule();
     if (!Notifications) {
+      lastPushSyncFailureReason = 'no_notifications_module';
       debug('expo-notifications module not available');
       return null;
     }
@@ -84,6 +111,7 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
     if (!permission.granted) {
       const request = await Notifications.requestPermissionsAsync();
       if (!request.granted) {
+        lastPushSyncFailureReason = 'permission_denied';
         debug('permission denied by user');
         return null;
       }
@@ -95,6 +123,7 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
       : await Notifications.getExpoPushTokenAsync();
     const token = response?.data ?? null;
     if (!token) {
+      lastPushSyncFailureReason = 'no_token';
       debug('no token returned by Expo');
       return null;
     }
@@ -108,18 +137,37 @@ export const syncExpoPushToken = async (): Promise<string | null> => {
     const registered = await registerExpoToken(token)
       .then(() => true)
       .catch((error) => {
+        const status = typeof error?.status === 'number' ? error.status : undefined;
+        const message = typeof error?.message === 'string' ? error.message : undefined;
+        const url = typeof error?.url === 'string' ? error.url : undefined;
+        lastPushSyncFailureContext = { status, message, url };
+
+        if (status === 401 || status === 403) {
+          lastPushSyncFailureReason = 'auth_required';
+        } else if (status === 0 || /network request failed/i.test(message ?? '')) {
+          lastPushSyncFailureReason = 'network';
+        } else {
+          lastPushSyncFailureReason = 'register_failed';
+        }
+
         debug('registerExpoToken failed', {
-          message: error?.message,
-          status: error?.status,
-          url: error?.url,
+          message,
+          status,
+          url,
         });
         return false;
       });
-    if (registered) {
-      await storeExpoToken(token, true);
+
+    if (!registered) {
+      return null;
     }
+
+    await storeExpoToken(token, true);
+
     return token;
   } catch {
+    lastPushSyncFailureReason = 'unknown';
+    lastPushSyncFailureContext = null;
     debug('syncExpoPushToken unexpected error');
     return null;
   }
@@ -168,25 +216,51 @@ export const syncExpoPushTokenIfPermitted = async (): Promise<string | null> => 
 
 export const primeExpoPushToken = async (): Promise<string | null> => {
   try {
-    if (Platform.OS === 'web') return null;
-    if (!Device.isDevice) return null;
-    if (isExpoGo()) return null;
+    lastPushSyncFailureReason = null;
+    lastPushSyncFailureContext = null;
+
+    if (Platform.OS === 'web') {
+      lastPushSyncFailureReason = 'web';
+      return null;
+    }
+    if (!Device.isDevice) {
+      lastPushSyncFailureReason = 'simulator';
+      return null;
+    }
+    if (isExpoGo()) {
+      lastPushSyncFailureReason = 'expo_go';
+      return null;
+    }
 
     const Notifications = loadNotificationsModule();
-    if (!Notifications) return null;
+    if (!Notifications) {
+      lastPushSyncFailureReason = 'no_notifications_module';
+      return null;
+    }
     const permission = await Notifications.getPermissionsAsync();
-    if (!permission.granted) return null;
+    if (!permission.granted) {
+      const request = await Notifications.requestPermissionsAsync();
+      if (!request.granted) {
+        lastPushSyncFailureReason = 'permission_denied';
+        return null;
+      }
+    }
 
     const projectId = resolveProjectId();
     const response = projectId
       ? await Notifications.getExpoPushTokenAsync({ projectId })
       : await Notifications.getExpoPushTokenAsync();
     const token = response?.data ?? null;
-    if (!token) return null;
+    if (!token) {
+      lastPushSyncFailureReason = 'no_token';
+      return null;
+    }
 
     await storeExpoToken(token, false);
     return token;
   } catch {
+    lastPushSyncFailureReason = 'unknown';
+    lastPushSyncFailureContext = null;
     return null;
   }
 };
