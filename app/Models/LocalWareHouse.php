@@ -19,7 +19,7 @@ class LocalWareHouse extends Model
         'postal_code',
         'country',
         'is_default',
-        'shipping_company_name', 'shipping_method', 'shipping_min_charge', 'shipping_cost_per_kg', 'shipping_additional_cost'
+        'shipping_company_name', 'shipping_method', 'shipping_min_charge', 'shipping_cost_per_kg', 'shipping_base_cost', 'shipping_additional_cost'
     ];
 
     protected $casts = [

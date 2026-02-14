@@ -38,6 +38,7 @@ use Filament\Infolists\Components\TextEntry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use App\Services\ProductMarginLogger;
 
 class ProductResource extends BaseResource
@@ -77,6 +78,20 @@ class ProductResource extends BaseResource
     {
         return parent::getEloquentQuery()
             ->withQualityScore(self::CJ_SYNC_STALE_HOURS)
+            ->addSelect([
+                'orders_count' => DB::table('order_items')
+                    ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')
+                    ->whereColumn('product_variants.product_id', 'products.id')
+                    ->selectRaw('COUNT(DISTINCT order_items.order_id)'),
+                'units_sold' => DB::table('order_items')
+                    ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')
+                    ->whereColumn('product_variants.product_id', 'products.id')
+                    ->selectRaw('COALESCE(SUM(order_items.quantity), 0)'),
+                'revenue_total' => DB::table('order_items')
+                    ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')
+                    ->whereColumn('product_variants.product_id', 'products.id')
+                    ->selectRaw('COALESCE(SUM(order_items.total), 0)'),
+            ])
             ->withCount([
                 'images',
                 'variants',
@@ -455,6 +470,11 @@ class ProductResource extends BaseResource
                         ->toggleable(),
                     Tables\Columns\TextColumn::make('reviews_count')
                         ->label('Reviews')
+                        ->badge()
+                        ->sortable()
+                        ->toggleable(),
+                    Tables\Columns\TextColumn::make('orders_count')
+                        ->label('Orders')
                         ->badge()
                         ->sortable()
                         ->toggleable(),
@@ -1730,6 +1750,113 @@ class ProductResource extends BaseResource
     public static function infolist(Schema $schema): Schema
     {
         return $schema->schema([
+            Section::make('Product Overview')
+                ->schema([
+                    TextEntry::make('name')
+                        ->label('Name')
+                        ->columnSpan(2),
+                    TextEntry::make('slug')
+                        ->label('Slug')
+                        ->copyable(),
+                    TextEntry::make('source')
+                        ->label('Source')
+                        ->state(fn (Product $record) => self::sourceLabel($record))
+                        ->badge(),
+                    TextEntry::make('status')->badge(),
+                    TextEntry::make('is_active')
+                        ->label('Active')
+                        ->state(fn (Product $record) => $record->is_active ? 'Yes' : 'No')
+                        ->badge(),
+                    TextEntry::make('is_featured')
+                        ->label('Featured')
+                        ->state(fn (Product $record) => $record->is_featured ? 'Yes' : 'No')
+                        ->badge(),
+                    TextEntry::make('category.name')
+                        ->label('Category')
+                        ->state(fn (Product $record) => $record->category?->name ?? '--'),
+                    TextEntry::make('supplier.name')
+                        ->label('Supplier')
+                        ->state(fn (Product $record) => $record->supplier?->name ?? '--'),
+                    TextEntry::make('defaultFulfillmentProvider.name')
+                        ->label('Fulfillment')
+                        ->state(fn (Product $record) => $record->defaultFulfillmentProvider?->name ?? '--'),
+                    TextEntry::make('created_at')
+                        ->label('Created')
+                        ->dateTime(),
+                    TextEntry::make('updated_at')
+                        ->label('Updated')
+                        ->dateTime(),
+                    TextEntry::make('description')
+                        ->label('Description')
+                        ->state(fn (Product $record) => trim(strip_tags((string) ($record->description ?? ''))) ?: '--')
+                        ->columnSpanFull(),
+                ])
+                ->columns(3),
+            Section::make('Commerce & Quality')
+                ->schema([
+                    TextEntry::make('selling_price')->label('Selling Price')->money('USD'),
+                    TextEntry::make('cost_price')->label('Cost Price')->money('USD'),
+                    TextEntry::make('quality_score')
+                        ->label('Quality Score')
+                        ->badge()
+                        ->state(fn (Product $record) => is_numeric($record->quality_score ?? null) ? number_format((float) $record->quality_score, 0) : '0'),
+                    TextEntry::make('orders_count')
+                        ->label('Orders')
+                        ->state(fn (Product $record) => (string) ((int) ($record->orders_count ?? 0)))
+                        ->badge(),
+                    TextEntry::make('units_sold')
+                        ->label('Units Sold')
+                        ->state(fn (Product $record) => (string) ((int) ($record->units_sold ?? 0))),
+                    TextEntry::make('revenue_total')
+                        ->label('Revenue')
+                        ->state(fn (Product $record) => (float) ($record->revenue_total ?? 0))
+                        ->money('USD'),
+                    TextEntry::make('images_count')
+                        ->label('Images')
+                        ->state(fn (Product $record) => (string) ((int) ($record->images_count ?? 0)))
+                        ->badge(),
+                    TextEntry::make('variants_count')
+                        ->label('Variants')
+                        ->state(fn (Product $record) => (string) ((int) ($record->variants_count ?? 0)))
+                        ->badge(),
+                    TextEntry::make('variants_without_price_count')
+                        ->label('Variants Without Price')
+                        ->state(fn (Product $record) => (string) ((int) ($record->variants_without_price_count ?? 0)))
+                        ->badge(),
+                    TextEntry::make('reviews_count')
+                        ->label('Reviews')
+                        ->state(fn (Product $record) => (string) ((int) ($record->reviews_count ?? 0)))
+                        ->badge(),
+                ])
+                ->columns(5),
+            Section::make('Inventory & Sync')
+                ->schema([
+                    TextEntry::make('stock_on_hand')
+                        ->label('Stock')
+                        ->state(fn (Product $record) => (string) ((int) ($record->stock_on_hand ?? 0))),
+                    TextEntry::make('shipping_estimate_days')
+                        ->label('Shipping Est. Days')
+                        ->state(fn (Product $record) => $record->shipping_estimate_days !== null ? (string) $record->shipping_estimate_days : '--'),
+                    TextEntry::make('cj_pid')
+                        ->label('CJ PID')
+                        ->state(fn (Product $record) => $record->cj_pid ?: '--')
+                        ->copyable(),
+                    TextEntry::make('cj_sync_enabled')
+                        ->label('CJ Sync Enabled')
+                        ->state(fn (Product $record) => $record->cj_sync_enabled ? 'Yes' : 'No')
+                        ->badge(),
+                    TextEntry::make('cj_synced_at')
+                        ->label('CJ Last Synced')
+                        ->state(fn (Product $record) => $record->cj_synced_at?->toDateTimeString() ?? 'Never'),
+                    TextEntry::make('cj_removed_from_shelves_at')
+                        ->label('Removed From CJ At')
+                        ->state(fn (Product $record) => $record->cj_removed_from_shelves_at?->toDateTimeString() ?? '--'),
+                    TextEntry::make('cj_removed_reason')
+                        ->label('CJ Removed Reason')
+                        ->state(fn (Product $record) => $record->cj_removed_reason ?: '--')
+                        ->columnSpanFull(),
+                ])
+                ->columns(3),
             Section::make('CJ Payload Details')
                 ->schema([
                     TextEntry::make('cj_payload_product_type')
@@ -1815,6 +1942,7 @@ class ProductResource extends BaseResource
     public static function getRelations(): array
     {
         return [
+            \App\Filament\Resources\ProductResource\RelationManagers\OrderItemsRelationManager::class,
             \App\Filament\Resources\ProductResource\RelationManagers\ProductVariantsRelationManager::class,
             \App\Filament\Resources\ProductResource\RelationManagers\ProductImagesRelationManager::class,
             \App\Filament\Resources\ProductResource\RelationManagers\MarginLogsRelationManager::class,

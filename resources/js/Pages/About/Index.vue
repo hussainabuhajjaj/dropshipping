@@ -69,10 +69,10 @@
 </template>
 
 <script setup>
-import { useI18n } from 'vue-i18n';
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue';
+import { useTranslations } from '@/i18n';
 
-const { t } = useI18n();
+const { t } = useTranslations();
 
 defineProps({
   content: {
