@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Products\Models;
 
+use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Models\ProductMarginLog;
 use App\Models\ProductTranslation;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -118,6 +120,18 @@ class Product extends Model
     public function translations(): HasMany
     {
         return $this->hasMany(ProductTranslation::class);
+    }
+
+    public function orderItems(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            OrderItem::class,
+            ProductVariant::class,
+            'product_id',
+            'product_variant_id',
+            'id',
+            'id'
+        );
     }
 
     public function marginLogs(): HasMany

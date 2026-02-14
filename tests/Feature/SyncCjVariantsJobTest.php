@@ -87,5 +87,37 @@ class SyncCjVariantsJobTest extends TestCase
             'stock_on_hand' => 3,
         ]);
     }
-}
 
+    public function test_it_falls_back_to_variant_name_en_when_variant_name_is_null(): void
+    {
+        $product = Product::factory()->create([
+            'cj_pid' => 'PID-FALLBACK-1',
+        ]);
+
+        $client = Mockery::mock(CJDropshippingClient::class);
+        $client->shouldReceive('getVariantsByPid')
+            ->once()
+            ->with('PID-FALLBACK-1')
+            ->andReturn(ApiResponse::success([
+                [
+                    'vid' => 'VID-3001',
+                    'variantSku' => 'SKU-3001',
+                    'variantName' => null,
+                    'variantNameEn' => 'Black M',
+                    'variantSellPrice' => 4.08,
+                    'stock' => 0,
+                ],
+            ]));
+
+        $job = new SyncCjVariantsJob('PID-FALLBACK-1');
+        $job->handle($client);
+
+        $this->assertDatabaseHas('product_variants', [
+            'product_id' => $product->id,
+            'cj_vid' => 'VID-3001',
+            'sku' => 'SKU-3001',
+            'title' => 'Black M',
+            'price' => '4.08',
+        ]);
+    }
+}
