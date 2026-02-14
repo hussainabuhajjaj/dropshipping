@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Products\Services;
 
+use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Products\Models\Category;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
@@ -188,7 +189,7 @@ class CjProductImportService
             'cj_synced_at' => now(),
             'cj_removed_from_shelves_at' => null,
             'cj_removed_reason' => null,
-            'default_fulfillment_provider_id' => 1,
+            'default_fulfillment_provider_id' => $this->resolveDefaultFulfillmentProviderId(),
         ];
 
         $syncVariants = ($options['syncVariants'] ?? true) === true && !$lockVariants;
@@ -354,6 +355,43 @@ class CjProductImportService
         }
 
         return $product;
+    }
+
+    private function resolveDefaultFulfillmentProviderId(): ?int
+    {
+        static $resolved = false;
+        static $resolvedId = null;
+
+        if ($resolved) {
+            return $resolvedId;
+        }
+
+        $resolved = true;
+
+        $configuredId = (int) config('services.cj.default_fulfillment_provider_id', 1);
+
+        if ($configuredId > 0) {
+            $exists = FulfillmentProvider::query()->whereKey($configuredId)->exists();
+            if ($exists) {
+                $resolvedId = $configuredId;
+                return $resolvedId;
+            }
+
+            Log::warning('Configured default fulfillment provider was not found; falling back.', [
+                'configured_provider_id' => $configuredId,
+            ]);
+        }
+
+        $fallbackId = FulfillmentProvider::query()->orderBy('id')->value('id');
+        if ($fallbackId !== null) {
+            $resolvedId = (int) $fallbackId;
+            return $resolvedId;
+        }
+
+        Log::warning('No fulfillment provider found; default provider will be null for imported products.');
+
+        $resolvedId = null;
+        return $resolvedId;
     }
 
     public function syncMedia(Product $product, array $options = []): bool

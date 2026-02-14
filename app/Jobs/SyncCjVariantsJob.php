@@ -76,8 +76,10 @@ class SyncCjVariantsJob implements ShouldQueue
                     $variant = new ProductVariant();
                     $variant->product_id = $product->id;
                     $variant->cj_vid = $vid;
-                    $variant->sku = $variantData['variantSku'] ?? 'CJ-' . $vid;
                 }
+
+                $variantSku = trim((string) ($variantData['variantSku'] ?? $variant->sku ?? ''));
+                $variant->sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
 
                 // Update variant data
                 $variant->cj_variant_data = $variantData;
@@ -85,16 +87,9 @@ class SyncCjVariantsJob implements ShouldQueue
                 $variant->stock_on_hand = $variant->cj_stock; // mirror CJ stock into local stock
                 $variant->cj_stock_synced_at = now();
 
-                // Update pricing if available
-                $variantPrice = $variantData['variantPrice'] ?? $variantData['variantSellPrice'] ?? null;
-                if (is_numeric($variantPrice)) {
-                    $variant->price = (float) $variantPrice;
-                }
-
-                // Update variant name/title
-                if (isset($variantData['variantName'])) {
-                    $variant->title = $variantData['variantName'];
-                }
+                // Ensure required fields are always populated for inserts.
+                $variant->price = $this->resolveVariantPrice($variantData, $variant, $product);
+                $variant->title = $this->resolveVariantTitle($variantData, $variant, $vid);
 
                 $variant->save();
 
@@ -207,5 +202,44 @@ class SyncCjVariantsJob implements ShouldQueue
             'cj_pid' => $this->cjPid,
             'reason' => $reason,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $variantData
+     */
+    private function resolveVariantTitle(array $variantData, ProductVariant $variant, string $vid): string
+    {
+        $candidates = [
+            $variantData['variantName'] ?? null,
+            $variantData['variantNameEn'] ?? null,
+            $variantData['variantKey'] ?? null,
+            $variantData['variantSku'] ?? null,
+            $variant->title ?? null,
+            'Variant ' . $vid,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = trim((string) ($candidate ?? ''));
+            if ($value !== '' && strtolower($value) !== 'null') {
+                return $value;
+            }
+        }
+
+        return 'Variant';
+    }
+
+    /**
+     * @param array<string, mixed> $variantData
+     */
+    private function resolveVariantPrice(array $variantData, ProductVariant $variant, Product $product): float
+    {
+        $candidate = $variantData['variantPrice']
+            ?? $variantData['variantSellPrice']
+            ?? $variantData['variantSugSellPrice']
+            ?? $variant->price
+            ?? $product->selling_price
+            ?? 0;
+
+        return is_numeric($candidate) ? (float) $candidate : 0.0;
     }
 }
