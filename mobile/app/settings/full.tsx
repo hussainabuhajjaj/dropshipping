@@ -9,6 +9,7 @@ import { StatusDialog } from '@/src/overlays/StatusDialog';
 import { useTranslations } from '@/src/i18n/TranslationsProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { clearExpoPushToken, syncExpoPushToken } from '@/src/lib/pushTokens';
+import { mobileApiBaseUrl } from '@/src/api/config';
 
 export default function SettingsFullScreen() {
   const { state, setNotification } = usePreferences();
@@ -76,6 +77,10 @@ export default function SettingsFullScreen() {
           ))}
         </View>
 
+        {__DEV__ ? (
+          <Text style={styles.debugText}>Push API: {mobileApiBaseUrl}</Text>
+        ) : null}
+
         <Pressable
           style={styles.primaryButton}
           onPress={() => router.push('/settings')}
@@ -98,8 +103,13 @@ export default function SettingsFullScreen() {
         onPrimary={async () => {
           setActiveDialog('push_processing');
           const token = await syncExpoPushToken();
-          setNotification('push', true);
-          setActiveDialog(token ? null : 'push_failed');
+          if (token) {
+            setNotification('push', true);
+            setActiveDialog(null);
+            return;
+          }
+          setNotification('push', false);
+          setActiveDialog('push_failed');
         }}
         secondaryLabel={t('Not now', 'Not now')}
         onSecondary={() => setActiveDialog(null)}
@@ -214,5 +224,10 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 14,
     fontWeight: '700',
+  },
+  debugText: {
+    marginTop: 10,
+    fontSize: 11,
+    color: '#6b7280',
   },
 });
