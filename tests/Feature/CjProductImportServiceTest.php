@@ -120,6 +120,93 @@ class CjProductImportServiceTest extends TestCase
 
         $category = Category::query()->where('cj_id', 'CAT-900')->first();
         $this->assertNotNull($category);
+        $this->assertSame('Women Dresses', $category->name);
+        $this->assertStringNotContainsString('[CJ', $category->name);
         $this->assertSame($category->id, $product->fresh()->category_id);
+    }
+
+    public function test_import_uses_leaf_name_for_breadcrumb_category_placeholder(): void
+    {
+        Queue::fake();
+
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $productData = [
+            'productId' => 'CJ-201',
+            'nameEn' => 'Massage Gun',
+            'sellPrice' => '25.00',
+            'currency' => 'USD',
+            'categoryId' => 'CAT-BREAD-1',
+            'categoryName' => 'Health & Beauty， Hair > Beauty Tools > Massage & Relaxation',
+        ];
+
+        $client = $this->mock(CJDropshippingClient::class);
+        $service = new CjProductImportService($client, app()->make(\App\Domain\Products\Services\CjProductMediaService::class));
+
+        $service->importFromPayload($productData, [], [
+            'syncVariants' => false,
+            'syncImages' => false,
+            'syncReviews' => false,
+            'translate' => false,
+            'generateSeo' => false,
+        ]);
+
+        $category = Category::query()->where('cj_id', 'CAT-BREAD-1')->first();
+        $this->assertNotNull($category);
+        $this->assertSame('Massage & Relaxation', $category->name);
+        $this->assertStringNotContainsString('[CJ', $category->name);
+    }
+
+    public function test_import_refreshes_legacy_placeholder_name_for_existing_category(): void
+    {
+        Queue::fake();
+
+        DB::table('fulfillment_providers')->insert([
+            'id' => 1,
+            'name' => 'CJ',
+            'code' => 'cj',
+            'type' => 'cj',
+            'driver_class' => 'App\\Domain\\Fulfillment\\Drivers\\CJDriver',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $category = Category::query()->create([
+            'cj_id' => 'CAT-LEGACY-1',
+            'name' => 'Health & Beauty， Hair > Beauty Tools > Massage & Relaxation [CJ CAT-LEGACY-1]',
+            'slug' => 'legacy-slug',
+        ]);
+
+        $productData = [
+            'productId' => 'CJ-202',
+            'nameEn' => 'Neck Massager',
+            'sellPrice' => '22.00',
+            'currency' => 'USD',
+            'categoryId' => 'CAT-LEGACY-1',
+            'categoryName' => 'Health & Beauty， Hair > Beauty Tools > Massage & Relaxation',
+        ];
+
+        $client = $this->mock(CJDropshippingClient::class);
+        $service = new CjProductImportService($client, app()->make(\App\Domain\Products\Services\CjProductMediaService::class));
+
+        $service->importFromPayload($productData, [], [
+            'syncVariants' => false,
+            'syncImages' => false,
+            'syncReviews' => false,
+            'translate' => false,
+            'generateSeo' => false,
+        ]);
+
+        $category->refresh();
+        $this->assertSame('Massage & Relaxation', $category->name);
+        $this->assertStringNotContainsString('[CJ', $category->name);
     }
 }

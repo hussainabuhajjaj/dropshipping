@@ -17,6 +17,7 @@ class CjCategoryResolver
     public function resolveFromPayload(array $payload, bool $createMissing = true): ?Category
     {
         $candidateIds = $this->extractCandidateIds($payload);
+        $candidateNames = $this->extractCandidateNames($payload);
 
         if ($candidateIds === []) {
             return null;
@@ -25,6 +26,7 @@ class CjCategoryResolver
         foreach ($candidateIds as $cjId) {
             $existing = Category::query()->where('cj_id', $cjId)->first();
             if ($existing) {
+                $this->refreshLegacyPlaceholderName($existing, $candidateNames, $cjId);
                 return $existing;
             }
         }
@@ -34,8 +36,8 @@ class CjCategoryResolver
         }
 
         $primaryId = $candidateIds[0];
-        $candidateNames = $this->extractCandidateNames($payload);
         $name = $this->buildPlaceholderName($primaryId, $candidateNames);
+        $name = $this->ensureUniqueRootName($name, $primaryId);
         $slug = $this->buildPlaceholderSlug($primaryId, $name);
 
         $category = Category::query()->firstOrCreate(
@@ -140,10 +142,10 @@ class CjCategoryResolver
      */
     private function buildPlaceholderName(string $cjId, array $candidateNames): string
     {
-        if ($candidateNames !== []) {
-            $base = trim((string) Str::limit($candidateNames[0], 90, ''));
+        foreach ($candidateNames as $candidateName) {
+            $base = $this->extractLeafCategoryName($candidateName);
             if ($base !== '') {
-                return $base . ' [CJ ' . $cjId . ']';
+                return (string) Str::limit($base, 120, '');
             }
         }
 
@@ -159,6 +161,88 @@ class CjCategoryResolver
         }
 
         return Str::limit($slugBase, 180, '') . '-' . Str::slug($cjId);
+    }
+
+    private function refreshLegacyPlaceholderName(Category $category, array $candidateNames, string $cjId): void
+    {
+        $preferredName = $this->buildPlaceholderName($cjId, $candidateNames);
+        if ($preferredName === '' || $preferredName === $category->name) {
+            return;
+        }
+
+        $currentName = (string) $category->name;
+        if (! $this->looksLikeLegacyPlaceholderName($currentName)) {
+            return;
+        }
+
+        $nextName = $this->ensureUniqueRootName($preferredName, $cjId);
+        if ($nextName === $currentName) {
+            return;
+        }
+
+        $category->name = $nextName;
+        $category->slug = $this->buildPlaceholderSlug($cjId, $nextName);
+        $category->save();
+    }
+
+    private function looksLikeLegacyPlaceholderName(string $name): bool
+    {
+        return str_contains($name, '>') || preg_match('/\[CJ[^\]]+\]/i', $name) === 1;
+    }
+
+    private function extractLeafCategoryName(string $rawName): string
+    {
+        $name = trim($rawName);
+        if ($name === '') {
+            return '';
+        }
+
+        $name = str_replace('，', ',', $name);
+        $name = preg_replace('/\s*\[CJ[^\]]+\]\s*$/iu', '', $name) ?? $name;
+        $name = preg_replace('/\s+/', ' ', $name) ?? $name;
+
+        foreach (['>', '/', '|', '»', '›', '→'] as $separator) {
+            if (! str_contains($name, $separator)) {
+                continue;
+            }
+
+            $parts = array_filter(array_map('trim', explode($separator, $name)));
+            if ($parts !== []) {
+                $name = (string) end($parts);
+            }
+        }
+
+        $name = trim($name, " \t\n\r\0\x0B,");
+
+        if ($name === '' || strtolower($name) === 'null') {
+            return '';
+        }
+
+        return $name;
+    }
+
+    private function ensureUniqueRootName(string $baseName, string $cjId): string
+    {
+        $conflict = Category::query()
+            ->where('name', $baseName)
+            ->whereNull('parent_id')
+            ->where('cj_id', '!=', $cjId)
+            ->exists();
+
+        if (! $conflict) {
+            return $baseName;
+        }
+
+        $sanitizedId = preg_replace('/[^A-Za-z0-9]/', '', $cjId) ?? '';
+        $shortId = strtoupper(substr($sanitizedId, -8));
+        if ($shortId === '') {
+            $shortId = strtoupper(substr(md5($cjId), 0, 8));
+        }
+
+        $suffix = ' (CJ ' . $shortId . ')';
+        $truncatedBase = (string) Str::limit($baseName, 180 - strlen($suffix), '');
+
+        return $truncatedBase . $suffix;
     }
 
     /**
@@ -191,4 +275,3 @@ class CjCategoryResolver
         return $values;
     }
 }
-
