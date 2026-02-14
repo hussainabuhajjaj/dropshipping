@@ -7,8 +7,10 @@ namespace App\Console\Commands;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Services\CjCategoryResolver;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Models\CjProductSnapshot;
 use App\Services\Api\ApiException;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 class CjRepairMissingCategories extends Command
 {
@@ -33,6 +35,10 @@ class CjRepairMissingCategories extends Command
             ->orderBy('id')
             ->limit($limit)
             ->get();
+        $snapshotsByPid = CjProductSnapshot::query()
+            ->whereIn('pid', $products->pluck('cj_pid')->filter()->all())
+            ->get()
+            ->keyBy('pid');
 
         if ($products->isEmpty()) {
             $this->info('No products with missing category_id found.');
@@ -43,6 +49,9 @@ class CjRepairMissingCategories extends Command
         $assigned = 0;
         $unresolved = 0;
         $errors = 0;
+        $removedFromShelves = 0;
+        $markedRemoved = 0;
+        $resolvedFromSnapshots = 0;
 
         foreach ($products as $product) {
             $scanned++;
@@ -52,13 +61,35 @@ class CjRepairMissingCategories extends Command
                 continue;
             }
 
+            $payload = null;
+            $wasRemovedFromShelves = false;
+
             try {
                 $response = $client->getProduct($pid);
+                $payload = is_array($response->data ?? null) ? $response->data : null;
             } catch (ApiException $e) {
-                $errors++;
-                $this->warn("API error for pid {$pid}: {$e->getMessage()}");
-                $this->sleep($sleepMs);
-                continue;
+                if ($this->isRemovedFromShelves($e)) {
+                    $removedFromShelves++;
+                    $wasRemovedFromShelves = true;
+                    $this->warn("Removed from shelves for pid {$pid}: {$e->getMessage()}");
+                    if (! $dryRun) {
+                        $this->markProductRemoved($product, $e->getMessage());
+                        $markedRemoved++;
+                    }
+
+                    $snapshotPayload = $this->extractSnapshotPayload(
+                        $snapshotsByPid->get($pid)
+                    );
+                    if ($snapshotPayload !== null) {
+                        $payload = $snapshotPayload;
+                        $resolvedFromSnapshots++;
+                    }
+                } else {
+                    $errors++;
+                    $this->warn("API error for pid {$pid}: {$e->getMessage()}");
+                    $this->sleep($sleepMs);
+                    continue;
+                }
             } catch (\Throwable $e) {
                 $errors++;
                 $this->warn("Failed pid {$pid}: {$e->getMessage()}");
@@ -66,7 +97,6 @@ class CjRepairMissingCategories extends Command
                 continue;
             }
 
-            $payload = is_array($response->data ?? null) ? $response->data : null;
             if (! $payload) {
                 $unresolved++;
                 $this->sleep($sleepMs);
@@ -88,6 +118,10 @@ class CjRepairMissingCategories extends Command
                 $product->category_id = $category->id;
                 $product->cj_last_payload = $payload;
                 $product->attributes = $attributes;
+                if (! $wasRemovedFromShelves) {
+                    $product->cj_removed_from_shelves_at = null;
+                    $product->cj_removed_reason = null;
+                }
                 $product->save();
             }
 
@@ -107,6 +141,9 @@ class CjRepairMissingCategories extends Command
         $this->table(['Metric', 'Count'], [
             ['Scanned', $scanned],
             ['Assigned category_id', $assigned],
+            ['Resolved from snapshots', $resolvedFromSnapshots],
+            ['Removed from shelves', $removedFromShelves],
+            ['Marked removed', $markedRemoved],
             ['Unresolved', $unresolved],
             ['Errors', $errors],
         ]);
@@ -126,5 +163,43 @@ class CjRepairMissingCategories extends Command
             usleep($sleepMs * 1000);
         }
     }
-}
 
+    private function isRemovedFromShelves(ApiException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'removed from shelves')
+            || str_contains($message, 'off shelf')
+            || str_contains($message, 'offline')
+            || in_array($e->codeString, ['PRODUCT_OFF_SHELF', '404'], true);
+    }
+
+    private function markProductRemoved(Product $product, ?string $reason = null): void
+    {
+        $product->update([
+            'status' => 'draft',
+            'is_active' => false,
+            'cj_sync_enabled' => false,
+            'cj_synced_at' => now(),
+            'cj_removed_from_shelves_at' => now(),
+            'cj_removed_reason' => $reason ? Str::limit($reason, 500) : 'Removed from shelves',
+        ]);
+    }
+
+    private function extractSnapshotPayload(?CjProductSnapshot $snapshot): ?array
+    {
+        if (! $snapshot) {
+            return null;
+        }
+
+        $payload = is_array($snapshot->payload) ? $snapshot->payload : [];
+        $snapshotCategoryId = is_scalar($snapshot->category_id) ? trim((string) $snapshot->category_id) : '';
+
+        if ($snapshotCategoryId !== '') {
+            $payload['categoryId'] = $payload['categoryId'] ?? $snapshotCategoryId;
+            $payload['cj_category_id'] = $payload['cj_category_id'] ?? $snapshotCategoryId;
+        }
+
+        return $payload !== [] ? $payload : null;
+    }
+}
