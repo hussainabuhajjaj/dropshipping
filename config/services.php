@@ -146,7 +146,10 @@ return [
         'key' => env('DEEPSEEK_API_KEY'),
         'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
         'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
-        'timeout' => env('DEEPSEEK_TIMEOUT', 20),
+        'connect_timeout' => env('DEEPSEEK_CONNECT_TIMEOUT', 10),
+        'timeout' => env('DEEPSEEK_TIMEOUT', 45),
+        'retry_times' => env('DEEPSEEK_RETRY_TIMES', 3),
+        'retry_delay_ms' => env('DEEPSEEK_RETRY_DELAY_MS', 500),
     ],
 
     'libre_translate' => [
