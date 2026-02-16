@@ -243,7 +243,6 @@ class OrderResource extends Resource
 
                         dispatch(new DispatchOrderJob($record));//->onConnection('sync');
 
-
                         foreach ($items as $item) {
                             $item->update(['fulfillment_status' => 'fulfilling']);
                             \App\Domain\Orders\Models\OrderAuditLog::create([

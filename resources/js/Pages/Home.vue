@@ -16,16 +16,16 @@
       <!-- Database Banners - Hero (highlight promotion if available) -->
       <BannerHero
         v-if="banners?.hero?.length"
-        :banner="highlightBannerWithPromotion(banners.hero[0], homepagePromotions)"
+        :banner="banners.hero[0]"
       />
 
       <!-- Database Banners - Carousel (highlight promotions) -->
       <BannerCarousel
         v-if="banners?.carousel?.length"
-        :banners="banners.carousel.map(b => highlightBannerWithPromotion(b, homepagePromotions))"
+        :banners="banners.carousel"
       />
 
-      <section class="top-strip">
+      <section v-if="topStrip.length" class="top-strip">
         <div v-for="item in topStrip" :key="item.title" class="strip-card">
           <span class="strip-icon">{{ item.icon }}</span>
           <div>
@@ -35,8 +35,8 @@
         </div>
       </section>
 
-      <section class="hero-block">
-        <div class="hero-carousel" @mouseenter="hoverPause = true" @mouseleave="hoverPause = false">
+      <section v-if="heroSlides.length || railCards.length" class="hero-block">
+        <div v-if="heroSlides.length" class="hero-carousel" @mouseenter="hoverPause = true" @mouseleave="hoverPause = false">
           <div class="hero-frame">
             <article
               v-for="(slide, index) in heroSlides"
@@ -90,7 +90,7 @@
           </div>
         </div>
 
-        <div class="hero-rails">
+        <div v-if="railCards.length" class="hero-rails">
           <div
             v-for="(card, index) in railCards"
             :key="card.title"
@@ -124,7 +124,7 @@
             <p class="section-kicker">{{ t('Seasonal drops') }}</p>
             <h2 class="section-title">{{ t('Limited edits and festive drops') }}</h2>
           </div>
-          <Link href="/collections" class="section-link">{{ t('View all') }}</Link>
+          <Link :href="seasonalDropsViewAllHref" class="section-link">{{ t('View all') }}</Link>
         </div>
         <div class="seasonal-grid">
           <Link
@@ -147,7 +147,7 @@
         </div>
       </section>
 
-      <section class="category-rail">
+      <section v-if="categoryTiles.length" class="category-rail">
         <div class="section-head">
           <div>
             <p class="section-kicker">{{ t('Top categories') }}</p>
@@ -174,13 +174,13 @@
         </div>
       </section>
 
-      <section class="section-block">
+      <section v-if="featuredDeals.length" class="section-block">
         <div class="section-head">
           <div>
             <p class="section-kicker">{{ t('Flash deals') }}</p>
             <h2 class="section-title">{{ t('Limited-time drops') }}</h2>
           </div>
-          <Link :href="limitedTimeDealsLink" class="section-link">{{ t('Shop deals') }}</Link>
+          <Link :href="flashDealsViewAllHref" class="section-link">{{ t('Shop deals') }}</Link>
         </div>
         <div class="deal-grid">
           <div v-for="(deal, index) in featuredDeals" :key="deal.id" class="deal-card">
@@ -195,7 +195,7 @@
         </div>
       </section>
 
-      <section class="section-block">
+      <section v-if="bestSellers.length" class="section-block">
         <div class="section-head">
           <div>
             <p class="section-kicker">{{ t('Best sellers') }}</p>
@@ -218,7 +218,7 @@
       <!-- Database Banners - Strip (after best sellers) -->
       <BannerStrip v-if="banners?.strip" :banner="banners.strip" />
 
-      <section class="section-block">
+      <section v-if="recommended.length" class="section-block">
         <div class="section-head">
           <div>
             <p class="section-kicker">{{ t('Recommended') }}</p>
@@ -229,6 +229,26 @@
         <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <ProductCard
             v-for="product in recommended"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+            :promotions="homepagePromotions"
+            class="reveal"
+          />
+        </div>
+      </section>
+
+      <section v-if="bestValue.length" class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">{{ t('Best value') }}</p>
+            <h2 class="section-title">{{ t('Top rated for the price') }}</h2>
+          </div>
+          <Link href="/products?sort=rating" class="section-link">{{ t('View all') }}</Link>
+        </div>
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ProductCard
+            v-for="product in bestValue"
             :key="product.id"
             :product="product"
             :currency="currency"
@@ -268,7 +288,7 @@
         </div>
       </section>
 
-      <section class="banner-strip">
+      <section v-if="bannerStrip" class="banner-strip">
         <div class="banner-fill">
           <div>
             <p class="banner-kicker">{{ bannerStrip.kicker }}</p>
@@ -278,7 +298,7 @@
         </div>
       </section>
 
-      <section class="value-grid">
+      <section v-if="valueProps.length" class="value-grid">
         <div v-for="item in valueProps" :key="item.title" class="value-card">
           <h3>{{ item.title }}</h3>
           <p>{{ item.body }}</p>
@@ -289,7 +309,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
@@ -303,36 +323,14 @@ import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js
 import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 import { useCurrency } from '@/composables/useCurrency.js'
 
-// Helper: Highlight banners with promotion info if any promotion is active
-function highlightBannerWithPromotion(banner, promotions) {
-  if (!promotions || !promotions.length) return banner
-  // Example: Add a badge if a flash sale is active
-  const flash = promotions.find(p => p.type === 'flash_sale')
-  if (flash) {
-    return {
-      ...banner,
-      badgeText: flash.name,
-      badgeColor: '#eab308',
-      description: flash.description || banner.description,
-      ctaText: 'Shop Flash Sale',
-      ctaUrl: '/promotions',
-    }
-  }
-  return banner
-}
-
 // Helper: Check if a category is targeted by any promotion
 function categoryHasPromotion(category, promotions) {
   if (!promotions || !promotions.length) return false
   const categoryId = category?.id ?? null
-  const categorySlug = category?.slug ?? null
-  const categoryName = category?.name ?? null
   return promotions.some(p =>
     (p.targets || []).some(t => {
       if (t.target_type !== 'category') return false
       if (categoryId && t.target_id == categoryId) return true
-      if (categorySlug && t.target_value == categorySlug) return true
-      if (categoryName && t.target_value == categoryName) return true
       return false
     })
   )
@@ -342,11 +340,15 @@ const props = defineProps({
   featured: { type: Array, required: true },
   bestSellers: { type: Array, required: true },
   recommended: { type: Array, required: true },
+  bestValue: { type: Array, default: () => [] },
+  flashDeals: { type: Array, default: () => [] },
+  flashDealsViewAllHref: { type: String, default: '/promotions/flash-sales' },
   categoryHighlights: { type: Array, default: () => [] },
   currency: { type: String, default: 'USD' },
-  homeContent: { type: Object, default: () => ({}) },
+  homeContent: { type: Object, default: null },
   banners: { type: Object, default: () => ({}) },
   seasonalDrops: { type: Array, default: () => [] },
+  seasonalDropsViewAllHref: { type: String, default: '/products' },
 })
 
 const page = usePage()
@@ -357,7 +359,6 @@ const displayCurrency = computed(() => selectedCurrency.value || props.currency)
 const homepagePromotions = computed(() =>
   Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : []
 )
-const limitedTimeDealsLink = computed(() => '/promotions/products')
 
 const displayPrice = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
@@ -366,53 +367,27 @@ const logisticsSupportPromo = computed(() => {
   return homepagePromotions.value.find((promo) => promo.intent === 'shipping_support') ?? null
 })
 
-const fallbackSlides = [
-  {
-    kicker: t('Fresh drop'),
-    title: t('Bright home upgrades with clear delivery promises'),
-    subtitle: t('Curated essentials, verified suppliers, and customs clarity before you pay.'),
-    image: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80',
-    primary: { label: t('Shop arrivals'), href: '/products' },
-    secondary: { label: t('Track order'), href: '/orders/track' },
-    meta: [t('Fast dispatch'), t('Duty clarity'), t('Reliable tracking')],
-  },
-  {
-    kicker: t('Bundle-ready'),
-    title: t('Bundle picks for tech, travel, and self care'),
-    subtitle: t('High-impact essentials that ship together for easier delivery.'),
-    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80',
-    primary: { label: t('Browse bundles'), href: '/products' },
-    secondary: { label: t('See categories'), href: '/products' },
-    meta: [t('Bundle savings'), t('Verified stock'), t('Clear timelines')],
-  },
-  {
-    kicker: t('Smart sourcing'),
-    title: t('Everyday heroes delivered with customs clarity'),
-    subtitle: t('Shop top-rated essentials without surprises at checkout.'),
-    image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
-    primary: { label: t('Shop essentials'), href: '/products' },
-    secondary: { label: t('Support'), href: '/support' },
-    meta: [t('No hidden fees'), t('WhatsApp support'), t('Trusted suppliers')],
-  },
-]
-
 const activeIndex = ref(0)
 const hoverPause = ref(false)
 let timer = null
 
 const nextSlide = () => {
+  if (heroSlides.value.length <= 1) return
   activeIndex.value = (activeIndex.value + 1) % heroSlides.value.length
 }
 
 const prevSlide = () => {
+  if (heroSlides.value.length <= 1) return
   activeIndex.value = (activeIndex.value - 1 + heroSlides.value.length) % heroSlides.value.length
 }
 
 const goToSlide = (index) => {
+  if (heroSlides.value.length <= 1) return
   activeIndex.value = index
 }
 
 const startTimer = () => {
+  if (heroSlides.value.length <= 1) return
   stopTimer()
   timer = window.setInterval(() => {
     if (! hoverPause.value) {
@@ -428,24 +403,9 @@ const stopTimer = () => {
   }
 }
 
-onMounted(() => {
-  startTimer()
-})
-
 onBeforeUnmount(() => {
   stopTimer()
 })
-
-const fallbackCategories = [
-  { name: t('Home and Kitchen'), count: 0 },
-  { name: t('Tech and Gadgets'), count: 0 },
-  { name: t('Beauty and Care'), count: 0 },
-  { name: t('Fashion'), count: 0 },
-  { name: t('Baby and Kids'), count: 0 },
-  { name: t('Fitness and Outdoor'), count: 0 },
-  { name: t('Office and Study'), count: 0 },
-  { name: t('Travel and Luggage'), count: 0 },
-]
 
 const buildShort = (name) => {
   const initials = name
@@ -459,7 +419,7 @@ const buildShort = (name) => {
 }
 
 const categoryTiles = computed(() => {
-  const source = props.categoryHighlights.length ? props.categoryHighlights : fallbackCategories
+  const source = Array.isArray(props.categoryHighlights) ? props.categoryHighlights : []
   return source.map((category) => ({
     ...category,
     id: category.id ?? null,
@@ -469,28 +429,26 @@ const categoryTiles = computed(() => {
 })
 
 const formatCount = (count) => {
-  if (! count) {
-    return '20+'
+  const value = Number(count ?? 0)
+  if (Number.isNaN(value) || value <= 0) {
+    return '0'
   }
-  if (count >= 100) {
-    return '100+'
-  }
-  if (count >= 50) {
-    return '50+'
-  }
-  return String(count)
+  return new Intl.NumberFormat().format(value)
 }
 
-const featuredDeals = computed(() => props.featured.slice(0, 6))
+const featuredDeals = computed(() => (Array.isArray(props.flashDeals) ? props.flashDeals.slice(0, 6) : []))
 const promotionForProduct = (product) => {
   if (!product || homepagePromotions.value.length === 0) return null
-  return homepagePromotions.value.find(p =>
-    (p.targets || []).some(t => {
+  return homepagePromotions.value.find(p => {
+    if (!Array.isArray(p.targets) || p.targets.length === 0) {
+      return true
+    }
+    return p.targets.some(t => {
       if (t.target_type === 'product') return t.target_id == product.id
       if (t.target_type === 'category') return t.target_id == product.category_id
       return false
     })
-  )
+  })
 }
 
 const dealCountdown = (product) => {
@@ -544,29 +502,29 @@ const promoScope = (promo) => {
 }
 
 const promoCta = (promo) => {
+  const promotionId = promo?.id ?? null
+  if (promo?.type === 'flash_sale') {
+    return { label: t('Shop flash deals'), href: '/products?promotion_type=flash_sale' }
+  }
+
   if (!promo?.targets || promo.targets.length === 0) {
     return { label: t('View deals'), href: '/promotions/deals' }
   }
-  const hasProduct = promo.targets.some(t => t.target_type === 'product')
-  if (hasProduct) {
-    return { label: t('Shop promoted products'), href: '/promotions/products' }
+  if (promotionId) {
+    return { label: t('Shop promoted products'), href: `/products?promotion=${promotionId}` }
   }
-  return { label: t('Browse promoted categories'), href: '/promotions/categories' }
+  return { label: t('Browse promoted products'), href: '/products' }
 }
 
 const topStrip = computed(() => {
-  if (props.homeContent?.top_strip?.length) {
+  if (Array.isArray(props.homeContent?.top_strip) && props.homeContent.top_strip.length) {
     return props.homeContent.top_strip
   }
-  return [
-    { icon: '⚡', title: t('Flash deals daily'), subtitle: t('Short-run offers updated every 24h.') },
-    { icon: '✈', title: t('Fast dispatch'), subtitle: t('Suppliers confirm within 24-48 hours.') },
-    { icon: '✓', title: t('Customs clarity'), subtitle: t('Duties shown before checkout.') },
-  ]
+  return []
 })
 
 const heroSlides = computed(() => {
-  const source = props.homeContent?.hero_slides?.length ? props.homeContent.hero_slides : fallbackSlides
+  const source = Array.isArray(props.homeContent?.hero_slides) ? props.homeContent.hero_slides : []
   return source.map((slide) => ({
     ...slide,
     primary: slide.primary ?? {
@@ -583,49 +541,35 @@ const heroSlides = computed(() => {
   }))
 })
 
+watch(() => heroSlides.value.length, (length) => {
+  activeIndex.value = 0
+  if (length > 1) {
+    startTimer()
+    return
+  }
+  stopTimer()
+})
+
 const railCards = computed(() => {
-  if (props.homeContent?.rail_cards?.length) {
+  if (Array.isArray(props.homeContent?.rail_cards) && props.homeContent.rail_cards.length) {
     return props.homeContent.rail_cards
   }
-  return [
-    { kicker: t('Offers'), title: t('Weekend mega picks'), subtitle: t('Bundles, gadgets, and home upgrades with fast dispatch.'), cta: t('Shop offers'), href: '/products' },
-    { kicker: t('Collections'), title: t('Smart home revamp'), subtitle: t('Energy-saving essentials curated for everyday comfort.'), cta: t('Browse collection'), href: '/products' },
-  ]
+  return []
 })
 
 const bannerStrip = computed(() => {
-  if (props.homeContent?.banner_strip) {
+  if (props.homeContent?.banner_strip && typeof props.homeContent.banner_strip === 'object') {
     return props.homeContent.banner_strip
   }
-  return {
-    kicker: t('Simbazu picks'),
-    title: t('Upgrade every room with clear delivery timelines'),
-    cta: t('Explore home upgrades'),
-    href: '/products',
-  }
+  return null
 })
-
-const fallbackValueProps = [
-  {
-    title: t("Delivery built for Cote d'Ivoire"),
-    body: t('Standard delivery in 7 to 18 business days with proactive tracking updates.'),
-  },
-  {
-    title: t('Smart sourcing, safer spending'),
-    body: t('We verify supplier availability, quality, and customs requirements before checkout.'),
-  },
-  {
-    title: t('Support that responds'),
-    body: t('Get answers fast via WhatsApp and email with order-ready agents.'),
-  },
-]
 
 const valueProps = computed(() => {
   const configured = page.props.storefront?.value_props
   if (Array.isArray(configured) && configured.length) {
     return configured
   }
-  return fallbackValueProps
+  return []
 })
 </script>
 

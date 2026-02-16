@@ -40,7 +40,7 @@ class PollCJFulfillmentStatus implements ShouldQueue
         }
 
         $response = $this->client->orderStatus(['orderIds' => [$job->external_reference]]);
-        dd($response);
+//        dd($response);
         $body = is_array($response) ? $response : (isset($response->data) ? $response->data : []);
         $data = Arr::get($body, '0');
 

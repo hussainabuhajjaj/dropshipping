@@ -339,20 +339,13 @@ class ProductResource extends BaseResource
     {
         return $table
             ->columns([
-                    Tables\Columns\ViewColumn::make('imported_count')
-                        ->view('filament.tables.columns.imported-count')
-                        ->label('Imported Count')
-                        ->visible(fn () => true),
 
-                    Tables\Columns\ViewColumn::make('global_sync_status')
-                        ->view('filament.tables.columns.global-sync-status')
-                        ->label('Global Sync Status')
-                        ->visible(fn () => true),
+
                     Tables\Columns\ImageColumn::make('primary_image')
                         ->label('Image')
                         ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
                         ->square(),
-                    Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(10),
+                    Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(20,'...')->tooltip(fn ($record) => $record->name),
                     Tables\Columns\TextColumn::make('quality_score')
                         ->label('Quality')
                         ->numeric(decimalPlaces: 0)

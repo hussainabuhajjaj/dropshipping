@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
-use App\Services\Promotions\PromotionHomepageService;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
@@ -11,11 +10,13 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\Category;
 use App\Models\HomePageSetting;
 use App\Models\Product;
-use App\Models\StorefrontCampaign;
 use App\Models\StorefrontBanner;
+use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
+use App\Services\Promotions\PromotionHomepageService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,108 +29,39 @@ class HomeController extends Controller
     {
         $locale = app()->getLocale();
         $sections = $homeBuilder->buildProductSections(6);
-        $featured = $sections['featured'];
-        $bestSellers = $sections['bestSellers'];
-        $recommended = $sections['recommended'];
+
+        $featured = $sections['featured'] ?? collect();
+        $bestSellers = $sections['bestSellers'] ?? collect();
+        $recommended = $sections['recommended'] ?? collect();
+        $bestValue = $sections['bestValue'] ?? collect();
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
 
         $homeContent = HomePageSetting::latestForLocale($locale);
         $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
-        $heroSlides = $homeContent?->hero_slides ?? [];
-        if (is_array($heroSlides)) {
-            $heroSlides = collect($heroSlides)->map(function (array $slide) use ($homeBuilder) {
-                $image = $slide['image'] ?? null;
-                if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
-                    $slide['image'] = $homeBuilder->normalizeImage($image);
-                }
-                return $slide;
-            })->values()->all();
-        }
+        $heroSlides = $this->normalizeHeroSlides($homeContent, $homeBuilder);
 
         $homepagePromotions = $promotionHomepageService->getHomepagePromotions();
         $promotionBanners = $this->buildPromotionBanners($homepagePromotions);
-        $campaignPlacements = app(CampaignPlacementService::class);
-        $campaignHeroBanners = $campaignPlacements->placementBanners('home_hero', $locale, 1);
-        $campaignCarouselBanners = $campaignPlacements->placementBanners('home_carousel', $locale);
-        $campaignStripBanners = $campaignPlacements->placementBanners('home_strip', $locale, 1);
+        $bannerResolution = $this->resolveHomeBanners($locale, $promotionBanners);
 
-        // Fetch active banners
-        $stripBanner = StorefrontBanner::active()
-            ->byDisplayType('strip')
-            ->where(function ($query) {
-                $query->where('target_type', 'none')
-                    ->orWhereNull('target_type');
-            })
-            ->with(['product.images', 'category'])
-            ->orderBy('display_order')
-            ->first();
-
-        $heroBanners = StorefrontBanner::active()
-                ->byDisplayType('hero')
-                ->where(function ($query) {
-                    $query->where('target_type', 'none')
-                        ->orWhereNull('target_type');
-                })
-                ->with(['product.images', 'category'])
-                ->orderBy('display_order')
-                ->get()
-                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
-                ->values()
-                ->toArray();
-
-        $carouselBanners = StorefrontBanner::active()
-                ->byDisplayType('carousel')
-                ->where(function ($query) {
-                    $query->where('target_type', 'none')
-                        ->orWhereNull('target_type');
-                })
-                ->with(['product.images', 'category'])
-                ->orderBy('display_order')
-                ->get()
-                ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
-            ->values()
-            ->toArray();
-
-        $stripPayload = $stripBanner ? $this->transformBanner($stripBanner) : null;
-
-        if (empty($heroBanners) && ! empty($promotionBanners)) {
-            $heroBanners = [array_shift($promotionBanners)];
-        }
-
-        if (! empty($promotionBanners)) {
-            $carouselBanners = array_values(array_merge($carouselBanners, $promotionBanners));
-        }
-
-        if (! empty($campaignHeroBanners)) {
-            $heroBanners = $campaignHeroBanners;
-        }
-
-        if (! empty($campaignCarouselBanners)) {
-            $carouselBanners = array_values(array_merge($campaignCarouselBanners, $carouselBanners));
-        }
-
-        if (! empty($campaignStripBanners)) {
-            $stripPayload = $campaignStripBanners[0];
-        }
-
-        $banners = [
-            'hero' => $heroBanners,
-            'carousel' => $carouselBanners,
-            'strip' => $stripPayload,
-        ];
-
-        $seasonalDrops = $this->buildSeasonalDrops($locale, $homeBuilder);
+        $seasonalDropsPayload = $this->buildSeasonalDrops($locale, $homeBuilder);
+        $flashDealsPayload = $this->buildFlashDeals($homepagePromotions);
 
         return Inertia::render('Home', [
-            'featured' => $featured->map(fn (Product $product) => $this->transformProduct($product)),
-            'bestSellers' => $bestSellers->map(fn (Product $product) => $this->transformProduct($product)),
-            'recommended' => $recommended->map(fn (Product $product) => $this->transformProduct($product)),
+            'featured' => $featured->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'bestSellers' => $bestSellers->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'recommended' => $recommended->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'bestValue' => $bestValue->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'flashDeals' => $flashDealsPayload['items'],
+            'flashDealsViewAllHref' => $flashDealsPayload['viewAllHref'],
             'categories' => $categoryList,
             'categoryHighlights' => $categoryHighlights,
             'currency' => 'USD',
-            'banners' => $banners,
-            'seasonalDrops' => $seasonalDrops,
+            'banners' => $bannerResolution['banners'],
+            'bannerDiagnostics' => $bannerResolution['diagnostics'],
+            'seasonalDrops' => $seasonalDropsPayload['items'],
+            'seasonalDropsViewAllHref' => $seasonalDropsPayload['viewAllHref'],
             'homeContent' => $homeContent ? [
                 'top_strip' => $homeContent->top_strip,
                 'hero_slides' => $heroSlides,
@@ -140,6 +72,147 @@ class HomeController extends Controller
         ]);
     }
 
+    private function normalizeHeroSlides(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder): array
+    {
+        $heroSlides = $homeContent?->hero_slides ?? [];
+        if (! is_array($heroSlides)) {
+            return [];
+        }
+
+        return collect($heroSlides)
+            ->filter(fn ($slide) => is_array($slide))
+            ->map(function (array $slide) use ($homeBuilder) {
+                $image = $slide['image'] ?? null;
+                if ($image && ! str_starts_with($image, 'http://') && ! str_starts_with($image, 'https://')) {
+                    $slide['image'] = $homeBuilder->normalizeImage($image);
+                }
+
+                return $slide;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $promotionBanners
+     * @return array{banners: array<string, mixed>, diagnostics: array<string, mixed>}
+     */
+    private function resolveHomeBanners(string $locale, array $promotionBanners): array
+    {
+        $campaignPlacements = app(CampaignPlacementService::class);
+
+        $campaignHero = $campaignPlacements->placementBanners('home_hero', $locale);
+        $campaignCarousel = $campaignPlacements->placementBanners('home_carousel', $locale);
+        $campaignStrip = $campaignPlacements->placementBanners('home_strip', $locale);
+
+        $baseHero = $this->baseBannersForDisplayType('hero');
+        $baseCarousel = $this->baseBannersForDisplayType('carousel');
+        $baseStrip = $this->baseBannersForDisplayType('strip');
+
+        $heroResolution = $this->mergeBannerSources([
+            ['source' => 'campaign', 'items' => $campaignHero],
+            ['source' => 'banner', 'items' => $baseHero],
+        ], 1);
+
+        $carouselResolution = $this->mergeBannerSources([
+            ['source' => 'campaign', 'items' => $campaignCarousel],
+            ['source' => 'banner', 'items' => $baseCarousel],
+            ['source' => 'promotion', 'items' => $promotionBanners],
+        ]);
+
+        $stripResolution = $this->mergeBannerSources([
+            ['source' => 'campaign', 'items' => $campaignStrip],
+            ['source' => 'banner', 'items' => $baseStrip],
+        ], 1);
+
+        return [
+            'banners' => [
+                'hero' => $heroResolution['selected'],
+                'carousel' => $carouselResolution['selected'],
+                'strip' => $stripResolution['selected'][0] ?? null,
+            ],
+            'diagnostics' => [
+                'generated_at' => now()->toIso8601String(),
+                'hero' => $heroResolution['diagnostics'],
+                'carousel' => $carouselResolution['diagnostics'],
+                'strip' => $stripResolution['diagnostics'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function baseBannersForDisplayType(string $displayType): array
+    {
+        return StorefrontBanner::active()
+            ->byDisplayType($displayType)
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get()
+            ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param array<int, array{source:string,items:array<int,array<string,mixed>>}> $sources
+     * @return array{selected: array<int, array<string, mixed>>, diagnostics: array<string, mixed>}
+     */
+    private function mergeBannerSources(array $sources, int $limit = 0): array
+    {
+        $selected = [];
+        $hidden = [];
+        $seen = [];
+
+        foreach ($sources as $sourcePayload) {
+            $source = (string) ($sourcePayload['source'] ?? 'unknown');
+            $items = is_array($sourcePayload['items'] ?? null) ? $sourcePayload['items'] : [];
+
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $id = (string) ($item['id'] ?? 'unknown-' . count($selected));
+                $ctaUrl = $this->normalizeStorefrontUrl($item['ctaUrl'] ?? null);
+
+                if ($ctaUrl === null) {
+                    $hidden[] = ['id' => $id, 'source' => $source, 'reason' => 'missing_or_invalid_cta'];
+                    continue;
+                }
+
+                if (isset($seen[$id])) {
+                    $hidden[] = ['id' => $id, 'source' => $source, 'reason' => 'duplicate_banner_id'];
+                    continue;
+                }
+
+                if ($limit > 0 && count($selected) >= $limit) {
+                    $hidden[] = ['id' => $id, 'source' => $source, 'reason' => 'lower_priority_than_selected'];
+                    continue;
+                }
+
+                $item['ctaUrl'] = $ctaUrl;
+                $item['source'] = $source;
+
+                $selected[] = $item;
+                $seen[$id] = true;
+            }
+        }
+
+        return [
+            'selected' => $selected,
+            'diagnostics' => [
+                'selected_count' => count($selected),
+                'hidden_count' => count($hidden),
+                'hidden' => $hidden,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{items: array<int, array<string, mixed>>, viewAllHref: string}
+     */
     private function buildSeasonalDrops(string $locale, HomeBuilderService $homeBuilder): array
     {
         $campaigns = StorefrontCampaign::query()
@@ -148,15 +221,13 @@ class HomeController extends Controller
             ->orderByDesc('starts_at')
             ->get()
             ->filter(fn (StorefrontCampaign $campaign) => $campaign->isActiveForLocale($locale))
-            ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true))
-            ->take(4);
+            ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true));
 
         $collections = StorefrontCollection::query()
             ->orderBy('display_order')
             ->get()
             ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale))
-            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true))
-            ->take(6);
+            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true));
 
         $items = [];
 
@@ -164,11 +235,13 @@ class HomeController extends Controller
             $items[] = [
                 'id' => 'campaign-' . $campaign->id,
                 'kind' => 'campaign',
+                'entityId' => $campaign->id,
+                'entitySlug' => $campaign->slug,
                 'kicker' => $campaign->localizedValue('hero_kicker', $locale) ?? strtoupper($campaign->type),
                 'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
                 'subtitle' => $campaign->localizedValue('hero_subtitle', $locale) ?? '',
                 'image' => $homeBuilder->normalizeImage($campaign->hero_image),
-                'href' => '/campaigns/' . $campaign->slug,
+                'href' => '/products?campaign=' . urlencode((string) $campaign->slug),
                 'tag' => $campaign->stacking_mode === 'exclusive' ? 'Exclusive' : 'Drop',
             ];
         }
@@ -177,22 +250,98 @@ class HomeController extends Controller
             $items[] = [
                 'id' => 'collection-' . $collection->id,
                 'kind' => 'collection',
+                'entityId' => $collection->id,
+                'entitySlug' => $collection->slug,
                 'kicker' => $collection->localizedValue('hero_kicker', $locale) ?? strtoupper($collection->type),
                 'title' => $collection->localizedValue('title', $locale) ?? $collection->title,
                 'subtitle' => $collection->localizedValue('description', $locale) ?? '',
                 'image' => $homeBuilder->normalizeImage($collection->hero_image),
-                'href' => '/collections/' . $collection->slug,
+                'href' => '/products?collection=' . urlencode((string) $collection->slug),
                 'tag' => $collection->type === 'guide' ? 'Guide' : 'Collection',
             ];
         }
 
-        return array_slice($items, 0, 6);
+        $items = array_slice($items, 0, 6);
+
+        return [
+            'items' => $items,
+            'viewAllHref' => $items[0]['href'] ?? '/products',
+        ];
     }
 
-    private function resolveCategoryHighlights(?HomePageSetting $homeContent)
+    /**
+     * @param array<int, array<string, mixed>> $homepagePromotions
+     * @return array{items: array<int, array<string,mixed>>, viewAllHref: string}
+     */
+    private function buildFlashDeals(array $homepagePromotions): array
+    {
+        $flashPromotions = collect($homepagePromotions)
+            ->filter(fn ($promo) => ($promo['type'] ?? null) === 'flash_sale')
+            ->values();
+
+        if ($flashPromotions->isEmpty()) {
+            return [
+                'items' => [],
+                'viewAllHref' => '/promotions/flash-sales',
+            ];
+        }
+
+        $targets = $flashPromotions->flatMap(fn ($promo) => $promo['targets'] ?? []);
+        $productIds = $targets
+            ->filter(fn ($target) => ($target['target_type'] ?? null) === 'product')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $categoryIds = $targets
+            ->filter(fn ($target) => ($target['target_type'] ?? null) === 'category')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $query = Product::query()
+            ->where('is_active', true)
+            ->with(['images', 'category', 'variants', 'translations'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews');
+
+        if (! empty($productIds) || ! empty($categoryIds)) {
+            $query->where(function ($builder) use ($productIds, $categoryIds) {
+                if (! empty($productIds)) {
+                    $builder->whereIn('id', $productIds);
+                }
+
+                if (! empty($categoryIds)) {
+                    $builder->orWhereIn('category_id', $categoryIds);
+                }
+            });
+        }
+
+        $products = $query
+            ->latest()
+            ->take(12)
+            ->get()
+            ->map(fn (Product $product) => $this->transformProduct($product))
+            ->values()
+            ->all();
+
+        return [
+            'items' => $products,
+            'viewAllHref' => '/products?promotion_type=flash_sale',
+        ];
+    }
+
+    private function resolveCategoryHighlights(?HomePageSetting $homeContent): Collection
     {
         $locale = app()->getLocale();
         $configured = $homeContent?->category_highlights ?? [];
+
         if (is_array($configured) && $configured !== []) {
             $categoryIds = collect($configured)
                 ->map(fn ($entry) => (int) ($entry['category_id'] ?? 0))
@@ -214,6 +363,7 @@ class HomeController extends Controller
                     if (! $category || ($category->products_count ?? 0) <= 0) {
                         return null;
                     }
+
                     return [
                         'id' => $category->id,
                         'slug' => $category->slug,
@@ -263,6 +413,8 @@ class HomeController extends Controller
             'ctaText' => $banner->localizedValue('cta_text', $locale),
             'ctaUrl' => $banner->getCtaUrl(),
             'imageMode' => $targeting['image_mode'] ?? 'split',
+            'startsAt' => optional($banner->starts_at)->toIso8601String(),
+            'endsAt' => optional($banner->ends_at)->toIso8601String(),
         ];
     }
 
@@ -287,6 +439,7 @@ class HomeController extends Controller
     private function resolveProductImage(Product $product): ?string
     {
         $image = $product->images?->first()?->url ?? null;
+
         return app(HomeBuilderService::class)->normalizeImage($image);
     }
 
@@ -295,6 +448,10 @@ class HomeController extends Controller
         return app(HomeBuilderService::class)->normalizeImage($category->hero_image ?? null);
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $promotions
+     * @return array<int, array<string, mixed>>
+     */
     private function buildPromotionBanners(array $promotions): array
     {
         if (empty($promotions)) {
@@ -357,7 +514,7 @@ class HomeController extends Controller
                     'textColor' => '#ffffff',
                     'badgeText' => $promo['badge_text'] ?? 'Promotion',
                     'badgeColor' => '#f59e0b',
-                    'ctaText' => 'Shop now',
+                    'ctaText' => __('Shop now'),
                     'ctaUrl' => $ctaUrl,
                     'promotion' => $promo,
                 ];
@@ -366,4 +523,25 @@ class HomeController extends Controller
             ->all();
     }
 
+    private function normalizeStorefrontUrl(mixed $url): ?string
+    {
+        if (! is_string($url)) {
+            return null;
+        }
+
+        $url = trim($url);
+        if ($url === '') {
+            return null;
+        }
+
+        if (str_starts_with($url, '/')) {
+            return $url;
+        }
+
+        if (filter_var($url, FILTER_VALIDATE_URL)) {
+            return $url;
+        }
+
+        return null;
+    }
 }

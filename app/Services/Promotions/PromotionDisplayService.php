@@ -28,10 +28,15 @@ class PromotionDisplayService
         $promotions = $this->activePromotionsQuery()
             ->when(! $displayEnabled && $placement === 'home', fn ($q) => $q->whereIn('type', ['flash_sale', 'auto_discount']))
             ->with(['targets', 'conditions'])
+            ->withCount('usages')
             ->orderByDesc('priority')
             ->get();
 
         $filtered = $promotions->filter(function (Promotion $promotion) use ($placement, $productIds, $categoryIds) {
+            if ($this->hasReachedDisplayStockLimit($promotion)) {
+                return false;
+            }
+
             $displayEnabled = (bool) (config('promotions.display.enabled') ?? true);
             if ($displayEnabled && ! $this->placementAllows($promotion, $placement)) {
                 return false;
@@ -91,6 +96,9 @@ class PromotionDisplayService
         $conditions = $promo->conditions ?? collect();
         $hasConditions = $conditions->isNotEmpty();
         $isSitewide = $targets->isEmpty();
+        $stockLimit = $this->displayStockLimit($promo);
+        $usedCount = (int) ($promo->usages_count ?? ($promo->relationLoaded('usages') ? $promo->usages->count() : 0));
+        $remainingStock = $stockLimit === null ? null : max(0, $stockLimit - $usedCount);
 
         $intent = $promo->promotion_intent ?? 'other';
         $badge = $this->badgeText($intent, $promo);
@@ -112,6 +120,9 @@ class PromotionDisplayService
             'is_sitewide' => $isSitewide,
             'badge_text' => $badge,
             'apply_hint' => $applyHint,
+            'stock_limit' => $stockLimit,
+            'used_count' => $usedCount,
+            'remaining_stock' => $remainingStock,
             'targets' => $targets->map(fn ($t) => [
                 'target_type' => $t->target_type,
                 'target_id' => $t->target_id,
@@ -169,5 +180,33 @@ class PromotionDisplayService
             'urgency' => __('Limited time'),
             default => __('Applied automatically'),
         };
+    }
+
+    private function hasReachedDisplayStockLimit(Promotion $promotion): bool
+    {
+        $limit = $this->displayStockLimit($promotion);
+        if ($limit === null) {
+            return false;
+        }
+
+        $used = (int) ($promotion->usages_count ?? ($promotion->relationLoaded('usages') ? $promotion->usages->count() : 0));
+
+        return $used >= $limit;
+    }
+
+    private function displayStockLimit(Promotion $promotion): ?int
+    {
+        $conditions = $promotion->conditions ?? collect();
+        $limitCondition = $conditions->first(function ($condition) {
+            return in_array((string) $condition->condition_type, ['stock_limit', 'usage_limit', 'max_uses', 'flash_stock_limit'], true);
+        });
+
+        if (! $limitCondition) {
+            return null;
+        }
+
+        $limit = (int) $limitCondition->condition_value;
+
+        return $limit > 0 ? $limit : null;
     }
 }

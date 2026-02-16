@@ -7,12 +7,15 @@ namespace App\Http\Controllers\Storefront;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
-use App\Models\Category;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductReview;
+use App\Models\Promotion;
+use App\Models\StorefrontCampaign;
+use App\Models\StorefrontCollection;
 use App\Services\ProductRecommendationService;
 use App\Services\Promotions\PromotionHomepageService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -25,6 +28,8 @@ class ProductController extends Controller
 
     public function index(Request $request): Response
     {
+        $locale = app()->getLocale();
+
         $category = $request->query('category');
         $minPrice = $request->query('min_price');
         $maxPrice = $request->query('max_price');
@@ -34,11 +39,18 @@ class ProductController extends Controller
         $inStock = filter_var($request->query('in_stock'), FILTER_VALIDATE_BOOLEAN);
         $featured = $request->query('is_featured');
 
+        $collectionFilter = $request->query('collection');
+        $campaignFilter = $request->query('campaign');
+        $promotionFilter = $request->query('promotion');
+        $promotionTypeFilter = $request->query('promotion_type');
+
         $productQuery = Product::query()
             ->where('is_active', true)
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
+
+        $filterContext = [];
 
         if ($category) {
             $productQuery->whereHas('category', function ($builder) use ($category) {
@@ -59,6 +71,7 @@ class ProductController extends Controller
                 $builder
                     ->where('name', 'like', '%' . $query . '%')
                     ->orWhere('description', 'like', '%' . $query . '%');
+
                 $builder->orWhereHas('category', function ($categoryBuilder) use ($query) {
                     $categoryBuilder->where('name', 'like', '%' . $query . '%');
                 });
@@ -80,6 +93,10 @@ class ProductController extends Controller
                 $productQuery->where('is_featured', false);
             }
         }
+
+        $this->applyCollectionFilter($productQuery, $collectionFilter, $locale, $filterContext);
+        $this->applyCampaignFilter($productQuery, $campaignFilter, $locale, $filterContext);
+        $this->applyPromotionFilters($productQuery, $promotionFilter, $promotionTypeFilter, $filterContext);
 
         $sortable = [
             'price_asc' => ['selling_price', 'asc'],
@@ -117,8 +134,13 @@ class ProductController extends Controller
             'currency' => 'USD',
             'categories' => $categories,
             'promotions' => $promotions,
+            'filterContext' => $filterContext,
             'filters' => [
                 'category' => $category,
+                'collection' => $collectionFilter,
+                'campaign' => $campaignFilter,
+                'promotion' => $promotionFilter,
+                'promotion_type' => $promotionTypeFilter,
                 'min_price' => $minPrice,
                 'max_price' => $maxPrice,
                 'q' => $query,
@@ -235,4 +257,209 @@ class ProductController extends Controller
         ]);
     }
 
+    private function applyCollectionFilter(Builder $productQuery, mixed $collectionFilter, string $locale, array &$filterContext): void
+    {
+        if (! is_string($collectionFilter) && ! is_numeric($collectionFilter)) {
+            return;
+        }
+
+        $collection = StorefrontCollection::query()
+            ->where(is_numeric($collectionFilter) ? 'id' : 'slug', $collectionFilter)
+            ->first();
+
+        if (! $collection || ! $collection->isActiveForLocale($locale)) {
+            $productQuery->whereRaw('1 = 0');
+            $filterContext['collection'] = [
+                'value' => (string) $collectionFilter,
+                'status' => 'not_found',
+            ];
+
+            return;
+        }
+
+        $productIds = $collection->resolveProducts($locale)->pluck('id')->map(fn ($id) => (int) $id)->filter()->values()->all();
+        if (empty($productIds)) {
+            $productQuery->whereRaw('1 = 0');
+        } else {
+            $productQuery->whereIn('products.id', $productIds);
+        }
+
+        $filterContext['collection'] = [
+            'id' => $collection->id,
+            'slug' => $collection->slug,
+            'title' => $collection->localizedValue('title', $locale) ?? $collection->title,
+            'status' => 'ok',
+        ];
+    }
+
+    private function applyCampaignFilter(Builder $productQuery, mixed $campaignFilter, string $locale, array &$filterContext): void
+    {
+        if (! is_string($campaignFilter) && ! is_numeric($campaignFilter)) {
+            return;
+        }
+
+        $campaign = StorefrontCampaign::query()
+            ->where(is_numeric($campaignFilter) ? 'id' : 'slug', $campaignFilter)
+            ->first();
+
+        if (! $campaign || ! $campaign->isActiveForLocale($locale)) {
+            $productQuery->whereRaw('1 = 0');
+            $filterContext['campaign'] = [
+                'value' => (string) $campaignFilter,
+                'status' => 'not_found',
+            ];
+
+            return;
+        }
+
+        $campaignCollectionIds = $campaign->collectionIds();
+        $collectionProductIds = StorefrontCollection::query()
+            ->whereIn('id', $campaignCollectionIds)
+            ->get()
+            ->flatMap(fn (StorefrontCollection $collection) => $collection->resolveProducts($locale)->pluck('id')->all())
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $promotionTargets = Promotion::query()
+            ->whereIn('id', $campaign->promotionIds())
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('start_at')->orWhere('start_at', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('end_at')->orWhere('end_at', '>=', now());
+            })
+            ->with('targets')
+            ->get()
+            ->flatMap(fn (Promotion $promotion) => $promotion->targets);
+
+        $promotionProductIds = $promotionTargets
+            ->where('target_type', 'product')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $promotionCategoryIds = $promotionTargets
+            ->where('target_type', 'category')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $categoryProductIds = empty($promotionCategoryIds)
+            ? []
+            : Product::query()
+                ->where('is_active', true)
+                ->whereIn('category_id', $promotionCategoryIds)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+        $productIds = collect($collectionProductIds)
+            ->concat($promotionProductIds)
+            ->concat($categoryProductIds)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($productIds)) {
+            $productQuery->whereRaw('1 = 0');
+        } else {
+            $productQuery->whereIn('products.id', $productIds);
+        }
+
+        $filterContext['campaign'] = [
+            'id' => $campaign->id,
+            'slug' => $campaign->slug,
+            'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
+            'status' => 'ok',
+        ];
+    }
+
+    private function applyPromotionFilters(Builder $productQuery, mixed $promotionFilter, mixed $promotionTypeFilter, array &$filterContext): void
+    {
+        if (! is_numeric($promotionFilter) && ! is_string($promotionTypeFilter)) {
+            return;
+        }
+
+        $promotionQuery = Promotion::query()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('start_at')->orWhere('start_at', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('end_at')->orWhere('end_at', '>=', now());
+            })
+            ->with('targets');
+
+        if (is_numeric($promotionFilter)) {
+            $promotionQuery->where('id', (int) $promotionFilter);
+        }
+
+        if (is_string($promotionTypeFilter) && $promotionTypeFilter !== '') {
+            $promotionQuery->where('type', $promotionTypeFilter);
+        }
+
+        $promotions = $promotionQuery->get();
+
+        if ($promotions->isEmpty()) {
+            $productQuery->whereRaw('1 = 0');
+            $filterContext['promotion'] = [
+                'status' => 'not_found',
+                'promotion' => is_numeric($promotionFilter) ? (int) $promotionFilter : null,
+                'promotion_type' => is_string($promotionTypeFilter) ? $promotionTypeFilter : null,
+            ];
+
+            return;
+        }
+
+        $targets = $promotions->flatMap(fn (Promotion $promotion) => $promotion->targets);
+        $productIds = $targets
+            ->where('target_type', 'product')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $categoryIds = $targets
+            ->where('target_type', 'category')
+            ->pluck('target_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (! empty($productIds) || ! empty($categoryIds)) {
+            $productQuery->where(function ($builder) use ($productIds, $categoryIds) {
+                if (! empty($productIds)) {
+                    $builder->whereIn('products.id', $productIds);
+                }
+
+                if (! empty($categoryIds)) {
+                    $builder->orWhereIn('category_id', $categoryIds);
+                }
+            });
+        }
+
+        $filterContext['promotion'] = [
+            'status' => 'ok',
+            'count' => $promotions->count(),
+            'promotion' => is_numeric($promotionFilter) ? (int) $promotionFilter : null,
+            'promotion_type' => is_string($promotionTypeFilter) ? $promotionTypeFilter : null,
+            'sitewide' => empty($productIds) && empty($categoryIds),
+        ];
+    }
 }
