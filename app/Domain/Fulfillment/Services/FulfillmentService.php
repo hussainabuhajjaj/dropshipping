@@ -103,6 +103,7 @@ class FulfillmentService
                 'dispatched_at' => now(),
             ]);
 
+
             $result = $strategy->dispatch($requestData);
 
             $this->recordOrderAttempt($job, $requestData, $result);

@@ -99,8 +99,8 @@ class EditStorefrontCampaign extends EditRecord
                     $this->form->fill($state);
 
                     Notification::make()
-                        ->success()
                         ->title('French override updated')
+                        ->success()
                         ->body('Review the Schedule & locale section, then save.')
                         ->send();
                 }),
@@ -146,8 +146,8 @@ class EditStorefrontCampaign extends EditRecord
                     ]);
 
                     Notification::make()
-                        ->success()
                         ->title('AI draft created')
+                        ->success()
                         ->body('Review and approve in Marketing Content Drafts.')
                         ->send();
                 }),

@@ -23,6 +23,7 @@ class AuthServiceProvider extends ServiceProvider
         Supplier::class => SupplierPolicy::class,
         \App\Models\Order::class => OrderPolicy::class,
         Customer::class => CustomerPolicy::class,
+
     ];
 
     public function boot(): void

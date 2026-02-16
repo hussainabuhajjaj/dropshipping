@@ -23,7 +23,14 @@ class HomeBuilderService
     }
 
     /**
-     * @return array{featured:\Illuminate\Support\Collection,bestSellers:\Illuminate\Support\Collection,recommended:\Illuminate\Support\Collection}
+     * @return array{
+     *     featured:\Illuminate\Support\Collection,
+     *     bestSellers:\Illuminate\Support\Collection,
+     *     recommended:\Illuminate\Support\Collection,
+     *     newArrivals:\Illuminate\Support\Collection,
+     *     trending:\Illuminate\Support\Collection,
+     *     bestValue:\Illuminate\Support\Collection
+     * }
      */
     public function buildProductSections(int $limit = 6): array
     {
@@ -66,10 +73,37 @@ class HomeBuilderService
             ->take($limit)
             ->get();
 
+        $newArrivals = (clone $baseQuery)
+            ->latest()
+            ->take($limit)
+            ->get();
+
+        $trending = (clone $baseQuery)
+            ->orderByDesc('reviews_count')
+            ->orderByDesc('reviews_avg_rating')
+            ->latest()
+            ->take($limit)
+            ->get();
+
+        $bestValue = (clone $baseQuery)
+            ->where('selling_price', '>', 0)
+            ->orderByDesc('reviews_avg_rating')
+            ->orderByDesc('reviews_count')
+            ->orderBy('selling_price')
+            ->take($limit)
+            ->get();
+
+        if ($bestValue->isEmpty()) {
+            $bestValue = $newArrivals->take($limit)->values();
+        }
+
         return [
             'featured' => $featured,
             'bestSellers' => $bestSellers,
             'recommended' => $recommended,
+            'newArrivals' => $newArrivals,
+            'trending' => $trending,
+            'bestValue' => $bestValue,
         ];
     }
 
