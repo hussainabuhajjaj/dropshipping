@@ -41,9 +41,9 @@ class CampaignPlacementService
                 }
             }
 
-            $campaignBanners = $this->campaignBanners($campaign, $locale);
+            $campaignBanners = $this->campaignBanners($campaign, $placement, $locale);
             if (empty($campaignBanners)) {
-                $campaignBanners = [$this->mapCampaignBanner($campaign, $locale)];
+                $campaignBanners = [$this->mapCampaignBanner($campaign, $placement, $locale)];
             }
 
             foreach ($campaignBanners as $banner) {
@@ -74,15 +74,20 @@ class CampaignPlacementService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function campaignBanners(StorefrontCampaign $campaign, ?string $locale = null): array
+    private function campaignBanners(StorefrontCampaign $campaign, string $placement, ?string $locale = null): array
     {
         $bannerIds = $campaign->bannerIds();
         if (empty($bannerIds)) {
             return [];
         }
 
+        $expectedDisplayType = $this->expectedDisplayTypeForPlacement($placement);
+
         return StorefrontBanner::query()
+            ->active()
             ->whereIn('id', $bannerIds)
+            ->when($expectedDisplayType !== null, fn ($query) => $query->where('display_type', $expectedDisplayType))
+            ->with(['product.images', 'category'])
             ->orderBy('display_order')
             ->get()
             ->map(fn (StorefrontBanner $banner) => $this->mapBanner($banner, $locale))
@@ -101,7 +106,7 @@ class CampaignPlacementService
             'description' => $banner->localizedValue('description', $locale),
             'type' => $banner->type,
             'displayType' => $banner->display_type,
-            'imagePath' => $this->homeBuilder->normalizeImage($banner->image_path),
+            'imagePath' => $this->resolveBannerImage($banner),
             'backgroundColor' => $banner->background_color,
             'textColor' => $banner->text_color,
             'badgeText' => $banner->localizedValue('badge_text', $locale),
@@ -113,14 +118,16 @@ class CampaignPlacementService
     }
 
     /** @return array<string, mixed> */
-    private function mapCampaignBanner(StorefrontCampaign $campaign, ?string $locale = null): array
+    private function mapCampaignBanner(StorefrontCampaign $campaign, string $placement, ?string $locale = null): array
     {
+        $displayType = $this->expectedDisplayTypeForPlacement($placement) ?? 'hero';
+
         return [
             'id' => 'campaign-' . $campaign->id,
             'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
             'description' => $campaign->localizedValue('hero_subtitle', $locale) ?? $campaign->hero_subtitle,
             'type' => 'campaign',
-            'displayType' => 'hero',
+            'displayType' => $displayType,
             'imagePath' => $this->homeBuilder->normalizeImage($campaign->hero_image),
             'backgroundColor' => Arr::get($campaign->theme, 'primary', '#0f172a'),
             'textColor' => '#ffffff',
@@ -130,5 +137,32 @@ class CampaignPlacementService
             'ctaUrl' => '/campaigns/' . $campaign->slug,
             'imageMode' => Arr::get($campaign->theme, 'image_mode', 'cover'),
         ];
+    }
+
+    private function expectedDisplayTypeForPlacement(string $placement): ?string
+    {
+        return match ($placement) {
+            'home_hero' => 'hero',
+            'home_carousel' => 'carousel',
+            'home_strip' => 'strip',
+            default => null,
+        };
+    }
+
+    private function resolveBannerImage(StorefrontBanner $banner): ?string
+    {
+        if ($banner->image_path) {
+            return $this->homeBuilder->normalizeImage($banner->image_path);
+        }
+
+        if ($banner->target_type === 'product' && $banner->product) {
+            return $this->homeBuilder->normalizeImage($banner->product->images?->first()?->url);
+        }
+
+        if ($banner->target_type === 'category' && $banner->category) {
+            return $this->homeBuilder->normalizeImage($banner->category->hero_image);
+        }
+
+        return null;
     }
 }
