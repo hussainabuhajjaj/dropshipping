@@ -34,7 +34,7 @@ class SyncCjVariantsJob implements ShouldQueue
         try {
             // Find the product by CJ PID
             $product = Product::where('cj_pid', $this->cjPid)->first();
-            
+
             if (!$product) {
                 Log::warning('Product not found for CJ sync', ['cj_pid' => $this->cjPid]);
                 return;
@@ -61,7 +61,7 @@ class SyncCjVariantsJob implements ShouldQueue
 
             foreach ($variants as $variantData) {
                 $vid = (string) ($variantData['vid'] ?? '');
-                
+
                 if ($vid === '') {
                     continue;
                 }
