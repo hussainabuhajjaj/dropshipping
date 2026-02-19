@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Storefront\ProductController;
 use App\Http\Controllers\Api\Storefront\TrackingController;
 use App\Http\Controllers\Api\Storefront\AuthController as StorefrontAuthController;
 use App\Http\Controllers\Api\Storefront\AccountController as StorefrontAccountController;
+use App\Http\Controllers\CjApiMonitoringController;
 use App\Http\Controllers\Api\Mobile\V1\AuthController as MobileAuthController;
 use App\Http\Controllers\Api\Mobile\V1\HomeController as MobileHomeController;
 use App\Http\Controllers\Api\Mobile\V1\CategoryController as MobileCategoryController;
@@ -163,3 +164,10 @@ Route::prefix('mobile/v1')->group(function () {
 Route::post('webhooks/korapay', KorapayWebhookController::class)
     ->middleware(['throttle:30,1', VerifyKorapayWebhookSignature::class, IdempotencyMiddleware::class])
     ->name('webhooks.korapay');
+
+// CJ API Monitoring Routes
+Route::prefix('cj')->group(function () {
+    Route::get('health', [CjApiMonitoringController::class, 'health']);
+    Route::get('metrics', [CjApiMonitoringController::class, 'metrics']);
+    Route::post('circuit-breaker/reset', [CjApiMonitoringController::class, 'resetCircuitBreaker']);
+});
