@@ -8,6 +8,7 @@ use App\Console\Commands\CjSyncCatalog;
 use App\Console\Commands\TranslateProducts;
 use App\Console\Commands\TranslateCategories;
 use App\Console\Commands\SyncCjVariants;
+use App\Console\Commands\CjBatchSyncVariantsCommand;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
@@ -33,6 +34,7 @@ class Kernel extends ConsoleKernel
             \App\Console\Commands\CjRefreshToken::class,
             SyncCjVariants::class,
             \App\Console\Commands\CjFixProductDetails::class,
+            CjBatchSyncVariantsCommand::class,
         ];
 
     protected function schedule(Schedule $schedule): void

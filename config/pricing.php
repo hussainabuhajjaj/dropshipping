@@ -1,27 +1,54 @@
 <?php
 
 return [
-    // Minimum margin buffer over cost (in percent) required for selling price
-    'min_margin_percent' => env('PRICING_MIN_MARGIN_PERCENT', 20),
+    /*
+    |--------------------------------------------------------------------------
+    | Pricing Configuration
+    |--------------------------------------------------------------------------
+    */
 
-    // Shipping cost buffer applied on top of cost (in percent)
+    'min_margin_percent' => env('PRICING_MIN_MARGIN_PERCENT', 45),
+    'minimum_profit_margin' => env('PRICING_MINIMUM_PROFIT_MARGIN', 15),
     'shipping_buffer_percent' => env('PRICING_SHIPPING_BUFFER_PERCENT', 10),
-
-    // Maximum discount percent allowed from the computed target price
     'max_discount_percent' => env('PRICING_MAX_DISCOUNT_PERCENT', 30),
+    'max_promotion_discount' => env('PRICING_MAX_PROMOTION_DISCOUNT', 30),
 
-    // Category-based margin tiers for repricing command.
-    // Supports either:
-    // 1) JSON map: {"25":35,"80":28}
-    // 2) JSON list: [{"category_id":25,"margin_percent":35},{"category_ids":[80,81],"margin_percent":28}]
-    'category_margin_tiers' => (static function (): array {
-        $decoded = json_decode((string) env('PRICING_CATEGORY_MARGIN_TIERS', '[]'), true);
-        return is_array($decoded) ? $decoded : [];
-    })(),
+    'category_multipliers' => [
+        1 => env('PRICING_ELECTRONICS_MULTIPLIER', 1.2), // Electronics
+        2 => env('PRICING_CLOTHING_MULTIPLIER', 1.1), // Clothing
+        3 => env('PRICING_HOME_GARDEN_MULTIPLIER', 1.15), // Home & Garden
+        4 => env('PRICING_BEAUTY_MULTIPLIER', 1.25), // Beauty
+        5 => env('PRICING_SPORTS_MULTIPLIER', 1.1), // Sports
+        'default' => env('PRICING_DEFAULT_MULTIPLIER', 1.0),
+    ],
 
-    // Dedicated queue for bulk margin and repricing workloads.
-    'bulk_margin_queue' => env('PRICING_BULK_QUEUE', 'pricing'),
+    'currency' => [
+        'default' => env('PRICING_DEFAULT_CURRENCY', 'XOF'),
+        'exchange_rate_cache_ttl' => env('PRICING_EXCHANGE_RATE_CACHE_TTL', 3600),
+        'xof_buffer_percent' => env('PRICING_XOF_BUFFER_PERCENT', 5),
+    ],
 
-    // Queue used for compare-at jobs triggered by repricing.
-    'compare_at_queue' => env('PRICING_COMPARE_AT_QUEUE', env('PRICING_BULK_QUEUE', 'pricing')),
+    'shipping_costs' => [
+        'CI' => env('PRICING_SHIPPING_CI', 12.50),
+        'US' => env('PRICING_SHIPPING_US', 8.00),
+        'FR' => env('PRICING_SHIPPING_FR', 15.00),
+        'UK' => env('PRICING_SHIPPING_UK', 12.00),
+        'default' => env('PRICING_SHIPPING_DEFAULT', 10.00),
+    ],
+
+    'fees' => [
+        'payment_gateway' => env('PRICING_PAYMENT_GATEWAY_FEE', 3.5),
+        'platform' => env('PRICING_PLATFORM_FEE', 5.0),
+    ],
+
+    'queues' => [
+        'validation' => env('PRICING_VALIDATION_QUEUE', 'pricing'),
+        'bulk_margin' => env('PRICING_BULK_MARGIN_QUEUE', 'pricing'),
+    ],
+
+    'alerts' => [
+        'low_margin_threshold' => env('PRICING_LOW_MARGIN_THRESHOLD', 20),
+        'high_currency_buffer_threshold' => env('PRICING_HIGH_CURRENCY_BUFFER_THRESHOLD', 10),
+        'rate_change_threshold' => env('PRICING_RATE_CHANGE_THRESHOLD', 5),
+    ],
 ];
