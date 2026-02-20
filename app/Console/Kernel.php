@@ -35,6 +35,8 @@ class Kernel extends ConsoleKernel
             SyncCjVariants::class,
             \App\Console\Commands\CjFixProductDetails::class,
             CjBatchSyncVariantsCommand::class,
+                    \App\Console\Commands\FixCorruptedMargins::class,
+
         ];
 
     protected function schedule(Schedule $schedule): void
