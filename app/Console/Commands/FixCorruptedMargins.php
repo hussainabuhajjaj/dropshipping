@@ -33,7 +33,8 @@ class FixCorruptedMargins extends Command
         $corruptedQuery = DB::table('products')
             ->select('id', 'name', 'cost_price', 'selling_price', 'currency')
             ->selectRaw('ROUND(((selling_price - cost_price) / cost_price * 100), 2) as margin_percent')
-            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ' . $threshold . ')')
+            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ?)', [$threshold])
+            ->where('cost_price', '>', 0)
             ->orderBy('margin_percent', 'desc');
 
         $corrupted = $corruptedQuery->get();
@@ -60,12 +61,16 @@ class FixCorruptedMargins extends Command
             })
         );
 
+        
         if ($count > 10) {
-            $this->line("... and {$count - 10} more products");
+            $this->line("... and " . ($count - 10) . " more products");
         }
 
         // Calculate impact
-        $totalRevenueLoss = $corrupted->sum(function ($product) {
+        $totalRevenueLoss = $corrupted->sum(function ($product) use ($newMargin) {
+            if ($product->cost_price <= 0) {
+                return 0;
+            }
             return $product->selling_price - ($product->cost_price * (1 + $newMargin / 100));
         });
 
@@ -85,6 +90,7 @@ class FixCorruptedMargins extends Command
         }
 
         // Create backup if requested
+        $backupTable = null;
         if ($backup) {
             $this->info('💾 Creating backup...');
             $backupTable = 'products_margin_backup_' . date('Y_m_d_His');
@@ -92,8 +98,8 @@ class FixCorruptedMargins extends Command
             DB::statement("
                 CREATE TABLE {$backupTable} AS 
                 SELECT * FROM products 
-                WHERE ABS(((selling_price - cost_price) / cost_price * 100) > {$threshold})
-            ");
+                WHERE ABS(((selling_price - cost_price) / cost_price * 100) > ?) AND cost_price > 0
+            ", [$threshold]);
             
             $this->info("✅ Backup created: {$backupTable}");
         }
@@ -102,7 +108,7 @@ class FixCorruptedMargins extends Command
         $this->info('🔧 Fixing corrupted margins...');
         
         $fixed = DB::table('products')
-            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ' . $threshold . ')')
+            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ?) AND cost_price > 0', [$threshold])
             ->update(['selling_price' => DB::raw('cost_price * (1 + ' . $newMargin . ' / 100)')]);
 
         // Log the operation
@@ -110,12 +116,15 @@ class FixCorruptedMargins extends Command
             'products_fixed' => $fixed,
             'threshold' => $threshold,
             'new_margin' => $newMargin,
-            'backup_table' => $backupTable ?? null
+            'backup_table' => $backupTable ?? null,
+            'backup_created' => $backup ?? false
         ]);
+
+
 
         // Verify fix
         $remaining = DB::table('products')
-            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ' . $threshold . ')')
+            ->whereRaw('ABS(((selling_price - cost_price) / cost_price * 100) > ?) AND cost_price > 0', [$threshold])
             ->count();
 
         if ($remaining === 0) {
