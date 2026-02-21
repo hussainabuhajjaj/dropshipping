@@ -80,6 +80,7 @@ class CjImportSnapshots extends Command
                     'price' => is_numeric($price) ? (float) $price : 0,
                     'cost_price' => is_numeric($price) ? (float) $price : 0,
                     'currency' => $payload['currency'] ?? 'USD',
+                    'supplier_currency' => $payload['currency'] ?? 'USD',
                     'metadata' => [
                         'cj_pid' => $snap->pid,
                     ],

@@ -21,7 +21,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'currency' => [
-        'default' => env('PRICING_DEFAULT_CURRENCY', 'XOF'),
+        'default' => env('PRICING_DEFAULT_CURRENCY', 'USD'), // Changed to USD for admin panel
+        'admin_display' => 'USD', // Force USD display in admin panel
         'exchange_rate_cache_ttl' => env('PRICING_EXCHANGE_RATE_CACHE_TTL', 3600), // 1 hour
         'xof_buffer_percent' => env('PRICING_XOF_BUFFER_PERCENT', 5.0),
     ],

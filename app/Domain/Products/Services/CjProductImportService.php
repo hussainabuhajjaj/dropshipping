@@ -142,7 +142,26 @@ class CjProductImportService
             }
         }
         $price = $productData['productSellPrice'] ?? null;
-        $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float)$price : null);
+        
+        // Handle range format prices like "4.28-7.09"
+        $priceValue = null;
+        if (is_numeric($firstVariantPrice)) {
+            $priceValue = $firstVariantPrice;
+        } elseif (is_string($price) && strpos($price, '-') !== false) {
+            // Handle range format "min-max"
+            $rangeParts = explode('-', $price);
+            if (count($rangeParts) === 2 && is_numeric($rangeParts[0]) && is_numeric($rangeParts[1])) {
+                // Use the lower bound of the range
+                $priceValue = (float) $rangeParts[0];
+            }
+        } elseif (is_numeric($price)) {
+            $priceValue = (float)$price;
+        }
+        
+        // Final fallback if still null
+        if ($priceValue === null) {
+            $priceValue = $product?->cost_price ?? 0;
+        }
         $incomingDescription = $this->cleanDescription(
             $productData['descriptionEn']
             ?? $productData['productDescriptionEn']
@@ -170,14 +189,65 @@ class CjProductImportService
             ]
         );
 
+        // Validate currency first (needed for pricing calculation)
+        $currency = $productData['currency'] ?? 'USD';
+        if (!in_array($currency, ['USD', 'EUR', 'GBP', 'CAD', 'AUD'])) {
+            Log::warning('Unsupported currency detected, defaulting to USD', [
+                'cj_pid' => $pid,
+                'currency' => $currency
+            ]);
+            $currency = 'USD';
+        }
+
         // Set cost price as imported, preserve selling price if price lock is enabled
         $rawCost = $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0));
+        
+        // Strict validation for cost price
+        if (!is_numeric($rawCost) || $rawCost < 0) {
+            Log::warning('Invalid cost price detected, using default', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'price_value' => $priceValue
+            ]);
+            $rawCost = 0;
+        }
+        
         $pricing = PricingService::makeFromConfig();
-        $minSell = is_numeric($rawCost) ? $pricing->minSellingPrice((float) $rawCost) : 0;
+        $minSell = $pricing->minSellingPrice((float) $rawCost, $currency); // Use product currency
         $sellingPrice = $lockPrice && $product ? ($product->selling_price ?? 0) : 0;
-        if ($sellingPrice <= 0 || $sellingPrice < $minSell) {
+        
+        // Strict validation for selling price
+        if (!is_numeric($sellingPrice) || $sellingPrice < 0 || $sellingPrice < $minSell) {
             $sellingPrice = $minSell;
         }
+        
+        // Additional validation to prevent corruption
+        if ($sellingPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
+            Log::warning('Excessive selling price detected, using minimum price', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'calculated_selling_price' => $sellingPrice,
+                'min_sell' => $minSell
+            ]);
+            $sellingPrice = $minSell;
+        }
+        
+        // Final sanity check for reasonable price ranges
+        $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
+        if ($sellingPrice > $maxReasonablePrice) {
+            Log::warning('Unreasonable selling price detected, applying maximum reasonable price', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'selling_price' => $sellingPrice,
+                'max_reasonable' => $maxReasonablePrice
+            ]);
+            $sellingPrice = $maxReasonablePrice;
+        }
+        
+        // Extract stock information from CJ API data
+        $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
+        $stockOnHand = $totalStock > 0 ? (int) ($totalStock / 2) : 0; // Set half of total stock to stock_on_hand
+        
         $payload = [
             'name' => $name,
             'category_id' => $category?->id,
@@ -190,6 +260,8 @@ class CjProductImportService
             'cj_synced_at' => now(),
             'cj_removed_from_shelves_at' => null,
             'cj_removed_reason' => null,
+            'stock_on_hand' => $stockOnHand,
+            'cj_total_stock' => $totalStock, // Store total CJ stock for reference
             'default_fulfillment_provider_id' => $this->resolveDefaultFulfillmentProviderId(),
         ];
 
@@ -207,6 +279,8 @@ class CjProductImportService
                 'category_id' => $payload['category_id'],
                 'currency' => $payload['currency'],
                 'source_url' => $payload['source_url'],
+                'stock_on_hand' => $payload['stock_on_hand'],
+                'cj_total_stock' => $payload['cj_total_stock'],
             ])
             : ['created'];
 
@@ -937,8 +1011,50 @@ class CjProductImportService
                     }
 
                     $rawSell = $variant['variantSellPrice'] ?? $variant['variantSugSellPrice'] ?? null;
+                    
+                    // Strict validation for variant cost price
                     $rawCost = is_numeric($rawSell) ? (float) $rawSell : ($product->cost_price ?? 0);
+                    if (!is_numeric($rawCost) || $rawCost < 0) {
+                        Log::warning('Invalid variant cost price detected, using product cost', [
+                            'cj_pid' => $pid,
+                            'cj_vid' => $vid,
+                            'raw_cost' => $rawCost
+                        ]);
+                        $rawCost = $product->cost_price ?? 0;
+                    }
+                    
+                    // Strict validation for variant selling price
                     $sellPrice = is_numeric($rawSell) ? (float) $rawSell : ($product->selling_price ?? 0);
+                    if (!is_numeric($sellPrice) || $sellPrice < 0) {
+                        $pricing = PricingService::makeFromConfig();
+                        $minSell = $pricing->minSellingPrice((float) $rawCost, $product->currency ?? 'USD'); // Use product currency
+                        $sellPrice = $minSell;
+                    }
+                    
+                    // Additional validation to prevent variant price corruption
+                    if ($sellPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
+                        Log::warning('Excessive variant price detected, using minimum price', [
+                            'cj_pid' => $pid,
+                            'cj_vid' => $vid,
+                            'raw_cost' => $rawCost,
+                            'variant_sell_price' => $sellPrice
+                        ]);
+                        $pricing = PricingService::makeFromConfig();
+                        $sellPrice = $pricing->minSellingPrice((float) $rawCost);
+                    }
+                    
+                    // Final sanity check for reasonable variant price ranges
+                    $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
+                    if ($sellPrice > $maxReasonablePrice) {
+                        Log::warning('Unreasonable variant price detected, applying maximum reasonable price', [
+                            'cj_pid' => $pid,
+                            'cj_vid' => $vid,
+                            'raw_cost' => $rawCost,
+                            'variant_sell_price' => $sellPrice,
+                            'max_reasonable' => $maxReasonablePrice
+                        ]);
+                        $sellPrice = $maxReasonablePrice;
+                    }
 
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
@@ -957,6 +1073,10 @@ class CjProductImportService
                     $variantHeight = $this->parsePositiveInt($variant['variantHeight'] ?? null);
                     $variantWeight = $this->parsePositiveInt($variant['variantWeight'] ?? null);
 
+                    // Extract stock information from CJ variant data
+                    $variantStock = (int) ($variant['stock'] ?? $variant['variantStock'] ?? 0);
+                    $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0; // Set half of stock to stock_on_hand
+
                     ProductVariant::updateOrCreate(
                         [
                             'product_id' => $product->id,
@@ -974,6 +1094,9 @@ class CjProductImportService
                             'package_length_mm' => $variantLength,
                             'package_width_mm' => $variantWidth,
                             'package_height_mm' => $variantHeight,
+                            'stock_on_hand' => $variantStockOnHand,
+                            'cj_stock' => $variantStock, // Store original CJ stock
+                            'cj_stock_synced_at' => now(),
                             'metadata' => [
                                 'cj_vid' => $vid,
                                 'cj_variant' => $variant,
@@ -997,9 +1120,11 @@ class CjProductImportService
             try {
                 $product->variants()->create([
                     'title' => 'Default',
+                    'sku' => 'DEFAULT-' . $product->id, // Generate default SKU
                     'price' => $product->selling_price ?? 0,
                     'cost_price' => $product->cost_price ?? 0,
                     'currency' => $product->currency ?? 'USD',
+                    'supplier_currency' => $product->supplier_currency ?? 'USD',
                     'metadata' => [
                         'cj_pid' => $pid,
                     ],
@@ -1135,10 +1260,10 @@ class CjProductImportService
         return mb_substr($text, 0, 190);
     }
 
-    private function applyMinMarginToPrice(float $price, float $cost): float
+    private function applyMinMarginToPrice(float $price, float $cost, string $currency = 'USD'): float
     {
         $pricing = PricingService::makeFromConfig();
-        $min = $pricing->minSellingPrice(max(0, $cost));
+        $min = $pricing->minSellingPrice(max(0, $cost), $currency);
         return max($price, $min);
     }
 

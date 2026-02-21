@@ -233,13 +233,41 @@ class SyncCjVariantsJob implements ShouldQueue
      */
     private function resolveVariantPrice(array $variantData, ProductVariant $variant, Product $product): float
     {
-        $candidate = $variantData['variantPrice']
-            ?? $variantData['variantSellPrice']
+        // Try variant-specific prices first
+        $candidate = $variantData['variantSellPrice']
             ?? $variantData['variantSugSellPrice']
-            ?? $variant->price
-            ?? $product->selling_price
-            ?? 0;
-
-        return is_numeric($candidate) ? (float) $candidate : 0.0;
+            ?? $variantData['variantPrice'];
+        
+        // If variant price is not available, calculate from variant cost
+        if (!is_numeric($candidate)) {
+            $variantCost = $variantData['variantSellPrice'] ?? $variant->cost_price ?? 0;
+            if (is_numeric($variantCost) && $variantCost > 0) {
+                // Calculate variant price based on its own cost, not the potentially corrupted product price
+                $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                $candidate = $pricing->minSellingPrice((float) $variantCost);
+            } else {
+                $candidate = 0.0;
+            }
+        }
+        
+        // Final validation to prevent corruption
+        if (!is_numeric($candidate) || $candidate < 0) {
+            $candidate = 0.0;
+        }
+        
+        // Additional corruption prevention
+        $variantCost = $variant->cost_price ?? 0;
+        if ($variantCost > 0 && $candidate > ($variantCost * 100)) { // >100x markup is corruption
+            Log::warning('Excessive variant price detected in resolveVariantPrice, using minimum', [
+                'cj_pid' => $product->cj_pid,
+                'cj_vid' => $variant->cj_vid,
+                'variant_cost' => $variantCost,
+                'candidate_price' => $candidate
+            ]);
+            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+            $candidate = $pricing->minSellingPrice((float) $variantCost);
+        }
+        
+        return (float) $candidate;
     }
 }
