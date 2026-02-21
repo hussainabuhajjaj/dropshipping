@@ -39,6 +39,7 @@ class Product extends Model
         'cj_lock_variants',
         'cj_video_urls',
         'stock_on_hand',
+        'cj_total_stock',
         'slug',
         'name',
         'category_id',
@@ -49,6 +50,7 @@ class Product extends Model
         'cost_price',
         'status',
         'currency',
+        'supplier_currency',
         'default_fulfillment_provider_id',
         'supplier_id',
         'supplier_product_url',
@@ -81,10 +83,12 @@ class Product extends Model
         'cj_lock_variants' => 'boolean',
         'cj_video_urls' => 'array',
         'stock_on_hand' => 'integer',
+        'cj_total_stock' => 'integer',
         'seo_metadata' => 'array',
         'marketing_metadata' => 'array',
         'translated_locales' => 'array',
         'last_translation_at' => 'datetime',
+        'supplier_currency' => 'string',
     ];
 
     public function variants(): HasMany

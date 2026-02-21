@@ -1,22 +1,14 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Domain\Products\Services;
 
-use App\Domain\Products\Models\Product;
-use App\Domain\Products\Models\ProductVariant;
 use App\Services\Currency\CurrencyConversionService;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
+use Illuminate\Support\Facades\Log;
 
 class PricingService
 {
-    private const CACHE_TTL = 3600;
-    private const LOCK_TTL = 30;
-
     public function __construct(
         private readonly float $minMarginPercent = 0,
         private readonly float $maxDiscountPercent = 0,
@@ -42,21 +34,36 @@ class PricingService
         ?float $platformFeePercent = null,
         ?float $paymentFeePercent = null
     ): array {
-        // Convert supplier cost to local currency
-        $localCurrency = config('pricing.currency.default', 'XOF');
-        $localCost = $this->currencyService->convertAmount(
-            $supplierCost,
-            $supplierCurrency,
-            $localCurrency
-        );
-
-        if ($localCost === null) {
-            throw new RuntimeException('Failed to convert supplier cost to local currency');
+        // DEFENSIVE: Cost integrity validation
+        if ($supplierCost <= 0) {
+            throw new InvalidArgumentException('Supplier cost must be greater than 0');
+        }
+        
+        if ($supplierCost > 10000) { // $10,000 is unusually high for dropshipping
+            Log::warning('Unusually high supplier cost detected', [
+                'supplier_cost' => $supplierCost,
+                'supplier_currency' => $supplierCurrency
+            ]);
         }
 
-        // Apply currency buffer for volatility protection
-        $currencyBuffer = (float) config('pricing.currency.xof_buffer_percent', 5);
-        $bufferedCost = $localCost * (1 + $currencyBuffer / 100);
+        // DEFENSIVE: Use supplier currency directly, don't convert unless needed
+        $localCurrency = $supplierCurrency; // Keep in original currency
+        $localCost = $supplierCost;
+        
+        Log::info('Using supplier currency directly', [
+            'supplier_currency' => $supplierCurrency,
+            'local_currency' => $localCurrency,
+            'amount' => $supplierCost
+        ]);
+
+        // Apply currency buffer for volatility protection (only for XOF)
+        $currencyBuffer = 0;
+        $bufferedCost = $localCost;
+        
+        if ($localCurrency === 'XOF') {
+            $currencyBuffer = (float) config('pricing.currency.xof_buffer_percent', 5);
+            $bufferedCost = $localCost * (1 + $currencyBuffer / 100);
+        }
 
         // Add platform and payment fees
         $platformFeeRate = $platformFeePercent ?? (float) config('pricing.fees.platform', 5.0);
@@ -65,9 +72,19 @@ class PricingService
         $feesMultiplier = 1 + ($platformFeeRate + $paymentFeeRate) / 100;
         $totalCost = $bufferedCost * $feesMultiplier;
 
+        // DEFENSIVE: Total cost validation
+        if ($totalCost < 1) {
+            Log::warning('Total cost below minimum threshold', [
+                'total_cost' => $totalCost,
+                'supplier_cost' => $supplierCost
+            ]);
+        }
+
         return [
             'supplier_cost' => $supplierCost,
+            'supplier_currency' => $supplierCurrency,
             'local_cost' => $localCost,
+            'local_currency' => $localCurrency,
             'currency_buffer_amount' => $bufferedCost - $localCost,
             'platform_fee_amount' => $totalCost - $bufferedCost,
             'total_cost' => $totalCost,
@@ -76,325 +93,210 @@ class PricingService
     }
 
     /**
-     * Calculate final selling price with margin and category multiplier
-     */
-    public function calculateSellingPrice(
-        array $calculation,
-        float $marginPercent,
-        ?int $categoryId = null
-    ): array {
-        $categoryMultiplier = $this->getCategoryMultiplier($categoryId);
-        
-        // Apply margin
-        $priceWithMargin = $calculation['total_cost'] * (1 + $marginPercent / 100);
-        
-        // Apply category multiplier
-        $basePrice = $priceWithMargin * $categoryMultiplier;
-        
-        // Round to currency precision
-        $finalPrice = $this->roundForCurrency($basePrice);
-
-        // Calculate actual profit
-        $actualProfit = $finalPrice - $calculation['total_cost'];
-        $actualMarginPercent = $calculation['total_cost'] > 0 
-            ? ($actualProfit / $calculation['total_cost']) * 100 
-            : 0;
-
-        return [
-            'base_price' => $finalPrice,
-            'total_cost' => $calculation['total_cost'],
-            'profit_amount' => $actualProfit,
-            'profit_margin_percent' => $actualMarginPercent,
-            'currency' => $calculation['currency'],
-        ];
-    }
-
-    /**
-     * Apply marketing discounts safely with profit protection
-     */
-    public function applyMarketingDiscounts(
-        array $baseResult,
-        ?float $promotionDiscount = null,
-        ?float $campaignDiscount = null,
-        ?float $flashSaleDiscount = null,
-        ?float $couponDiscount = null
-    ): array {
-        $currentPrice = $baseResult['base_price'];
-        $totalDiscountPercent = 0;
-
-        // Apply discounts in priority order
-        $discounts = array_filter([
-            ['type' => 'promotion', 'percent' => $promotionDiscount],
-            ['type' => 'campaign', 'percent' => $campaignDiscount],
-            ['type' => 'flash_sale', 'percent' => $flashSaleDiscount],
-            ['type' => 'coupon', 'percent' => $couponDiscount],
-        ]);
-
-        foreach ($discounts as $discount) {
-            $discountPercent = min($discount['percent'], $this->maxDiscountPercent);
-            $discountAmount = $currentPrice * ($discountPercent / 100);
-            
-            // Check if this discount would violate minimum profit
-            $newPrice = $currentPrice - $discountAmount;
-            $newProfit = $newPrice - $baseResult['total_cost'];
-            $minProfitMargin = (float) config('pricing.minimum_profit_margin', 15);
-            $minProfitAmount = $baseResult['total_cost'] * ($minProfitMargin / 100);
-
-            if ($newProfit < $minProfitAmount) {
-                // Adjust discount to maintain minimum profit
-                $maxAllowedDiscount = $currentPrice - ($baseResult['total_cost'] + $minProfitAmount);
-                $discountAmount = min($discountAmount, $maxAllowedDiscount);
-                $discountPercent = ($discountAmount / $currentPrice) * 100;
-            }
-
-            $totalDiscountPercent += $discountPercent;
-            $currentPrice -= $discountAmount;
-        }
-
-        $actualDiscountPercent = ($baseResult['base_price'] - $currentPrice) / $baseResult['base_price'] * 100;
-        $finalProfit = $currentPrice - $baseResult['total_cost'];
-        $finalMarginPercent = $baseResult['total_cost'] > 0 
-            ? ($finalProfit / $baseResult['total_cost']) * 100 
-            : 0;
-
-        return [
-            'base_price' => $currentPrice,
-            'total_cost' => $baseResult['total_cost'],
-            'profit_amount' => $finalProfit,
-            'profit_margin_percent' => $finalMarginPercent,
-            'currency' => $baseResult['currency'],
-            'applied_discounts' => [
-                'total_discount_percent' => $actualDiscountPercent,
-                'original_price' => $baseResult['base_price'],
-                'discounted_price' => $currentPrice,
-            ]
-        ];
-    }
-
-    /**
-     * Update product pricing with atomic operations and locking
-     */
-    public function updateProductPricing(
-        Product $product,
-        array $options = []
-    ): array {
-        $lockKey = "product_pricing_{$product->id}";
-        
-        return Cache::lock($lockKey, self::LOCK_TTL)->block(5, function () use ($product, $options) {
-            return DB::transaction(function () use ($product, $options) {
-                // Refresh product data within transaction
-                $product->refresh();
-                
-                if ($product->cj_lock_price && !($options['force_update'] ?? false)) {
-                    throw new RuntimeException('Product price is locked');
-                }
-
-                $calculation = $this->calculateBasePrice(
-                    supplierCost: (float) $product->cost_price,
-                    supplierCurrency: $product->currency ?? 'USD'
-                );
-
-                $result = $this->calculateSellingPrice(
-                    calculation: $calculation,
-                    marginPercent: $options['margin_percent'] ?? $this->minMarginPercent,
-                    categoryId: $product->category_id
-                );
-
-                // Apply marketing discounts if provided
-                if (isset($options['discounts'])) {
-                    $result = $this->applyMarketingDiscounts(
-                        baseResult: $result,
-                        promotionDiscount: $options['discounts']['promotion'] ?? null,
-                        campaignDiscount: $options['discounts']['campaign'] ?? null,
-                        flashSaleDiscount: $options['discounts']['flash_sale'] ?? null,
-                        couponDiscount: $options['discounts']['coupon'] ?? null
-                    );
-                }
-
-                // Validate minimum profit
-                $this->validateMinimumProfit($result);
-
-                // Update product
-                $oldPrice = $product->selling_price;
-                $product->update([
-                    'selling_price' => $result['base_price'],
-                    'currency' => $result['currency'],
-                ]);
-
-                // Update variants if requested (default to false to prevent unwanted updates)
-                if ($options['update_variants'] ?? false) {
-                    $this->updateVariantPricing($product, $options);
-                }
-
-                return $result;
-            });
-        });
-    }
-
-    /**
-     * Set product margin without updating variants
-     */
-    public function setProductMargin(Product $product, float $marginPercent, array $discounts = []): array
-    {
-        return $this->updateProductPricing($product, [
-            'margin_percent' => $marginPercent,
-            'update_variants' => false,
-            'discounts' => $discounts,
-        ]);
-    }
-
-    /**
-     * Set product margin and update variants
-     */
-    public function setProductMarginWithVariants(Product $product, float $marginPercent, array $discounts = []): array
-    {
-        return $this->updateProductPricing($product, [
-            'margin_percent' => $marginPercent,
-            'update_variants' => true,
-            'discounts' => $discounts,
-        ]);
-    }
-
-    /**
-     * Bulk update pricing with chunking and error handling
-     */
-    public function bulkUpdatePricing(array $productIds, array $options = []): array
-    {
-        $results = [
-            'successful' => [],
-            'errors' => [],
-            'summary' => [
-                'total_processed' => 0,
-                'success_count' => 0,
-                'error_count' => 0,
-                'success_rate' => 0,
-            ]
-        ];
-        
-        // Process in chunks to avoid memory issues
-        collect($productIds)->chunk(100)->each(function ($chunk) use ($options, &$results) {
-            foreach ($chunk as $productId) {
-                try {
-                    $product = Product::findOrFail($productId);
-                    $result = $this->updateProductPricing($product, $options);
-                    $results['successful'][$productId] = $result;
-                    $results['summary']['success_count']++;
-                } catch (\Exception $e) {
-                    $results['errors'][$productId] = $e->getMessage();
-                    $results['summary']['error_count']++;
-                }
-                $results['summary']['total_processed']++;
-            }
-        });
-
-        $results['summary']['success_rate'] = $results['summary']['total_processed'] > 0 
-            ? ($results['summary']['success_count'] / $results['summary']['total_processed']) * 100 
-            : 0;
-
-        return $results;
-    }
-
-    private function getCategoryMultiplier(?int $categoryId): float
-    {
-        if ($categoryId === null) {
-            return (float) config('pricing.category_multipliers.default', 1.0);
-        }
-
-        return (float) (config("pricing.category_multipliers.{$categoryId}") 
-            ?? config('pricing.category_multipliers.default', 1.0));
-    }
-
-    private function validateMinimumProfit(array $result): void
-    {
-        $minMargin = (float) config('pricing.minimum_profit_margin', 15);
-        $minProfitAmount = $result['total_cost'] * ($minMargin / 100);
-
-        if ($result['profit_amount'] < $minProfitAmount) {
-            throw new InvalidArgumentException(
-                "Price {$result['base_price']} would result in profit {$result['profit_amount']} " .
-                "which is below minimum required {$minProfitAmount}"
-            );
-        }
-    }
-
-    private function updateVariantPricing(Product $product, array $options): void
-    {
-        foreach ($product->variants as $variant) {
-            if ($variant->cost_price <= 0) {
-                continue;
-            }
-
-            $calculation = $this->calculateBasePrice(
-                supplierCost: (float) $variant->cost_price,
-                supplierCurrency: $variant->currency ?? $product->currency ?? 'USD'
-            );
-
-            $result = $this->calculateSellingPrice(
-                calculation: $calculation,
-                marginPercent: $options['margin_percent'] ?? $this->minMarginPercent,
-                categoryId: $product->category_id
-            );
-
-            $this->validateMinimumProfit($result);
-
-            $variant->update([
-                'price' => $result['base_price'],
-                'currency' => $result['currency'],
-            ]);
-        }
-    }
-
-    private function roundForCurrency(float $amount): float
-    {
-        $currency = config('pricing.currency.default', 'XOF');
-        $precision = $currency === 'XOF' ? 0 : 2; // XOF has no decimals
-        return round($amount, $precision);
-    }
-
-    /**
      * Calculate the minimum allowed selling price based on cost and margin (no shipping buffer).
      */
-    public function minSellingPrice(float $cost): float
+    public function minSellingPrice(float $cost, string $currency = 'USD'): float
     {
         if ($cost < 0) {
             throw new InvalidArgumentException('Cost price cannot be negative.');
         }
 
-        // Apply currency buffer and fees
-        $calculation = $this->calculateBasePrice($cost, 'USD');
+        // DEFENSIVE: Cost validation
+        if ($cost <= 0) {
+            Log::warning('Zero or negative cost in minSellingPrice', ['cost' => $cost]);
+            return 0.0;
+        }
+
+        // DEFENSIVE: Use same currency as cost, don't convert
+        $calculation = $this->calculateBasePrice($cost, $currency);
         
-        return round($calculation['total_cost'] * (1 + $this->minMarginPercent / 100), 2);
+        $marginMultiplier = 1 + $this->minMarginPercent / 100;
+        $minPrice = $calculation['total_cost'] * $marginMultiplier;
+
+        // DEFENSIVE: Margin validation
+        $actualMargin = (($minPrice - $cost) / $cost) * 100;
+        if ($actualMargin > 500) { // 500% is suspicious
+            Log::warning('Excessive margin calculated in minSellingPrice', [
+                'cost' => $cost,
+                'currency' => $currency,
+                'min_price' => $minPrice,
+                'margin_percent' => $actualMargin
+            ]);
+        }
+
+        return $this->roundForCurrency($minPrice, $currency);
+    }
+
+    /**
+     * Calculate selling price with margin and optional category multiplier.
+     */
+    public function calculateSellingPrice(
+        float $cost,
+        string $currency,
+        ?float $marginPercent = null,
+        ?int $categoryId = null,
+        ?float $platformFeePercent = null,
+        ?float $paymentFeePercent = null
+    ): array {
+        // DEFENSIVE: Input validation
+        if ($cost <= 0) {
+            throw new InvalidArgumentException('Cost must be greater than 0');
+        }
+
+        $margin = $marginPercent ?? $this->minMarginPercent;
+        
+        // DEFENSIVE: Margin range validation
+        if ($margin < 0 || $margin > 500) {
+            throw new InvalidArgumentException('Margin percent must be between 0 and 500');
+        }
+
+        $calculation = $this->calculateBasePrice($cost, $currency, $platformFeePercent, $paymentFeePercent);
+        
+        // Apply margin
+        $marginMultiplier = 1 + $margin / 100;
+        $basePrice = $calculation['total_cost'] * $marginMultiplier;
+
+        // Apply category multiplier if applicable
+        $categoryMultiplier = $this->getCategoryMultiplier($categoryId);
+        $finalPrice = $basePrice * $categoryMultiplier;
+
+        // DEFENSIVE: Final price validation
+        $priceToCostRatio = $finalPrice / $cost;
+        if ($priceToCostRatio > 50) { // More than 50x markup is suspicious
+            Log::warning('Suspicious price-to-cost ratio detected', [
+                'cost' => $cost,
+                'final_price' => $finalPrice,
+                'ratio' => $priceToCostRatio,
+                'margin' => $margin,
+                'category_multiplier' => $categoryMultiplier
+            ]);
+        }
+
+        $roundedPrice = $this->roundForCurrency($finalPrice, $currency);
+
+        return [
+            'cost_price' => $cost,
+            'base_price' => $roundedPrice,
+            'currency' => $currency,
+            'margin_percent' => $margin,
+            'category_id' => $categoryId,
+            'category_multiplier' => $categoryMultiplier,
+            'total_cost' => $calculation['total_cost'],
+            'platform_fee_percent' => $platformFeePercent ?? config('pricing.fees.platform', 5.0),
+            'payment_fee_percent' => $paymentFeePercent ?? config('pricing.fees.payment_gateway', 3.5),
+            'profit_amount' => $roundedPrice - $calculation['total_cost'],
+            'profit_margin' => (($roundedPrice - $calculation['total_cost']) / $calculation['total_cost']) * 100,
+        ];
+    }
+
+    /**
+     * Update product pricing with comprehensive validation.
+     */
+    public function updateProductPricing(
+        \App\Domain\Products\Models\Product $product,
+        ?float $marginPercent = null,
+        ?float $platformFeePercent = null,
+        ?float $paymentFeePercent = null
+    ): array {
+        // DEFENSIVE: Product validation
+        if (!$product->cost_price || $product->cost_price <= 0) {
+            throw new InvalidArgumentException('Product must have a valid cost price');
+        }
+
+        // Use product's currency, don't convert
+        $currency = $product->currency ?? 'USD';
+        
+        $result = $this->calculateSellingPrice(
+            cost: $product->cost_price,
+            currency: $currency,
+            marginPercent: $marginPercent,
+            categoryId: $product->category_id,
+            platformFeePercent: $platformFeePercent,
+            paymentFeePercent: $paymentFeePercent
+        );
+
+        $this->validateMinimumProfit($result);
+
+        // DEFENSIVE: Don't overwrite currency field
+        $product->update([
+            'selling_price' => $result['base_price'],
+            // Note: currency field is NOT updated to preserve supplier currency
+        ]);
+
+        // Update variants if they exist
+        foreach ($product->variants as $variant) {
+            if ($variant->cost_price && $variant->cost_price > 0) {
+                $variantResult = $this->calculateSellingPrice(
+                    cost: $variant->cost_price,
+                    currency: $currency, // Use same currency as product
+                    marginPercent: $marginPercent,
+                    categoryId: $product->category_id,
+                    platformFeePercent: $platformFeePercent,
+                    paymentFeePercent: $paymentFeePercent
+                );
+
+                $variant->update([
+                    'price' => $variantResult['base_price'],
+                    'currency' => $currency, // Keep variant currency consistent
+                ]);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get category-specific multiplier.
+     */
+    private function getCategoryMultiplier(?int $categoryId): float
+    {
+        if (!$categoryId) {
+            return 1.0;
+        }
+
+        $multipliers = config('pricing.category_multipliers', []);
+        return $multipliers[$categoryId] ?? 1.0;
+    }
+
+    /**
+     * Validate minimum profit requirements.
+     */
+    private function validateMinimumProfit(array $calculation): void
+    {
+        $minimumProfitMargin = (float) config('pricing.minimum_profit_margin', 15.0);
+        
+        if ($calculation['profit_margin'] < $minimumProfitMargin) {
+            throw new InvalidArgumentException(
+                "Profit margin {$calculation['profit_margin']}% is below minimum {$minimumProfitMargin}%"
+            );
+        }
+    }
+
+    /**
+     * Round amount based on currency precision.
+     */
+    private function roundForCurrency(float $amount, string $currency): float
+    {
+        $decimals = config('currency.decimals', []);
+        $precision = isset($decimals[$currency]) ? (int) $decimals[$currency] : 2;
+        return round($amount, $precision);
     }
 
     /**
      * Validate a selling price against rules.
      */
-    public function validatePrice(float $cost, float $selling): void
+    public function validatePrice(float $cost, float $selling, string $currency = 'USD'): void
     {
-        $min = $this->minSellingPrice($cost);
-
+        $min = $this->minSellingPrice($cost, $currency);
+        
         if ($selling < $min) {
-            throw new InvalidArgumentException("Selling price must be at least {$min} based on margin rules.");
+            throw new InvalidArgumentException("Selling price {$selling} is below minimum {$min}");
         }
 
-        if ($selling < $cost) {
-            throw new InvalidArgumentException('Selling price cannot be below cost.');
-        }
-    }
-
-    /**
-     * Validate discount against max discount percent (applied on current price).
-     */
-    public function validateDiscount(float $price, float $discountAmount): void
-    {
-        if ($price <= 0) {
-            throw new InvalidArgumentException('Price must be positive for discount validation.');
-        }
-
-        $discountPercent = ($discountAmount / $price) * 100;
-
-        if ($discountPercent > $this->maxDiscountPercent) {
-            throw new InvalidArgumentException("Discount exceeds max allowed {$this->maxDiscountPercent}%.");
+        // DEFENSIVE: Price-to-cost ratio validation
+        $ratio = $selling / $cost;
+        if ($ratio > 50) { // Configurable threshold
+            throw new InvalidArgumentException("Price-to-cost ratio {$ratio} exceeds maximum threshold");
         }
     }
 }
