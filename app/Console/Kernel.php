@@ -36,6 +36,7 @@ class Kernel extends ConsoleKernel
             \App\Console\Commands\CjFixProductDetails::class,
             CjBatchSyncVariantsCommand::class,
             \App\Console\Commands\FixCorruptedMargins::class,
+            \App\Console\Commands\MonitorPriceCorruption::class,
         ];
 
     protected function schedule(Schedule $schedule): void
@@ -61,6 +62,9 @@ class Kernel extends ConsoleKernel
 
         // Flag shipments that have no tracking updates for too long
         $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
+        
+        // Monitor for price corruption every 30 minutes
+        $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
     }
 
     protected function commands(): void

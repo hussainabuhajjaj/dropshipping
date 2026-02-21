@@ -61,7 +61,10 @@ class AdminPanelProvider extends PanelProvider
                     ? ['profile' => MenuItem::make()->label('Profile')->url(route('profile.edit'))]
                     : []
             )
-            ->middleware($this->baseMiddleware())
+            ->middleware([
+                ...$this->baseMiddleware(),
+                'admin',
+            ])
             ->authMiddleware([
                 Authenticate::class,
             ]);

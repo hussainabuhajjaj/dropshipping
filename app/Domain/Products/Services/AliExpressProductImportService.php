@@ -1008,6 +1008,7 @@ dd($categoryName);
             'price' => $product->selling_price ?? 0,
             'cost_price' => $product->cost_price ?? 0,
             'currency' => $product->currency ?? 'USD',
+            'supplier_currency' => $product->supplier_currency ?? 'USD',
             'metadata' => [
                 'source' => 'aliexpress',
             ],

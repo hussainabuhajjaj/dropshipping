@@ -9,6 +9,7 @@ use App\Domain\Products\Models\Category;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Domain\Products\Services\ProductActivationValidator;
 use App\Domain\Products\Services\PricingService;
+use App\Services\Admin\AdminCurrencyService;
 use App\Filament\Resources\ProductResource\Pages;
 use App\Jobs\ApplyProductMarginChunkJob;
 use App\Models\Product;
@@ -149,11 +150,12 @@ class ProductResource extends BaseResource
                             . '</div>')
                         ),
                    TextInput::make('selling_price')
-                        ->label('Selling price')
-                        ->helperText('Default product-level price; variants can override.')
-                        ->numeric()
-                        ->required()
+                        ->label('Selling Price (USD)')
+                        ->helperText('Default product-level price in USD; variants can override.')
                         ->prefix('$')
+                        ->numeric()
+                        ->step(0.01)
+                        ->required()
                         ->rules(function (callable $get) {
                             return [
                                 function (string $attribute, $value, callable $fail) use ($get) {
@@ -169,11 +171,12 @@ class ProductResource extends BaseResource
                             ];
                         }),
                    TextInput::make('cost_price')
-                        ->label('Cost price')
-                        ->helperText('Baseline cost; used when variant cost is missing.')
-                        ->numeric()
-                        ->required()
+                        ->label('Cost Price (USD)')
+                        ->helperText('Baseline cost in USD; used when variant cost is missing.')
                         ->prefix('$')
+                        ->numeric()
+                        ->step(0.01)
+                        ->required()
                         ->afterStateUpdated(function (callable $get, callable $set) {
                             $warning = self::marginWarning($get('selling_price'), $get('cost_price'));
                             $set('margin_warning', $warning);
@@ -402,15 +405,21 @@ class ProductResource extends BaseResource
                     Tables\Columns\TextColumn::make('category.name')->label('Category')->sortable()->toggleable(),
                     Tables\Columns\IconColumn::make('is_active')->boolean(),
                     Tables\Columns\IconColumn::make('is_featured')->boolean()->label('Featured')->toggleable(),
-                    Tables\Columns\TextColumn::make('selling_price')->money('USD')->sortable(),
-                    Tables\Columns\TextColumn::make('cost_price')->money('USD')->sortable(),
+                    Tables\Columns\TextColumn::make('selling_price')
+                        ->label('Selling Price')
+                        ->formatStateUsing(fn (float $state, Product $record): string => AdminCurrencyService::formatPrice($state, $record->currency))
+                        ->sortable(),
+                    Tables\Columns\TextColumn::make('cost_price')
+                        ->label('Cost Price')
+                        ->formatStateUsing(fn (float $state, Product $record): string => AdminCurrencyService::formatCost($state, $record->currency))
+                        ->sortable(),
                     Tables\Columns\TextColumn::make('latestMarginLog.old_selling_price')
                         ->label('Old Price')
-                        ->money('USD')
+                        ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('latestMarginLog.new_selling_price')
                         ->label('New Price')
-                        ->money('USD')
+                        ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('latestMarginLog.created_at')
                         ->label('Margin Updated At')
@@ -441,8 +450,9 @@ class ProductResource extends BaseResource
                         ->label('Stock')
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
-                          Tables\Columns\TextColumn::make('variants.compare_at_price')->money('usd')
-                        ->label('Compate At')
+                          Tables\Columns\TextColumn::make('variants.compare_at_price')
+                        ->label('Compare At Price')
+                        ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('images_count')
@@ -629,6 +639,93 @@ class ProductResource extends BaseResource
 
                         return $query;
                     }),
+                Tables\Filters\Filter::make('created_at_range')
+                    ->label('Created Date Range')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('From date')
+                            ->native(false),
+                        Forms\Components\DatePicker::make('to')
+                            ->label('To date')
+                            ->native(false),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $from = $data['from'] ?? null;
+                        $to = $data['to'] ?? null;
+                        
+                        if ($from) {
+                            $query->whereDate('created_at', '>=', $from);
+                        }
+                        
+                        if ($to) {
+                            $query->whereDate('created_at', '<=', $to);
+                        }
+                        
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): string {
+                        $from = $data['from'] ?? null;
+                        $to = $data['to'] ?? null;
+                        
+                        if ($from && $to) {
+                            return "Created: {$from} to {$to}";
+                        } elseif ($from) {
+                            return "Created from: {$from}";
+                        } elseif ($to) {
+                            return "Created to: {$to}";
+                        }
+                        
+                        return '';
+                    }),
+                Tables\Filters\Filter::make('updated_at_range')
+                    ->label('Updated Date Range')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('From date')
+                            ->native(false),
+                        Forms\Components\DatePicker::make('to')
+                            ->label('To date')
+                            ->native(false),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $from = $data['from'] ?? null;
+                        $to = $data['to'] ?? null;
+                        
+                        if ($from) {
+                            $query->whereDate('updated_at', '>=', $from);
+                        }
+                        
+                        if ($to) {
+                            $query->whereDate('updated_at', '<=', $to);
+                        }
+                        
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): string {
+                        $from = $data['from'] ?? null;
+                        $to = $data['to'] ?? null;
+                        
+                        if ($from && $to) {
+                            return "Updated: {$from} to {$to}";
+                        } elseif ($from) {
+                            return "Updated from: {$from}";
+                        } elseif ($to) {
+                            return "Updated to: {$to}";
+                        }
+                        
+                        return '';
+                    }),
+                Tables\Filters\Filter::make('margin_not_set')
+                    ->label('Margin Not Set')
+                    ->query(function (Builder $query): Builder {
+                        return $query->where(function (Builder $inner): void {
+                            $inner->whereNull('cost_price')
+                                ->orWhere('cost_price', '<=', 0)
+                                ->orWhereNull('selling_price')
+                                ->orWhere('selling_price', '<', 0);
+                        });
+                    })
+                    ->toggle(),
             ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContent)
             ->recordActions([
                 ActionGroup::make([
@@ -639,8 +736,8 @@ class ProductResource extends BaseResource
                     ->icon('heroicon-o-pencil-square')
                     ->slideOver()
                     ->schema([
-                        TextInput::make('selling_price')->label('Selling price')->helperText('Default product-level price; variants may override.')->numeric()->required(),
-                        TextInput::make('cost_price')->label('Cost price')->numeric()->required(),
+                        TextInput::make('selling_price')->label('Selling Price (USD)')->helperText('Default product-level price in USD; variants may override.')->numeric()->required()->prefix('$')->step(0.01),
+                        TextInput::make('cost_price')->label('Cost Price (USD)')->numeric()->required()->prefix('$')->step(0.01),
                         TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
                         Toggle::make('is_active')->label('Active'),
                         Toggle::make('is_featured')->label('Featured'),
@@ -711,7 +808,13 @@ class ProductResource extends BaseResource
                             $oldSelling = self::normalizeAmount($record->selling_price);
                             $oldStatus = $record->status;
                             $oldActive = (bool) $record->is_active;
-                            $newSelling = round($cost * (1 + $margin / 100), 2);
+                            
+                            // Calculate new selling price with minimum price validation
+                            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                            $minSelling = $pricing->minSellingPrice($cost);
+                            $calculatedPrice = $cost * (1 + $margin / 100);
+                            $newSelling = max($calculatedPrice, $minSelling);
+                            $newSelling = round($newSelling, 2);
 
                             $record->update([
                                 'selling_price' => $newSelling,
@@ -743,7 +846,14 @@ class ProductResource extends BaseResource
                                     }
 
                                     $oldVariantPrice = self::normalizeAmount($variant->price);
-                                    $newVariantPrice = round($variantCost * (1 + $margin / 100), 2);
+                                    
+                                    // Calculate new variant price with minimum price validation
+                                    $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                    $minVariantPrice = $pricing->minSellingPrice($variantCost);
+                                    $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
+                                    $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
+                                    $newVariantPrice = round($newVariantPrice, 2);
+                                    
                                     $variant->update([
                                         'price' => $newVariantPrice,
                                     ]);
@@ -791,8 +901,8 @@ class ProductResource extends BaseResource
                                     ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
                             }
 
-                            $oldLabel = $oldSelling !== null ? '$' . number_format($oldSelling, 2) : 'N/A';
-                            $newLabel = '$' . number_format($newSelling, 2);
+                            $oldLabel = $oldSelling !== null ? AdminCurrencyService::formatPrice($oldSelling) : 'N/A';
+                            $newLabel = AdminCurrencyService::formatPrice($newSelling);
                             $body = "Old: {$oldLabel} -> New: {$newLabel}. Variants updated: {$variantUpdated}, skipped: {$variantSkipped}.{$activationNote}";
 
                             Notification::make()
@@ -1239,7 +1349,7 @@ class ProductResource extends BaseResource
 
                             $chunkSize = max(1, (int) ($data['chunk_size'] ?? 25));
                             $client = app(\App\Infrastructure\Fulfillment\Clients\CJDropshippingClient::class);
-                            $claimService = app(\App\Services\CjPidClaimService::class);
+                            $claimService = app(\App\Services\Admin\AdminCurrencyService::class);
 
                             foreach (array_chunk($pids, $chunkSize) as $pidChunk) {
                                 $payloads = [];
@@ -1295,35 +1405,40 @@ class ProductResource extends BaseResource
                                 ])
                                 ->default('35')
                                 ->native(false)
-                                ->required(),
+                                ->required()
+                                ->reactive(),
                             TextInput::make('margin_percent')
                                 ->label('Custom margin %')
                                 ->numeric()
                                 ->minValue(0)
                                 ->maxValue(500)
                                 ->step('0.01')
-                                ->required(fn (callable $get): bool => (string) $get('margin_preset') === 'custom')
-                                ->visible(fn (callable $get): bool => (string) $get('margin_preset') === 'custom'),
+                                ->required()
+                                ->visible(fn (callable $get): bool => $get('margin_preset') === 'custom')
+                                ->reactive(),
                             Toggle::make('apply_to_variants')
                                 ->label('Apply to variants')
                                 ->default(true),
                             Toggle::make('use_low_cost_rule')
                                 ->label('Use special margin for low-cost products')
-                                ->default(true),
+                                ->default(true)
+                                ->reactive(),
                             TextInput::make('low_cost_min')
                                 ->label('Low-cost min ($)')
                                 ->numeric()
                                 ->default(0.01)
                                 ->minValue(0)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->reactive(),
                             TextInput::make('low_cost_max')
                                 ->label('Low-cost max ($)')
                                 ->numeric()
                                 ->default(1)
                                 ->minValue(0.01)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->reactive(),
                             TextInput::make('low_cost_margin_percent')
                                 ->label('Low-cost margin %')
                                 ->numeric()
@@ -1331,7 +1446,8 @@ class ProductResource extends BaseResource
                                 ->minValue(0)
                                 ->maxValue(2000)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule')),
+                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->reactive(),
                         ])
                         ->action(function (Collection $records, array $data): void {
                             $preset = (string) ($data['margin_preset'] ?? '35');
@@ -1454,7 +1570,13 @@ class ProductResource extends BaseResource
                                     $appliedMargin = $lowCostMargin;
                                     $lowCostProductApplied++;
                                 }
-                                $newSelling = round($productCost * (1 + $appliedMargin / 100), 2);
+                                
+                                // Calculate new selling price with minimum price validation
+                                $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                $minSelling = $pricing->minSellingPrice($productCost);
+                                $calculatedPrice = $productCost * (1 + $appliedMargin / 100);
+                                $newSelling = max($calculatedPrice, $minSelling);
+                                $newSelling = round($newSelling, 2);
 
                                 $record->update([
                                     'selling_price' => $newSelling,
@@ -1504,8 +1626,16 @@ class ProductResource extends BaseResource
                                             $lowCostVariantApplied++;
                                         }
                                         $oldVariantPrice = $variant->price;
+                                        
+                                        // Calculate new variant price with minimum price validation
+                                        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                        $minVariantPrice = $pricing->minSellingPrice($variantCost);
+                                        $calculatedVariantPrice = $variantCost * (1 + $variantMargin / 100);
+                                        $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
+                                        $newVariantPrice = round($newVariantPrice, 2);
+                                        
                                         $variant->update([
-                                            'price' => round($variantCost * (1 + $variantMargin / 100), 2),
+                                            'price' => $newVariantPrice,
                                         ]);
                                         $variantUpdated++;
                                         $logRows[] = $logger->prepareVariantRow($variant, [
@@ -1980,15 +2110,34 @@ class ProductResource extends BaseResource
             return null;
         }
 
+        // Remove any non-numeric characters except decimal points, commas, and minus signs
         $normalized = preg_replace('/[^0-9,.\-]/', '', $normalized) ?? '';
         if ($normalized === '') {
             return null;
         }
 
+        // SAFER decimal parsing - handle European vs American formats
         if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            // Both comma and dot present - assume comma is thousands separator
             $normalized = str_replace(',', '', $normalized);
         } elseif (str_contains($normalized, ',')) {
-            $normalized = str_replace(',', '.', $normalized);
+            // Only comma present - could be decimal separator or thousands separator
+            // Check if it looks like a decimal (only one comma and not at the end)
+            $commaCount = substr_count($normalized, ',');
+            if ($commaCount === 1 && !str_ends_with($normalized, ',')) {
+                // Likely decimal separator
+                $parts = explode(',', $normalized);
+                if (count($parts) === 2 && strlen($parts[1]) <= 2) {
+                    // Decimal with 2 or fewer digits after comma - treat as decimal
+                    $normalized = str_replace(',', '.', $normalized);
+                } else {
+                    // Likely thousands separator
+                    $normalized = str_replace(',', '', $normalized);
+                }
+            } else {
+                // Multiple commas or comma at end - treat as thousands separator
+                $normalized = str_replace(',', '', $normalized);
+            }
         }
 
         if (! is_numeric($normalized)) {
