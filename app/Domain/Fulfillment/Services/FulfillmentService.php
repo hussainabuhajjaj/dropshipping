@@ -17,6 +17,7 @@ use App\Notifications\CustomerShipmentOrderNotification;
 use Illuminate\Support\Facades\DB;
 use App\Domain\Observability\EventLogger;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\AdminFulfillmentIssue;
 use App\Notifications\CustomerShipmentNotification;
@@ -105,7 +106,7 @@ class FulfillmentService
 
 
             $result = $strategy->dispatch($requestData);
-
+            Log::info('result : ' . json_encode($result));
             $this->recordOrderAttempt($job, $requestData, $result);
             $this->updateJobStatus($job, $result);
             $this->updateOrderItemsStatus($product_items, $result);
@@ -121,6 +122,7 @@ class FulfillmentService
                 );
 
                 $fulfillment_status = $orderItem->fulfillment_status;
+                $orderItem->update(['fulfillment_status' => 'fulfilling']);
             }
 
             if ($result->trackingNumber || $result->trackingUrl) {
