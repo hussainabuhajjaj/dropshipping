@@ -12,6 +12,8 @@ use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Models\LocalWareHouse;
+use App\Services\Api\ApiException;
+use App\Services\Api\ApiResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
@@ -70,7 +72,7 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
             'remark' => null,
             'email' => $order?->email,
             'consigneeID' => null,
-            'payType' => $cj_provider['pay_type'] ?? 3,
+            'payType' => $providerSettings['pay_type'] ?? 3,
             "shopAmount" => null,
             "logisticName" => ($shipping['name'] ?? 'PostNL'),
             "fromCountryCode" => $fromCountry,
@@ -79,27 +81,73 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
         ];
 
 
+        $success = false;
+        $duplicateHandled = false;
+
         try {
             Log::info('Attempting CJ order creation with v2 endpoint', ['order_number' => $data->order_id]);
             $response = $this->client->createOrderV2($payload);
             $body = $this->validatedResponse($response, 'CJ order create v2 failed');
+            $success = true;
         } catch (\Throwable $e1) {
-            Log::info('V2 endpoint failed, trying V3', ['error' => $e1->getMessage()]);
-            try {
-                $response = $this->client->createOrderV3($payload);
-                $body = $this->validatedResponse($response, 'CJ order create v3 failed');
-            } catch (\Throwable $e2) {
-                Log::warning('CJ fulfillment dispatch failed', [
-                    'order_id' => $data->order_id,
-                    'provider_id' => $data->provider->id ?? null,
-                    'payload' => $payload,
-                    'error' => $e2->getMessage(),
-                ]);
-                throw new FulfillmentException('CJ order create failed: ' . $e2->getMessage(), previous: $e2);
+            if ($this->isDuplicateOrderException($e1)) {
+                $body = $this->resolveExistingOrderSnapshot($payload);
+                $duplicateHandled = $body !== null;
+                $success = $duplicateHandled;
+                if ($duplicateHandled) {
+                    Log::info('CJ duplicate order detected; reusing existing order snapshot', [
+                        'order_id' => $data->order_id,
+                        'order_number' => $payload['orderNumber'] ?? null,
+                        'order_data' => $body,
+                    ]);
+                } else {
+                    Log::warning('CJ duplicate order detected but failed to load existing snapshot', [
+                        'order_id' => $data->order_id,
+                        'order_number' => $payload['orderNumber'] ?? null,
+                        'error' => $e1->getMessage(),
+                    ]);
+                }
+            }
+
+            if (! $duplicateHandled) {
+                Log::info('V2 endpoint failed, trying V3', ['error' => $e1->getMessage()]);
+                try {
+                    $response = $this->client->createOrderV3($payload);
+                    $body = $this->validatedResponse($response, 'CJ order create v3 failed');
+                    $success = true;
+                } catch (\Throwable $e2) {
+                    if ($this->isDuplicateOrderException($e2)) {
+                        $body = $this->resolveExistingOrderSnapshot($payload);
+                        $duplicateHandled = $body !== null;
+                        $success = $duplicateHandled;
+                        if ($duplicateHandled) {
+                            Log::info('CJ duplicate order detected via v3 retry; reusing existing snapshot', [
+                                'order_id' => $data->order_id,
+                                'order_number' => $payload['orderNumber'] ?? null,
+                                'order_data' => $body,
+                            ]);
+                        } else {
+                            Log::warning('CJ duplicate order detected during v3 retry but failed to load snapshot', [
+                                'order_id' => $data->order_id,
+                                'order_number' => $payload['orderNumber'] ?? null,
+                                'error' => $e2->getMessage(),
+                            ]);
+                        }
+                    }
+
+                    if (! $duplicateHandled) {
+                        Log::warning('CJ fulfillment dispatch failed', [
+                            'order_id' => $data->order_id,
+                            'provider_id' => $data->provider->id ?? null,
+                            'payload' => $payload,
+                            'error' => $e2->getMessage(),
+                        ]);
+                        throw new FulfillmentException('CJ order create failed: ' . $e2->getMessage(), previous: $e2);
+                    }
+                }
             }
         }
-
-        $success =true;
+        $success = $success ?? false;
         $externalId = @$body['orderId'] ?? @$body['orderNumber'];
         $shipmentOrderId = @$body['shipmentOrderId'];
         $trackingNumber = @$body['trackingNumber'];
@@ -319,6 +367,86 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
             'address2' => $addr->line2,
             'zip' => $addr->postal_code,
         ];
+    }
+
+    private function isDuplicateOrderException(\Throwable $error): bool
+    {
+        $message = strtolower((string) $error->getMessage());
+        if (str_contains($message, 'order exist') || str_contains($message, 'duplicate')) {
+            return true;
+        }
+
+        if ($error instanceof ApiException && is_array($error->body)) {
+            $body = $error->body;
+            $extracted = strtolower((string) ($body['message'] ?? $body['errorMessage'] ?? $body['errorMsg'] ?? ''));
+            if (str_contains($extracted, 'order exist') || str_contains($extracted, 'duplicate')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveExistingOrderSnapshot(array $payload): ?array
+    {
+        $orderNumber = $payload['orderNumber'] ?? $payload['orderCode'] ?? null;
+        if (!$orderNumber) {
+            return null;
+        }
+
+        $candidates = [
+            fn () => $this->client->getOrderDetail(['orderCode' => $orderNumber]),
+            fn () => $this->client->getOrderDetail(['orderNumber' => $orderNumber]),
+            fn () => $this->client->getOrderList([
+                'pageNum' => 1,
+                'pageSize' => 1,
+                'orderNumber' => $orderNumber,
+            ]),
+        ];
+
+        foreach ($candidates as $index => $candidate) {
+            try {
+                $response = $candidate();
+            } catch (\Throwable $lookupError) {
+                Log::debug('CJ duplicate order lookup failed', [
+                    'order_number' => $orderNumber,
+                    'attempt' => $index,
+                    'error' => $lookupError->getMessage(),
+                ]);
+                continue;
+            }
+
+            $existing = $this->extractOrderFromResponse($response);
+            if (is_array($existing) && !empty($existing)) {
+                return $existing;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractOrderFromResponse(ApiResponse $response): ?array
+    {
+        $data = $response->data;
+        if (is_array($data)) {
+            if (isset($data['orderId']) || isset($data['orderNumber'])) {
+                return $data;
+            }
+
+            $list = $data['list'] ?? null;
+            if (is_array($list) && count($list)) {
+                $first = $list[0] ?? null;
+                if (is_array($first)) {
+                    return $first;
+                }
+            }
+
+            if (!empty($data)) {
+                return $data;
+            }
+        }
+
+        return null;
     }
 
     private function validatedResponse($response, string $context): array

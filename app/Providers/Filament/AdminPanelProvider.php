@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\SupportChatCenter;
+use App\Filament\Resources\AffiliateCommissionResource;
+use App\Filament\Resources\AffiliateReferralResource;
+use App\Filament\Resources\AffiliateResource;
+use App\Filament\Resources\AffiliateWithdrawalResource;
 use App\Filament\Livewire\AdminDatabaseNotifications;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -51,6 +55,12 @@ class AdminPanelProvider extends PanelProvider
 
 
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
+            ->resources([
+                AffiliateResource::class,
+                AffiliateCommissionResource::class,
+                AffiliateWithdrawalResource::class,
+                AffiliateReferralResource::class,
+            ])
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 SupportChatCenter::class,
