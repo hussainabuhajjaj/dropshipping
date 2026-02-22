@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderAuditLog extends Model
 {
     use HasFactory;
-
+protected $table= 'order_audit_logs';
     protected $fillable = [
         'order_id',
         'user_id',
