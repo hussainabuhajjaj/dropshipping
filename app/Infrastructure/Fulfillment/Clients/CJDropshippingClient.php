@@ -71,6 +71,12 @@ class CJDropshippingClient
             return $response;
             }
 
+    public function getOrderDetail(array $payload): ApiResponse
+    {
+        $client = $this->authClient();
+        return $client->get('/v1/shopping/order/getOrderDetail', $payload);
+    }
+
     /**
      * Calculate freight/shipping cost using CJ API.
      * Endpoint: /v1/freight/calculate (POST)

@@ -31,37 +31,55 @@ return new class extends Migration
             $table->text('error_message')->nullable();
             $table->float('execution_time_ms')->default(0);
             $table->timestamps();
-            
+
             $table->index(['operation_type', 'created_at']);
             $table->index(['product_id', 'created_at']);
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('set null');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
         });
+
+        if (Schema::hasTable('pricing_operation_logs')) {
+            Schema::table('pricing_operation_logs', function (Blueprint $table) {
+                if (Schema::hasTable('products')) {
+                    $table->foreign('product_id')->references('id')->on('products')->onDelete('set null');
+                }
+                if (Schema::hasTable('users')) {
+                    $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+                }
+            });
+        }
+
+        if (Schema::hasTable('products')) {
+            Schema::table('products', function (Blueprint $table) {
+                $table->index(['cost_price', 'currency', 'category_id'], 'pricing_query_index');
+                $table->index(['cj_lock_price', 'updated_at'], 'pricing_lock_index');
+            });
+        }
+
+        if (Schema::hasTable('product_variants')) {
+            Schema::table('product_variants', function (Blueprint $table) {
+                $table->index(['product_id', 'cost_price', 'currency'], 'variant_pricing_index');
+            });
+        }
 
         // Add indexes to products table for better pricing query performance
-        Schema::table('products', function (Blueprint $table) {
-            $table->index(['cost_price', 'currency', 'category_id'], 'pricing_query_index');
-            $table->index(['cj_lock_price', 'updated_at'], 'pricing_lock_index');
-        });
 
-        // Add indexes to product_variants table for better pricing query performance
-        Schema::table('product_variants', function (Blueprint $table) {
-            $table->index(['product_id', 'cost_price', 'currency'], 'variant_pricing_index');
-        });
     }
 
     public function down()
     {
         Schema::dropIfExists('pricing_config_cache');
         Schema::dropIfExists('pricing_operation_logs');
-        
-        Schema::table('products', function (Blueprint $table) {
-            $table->dropIndex('pricing_query_index');
-            $table->dropIndex('pricing_lock_index');
-        });
-        
-        Schema::table('product_variants', function (Blueprint $table) {
-            $table->dropIndex('variant_pricing_index');
-        });
+
+        if (Schema::hasTable('products')) {
+            Schema::table('products', function (Blueprint $table) {
+                $table->dropIndex('pricing_query_index');
+                $table->dropIndex('pricing_lock_index');
+            });
+        }
+
+        if (Schema::hasTable('product_variants')) {
+            Schema::table('product_variants', function (Blueprint $table) {
+                $table->dropIndex('variant_pricing_index');
+            });
+        }
     }
 };

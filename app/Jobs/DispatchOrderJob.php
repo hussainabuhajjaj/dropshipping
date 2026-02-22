@@ -34,7 +34,6 @@ class DispatchOrderJob implements ShouldQueue
     {
 
         $order = $this->order;
-
         $items = $order->orderItems()
             ->with(['productVariant'])
             ->where('fulfillment_status', '!=', 'fulfilling')
