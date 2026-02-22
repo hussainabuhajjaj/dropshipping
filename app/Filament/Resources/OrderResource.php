@@ -244,7 +244,7 @@ class OrderResource extends Resource
                         dispatch(new DispatchOrderJob($record));//->onConnection('sync');
 //dd($record);
                         foreach ($items as $item) {
-                            $item->update(['fulfillment_status' => 'fulfilling']);
+//                            $item->update(['fulfillment_status' => 'fulfilling']);
                             \App\Domain\Orders\Models\OrderAuditLog::create([
                                 'order_id' => $record->id,
                                 'user_id' => auth()->id(),
