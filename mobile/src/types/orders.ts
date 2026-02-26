@@ -13,9 +13,21 @@ export type TrackingEvent = {
   occurredAt: string | null;
 };
 
+export type OrderStatusKey =
+  | 'received'
+  | 'processing'
+  | 'dispatched'
+  | 'in_transit'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'issue_detected'
+  | 'refunded';
+
 export type Order = {
   number: string;
   status: string;
+  statusKey: OrderStatusKey | string;
+  statusExplanation?: string;
   total: number;
   placedAt: string | null;
   items: OrderItem[];

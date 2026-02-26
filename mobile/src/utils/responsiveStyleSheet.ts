@@ -89,4 +89,25 @@ const create = <T extends RNStyleSheet.NamedStyles<T> | RNStyleSheet.NamedStyles
 };
 
 export const StyleSheet = { ...RNStyleSheet, create };
-export * from 'react-native';
+
+export {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+  useWindowDimensions,
+} from 'react-native';

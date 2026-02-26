@@ -1297,37 +1297,58 @@ class ProductResource extends BaseResource
                         ->icon('heroicon-o-photo')
                         ->requiresConfirmation()
                         ->action(function (Collection $records): void {
-                            $importer = app(CjProductImportService::class);
-                            $synced = 0;
-                            $skipped = 0;
-                            $errors = 0;
+                            $ids = $records
+                                ->filter(fn (Product $r) => filled($r->cj_pid))
+                                ->pluck('id')
+                                ->map(fn ($id) => (int) $id)
+                                ->values()
+                                ->all();
 
-                            foreach ($records as $record) {
-                                if (! $record->cj_pid) {
-                                    $skipped++;
-                                    continue;
-                                }
+                            if (empty($ids)) {
+                                Notification::make()->title('No CJ products selected')->warning()->send();
+                                return;
+                            }
 
-                                try {
-                                    $updated = $importer->syncMedia($record, [
-                                        'respectSyncFlag' => false,
-                                        'respectLocks' => true,
-                                    ]);
-                                } catch (\Throwable) {
-                                    $errors++;
-                                    continue;
-                                }
-
-                                if ($updated) {
-                                    $synced++;
-                                } else {
-                                    $skipped++;
-                                }
+                            $chunkSize = 20;
+                            $jobCount = 0;
+                            foreach (array_chunk($ids, $chunkSize) as $chunk) {
+                                \App\Jobs\SyncProductMediaChunkJob::dispatch($chunk)->onQueue('media');
+                                $jobCount++;
                             }
 
                             Notification::make()
-                                ->title('Media sync complete')
-                                ->body("Synced {$synced} product(s), skipped {$skipped}, errors {$errors}.")
+                                ->title('Media sync queued')
+                                ->body("Dispatched {$jobCount} job(s) for " . count($ids) . ' product(s) on the [media] queue.')
+                                ->success()
+                                ->send();
+                        }),
+                    BulkAction::make('syncVariants')
+                        ->label('Sync Variants')
+                        ->icon('heroicon-o-squares-2x2')
+                        ->requiresConfirmation()
+                        ->action(function (Collection $records): void {
+                            $ids = $records
+                                ->filter(fn (Product $r) => filled($r->cj_pid))
+                                ->pluck('id')
+                                ->map(fn ($id) => (int) $id)
+                                ->values()
+                                ->all();
+
+                            if (empty($ids)) {
+                                Notification::make()->title('No CJ products selected')->warning()->send();
+                                return;
+                            }
+
+                            $chunkSize = 20;
+                            $jobCount = 0;
+                            foreach (array_chunk($ids, $chunkSize) as $chunk) {
+                                \App\Jobs\SyncProductVariantsChunkJob::dispatch($chunk)->onQueue('variants');
+                                $jobCount++;
+                            }
+
+                            Notification::make()
+                                ->title('Variants sync queued')
+                                ->body("Dispatched {$jobCount} job(s) for " . count($ids) . ' product(s) on the [variants] queue.')
                                 ->success()
                                 ->send();
                         }),

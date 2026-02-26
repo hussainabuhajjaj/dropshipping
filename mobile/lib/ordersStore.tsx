@@ -168,7 +168,9 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
 
       const order: Order = {
         number,
-        status: 'Processing',
+        status: 'Order received',
+        statusKey: 'received',
+        statusExplanation: 'Payment confirmed. Your order is being prepared.',
         total,
         placedAt,
         items: input.items.map((item, index) => ({

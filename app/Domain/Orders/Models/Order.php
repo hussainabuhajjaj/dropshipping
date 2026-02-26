@@ -195,15 +195,15 @@ class Order extends Model
     public function getCustomerStatusLabel(): string
     {
         return match ($this->customer_status ?? $this->status) {
-            'received' => 'Order received',
-            'processing' => 'Processing',
+            'received', 'pending', 'paid' => 'Order received',
+            'processing', 'fulfilling', 'fulfilled' => 'Processing',
             'dispatched' => 'Dispatched',
             'in_transit' => 'In transit',
             'out_for_delivery' => 'Out for delivery',
             'delivered' => 'Delivered',
             'issue_detected' => 'Issue detected',
-            'refunded' => 'Refunded',
-            default => ucfirst(str_replace('_', ' ', $this->customer_status ?? $this->status)),
+            'refunded', 'cancelled' => 'Refunded',
+            default => 'Processing',
         };
     }
 
@@ -213,14 +213,14 @@ class Order extends Model
     public function getCustomerStatusExplanation(): string
     {
         return match ($this->customer_status ?? $this->status) {
-            'received' => 'Payment confirmed. Your order is being prepared.',
-            'processing' => 'We are preparing your shipment from the supplier.',
+            'received', 'pending', 'paid' => 'Payment confirmed. Your order is being prepared.',
+            'processing', 'fulfilling', 'fulfilled' => 'We are preparing your shipment from the supplier.',
             'dispatched' => 'Your order has been shipped from the warehouse.',
             'in_transit' => 'Your package is on the way to your country.',
             'out_for_delivery' => 'Your package is out for delivery today.',
             'delivered' => 'Your order has been delivered. Thank you!',
             'issue_detected' => 'There is an issue with your order. Our team will contact you shortly.',
-            'refunded' => 'This order has been refunded.',
+            'refunded', 'cancelled' => 'This order has been refunded.',
             default => 'Your order is being processed.',
         };
     }

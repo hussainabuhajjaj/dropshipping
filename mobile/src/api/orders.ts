@@ -78,12 +78,13 @@ const mapOrderSummary = (item: ApiOrder): Order => {
   return {
     number: toStringValue(item.number, 'Order'),
     status: toStringValue(item.status, 'Processing'),
-    total: toNumberValue(item.total ?? item.grand_total ?? 0, 0),
+    statusKey: toStringValue(item.statusKey ?? item.status_key, 'processing'),
     placedAt: typeof item.placedAt === 'string'
       ? item.placedAt
       : typeof item.placed_at === 'string'
         ? item.placed_at
         : null,
+    total: toNumberValue(item.total ?? item.grand_total ?? 0, 0),
     items: [],
     tracking: [],
   };
@@ -96,6 +97,8 @@ const mapOrderDetail = (payload: ApiOrder): Order => {
   return {
     number: toStringValue(payload.number, 'Order'),
     status: toStringValue(payload.status, 'Processing'),
+    statusKey: toStringValue(payload.statusKey ?? payload.status_key, 'processing'),
+    statusExplanation: typeof payload.statusExplanation === 'string' ? payload.statusExplanation : undefined,
     total: toNumberValue(payload.total ?? payload.grand_total ?? 0, 0),
     placedAt: typeof payload.placedAt === 'string'
       ? payload.placedAt

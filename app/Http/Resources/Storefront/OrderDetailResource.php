@@ -15,9 +15,22 @@ class OrderDetailResource extends JsonResource
         /** @var Order $order */
         $order = $this->resource;
 
+        $rawStatus = $order->customer_status ?? $order->status;
+        $internalStatuses = ['pending', 'paid', 'fulfilling', 'fulfilled', 'cancelled'];
+        $statusKey = in_array($rawStatus, $internalStatuses, true)
+            ? match ($rawStatus) {
+                'pending', 'paid' => 'received',
+                'fulfilling', 'fulfilled' => 'processing',
+                'cancelled' => 'refunded',
+                default => 'processing',
+            }
+            : ($rawStatus ?? 'processing');
+
         return [
             'number' => $order->number,
             'status' => $order->getCustomerStatusLabel(),
+            'statusKey' => $statusKey,
+            'statusExplanation' => $order->getCustomerStatusExplanation(),
             'total' => (float) $order->grand_total,
             'placedAt' => $order->placed_at?->toDateString(),
             'items' => OrderItemResource::collection($order->orderItems),

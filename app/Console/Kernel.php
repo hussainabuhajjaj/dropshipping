@@ -42,6 +42,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\GenerateAffiliateReportsCommand::class,
         \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
         \App\Console\Commands\CjSyncStockByVid::class,
+        \App\Console\Commands\CjSyncMedia::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -73,6 +74,10 @@ class Kernel extends ConsoleKernel
 
         // Sync CJ stock by VID nightly at 23:59
         $schedule->command('cj:sync-stock-by-vid --limit=10000 --stale-minutes=30')->dailyAt('23:59');
+        // Sync CJ media (images & videos) for all sync-enabled products daily at 03:00
+        $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
+        // Sync CJ variants via chunked jobs daily at 02:45
+        $schedule->command('cj:sync-variants')->dailyAt('02:45');
     }
 
     protected function commands(): void

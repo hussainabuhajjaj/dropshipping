@@ -157,7 +157,7 @@ export default function PaymentScreen() {
         </View>
 
         <Pressable style={styles.card} onPress={() => router.push('/checkout/address')}>
-          <View>
+          <View style={styles.cardText}>
             <Text style={styles.cardTitle}>Shipping address</Text>
             <Text style={styles.cardBody}>
               {state.shippingAddress.address}, {state.shippingAddress.city}
@@ -167,7 +167,7 @@ export default function PaymentScreen() {
         </Pressable>
 
         <Pressable style={styles.card} onPress={() => router.push('/payment/methods')}>
-          <View>
+          <View style={styles.cardText}>
             <Text style={styles.cardTitle}>Payment method</Text>
             <Text style={styles.cardBody}>
               {selectedCard
@@ -178,7 +178,7 @@ export default function PaymentScreen() {
           <Feather name="chevron-right" size={16} color={theme.colors.inkDark} />
         </Pressable>
 
-        <View style={styles.card}>
+        <View style={styles.voucherCard}>
           <View style={styles.voucherRow}>
             <TextInput
               style={styles.voucherInput}
@@ -473,10 +473,10 @@ const styles = StyleSheet.create({
     color: theme.colors.inkDark,
   },
   iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.gray100,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.sand,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -489,6 +489,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  cardText: {
+    flex: 1,
+  },
+  voucherCard: {
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: theme.colors.sand,
+  },
   cardTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -500,7 +509,6 @@ const styles = StyleSheet.create({
     color: theme.colors.inkDark,
   },
   voucherRow: {
-    marginTop: 10,
     flexDirection: 'row',
     gap: 10,
   },
