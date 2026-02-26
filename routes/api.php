@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\Mobile\V1\TranslationsController as MobileTranslati
 use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingController;
 use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
 use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
+use App\Http\Controllers\Api\Mobile\V1\CollectionController as MobileCollectionController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -91,6 +92,8 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('products', [MobileProductController::class, 'index']);
     Route::get('products/{product:slug}', [MobileProductController::class, 'show']);
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
+    Route::get('collections', [MobileCollectionController::class, 'index']);
+    Route::get('collections/{collection:slug}', [MobileCollectionController::class, 'show']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::post('translations/register', [MobileTranslationsController::class, 'register']);
