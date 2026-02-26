@@ -33,6 +33,9 @@ Thumbs.db
 !/mobile/**
 /mobile/node_modules
 /mobile/.expo
+mobile/src/api/*.dmg
+mobile/src/api/*adminsdk*.json
+mobile/src/api/*firebase*.json
 *.txt
 /docs
 
