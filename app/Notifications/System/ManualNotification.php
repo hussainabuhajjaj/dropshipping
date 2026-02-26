@@ -24,8 +24,10 @@ class ManualNotification extends Notification implements ShouldQueue
         public string $body,
         public ?string $actionUrl = null,
         public ?string $actionLabel = null,
+        public array $payload = [],
         public array $channels = ['database', 'broadcast'],
     ) {
+        $this->onQueue('notifications');
     }
 
     public function via(object $notifiable): array
@@ -58,12 +60,24 @@ class ManualNotification extends Notification implements ShouldQueue
 
     public function toArray(object $notifiable): array
     {
-        return [
+        $extra = array_filter($this->payload, function ($value) {
+            if ($value === null) {
+                return false;
+            }
+
+            if (is_string($value)) {
+                return trim($value) !== '';
+            }
+
+            return true;
+        });
+
+        return array_merge([
             'title' => $this->title,
             'body' => $this->body,
             'action_url' => $this->actionUrl,
             'action_label' => $this->actionLabel,
-        ];
+        ], $extra);
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -98,13 +112,13 @@ class ManualNotification extends Notification implements ShouldQueue
             ->body($this->body)
             ->channelId('default')
             ->sound('default')
-            ->jsonData([
-                'type' => 'manual_notification',
-                'title' => $this->title,
-                'body' => $this->body,
-                'action_url' => $this->actionUrl,
-                'action_label' => $this->actionLabel,
-            ]);
+                ->jsonData(array_merge([
+                    'type' => 'manual_notification',
+                    'title' => $this->title,
+                    'body' => $this->body,
+                    'action_url' => $this->actionUrl,
+                    'action_label' => $this->actionLabel,
+                ], $this->payload));
     }
 
     private function canSendMail(object $notifiable): bool

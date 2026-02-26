@@ -28,7 +28,11 @@ use App\Listeners\Orders\HandleOrderCancellation;
 use App\Listeners\Customers\SendWelcomeNotification;
 use App\Listeners\Auth\LogAdminLogin;
 use App\Domain\Products\Models\Product;
+use App\Models\Coupon;
+use App\Models\Promotion;
+use App\Observers\CouponObserver;
 use App\Observers\ProductObserver;
+use App\Observers\PromotionObserver;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Auth\Events\Login;
@@ -87,6 +91,8 @@ class EventServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Product::observe(ProductObserver::class);
+        Promotion::observe(PromotionObserver::class);
+        Coupon::observe(CouponObserver::class);
         \App\Domain\Orders\Models\Order::observe(\App\Observers\OrderObserver::class);
     }
 }

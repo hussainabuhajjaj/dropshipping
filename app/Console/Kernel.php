@@ -25,23 +25,24 @@ class Kernel extends ConsoleKernel
      *
      * @var array
      */
-        protected $commands = [
-            CjSyncCatalog::class,
-            TranslateProducts::class,
-            TranslateCategories::class,
-            \App\Console\Commands\TranslateMobileStrings::class,
-            \App\Console\Commands\CjCleanupWebhooks::class,
-            \App\Console\Commands\CjRefreshToken::class,
-            SyncCjVariants::class,
-            \App\Console\Commands\CjFixProductDetails::class,
-            CjBatchSyncVariantsCommand::class,
-            \App\Console\Commands\FixCorruptedMargins::class,
-            \App\Console\Commands\MonitorPriceCorruption::class,
-            \App\Console\Commands\CreateAffiliateCommand::class,
-            \App\Console\Commands\CreateAffiliateUserCommand::class,
-            \App\Console\Commands\GenerateAffiliateReportsCommand::class,
-            \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
-        ];
+    protected $commands = [
+        CjSyncCatalog::class,
+        TranslateProducts::class,
+        TranslateCategories::class,
+        \App\Console\Commands\TranslateMobileStrings::class,
+        \App\Console\Commands\CjCleanupWebhooks::class,
+        \App\Console\Commands\CjRefreshToken::class,
+        SyncCjVariants::class,
+        \App\Console\Commands\CjFixProductDetails::class,
+        CjBatchSyncVariantsCommand::class,
+        \App\Console\Commands\FixCorruptedMargins::class,
+        \App\Console\Commands\MonitorPriceCorruption::class,
+        \App\Console\Commands\CreateAffiliateCommand::class,
+        \App\Console\Commands\CreateAffiliateUserCommand::class,
+        \App\Console\Commands\GenerateAffiliateReportsCommand::class,
+        \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
+        \App\Console\Commands\CjSyncStockByVid::class,
+    ];
 
     protected function schedule(Schedule $schedule): void
     {
@@ -69,6 +70,9 @@ class Kernel extends ConsoleKernel
         
         // Monitor for price corruption every 30 minutes
         $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
+
+        // Sync CJ stock by VID nightly at 23:59
+        $schedule->command('cj:sync-stock-by-vid --limit=10000 --stale-minutes=30')->dailyAt('23:59');
     }
 
     protected function commands(): void

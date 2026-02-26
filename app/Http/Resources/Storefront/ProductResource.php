@@ -6,6 +6,7 @@ namespace App\Http\Resources\Storefront;
 
 use App\Domain\Products\Models\Product;
 use App\Services\Currency\CurrencyConversionService;
+use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\Request;
 
 class ProductResource extends JsonResource
@@ -16,7 +17,17 @@ class ProductResource extends JsonResource
     {
         /** @var Product $product */
         $product = $this->resource;
+        $homeBuilder = app(HomeBuilderService::class);
         $media = $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [];
+        $media = collect($media)
+            ->map(fn ($url) => $homeBuilder->normalizeImage(is_string($url) ? $url : null))
+            ->filter()
+            ->map(fn (string $url) => str_starts_with($url, 'https://cf.cjdropshipping.com/')
+                ? url('/media/proxy?url=' . urlencode($url))
+                : $url
+            )
+            ->values()
+            ->all();
         $locale = app()->getLocale();
         $variants = collect($product->variants ?? []);
         $variantPayload = $variants->map(function ($variant) use ($locale, $product) {

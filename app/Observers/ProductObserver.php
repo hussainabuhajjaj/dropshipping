@@ -6,13 +6,15 @@ namespace App\Observers;
 
 use App\Domain\Products\Models\Product;
 use App\Jobs\SyncCjVariantsJob;
+use App\Services\Notifications\NotificationBroadcastService;
 use Illuminate\Support\Facades\Log;
 
 class ProductObserver
 {
-    /**
-     * Auto-sync variants when a product with CJ PID is created
-     */
+    public function __construct(private readonly NotificationBroadcastService $notifications)
+    {
+    }
+
     public function created(Product $product): void
     {
         if ($product->cj_pid && $product->cj_sync_enabled) {
@@ -22,15 +24,16 @@ class ProductObserver
             ]);
             SyncCjVariantsJob::dispatch($product->cj_pid);
         }
+
+        if ($product->is_active) {
+            $this->notifications->broadcastNewProduct($product);
+        }
     }
 
-    /**
-     * Auto-sync variants when CJ PID changes or sync is re-enabled
-     */
     public function updated(Product $product): void
     {
         $changed = $product->getChanges();
-        
+
         if ((isset($changed['cj_pid']) || isset($changed['cj_sync_enabled'])) && $product->cj_pid && $product->cj_sync_enabled) {
             Log::info('Product updated; dispatching variant sync', [
                 'product_id' => $product->id,
@@ -38,6 +41,10 @@ class ProductObserver
                 'changed_fields' => array_keys($changed),
             ]);
             SyncCjVariantsJob::dispatch($product->cj_pid);
+        }
+
+        if (array_key_exists('is_active', $changed) && $product->is_active) {
+            $this->notifications->broadcastNewProduct($product);
         }
     }
 }

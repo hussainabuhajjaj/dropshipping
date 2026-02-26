@@ -5,6 +5,8 @@ export type NotificationItem = {
   body?: string | null;
   actionUrl?: string | null;
   actionLabel?: string | null;
+  imageUrl?: string | null;
+  payload?: Record<string, unknown> | null;
   readAt?: string | null;
   createdAt?: string | null;
 };

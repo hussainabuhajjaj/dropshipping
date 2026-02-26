@@ -25,64 +25,90 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
 
     public function dispatch(FulfillmentRequestData $data): FulfillmentResult
     {
-        $order = Order::query()->with('orderShippings')->find($data->order_id);
-        if (!$order) {
-            throw new FulfillmentException("Order $data->order_id Not Found");
+        $order = Order::query()
+            ->with(['orderShippings', 'shippingAddress'])
+            ->find($data->order_id);
+
+        if (! $order) {
+            throw new FulfillmentException("Order {$data->order_id} not found");
         }
+
         $providerSettings = $data->provider->settings ?? [];
 
-        $order_items = $data->order_items ?? [];
-        $order_items = collect($order_items)->pluck('id')->toArray();
-        $new_order_items = OrderItem::query()->whereIn('id', $order_items)
-            ->with('productVariant')
-            ->where('order_id', $data->order_id)->get();
+        $order_items = collect($data->order_items ?? [])->pluck('id')->toArray();
+        $new_order_items = OrderItem::query()
+            ->whereIn('id', $order_items)
+            ->with(['productVariant'])
+            ->where('order_id', $data->order_id)
+            ->get();
 
-        $products = $new_order_items->map(function ($item) {
-            $productVariant = $item->productVariant;
-            return [
-                "vid" => $productVariant->cj_vid,
-                "quantity" => $item->quantity,
-            ];
-        })->toArray();
+        if ($new_order_items->isEmpty()) {
+            throw new FulfillmentException('CJ dispatch requires at least one order item.');
+        }
 
-        // Use product's warehouse if available, otherwise fall back to provider settings
+        $products = $new_order_items
+            ->map(function (OrderItem $item) use ($order) {
+                $variant = $item->productVariant;
+                if (! $variant || ! $variant->cj_vid) {
+                    throw new FulfillmentException("Missing CJ VID for order item {$item->id}");
+                }
+
+                return [
+                    'storeLineItemId' => (string) $item->id,
+                    'vid' => $variant->cj_vid,
+                    'sku' => $variant->sku,
+                    'quantity' => $item->quantity,
+                    'price' => is_numeric($item->unit_price) ? (float) $item->unit_price : null,
+                    'currency' => $order->currency,
+                    'title' => $variant->title ?? data_get($item->meta, 'name'),
+                ];
+            })
+            ->values()
+            ->all();
+
         $product = $new_order_items->first()?->productVariant?->product;
+        $warehouseId = $product?->cj_warehouse_id ?? $providerSettings['warehouse_id'] ?? null;
+        $fromCountry = $product?->cj_warehouse_id
+            ? $this->getCountryFromWarehouse($product->cj_warehouse_id)
+            : ($providerSettings['from_country'] ?? 'CN');
 
-        $warehouseId = @$product?->cj_warehouse_id ?? $providerSettings['warehouse_id'] ?? null;
-        $fromCountry = @$product?->cj_warehouse_id ? $this->getCountryFromWarehouse($product->cj_warehouse_id) : ($providerSettings['from_country'] ?? 'CN');
+        $warehouse = $this->ensureDefaultWarehouse();
+        $shippingPhone = $warehouse->phone ?? $warehouse->shipping_company_name ?? null;
+        $recipientName = $warehouse->shipping_company_name ?? $warehouse->name ?? 'Simbazu Warehouse';
 
+        $shippingRecord = $order->orderShippings
+            ->where('fulfillment_provider_id', $data->provider?->id)
+            ->first();
 
-//        $address = $data->shippingAddress;
+        $shippingMethod = $shippingRecord?->name ?? $order->shipping_method ?? 'PostNL';
 
-        $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
-        $shipping = $order->orderShippings->where('fulfillment_provider_id', @$data?->provider?->id)->first();
         $payload = [
-            "orderNumber" => $order?->number,
-            "shippingZip" => @$default_warehouse['postal_code'],
-            "shippingCountry" => @$default_warehouse['country'],
-            "shippingCountryCode" => @$default_warehouse['country'],
-            "shippingProvince" => @$default_warehouse['state'],
-            "shippingCity" => @$default_warehouse['city'],
+            'orderNumber' => $order->number,
+            'shippingZip' => $warehouse->postal_code,
+            'shippingCountry' => $warehouse->country,
+            'shippingCountryCode' => $warehouse->country,
+            'shippingProvince' => $warehouse->state,
+            'shippingCity' => $warehouse->city,
             'shippingCounty' => null,
-            'shippingPhone' => @$default_warehouse?->phone,
-            'shippingCustomerName' => @$default_warehouse?->name,
-            'shippingAddress' => @$default_warehouse?->line1,
-            'shippingAddress2' => @$default_warehouse?->line2,
+            'shippingPhone' => $shippingPhone,
+            'shippingCustomerName' => $recipientName,
+            'shippingAddress' => $warehouse->line1,
+            'shippingAddress2' => $warehouse->line2,
             'taxId' => null,
-            'remark' => null,
-            'email' => $order?->email,
+            'remark' => $order->delivery_notes ?? null,
+            'email' => $order->email,
             'consigneeID' => null,
             'payType' => $providerSettings['pay_type'] ?? 3,
-            "shopAmount" => null,
-            "logisticName" => ($shipping['name'] ?? 'PostNL'),
-            "fromCountryCode" => $fromCountry,
+            'shopAmount' => is_numeric($order->subtotal) ? (float) $order->subtotal : null,
+            'logisticName' => $shippingMethod,
+            'fromCountryCode' => $fromCountry,
             'storageId' => $warehouseId ?? $providerSettings['storage_id'] ?? null,
             'products' => $products,
         ];
 
-
         $success = false;
         $duplicateHandled = false;
+        $body = [];
 
         try {
             Log::info('Attempting CJ order creation with v2 endpoint', ['order_number' => $data->order_id]);
@@ -147,53 +173,14 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
                 }
             }
         }
-        $success = $success ?? false;
-        $externalId = @$body['orderId'] ?? @$body['orderNumber'];
-        $shipmentOrderId = @$body['shipmentOrderId'];
-        $trackingNumber = @$body['trackingNumber'];
-        $trackingUrl = @$body['trackingUrl'];
-        $postageAmount = @$body['postageAmount'];
-//        dd($body , $postageAmount);
-//        $currency = @$body['currency'];
-//        $success = Arr::get($body, 'result') === true || Arr::get($body, 'code') === 200;
-//        $externalId = Arr::get($body, 'data.orderId') ?? Arr::get($body, 'data.orderNumber');
-//        $trackingNumber = Arr::get($body, 'data.trackingNumber');
-//        $trackingUrl = Arr::get($body, 'data.trackingUrl');
-//        $postageAmount = Arr::get($body, 'data.postageAmount');
-//        $currency = Arr::get($body, 'data.currency') ?? Arr::get($body, 'data.currencyCode');
-//        $logisticName = Arr::get($body, 'data.logisticName');
-//        $shipmentOrderId = Arr::get($body, 'data.shipmentOrderId');
 
-        // PHASE 2: Confirm order to finalize costs and get final payId requirements
+        $externalId = $body['orderId'] ?? $body['orderNumber'] ?? null;
+        $shipmentOrderId = $body['shipmentOrderId'] ?? null;
+        $trackingNumber = $body['trackingNumber'] ?? null;
+        $trackingUrl = $body['trackingUrl'] ?? null;
+        $postageAmount = $body['postageAmount'] ?? null;
+        $logisticName = $body['logisticName'] ?? $payload['logisticName'] ?? null;
 
-//        if ($externalId) {
-//            try {
-//                Log::info('Confirming CJ order', [
-//                    'order_number' => $data->order_id,
-//                    'cj_order_id' => $externalId,
-//                ]);
-//
-//                $confirmResponse = $this->client->confirmOrder($externalId);
-//                $confirmBody = $this->validatedResponse($confirmResponse, 'CJ order confirm failed');
-//dd($confirmBody);
-//                // Merge confirmed data with creation data
-//                $body['data'] = array_merge($body['data'] ?? [], $confirmBody['data'] ?? []);
-//
-//                Log::info('CJ order confirmed', [
-//                    'order_id' => $externalId,
-//                    'confirm_response' => $confirmBody,
-//                ]);
-//
-//            } catch (\Throwable $confirmError) {
-//                throw $confirmError;
-//                Log::warning('CJ order confirmation failed, proceeding with creation data', [
-//                    'error' => $confirmError->getMessage(),
-//                ]);
-//                // Don't fail completely if confirmation fails - still have creation data
-//            }
-//        }
-
-        // Update order with CJ tracking info if we have an order
         if ($order && $externalId) {
             $order->update([
                 'cj_order_id' => $externalId,
@@ -201,8 +188,8 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
                 'cj_order_status' => 'confirmed',
                 'cj_order_created_at' => now(),
                 'cj_confirmed_at' => now(),
-                'cj_amount_due' => is_numeric($postageAmount) ? (float)$postageAmount : null,
-                'cj_payment_status' => 'pending',  // Ready for payment
+                'cj_amount_due' => is_numeric($postageAmount) ? (float) $postageAmount : null,
+                'cj_payment_status' => 'pending',
             ]);
         }
 
@@ -211,13 +198,26 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
             externalReference: $externalId,
             cjOrderId: $externalId,
             shipmentOrderId: $shipmentOrderId,
-            logisticName: $logisticName ?? $payload['logisticName'] ?? null,
+            logisticName: $logisticName,
             currency: $order->currency,
-            postageAmount: is_numeric($postageAmount) ? (float)$postageAmount : null,
+            postageAmount: is_numeric($postageAmount) ? (float) $postageAmount : null,
             trackingNumber: $trackingNumber,
             trackingUrl: $trackingUrl,
             rawResponse: $body ?? []
         );
+    }
+
+    private function ensureDefaultWarehouse(): LocalWareHouse
+    {
+        $warehouse = LocalWareHouse::query()
+            ->where('is_default', true)
+            ->first();
+
+        if (! $warehouse) {
+            throw new FulfillmentException('CJ dispatch requires a default warehouse record.');
+        }
+
+        return $warehouse;
     }
 
 
@@ -349,25 +349,6 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
 //            rawResponse: $body ?? []
 //        );
 //    }
-
-    private function formatAddress(FulfillmentRequestData $data): array
-    {
-        $addr = $data->shippingAddress;
-        if (!$addr) {
-            throw new FulfillmentException('Missing shipping address for CJ dispatch.');
-        }
-
-        return [
-            'name' => $addr->name,
-            'phone' => $addr->phone,
-            'countryCode' => $addr->country,
-            'state' => $addr->state,
-            'city' => $addr->city,
-            'address1' => $addr->line1,
-            'address2' => $addr->line2,
-            'zip' => $addr->postal_code,
-        ];
-    }
 
     private function isDuplicateOrderException(\Throwable $error): bool
     {

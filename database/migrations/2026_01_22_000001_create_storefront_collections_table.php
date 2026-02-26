@@ -30,16 +30,27 @@ return new class extends Migration
             $table->json('locale_overrides')->nullable();
             $table->string('selection_mode')->default('rules'); // rules, manual, hybrid
             $table->json('rules')->nullable();
-            $table->json('manual_products')->nullable();
             $table->unsignedInteger('product_limit')->nullable();
             $table->string('sort_by')->nullable();
             $table->unsignedInteger('display_order')->default(0);
             $table->timestamps();
         });
+
+        Schema::create('storefront_collection_products', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('storefront_collection_id')->constrained('storefront_collections')->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained('products')->cascadeOnDelete();
+            $table->unsignedInteger('position')->default(0);
+            $table->timestamps();
+
+            $table->unique(['storefront_collection_id', 'product_id']);
+            $table->index(['storefront_collection_id', 'position']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('storefront_collection_products');
         Schema::dropIfExists('storefront_collections');
     }
 };

@@ -72,7 +72,6 @@ class CjProductApi extends CjBaseApi
             'variantSku' => $criteria['variantSku'] ?? null,
             'featured' => ['enable_description', 'enable_category','enable_inventories','enable_combine','enable_video'],
         ], fn ($v) => $v !== null && $v !== '');
-
         return $this->client()->get('/v1/product/query', $params);
     }
 

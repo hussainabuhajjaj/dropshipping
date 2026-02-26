@@ -28,6 +28,8 @@ class NotificationPresenter
             'body' => $data['body'] ?? $this->notificationBody($type, $data),
             'action_url' => $actionUrl,
             'action_label' => $data['action_label'] ?? null,
+            'image_url' => $data['image_url'] ?? null,
+            'payload' => $data,
             'read_at' => $notification->read_at,
             'created_at' => $notification->created_at,
         ];

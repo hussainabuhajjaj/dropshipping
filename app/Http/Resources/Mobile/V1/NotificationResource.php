@@ -24,6 +24,8 @@ class NotificationResource extends \App\Http\Resources\Storefront\JsonResource
             'body' => $payload['body'] ?? null,
             'action_url' => $payload['action_url'] ?? null,
             'action_label' => $payload['action_label'] ?? null,
+            'image_url' => $payload['image_url'] ?? null,
+            'payload' => $payload['payload'] ?? $payload,
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

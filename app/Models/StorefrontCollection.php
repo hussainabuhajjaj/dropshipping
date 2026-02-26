@@ -7,6 +7,7 @@ use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Arr;
 
 class StorefrontCollection extends Model
@@ -34,7 +35,6 @@ class StorefrontCollection extends Model
         'locale_overrides',
         'selection_mode',
         'rules',
-        'manual_products',
         'product_limit',
         'sort_by',
         'display_order',
@@ -47,8 +47,14 @@ class StorefrontCollection extends Model
         'locale_visibility' => 'array',
         'locale_overrides' => 'array',
         'rules' => 'array',
-        'manual_products' => 'array',
     ];
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'storefront_collection_products', 'storefront_collection_id', 'product_id')
+            ->withPivot(['position'])
+            ->withTimestamps();
+    }
 
     public function getRouteKeyName(): string
     {
@@ -153,10 +159,12 @@ class StorefrontCollection extends Model
 
     public function manualProductIds(): array
     {
-        $manual = $this->manual_products ?? [];
-        return collect($manual)
-            ->filter(fn ($row) => is_array($row) && ! empty($row['product_id']))
-            ->pluck('product_id')
+        if (! $this->exists) {
+            return [];
+        }
+
+        return $this->products()
+            ->pluck('products.id')
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
@@ -204,11 +212,14 @@ class StorefrontCollection extends Model
             return collect();
         }
 
-        $orderMap = collect($this->manual_products ?? [])
-            ->filter(fn ($row) => is_array($row) && ! empty($row['product_id']))
-            ->mapWithKeys(function ($row, $index) {
-                return [(int) $row['product_id'] => (int) ($row['position'] ?? $index)];
-            })
+        if (! $this->exists) {
+            return collect();
+        }
+
+        $positionMap = $this->products()
+            ->whereIn('products.id', $ids)
+            ->pluck('storefront_collection_products.position', 'products.id')
+            ->map(fn ($pos) => (int) $pos)
             ->all();
 
         $products = Product::query()
@@ -218,8 +229,8 @@ class StorefrontCollection extends Model
             ->withCount('reviews')
             ->get();
 
-        return $products->sortBy(function ($product) use ($orderMap) {
-            return $orderMap[$product->id] ?? 9999;
+        return $products->sortBy(function ($product) use ($positionMap) {
+            return $positionMap[$product->id] ?? 9999;
         })->values();
     }
 

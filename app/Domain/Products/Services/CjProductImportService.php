@@ -15,6 +15,7 @@ use App\Jobs\TranslateProductsChunkJob;
 use App\Jobs\GenerateProductSeoChunkJob;
 use App\Jobs\SyncProductMediaChunkJob;
 use App\Jobs\SyncProductVariantsChunkJob;
+use App\Jobs\SyncCjStockByVidChunkJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use Illuminate\Http\Client\ConnectionException;
@@ -859,6 +860,28 @@ class CjProductImportService
             $chunks = array_chunk($productIds, $variantsChunk);
             foreach ($chunks as $chunk) {
                 SyncProductVariantsChunkJob::dispatch($chunk)->onQueue('variants');
+            }
+
+            // After variants are synced/created, schedule a stock refresh by VID.
+            // This uses CJ queryByVid and maps stock_on_hand to totalInventoryNum.
+            // Note: this assumes the variants sync job runs quickly; even if it lags,
+            // running this periodically will converge.
+            try {
+                $vids = \App\Domain\Products\Models\ProductVariant::query()
+                    ->whereIn('product_id', $productIds)
+                    ->whereNotNull('cj_vid')
+                    ->where('cj_vid', '!=', '')
+                    ->pluck('cj_vid')
+                    ->map(fn ($v) => (string) $v)
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                foreach (array_chunk($vids, 40) as $vidChunk) {
+                    SyncCjStockByVidChunkJob::dispatch($vidChunk)->onQueue((string) config('cj.stock_queue', 'cj-sync'));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Failed to dispatch CJ stock sync after import', ['error' => $e->getMessage()]);
             }
         }
 

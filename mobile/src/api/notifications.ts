@@ -39,6 +39,11 @@ const mapNotification = (source: ApiNotification): NotificationItem => {
     body: typeof source.body === 'string' ? source.body : null,
     actionUrl: typeof source.action_url === 'string' ? source.action_url : null,
     actionLabel: typeof source.action_label === 'string' ? source.action_label : null,
+    imageUrl: typeof source.image_url === 'string' ? source.image_url : null,
+    payload:
+      source.payload && typeof source.payload === 'object' && !Array.isArray(source.payload)
+        ? (source.payload as Record<string, unknown>)
+        : null,
     readAt: typeof source.read_at === 'string' ? source.read_at : null,
     createdAt: typeof source.created_at === 'string' ? source.created_at : null,
   };

@@ -3,6 +3,7 @@
 // --- Core Laravel & Vendor Imports ---
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 
 // --- Storefront Controllers ---
@@ -101,6 +102,31 @@ Route::post('/newsletter/subscribe', [NewsletterController::class, 'store'])->na
 Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');
 Route::get('/newsletter/track/open/{token}', [NewsletterTrackingController::class, 'open'])->name('newsletter.track.open');
 Route::get('/newsletter/track/click/{token}', [NewsletterTrackingController::class, 'click'])->name('newsletter.track.click');
+Route::get('/media/proxy', function () {
+    $url = (string) request()->query('url', '');
+    if ($url === '') {
+        abort(404);
+    }
+
+    if (! str_starts_with($url, 'https://cf.cjdropshipping.com/')) {
+        abort(403);
+    }
+
+    $response = Http::timeout(10)
+        ->withHeaders([
+            'User-Agent' => 'Mozilla/5.0',
+            'Accept' => 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        ])
+        ->get($url);
+
+    if (! $response->successful()) {
+        abort(404);
+    }
+
+    return response($response->body(), 200)
+        ->header('Content-Type', $response->header('Content-Type') ?? 'image/jpeg')
+        ->header('Cache-Control', 'public, max-age=86400');
+});
 Route::get('/coming-soon', function () {
     return Inertia::render('ComingSoon');
 })->name('coming-soon');
