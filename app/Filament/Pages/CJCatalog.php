@@ -606,7 +606,6 @@ class CJCatalog extends BasePage implements HasTable
     {
         try {
             $product = $this->importService()->importByPid($pid, $this->defaultImportOptions());
-
             if (! $product) {
                 $this->notifyError('CJ product not found');
                 return;

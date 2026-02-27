@@ -143,7 +143,7 @@ class CjProductImportService
             }
         }
         $price = $productData['productSellPrice'] ?? null;
-        
+
         // Handle range format prices like "4.28-7.09"
         $priceValue = null;
         if (is_numeric($firstVariantPrice)) {
@@ -158,7 +158,7 @@ class CjProductImportService
         } elseif (is_numeric($price)) {
             $priceValue = (float)$price;
         }
-        
+
         // Final fallback if still null
         if ($priceValue === null) {
             $priceValue = $product?->cost_price ?? 0;
@@ -192,7 +192,7 @@ class CjProductImportService
 
         // Validate currency first (needed for pricing calculation)
         $currency = $productData['currency'] ?? 'USD';
-        if (!in_array($currency, ['USD', 'EUR', 'GBP', 'CAD', 'AUD'])) {
+        if (!in_array($currency, ['USD'])) {
             Log::warning('Unsupported currency detected, defaulting to USD', [
                 'cj_pid' => $pid,
                 'currency' => $currency
@@ -202,7 +202,7 @@ class CjProductImportService
 
         // Set cost price as imported, preserve selling price if price lock is enabled
         $rawCost = $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0));
-        
+
         // Strict validation for cost price
         if (!is_numeric($rawCost) || $rawCost < 0) {
             Log::warning('Invalid cost price detected, using default', [
@@ -212,16 +212,16 @@ class CjProductImportService
             ]);
             $rawCost = 0;
         }
-        
+
         $pricing = PricingService::makeFromConfig();
         $minSell = $pricing->minSellingPrice((float) $rawCost, $currency); // Use product currency
         $sellingPrice = $lockPrice && $product ? ($product->selling_price ?? 0) : 0;
-        
+
         // Strict validation for selling price
         if (!is_numeric($sellingPrice) || $sellingPrice < 0 || $sellingPrice < $minSell) {
             $sellingPrice = $minSell;
         }
-        
+
         // Additional validation to prevent corruption
         if ($sellingPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
             Log::warning('Excessive selling price detected, using minimum price', [
@@ -232,7 +232,7 @@ class CjProductImportService
             ]);
             $sellingPrice = $minSell;
         }
-        
+
         // Final sanity check for reasonable price ranges
         $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
         if ($sellingPrice > $maxReasonablePrice) {
@@ -244,7 +244,7 @@ class CjProductImportService
             ]);
             $sellingPrice = $maxReasonablePrice;
         }
-        
+
         // Extract stock information from CJ API data
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
         $stockOnHand = $totalStock > 0 ? (int) ($totalStock / 2) : 0; // Set half of total stock to stock_on_hand
@@ -1034,7 +1034,7 @@ class CjProductImportService
                     }
 
                     $rawSell = $variant['variantSellPrice'] ?? $variant['variantSugSellPrice'] ?? null;
-                    
+
                     // Strict validation for variant cost price
                     $rawCost = is_numeric($rawSell) ? (float) $rawSell : ($product->cost_price ?? 0);
                     if (!is_numeric($rawCost) || $rawCost < 0) {
@@ -1045,7 +1045,7 @@ class CjProductImportService
                         ]);
                         $rawCost = $product->cost_price ?? 0;
                     }
-                    
+
                     // Strict validation for variant selling price
                     $sellPrice = is_numeric($rawSell) ? (float) $rawSell : ($product->selling_price ?? 0);
                     if (!is_numeric($sellPrice) || $sellPrice < 0) {
@@ -1053,7 +1053,7 @@ class CjProductImportService
                         $minSell = $pricing->minSellingPrice((float) $rawCost, $product->currency ?? 'USD'); // Use product currency
                         $sellPrice = $minSell;
                     }
-                    
+
                     // Additional validation to prevent variant price corruption
                     if ($sellPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
                         Log::warning('Excessive variant price detected, using minimum price', [
@@ -1065,7 +1065,7 @@ class CjProductImportService
                         $pricing = PricingService::makeFromConfig();
                         $sellPrice = $pricing->minSellingPrice((float) $rawCost);
                     }
-                    
+
                     // Final sanity check for reasonable variant price ranges
                     $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
                     if ($sellPrice > $maxReasonablePrice) {
@@ -1096,9 +1096,37 @@ class CjProductImportService
                     $variantHeight = $this->parsePositiveInt($variant['variantHeight'] ?? null);
                     $variantWeight = $this->parsePositiveInt($variant['variantWeight'] ?? null);
 
-                    // Extract stock information from CJ variant data
-                    $variantStock = (int) ($variant['stock'] ?? $variant['variantStock'] ?? 0);
-                    $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0; // Set half of stock to stock_on_hand
+                    // Extract stock information from CJ variant data with new inventories structure
+                    $variantStock = 0;
+                    $variantStockOnHand = 0;
+
+                    // Handle new inventories structure
+                    if (isset($variant['inventories']) && is_array($variant['inventories'])) {
+                        foreach ($variant['inventories'] as $inventory) {
+                            if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
+                                $variantStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
+                                $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0;
+                                
+                                Log::info('Variant stock extracted from inventories', [
+                                    'cj_vid' => $vid,
+                                    'country' => $inventory['countryCode'],
+                                    'total_inventory' => $inventory['totalInventory'] ?? null,
+                                    'cj_inventory' => $inventory['cjInventory'] ?? null,
+                                    'factory_inventory' => $inventory['factoryInventory'] ?? null,
+                                    'extracted_stock' => $variantStock,
+                                    'stock_on_hand' => $variantStockOnHand
+                                ]);
+                                
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fallback to old structure if inventories not found
+                    if ($variantStock === 0) {
+                        $variantStock = (int) ($variant['stock'] ?? $variant['variantStock'] ?? $variant['inventoryNum'] ?? 0);
+                        $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0;
+                    }
 
                     ProductVariant::updateOrCreate(
                         [
@@ -1123,6 +1151,9 @@ class CjProductImportService
                             'metadata' => [
                                 'cj_vid' => $vid,
                                 'cj_variant' => $variant,
+                                'inventory_data' => $variant['inventories'] ?? null,
+                                'selected_country' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
+                                'extracted_stock' => $variantStock,
                             ],
                         ]
                     );

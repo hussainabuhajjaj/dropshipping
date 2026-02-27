@@ -549,12 +549,25 @@ class ProductResource extends BaseResource
                     ->toggle(),
                 Tables\Filters\SelectFilter::make('category_id')
                     ->label('Category')
-                    ->options(fn (): array => Category::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(function (): array {
+                        $categories = Category::query()->orderBy('name')->pluck('name', 'id')->all();
+                        
+                        // Add option for uncategorized products at the top
+                        return ['null' => 'Uncategorized'] + $categories;
+                    })
                     ->query(function (Builder $query, array $data): Builder {
-                        $value = $data['value'] ?? null;
-                        if (! is_numeric($value)) {
+                        $value = $data['value'];
+                        
+                        // Explicitly handle empty/null values
+                        if (blank($value)) {
                             return $query;
                         }
+                        
+                        // Handle uncategorized products
+                        if ($value === 'null') {
+                            return $query->whereNull('category_id');
+                        }
+                        
                         return $query->where('category_id', (int) $value);
                     })
                     ->searchable()
@@ -617,7 +630,11 @@ class ProductResource extends BaseResource
                     ->toggle(),
                 Tables\Filters\Filter::make('low_quality')
                     ->label('Low Quality (<= 60)')
-                    ->query(fn (Builder $query): Builder => $query->having('quality_score', '<=', 60))
+                    ->query(function (Builder $query): Builder {
+                        // Apply the quality score scope first
+                        return $query->withQualityScore(self::CJ_SYNC_STALE_HOURS)
+                            ->having('quality_score', '<=', 60);
+                    })
                     ->toggle(),
                 Tables\Filters\Filter::make('under_one_dollar')
                     ->label('Under $1')
