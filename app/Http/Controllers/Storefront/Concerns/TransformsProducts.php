@@ -16,10 +16,6 @@ trait TransformsProducts
         $media = collect($media)
             ->map(fn ($url) => $homeBuilder->normalizeImage(is_string($url) ? $url : null))
             ->filter()
-            ->map(fn (string $url) => str_starts_with($url, 'https://cf.cjdropshipping.com/')
-                ? url('/media/proxy?url=' . urlencode($url))
-                : $url
-            )
             ->values()
             ->all();
         $locale = app()->getLocale();
