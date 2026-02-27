@@ -44,6 +44,7 @@ class SyncCjVariantsJob implements ShouldQueue
             $resp = $client->getVariantsByPid($this->cjPid);
 
             $variants = $this->extractVariants($resp->data ?? null);
+            dd($variants);
             if ($variants === null) {
                 $data = $resp->data ?? null;
                 Log::warning('No variants found in CJ response', [
@@ -83,7 +84,7 @@ class SyncCjVariantsJob implements ShouldQueue
 
                 // Update variant data
                 $variant->cj_variant_data = $variantData;
-                $variant->cj_stock = (int) ($variantData['stock'] ?? 0);
+                $variant->cj_stock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
                 $variant->stock_on_hand = $variant->cj_stock; // mirror CJ stock into local stock
                 $variant->cj_stock_synced_at = now();
 
@@ -237,7 +238,7 @@ class SyncCjVariantsJob implements ShouldQueue
         $candidate = $variantData['variantSellPrice']
             ?? $variantData['variantSugSellPrice']
             ?? $variantData['variantPrice'];
-        
+
         // If variant price is not available, calculate from variant cost
         if (!is_numeric($candidate)) {
             $variantCost = $variantData['variantSellPrice'] ?? $variant->cost_price ?? 0;
@@ -249,12 +250,12 @@ class SyncCjVariantsJob implements ShouldQueue
                 $candidate = 0.0;
             }
         }
-        
+
         // Final validation to prevent corruption
         if (!is_numeric($candidate) || $candidate < 0) {
             $candidate = 0.0;
         }
-        
+
         // Additional corruption prevention
         $variantCost = $variant->cost_price ?? 0;
         if ($variantCost > 0 && $candidate > ($variantCost * 100)) { // >100x markup is corruption
@@ -267,7 +268,7 @@ class SyncCjVariantsJob implements ShouldQueue
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
             $candidate = $pricing->minSellingPrice((float) $variantCost);
         }
-        
+
         return (float) $candidate;
     }
 }

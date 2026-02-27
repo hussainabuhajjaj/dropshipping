@@ -114,18 +114,26 @@ class CjProductImportService
         $lockVariants = $respectLocks && (bool)($product?->cj_lock_variants);
 
         if ($variants === null) {
-            try {
-                $variantResp = $this->client->getVariantsByPid($pid);
-                $variants = $variantResp->data ?? [];
-            } catch (ConnectionException $e) {
-                Log::warning('CJ variant lookup timed out', ['pid' => $pid, 'error' => $e->getMessage()]);
-                $variants = [];
-            } catch (ApiException $e) {
-                if ($this->isRemovedFromShelves($e)) {
-                    $this->markProductRemoved($pid, $e->getMessage());
-                    return null;
+            // First try to use variants from product data (which may include inventory data)
+            if (isset($productData['variants']) && is_array($productData['variants'])) {
+                $variants = $productData['variants'];
+                Log::info('Using variants from product data', ['pid' => $pid, 'variant_count' => count($variants)]);
+            } else {
+                // Fallback to fetching variants via API
+                try {
+                    $variantResp = $this->client->getVariantsByPid($pid);
+                    $variants = $variantResp->data ?? [];
+                    Log::info('Fetched variants via API', ['pid' => $pid, 'variant_count' => count($variants)]);
+                } catch (ConnectionException $e) {
+                    Log::warning('CJ variant lookup timed out', ['pid' => $pid, 'error' => $e->getMessage()]);
+                    $variants = [];
+                } catch (ApiException $e) {
+                    if ($this->isRemovedFromShelves($e)) {
+                        $this->markProductRemoved($pid, $e->getMessage());
+                        return null;
+                    }
+                    throw $e;
                 }
-                throw $e;
             }
         }
 
