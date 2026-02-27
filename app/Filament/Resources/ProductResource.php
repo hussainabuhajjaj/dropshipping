@@ -342,12 +342,21 @@ class ProductResource extends BaseResource
     {
         return $table
             ->columns([
-
-
-                    Tables\Columns\ImageColumn::make('primary_image')
+ Tables\Columns\ImageColumn::make('primary_image')
                         ->label('Image')
                         ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
-                        ->square(),
+                        ->square()
+                        ->checkFileExistence(false)
+                        ->action(
+                            Action::make('viewImages')
+                                ->modalHeading(fn (Product $record) => $record->name)
+                                ->modalContent(fn (Product $record) => view('filament.modals.product-images', [
+                                    'images' => $record->images->sortBy('position')->pluck('url')->filter()->values()->all(),
+                                ]))
+                                ->modalWidth('4xl')
+                                ->modalSubmitAction(false)
+                                ->modalCancelActionLabel('Close')
+                        ),
                     Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(20,'...')->tooltip(fn ($record) => $record->name),
                     Tables\Columns\TextColumn::make('quality_score')
                         ->label('Quality')
@@ -551,23 +560,23 @@ class ProductResource extends BaseResource
                     ->label('Category')
                     ->options(function (): array {
                         $categories = Category::query()->orderBy('name')->pluck('name', 'id')->all();
-                        
+
                         // Add option for uncategorized products at the top
                         return ['null' => 'Uncategorized'] + $categories;
                     })
                     ->query(function (Builder $query, array $data): Builder {
                         $value = $data['value'];
-                        
+
                         // Explicitly handle empty/null values
                         if (blank($value)) {
                             return $query;
                         }
-                        
+
                         // Handle uncategorized products
                         if ($value === 'null') {
                             return $query->whereNull('category_id');
                         }
-                        
+
                         return $query->where('category_id', (int) $value);
                     })
                     ->searchable()
@@ -669,21 +678,21 @@ class ProductResource extends BaseResource
                     ->query(function (Builder $query, array $data): Builder {
                         $from = $data['from'] ?? null;
                         $to = $data['to'] ?? null;
-                        
+
                         if ($from) {
                             $query->whereDate('created_at', '>=', $from);
                         }
-                        
+
                         if ($to) {
                             $query->whereDate('created_at', '<=', $to);
                         }
-                        
+
                         return $query;
                     })
                     ->indicateUsing(function (array $data): string {
                         $from = $data['from'] ?? null;
                         $to = $data['to'] ?? null;
-                        
+
                         if ($from && $to) {
                             return "Created: {$from} to {$to}";
                         } elseif ($from) {
@@ -691,7 +700,7 @@ class ProductResource extends BaseResource
                         } elseif ($to) {
                             return "Created to: {$to}";
                         }
-                        
+
                         return '';
                     }),
                 Tables\Filters\Filter::make('updated_at_range')
@@ -707,21 +716,21 @@ class ProductResource extends BaseResource
                     ->query(function (Builder $query, array $data): Builder {
                         $from = $data['from'] ?? null;
                         $to = $data['to'] ?? null;
-                        
+
                         if ($from) {
                             $query->whereDate('updated_at', '>=', $from);
                         }
-                        
+
                         if ($to) {
                             $query->whereDate('updated_at', '<=', $to);
                         }
-                        
+
                         return $query;
                     })
                     ->indicateUsing(function (array $data): string {
                         $from = $data['from'] ?? null;
                         $to = $data['to'] ?? null;
-                        
+
                         if ($from && $to) {
                             return "Updated: {$from} to {$to}";
                         } elseif ($from) {
@@ -729,7 +738,7 @@ class ProductResource extends BaseResource
                         } elseif ($to) {
                             return "Updated to: {$to}";
                         }
-                        
+
                         return '';
                     }),
                 Tables\Filters\Filter::make('margin_not_set')
@@ -825,7 +834,7 @@ class ProductResource extends BaseResource
                             $oldSelling = self::normalizeAmount($record->selling_price);
                             $oldStatus = $record->status;
                             $oldActive = (bool) $record->is_active;
-                            
+
                             // Calculate new selling price with minimum price validation
                             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
                             $minSelling = $pricing->minSellingPrice($cost);
@@ -863,14 +872,14 @@ class ProductResource extends BaseResource
                                     }
 
                                     $oldVariantPrice = self::normalizeAmount($variant->price);
-                                    
+
                                     // Calculate new variant price with minimum price validation
                                     $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
                                     $minVariantPrice = $pricing->minSellingPrice($variantCost);
                                     $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
                                     $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
                                     $newVariantPrice = round($newVariantPrice, 2);
-                                    
+
                                     $variant->update([
                                         'price' => $newVariantPrice,
                                     ]);
@@ -1608,7 +1617,7 @@ class ProductResource extends BaseResource
                                     $appliedMargin = $lowCostMargin;
                                     $lowCostProductApplied++;
                                 }
-                                
+
                                 // Calculate new selling price with minimum price validation
                                 $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
                                 $minSelling = $pricing->minSellingPrice($productCost);
@@ -1664,14 +1673,14 @@ class ProductResource extends BaseResource
                                             $lowCostVariantApplied++;
                                         }
                                         $oldVariantPrice = $variant->price;
-                                        
+
                                         // Calculate new variant price with minimum price validation
                                         $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
                                         $minVariantPrice = $pricing->minSellingPrice($variantCost);
                                         $calculatedVariantPrice = $variantCost * (1 + $variantMargin / 100);
                                         $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
                                         $newVariantPrice = round($newVariantPrice, 2);
-                                        
+
                                         $variant->update([
                                             'price' => $newVariantPrice,
                                         ]);
