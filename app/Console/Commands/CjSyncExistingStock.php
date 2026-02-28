@@ -17,6 +17,8 @@ class CjSyncExistingStock extends Command
                             {--delay=500 : Delay between API calls in milliseconds (rate limiting)}
                             {--max-errors=10 : Stop if errors exceed this threshold}
                             {--resume : Resume from last checkpoint}
+                            {--fast : Fast mode - reduced delays and larger batches}
+                            {--turbo : Turbo mode - maximum speed with minimal delays}
                             {--dry-run : Preview what would be synced without making changes}';
 
     protected $description = 'Smart sync of real-time stock for existing CJ products with auto-pagination and error recovery';
@@ -26,17 +28,34 @@ class CjSyncExistingStock extends Command
 
     public function handle(CJDropshippingClient $client): int
     {
-        $pageSize = (int) $this->option('page-size');
-        $delayMs = (int) $this->option('delay');
-        $maxErrors = (int) $this->option('max-errors');
+        $fast = $this->option('fast');
+        $turbo = $this->option('turbo');
         $resume = $this->option('resume');
         $dryRun = $this->option('dry-run');
+
+        // Apply speed optimizations
+        if ($turbo) {
+            $pageSize = 100;
+            $delayMs = 50;
+            $maxErrors = 20;
+            $mode = '🚀 TURBO MODE';
+        } elseif ($fast) {
+            $pageSize = 50;
+            $delayMs = 200;
+            $maxErrors = 15;
+            $mode = '⚡ FAST MODE';
+        } else {
+            $pageSize = (int) $this->option('page-size');
+            $delayMs = (int) $this->option('delay');
+            $maxErrors = (int) $this->option('max-errors');
+            $mode = '🐢 SAFE MODE';
+        }
 
         if ($dryRun) {
             $this->warn('🔍 DRY RUN MODE - No changes will be made');
         }
 
-        $this->info('� Smart Stock Sync - Auto-pagination with error recovery');
+        $this->info("🚀 Smart Stock Sync - {$mode}");
         $this->info("⚙️  Settings: {$pageSize} products/page, {$delayMs}ms delay, max {$maxErrors} errors");
 
         // Get checkpoint for resume
