@@ -46,6 +46,15 @@ class CjResyncAllProducts extends Command
         $bar->start();
 
         foreach ($products as $index => $product) {
+            // Check memory usage before processing
+            $memoryUsage = memory_get_usage(true) / 1024 / 1024; // MB
+            if ($memoryUsage > 512) { // If using more than 512MB
+                $this->newLine();
+                $this->warn("High memory usage ({$memoryUsage}MB), pausing for 10 seconds...");
+                sleep(10);
+                gc_collect_cycles(); // Force garbage collection
+            }
+
             try {
                 // Use the same method as "Sync Now" button
                 $result = $importer->importByPid($product->cj_pid, [
@@ -70,9 +79,10 @@ class CjResyncAllProducts extends Command
 
             $bar->advance();
 
-            // Add delay to avoid rate limiting
+            // Add delay to avoid rate limiting and reduce server load
             if ($delay > 0 && ($index + 1) % $batchSize === 0) {
                 sleep($delay);
+                gc_collect_cycles(); // Clean up memory
             }
         }
 
