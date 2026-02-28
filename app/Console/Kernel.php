@@ -47,29 +47,19 @@ class Kernel extends ConsoleKernel
 
     protected function schedule(Schedule $schedule): void
     {
-        // NEW: Unified CJ import pipeline (daily sync with margin, enrichment, validation)
-        $schedule->call(function () {
-            $service = app(\App\Domain\Products\Services\CjProductImportService::class);
-            $result = $service->importBulkWithPipeline([
-                'margin_percent' => (float) config('services.cj.import_margin', 35),
-                'enrich' => true,
-                'skip_existing' => true, // Only import new products daily
-            ]);
-            
-            \Illuminate\Support\Facades\Log::info('CJ daily sync completed', $result);
-            
-            // Alert if many failures
-            if ($result['failed_activation'] > 50 && config('services.cj.alerts_email')) {
-                try {
-                    \Illuminate\Support\Facades\Mail::to(config('services.cj.alerts_email'))
-                        ->send(new \Illuminate\Mail\Mailable());
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Failed to send CJ import alert', ['error' => $e->getMessage()]);
-                }
-            }
-        })->dailyAt('02:00')
-          ->name('cj-full-sync-daily')
-          ->withoutOverlapping();
+        // DISABLED: Daily full catalog sync - too heavy on server resources
+        // Using weekly sync instead to prevent database corruption and OOM issues
+        // $schedule->call(function () {
+        //     $service = app(\App\Domain\Products\Services\CjProductImportService::class);
+        //     $result = $service->importBulkWithPipeline([
+        //         'margin_percent' => (float) config('services.cj.import_margin', 35),
+        //         'enrich' => true,
+        //         'skip_existing' => true,
+        //     ]);
+        //     \Illuminate\Support\Facades\Log::info('CJ daily sync completed', $result);
+        // })->dailyAt('00:00')
+        //   ->name('cj-daily-import-new')
+        //   ->withoutOverlapping();
 
         // NEW: Weekly full refresh (update all products, no skip-existing)
         $schedule->call(function () {
