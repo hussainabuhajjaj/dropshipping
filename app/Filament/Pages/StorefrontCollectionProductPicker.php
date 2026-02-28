@@ -222,7 +222,7 @@ class StorefrontCollectionProductPicker extends Page
         $query = Product::query();
 
         $query
-            ->with(['category'])
+            ->with(['category', 'latestMarginLog'])
             ->withAvg('reviews', 'rating')
             ->addSelect([
                 // Add product images from product_images table
@@ -263,10 +263,9 @@ class StorefrontCollectionProductPicker extends Page
             $query->having('reviews_avg_rating', '>=', $this->minRating);
         }
 
-        // Margin filter temporarily disabled due to product_margin_logs table corruption
-        // if ($this->minMargin !== null) {
-        //     $query->whereHas('latestMarginLog', fn (Builder $q) => $q->where('new_margin_percent', '>=', $this->minMargin));
-        // }
+        if ($this->minMargin !== null) {
+            $query->whereHas('latestMarginLog', fn (Builder $q) => $q->where('new_margin_percent', '>=', $this->minMargin));
+        }
         return $query;
     }
 
