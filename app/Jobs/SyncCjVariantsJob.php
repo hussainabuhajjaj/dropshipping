@@ -44,7 +44,7 @@ class SyncCjVariantsJob implements ShouldQueue
             $resp = $client->getVariantsByPid($this->cjPid);
 
             $variants = $this->extractVariants($resp->data ?? null);
-            dd($variants);
+//            dd($variants);
             if ($variants === null) {
                 $data = $resp->data ?? null;
                 Log::warning('No variants found in CJ response', [

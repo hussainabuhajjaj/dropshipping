@@ -93,6 +93,14 @@ return [
         // Optional: default ship-to country for CJ imports (e.g., 'US', 'GB').
         // When null or empty, imports will not be filtered by ship-to.
         'ship_to_default' => env('CJ_SHIP_TO_DEFAULT'),
+        
+        // Import Pipeline Settings
+        'import_margin' => env('CJ_IMPORT_MARGIN', 35),
+        'import_enrich' => env('CJ_IMPORT_ENRICH', true),
+        'import_enrich_sleep_ms' => env('CJ_IMPORT_ENRICH_SLEEP_MS', 200),
+        'import_auto_activate' => env('CJ_IMPORT_AUTO_ACTIVATE', true),
+        'import_chunk_size' => env('CJ_IMPORT_CHUNK_SIZE', 25),
+        'stock_queue' => env('CJ_STOCK_QUEUE', 'cj-sync'),
     ],
 
     'queue_reporting' => [

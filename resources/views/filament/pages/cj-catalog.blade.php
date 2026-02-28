@@ -340,8 +340,14 @@
 
                                 <x-filament::button
                                     type="button"
-                                    color="primary"
-                                    x-on:click.prevent="$wire.queueImportSelectedByKeys(Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value))"
+                                    color="success"
+                                    icon="heroicon-o-rocket-launch"
+                                    x-on:click.prevent="
+                                        const selected = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value);
+                                        if (selected.length > 0) {
+                                            $wire.mountTableBulkAction('importPipeline', selected);
+                                        }
+                                    "
                                     x-bind:disabled="selectedCount < 1"
                                     wire:loading.attr="disabled"
                                     class="justify-center"

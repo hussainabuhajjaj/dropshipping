@@ -1507,4 +1507,404 @@ class CjProductImportService
 
         return $changed;
     }
+
+    /**
+     * Import products from CJ My Products with full pipeline:
+     * enrichment, margin application, validation, and activation.
+     *
+     * @param array{
+     *   pids?: array<string>,
+     *   margin_percent?: float,
+     *   enrich?: bool,
+     *   enrich_sleep_ms?: int,
+     *   skip_existing?: bool,
+     *   skip_translations?: bool,
+     *   skip_seo?: bool,
+     *   locales?: array<string>,
+     *   limit?: int,
+     *   chunk_size?: int,
+     *   dry_run?: bool,
+     *   force_activate?: bool
+     * } $options
+     * @return array{
+     *   fetched: int,
+     *   enriched: int,
+     *   imported: int,
+     *   priced: int,
+     *   media_synced: int,
+     *   variants_synced: int,
+     *   activated: int,
+     *   failed_activation: int,
+     *   activation_errors: array<string, array<string>>,
+     *   removed: int,
+     *   translations_queued: int,
+     *   seo_queued: int
+     * }
+     */
+    public function importBulkWithPipeline(array $options = []): array
+    {
+        $marginPercent = (float) ($options['margin_percent'] ?? config('services.cj.import_margin', 35));
+        $enrich = (bool) ($options['enrich'] ?? config('services.cj.import_enrich', true));
+        $enrichSleepMs = (int) ($options['enrich_sleep_ms'] ?? config('services.cj.import_enrich_sleep_ms', 200));
+        $skipExisting = (bool) ($options['skip_existing'] ?? false);
+        $skipTranslations = (bool) ($options['skip_translations'] ?? false);
+        $skipSeo = (bool) ($options['skip_seo'] ?? false);
+        $locales = $options['locales'] ?? $this->resolveTranslationLocales();
+        $limit = isset($options['limit']) ? (int) $options['limit'] : null;
+        $chunkSize = (int) ($options['chunk_size'] ?? config('services.cj.import_chunk_size', 25));
+        $dryRun = (bool) ($options['dry_run'] ?? false);
+        $forceActivate = (bool) ($options['force_activate'] ?? false);
+        $specificPids = $options['pids'] ?? null;
+
+        $report = [
+            'fetched' => 0,
+            'enriched' => 0,
+            'imported' => 0,
+            'priced' => 0,
+            'media_synced' => 0,
+            'variants_synced' => 0,
+            'activated' => 0,
+            'failed_activation' => 0,
+            'activation_errors' => [],
+            'removed' => 0,
+            'translations_queued' => 0,
+            'seo_queued' => 0,
+        ];
+
+        $validator = app(ProductActivationValidator::class);
+        $pricing = PricingService::makeFromConfig();
+
+        // If specific PIDs provided, import them directly (catalog import)
+        if ($specificPids !== null && !empty($specificPids)) {
+            foreach ($specificPids as $pid) {
+                if ($limit && $processed >= $limit) {
+                    break;
+                }
+
+                try {
+                    // Fetch product directly by PID
+                    $detailResp = $this->client->getProduct($pid);
+                    if (!isset($detailResp->data) || !is_array($detailResp->data)) {
+                        continue;
+                    }
+
+                    $fullData = $detailResp->data;
+                    $report['fetched']++;
+
+                    // Fetch variants
+                    $variants = [];
+                    if ($enrich) {
+                        try {
+                            $variantResp = $this->client->getVariantsByPid($pid);
+                            $variants = $variantResp->data ?? [];
+                            $report['enriched']++;
+
+                            if ($enrichSleepMs > 0) {
+                                usleep($enrichSleepMs * 1000);
+                            }
+                        } catch (ApiException $e) {
+                            Log::warning('Variant fetch failed for PID', ['pid' => $pid, 'error' => $e->getMessage()]);
+                        }
+                    }
+
+                    if ($dryRun) {
+                        $processed++;
+                        continue;
+                    }
+
+                    // Import product
+                    $this->processProductImport($fullData, $variants, $pid, $marginPercent, $forceActivate, $skipTranslations, $skipSeo, $locales, $validator, $report);
+                    $processed++;
+
+                } catch (ApiException $e) {
+                    if ($this->isRemovedFromShelves($e)) {
+                        if (!$dryRun) {
+                            $this->markProductRemoved($pid, $e->getMessage());
+                        }
+                        $report['removed']++;
+                    } else {
+                        Log::error('Direct PID import failed', ['pid' => $pid, 'error' => $e->getMessage()]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Pipeline import failed for PID', [
+                        'pid' => $pid,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+            }
+
+            return $report;
+        }
+
+        // Fetch products from CJ My Products (paginated)
+        $page = 1;
+        $processed = 0;
+
+        while (true) {
+            if ($limit && $processed >= $limit) {
+                break;
+            }
+
+            try {
+                $resp = $this->client->listMyProducts([
+                    'pageNum' => $page,
+                    'pageSize' => $chunkSize,
+                ]);
+
+                $data = $resp->data ?? [];
+                $products = $data['list'] ?? [];
+
+                if (empty($products)) {
+                    break;
+                }
+
+                $report['fetched'] += count($products);
+
+                foreach ($products as $productData) {
+                    if ($limit && $processed >= $limit) {
+                        break 2;
+                    }
+
+                    $pid = $this->resolvePid($productData);
+                    if ($pid === '') {
+                        continue;
+                    }
+
+                    // Skip existing if requested
+                    if ($skipExisting) {
+                        $exists = Product::query()->where('cj_pid', $pid)->exists();
+                        if ($exists) {
+                            continue;
+                        }
+                    }
+
+                    // Enrich: fetch full product details
+                    $fullData = $productData;
+                    $variants = [];
+
+                    if ($enrich) {
+                        try {
+                            $detailResp = $this->client->getProduct($pid);
+                            if (isset($detailResp->data) && is_array($detailResp->data)) {
+                                $fullData = array_merge($productData, $detailResp->data);
+                                $report['enriched']++;
+                            }
+
+                            $variantResp = $this->client->getVariantsByPid($pid);
+                            $variants = $variantResp->data ?? [];
+
+                            if ($enrichSleepMs > 0) {
+                                usleep($enrichSleepMs * 1000);
+                            }
+                        } catch (ApiException $e) {
+                            if ($this->isRemovedFromShelves($e)) {
+                                if (!$dryRun) {
+                                    $this->markProductRemoved($pid, $e->getMessage());
+                                }
+                                $report['removed']++;
+                                continue;
+                            }
+                            Log::warning('Enrichment failed for PID', ['pid' => $pid, 'error' => $e->getMessage()]);
+                        }
+                    }
+
+                    if ($dryRun) {
+                        $processed++;
+                        continue;
+                    }
+
+                    // Import product with inline processing
+                    try {
+                        $this->processProductImport($fullData, $variants, $pid, $marginPercent, $forceActivate, $skipTranslations, $skipSeo, $locales, $validator, $report);
+                        $processed++;
+                    } catch (\Throwable $e) {
+                        Log::error('Pipeline import failed for PID', [
+                            'pid' => $pid,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
+                        ]);
+                    }
+                }
+
+                $page++;
+            } catch (ApiException $e) {
+                Log::error('CJ My Products API failed', [
+                    'page' => $page,
+                    'error' => $e->getMessage(),
+                ]);
+                break;
+            }
+        }
+
+        return $report;
+    }
+
+    /**
+     * Process a single product import with margin, validation, and activation.
+     */
+    private function processProductImport(
+        array $fullData,
+        array $variants,
+        string $pid,
+        float $marginPercent,
+        bool $forceActivate,
+        bool $skipTranslations,
+        bool $skipSeo,
+        array $locales,
+        $validator,
+        array &$report
+    ): void {
+        $product = $this->importFromPayload($fullData, $variants, [
+            'syncVariants' => true,
+            'syncImages' => true,
+            'translate' => false,
+            'generateSeo' => false,
+            'respectSyncFlag' => false,
+            'updateExisting' => true,
+        ]);
+
+        if (!$product) {
+            return;
+        }
+
+        $report['imported']++;
+
+        // Sync real-time stock from CJ API
+        $this->syncProductStock($product);
+
+        // Apply margin
+        $costPrice = (float) ($product->cost_price ?? 0);
+        if ($costPrice > 0) {
+            $marginFactor = 1 + ($marginPercent / 100);
+            $sellingPrice = round($costPrice * $marginFactor, 2);
+            $product->selling_price = $sellingPrice;
+            $product->save();
+            $report['priced']++;
+
+            // Apply margin to variants
+            foreach ($product->variants as $variant) {
+                $variantCost = (float) ($variant->cost_price ?? $costPrice);
+                if ($variantCost > 0) {
+                    $variant->price = round($variantCost * $marginFactor, 2);
+                    $variant->save();
+                }
+            }
+        }
+
+        // Count media/variants sync
+        if ($product->images()->count() > 0) {
+            $report['media_synced']++;
+        }
+        if ($product->variants()->count() > 0) {
+            $report['variants_synced']++;
+        }
+
+        // Validate and activate
+        $errors = $validator->errorsForActivation($product);
+        if (empty($errors) || $forceActivate) {
+            $product->update([
+                'is_active' => true,
+                'status' => 'active',
+            ]);
+            $report['activated']++;
+        } else {
+            $report['failed_activation']++;
+            $report['activation_errors'][$pid] = $errors;
+        }
+
+        // Queue translations
+        if (!$skipTranslations && !empty($locales)) {
+            TranslateProductJob::dispatch(
+                (int) $product->id,
+                $locales,
+                $this->resolveTranslationSourceLocale(),
+                false
+            )->onQueue('translations');
+            $report['translations_queued']++;
+        }
+
+        // Queue SEO
+        if (!$skipSeo) {
+            GenerateProductSeoJob::dispatch((int) $product->id, 'en', false)->onQueue('seo');
+            $report['seo_queued']++;
+        }
+    }
+
+    /**
+     * Sync real-time stock from CJ API for a product and its variants
+     */
+    private function syncProductStock(Product $product): void
+    {
+        try {
+            $variants = $product->variants;
+            if ($variants->isEmpty()) {
+                return;
+            }
+
+            $totalProductStock = 0;
+
+            foreach ($variants as $variant) {
+                $vid = $variant->cj_vid;
+                if (!$vid) {
+                    continue;
+                }
+
+                try {
+                    // Fetch real-time stock from CJ API
+                    $stockResponse = $this->client->getStockByVid($vid);
+                    $stockData = $stockResponse->data ?? [];
+
+                    $variantTotalStock = 0;
+
+                    // Parse response according to CJ API docs
+                    // data is an array of warehouse stock info
+                    foreach ($stockData as $warehouseStock) {
+                        // totalInventoryNum is the total available stock
+                        $stock = $warehouseStock['totalInventoryNum'] ?? 
+                                 $warehouseStock['storageNum'] ?? 
+                                 $warehouseStock['cjInventoryNum'] ?? 0;
+                        $variantTotalStock += (int) $stock;
+                    }
+
+                    // Update variant stock
+                    $variant->update([
+                        'cj_stock' => $variantTotalStock,
+                        'stock_on_hand' => $variantTotalStock > 0 ? (int) ($variantTotalStock / 2) : 0,
+                        'cj_stock_synced_at' => now(),
+                    ]);
+
+                    $totalProductStock += $variantTotalStock;
+
+                    Log::debug('Synced stock for variant', [
+                        'vid' => $vid,
+                        'stock' => $variantTotalStock,
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::warning('Failed to sync stock for variant', [
+                        'vid' => $vid,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Update product-level stock
+            $product->update([
+                'cj_total_stock' => $totalProductStock,
+                'stock_on_hand' => $totalProductStock > 0 ? (int) ($totalProductStock / 2) : 0,
+            ]);
+
+            Log::info('Synced product stock', [
+                'product_id' => $product->id,
+                'total_stock' => $totalProductStock,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to sync product stock', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 }

@@ -47,37 +47,65 @@ class Kernel extends ConsoleKernel
 
     protected function schedule(Schedule $schedule): void
     {
+        // NEW: Unified CJ import pipeline (daily sync with margin, enrichment, validation)
+        $schedule->call(function () {
+            $service = app(\App\Domain\Products\Services\CjProductImportService::class);
+            $result = $service->importBulkWithPipeline([
+                'margin_percent' => (float) config('services.cj.import_margin', 35),
+                'enrich' => true,
+                'skip_existing' => true, // Only import new products daily
+            ]);
+            
+            \Illuminate\Support\Facades\Log::info('CJ daily sync completed', $result);
+            
+            // Alert if many failures
+            if ($result['failed_activation'] > 50 && config('services.cj.alerts_email')) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to(config('services.cj.alerts_email'))
+                        ->send(new \Illuminate\Mail\Mailable());
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to send CJ import alert', ['error' => $e->getMessage()]);
+                }
+            }
+        })->dailyAt('02:00')
+          ->name('cj-full-sync-daily')
+          ->withoutOverlapping();
+
+        // NEW: Weekly full refresh (update all products, no skip-existing)
+        $schedule->call(function () {
+            $service = app(\App\Domain\Products\Services\CjProductImportService::class);
+            $service->importBulkWithPipeline([
+                'margin_percent' => (float) config('services.cj.import_margin', 35),
+                'enrich' => true,
+                'skip_existing' => false, // Update all products weekly
+            ]);
+        })->weeklyOn(0, '03:00')
+          ->name('cj-full-sync-weekly')
+          ->withoutOverlapping();
+
         $schedule->command('cj:sync-catalog')->dailyAt('02:00');
-        // Hourly CJ inventory sync for active products (every hour)
-        $schedule->job(new SyncCjInventoryHourly())->hourly();
-        // Sync CJ variants and stock levels (runs daily at 02:30)
-        $schedule->command('cj:sync-variants')->dailyAt('02:30');
-        // Proactive token refresh to avoid expiry gaps (runs daily at 03:30)
-        $schedule->command('cj:refresh-token')->dailyAt('03:30');
-        // Low stock check and alert email (runs daily at 04:00)
-        $schedule->job(new CheckLowStockJob())->dailyAt('04:00');
-        // Calculate customer lifetime values (runs weekly on Sunday at 01:00)
-        $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');
-        // Abandoned cart reminder emails (runs every 30 minutes)
-        $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
-        // Request product reviews (7 days after delivery)
-        $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
-
-        // Auto-approve pending CJ fulfillment items (every 10 minutes)
-        $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
-
-        // Flag shipments that have no tracking updates for too long
-        $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
         
-        // Monitor for price corruption every 30 minutes
-        $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
-
-        // Sync CJ stock by VID nightly at 23:59
+        // Keep: Hourly CJ inventory sync for active products
+        $schedule->job(new SyncCjInventoryHourly())->hourly();
+        
+        // DEPRECATED: Old fragmented sync commands (kept for safety, will remove after testing)
+        // $schedule->command('cj:sync-variants')->dailyAt('02:30');
+        // $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
+        
+        // Keep: Token refresh
+        $schedule->command('cj:refresh-token')->dailyAt('03:30');
+        
+        // Keep: Stock sync by VID (lightweight, complementary to pipeline)
         $schedule->command('cj:sync-stock-by-vid --limit=10000 --stale-minutes=30')->dailyAt('23:59');
-        // Sync CJ media (images & videos) for all sync-enabled products daily at 03:00
-        $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
-        // Sync CJ variants via chunked jobs daily at 02:45
-        $schedule->command('cj:sync-variants')->dailyAt('02:45');
+        
+        // Keep: Other non-CJ jobs
+        $schedule->job(new CheckLowStockJob())->dailyAt('04:00');
+        $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');
+        $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
+        $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
+        $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
+        $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
+        $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
     }
 
     protected function commands(): void
