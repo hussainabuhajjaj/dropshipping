@@ -19,6 +19,8 @@ class CjSyncExistingStock extends Command
                             {--resume : Resume from last checkpoint}
                             {--fast : Fast mode - reduced delays and larger batches}
                             {--turbo : Turbo mode - maximum speed with minimal delays}
+                            {--skip-recent=24 : Skip products synced within this many hours (0 to disable)}
+                            {--force : Force sync all products, ignore recent syncs}
                             {--dry-run : Preview what would be synced without making changes}';
 
     protected $description = 'Smart sync of real-time stock for existing CJ products with auto-pagination and error recovery';
@@ -32,6 +34,8 @@ class CjSyncExistingStock extends Command
         $turbo = $this->option('turbo');
         $resume = $this->option('resume');
         $dryRun = $this->option('dry-run');
+        $force = $this->option('force');
+        $skipRecentHours = $force ? 0 : (int) $this->option('skip-recent');
 
         // Apply speed optimizations
         if ($turbo) {
@@ -53,6 +57,12 @@ class CjSyncExistingStock extends Command
 
         if ($dryRun) {
             $this->warn('🔍 DRY RUN MODE - No changes will be made');
+        }
+
+        if ($force) {
+            $this->warn('⚠️  FORCE MODE - Syncing all products regardless of last sync time');
+        } elseif ($skipRecentHours > 0) {
+            $this->info("⏭️  Skipping products synced within last {$skipRecentHours} hours");
         }
 
         $this->info("🚀 Smart Stock Sync - {$mode}");
@@ -77,8 +87,20 @@ class CjSyncExistingStock extends Command
             Cache::forget(self::STATS_KEY);
         }
 
-        // Count total products
-        $totalProducts = Product::whereNotNull('cj_pid')->has('variants')->count();
+        // Build query with optional recent sync filter
+        $query = Product::whereNotNull('cj_pid')->has('variants');
+        
+        if ($skipRecentHours > 0) {
+            $cutoffTime = now()->subHours($skipRecentHours);
+            $query->whereHas('variants', function ($q) use ($cutoffTime) {
+                $q->where(function ($q) use ($cutoffTime) {
+                    $q->whereNull('cj_stock_synced_at')
+                      ->orWhere('cj_stock_synced_at', '<', $cutoffTime);
+                });
+            });
+        }
+        
+        $totalProducts = $query->count();
         $totalPages = (int) ceil($totalProducts / $pageSize);
         
         $this->info("📦 Found {$totalProducts} CJ products ({$totalPages} pages)");
@@ -91,9 +113,20 @@ class CjSyncExistingStock extends Command
             $this->info("📄 Processing page {$currentPage}/{$totalPages}");
 
             try {
-                // Get products for current page
-                $products = Product::whereNotNull('cj_pid')
-                    ->has('variants')
+                // Get products for current page with same filter
+                $queryClone = Product::whereNotNull('cj_pid')->has('variants');
+                
+                if ($skipRecentHours > 0) {
+                    $cutoffTime = now()->subHours($skipRecentHours);
+                    $queryClone->whereHas('variants', function ($q) use ($cutoffTime) {
+                        $q->where(function ($q) use ($cutoffTime) {
+                            $q->whereNull('cj_stock_synced_at')
+                              ->orWhere('cj_stock_synced_at', '<', $cutoffTime);
+                        });
+                    });
+                }
+                
+                $products = $queryClone
                     ->with('variants')
                     ->skip(($currentPage - 1) * $pageSize)
                     ->take($pageSize)
