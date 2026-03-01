@@ -8,6 +8,7 @@ use App\Domain\Products\Services\ProductActivationValidator;
 use App\Jobs\GenerateProductCompareAtJob;
 use App\Models\Product;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class SetProductMargin extends Command
@@ -77,6 +78,8 @@ class SetProductMargin extends Command
         $queuedCompareAt = 0;
         $activatedProducts = 0;
         $activationSkipped = 0;
+        $productUpdateSkipped = 0;
+        $productUpdateErrorSamples = [];
         $activationValidator = app(ProductActivationValidator::class);
 
         $bar = $this->output->createProgressBar($total);
@@ -93,6 +96,8 @@ class SetProductMargin extends Command
             &$queuedCompareAt,
             &$activatedProducts,
             &$activationSkipped,
+            &$productUpdateSkipped,
+            &$productUpdateErrorSamples,
             $activationValidator,
             $bar
         ): void {
@@ -110,11 +115,32 @@ class SetProductMargin extends Command
 
             $affectedIds = $productUpdateQuery->pluck('id')->all();
             if ($affectedIds !== []) {
-                $updatedProducts += Product::query()
-                    ->whereIn('id', $affectedIds)
-                    ->update([
-                        'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
-                    ]);
+                try {
+                    $updatedProducts += Product::query()
+                        ->whereIn('id', $affectedIds)
+                        ->update([
+                            'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
+                        ]);
+                } catch (QueryException $exception) {
+                    // Fallback to per-row updates so one invalid row does not abort the entire run.
+                    foreach ($affectedIds as $affectedId) {
+                        try {
+                            $updatedProducts += Product::query()
+                                ->whereKey($affectedId)
+                                ->update([
+                                    'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
+                                ]);
+                        } catch (QueryException $rowException) {
+                            $productUpdateSkipped++;
+                            if (count($productUpdateErrorSamples) < 10) {
+                                $productUpdateErrorSamples[] = [
+                                    'id' => (int) $affectedId,
+                                    'error' => $rowException->getMessage(),
+                                ];
+                            }
+                        }
+                    }
+                }
             }
 
             if ($applyVariants && $affectedIds !== []) {
@@ -176,7 +202,15 @@ class SetProductMargin extends Command
             ['Compare-at queued', $queuedCompareAt],
             ['Activated products', $activatedProducts],
             ['Activation skipped', $activationSkipped],
+            ['Product updates skipped (constraint/errors)', $productUpdateSkipped],
         ]);
+
+        if ($productUpdateErrorSamples !== []) {
+            $this->warn('Some product rows were skipped due to DB constraints. First 10 samples:');
+            foreach ($productUpdateErrorSamples as $sample) {
+                $this->line(' - Product #' . $sample['id'] . ': ' . $sample['error']);
+            }
+        }
 
         return self::SUCCESS;
     }
