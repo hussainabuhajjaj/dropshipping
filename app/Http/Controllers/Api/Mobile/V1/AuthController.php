@@ -258,6 +258,20 @@ class AuthController extends ApiController
         $customer->notify(new EmailVerificationOtpNotification($code));
     }
 
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $customer = $request->user();
+
+        if (! $customer instanceof Customer) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $customer->tokens()->delete();
+        $customer->delete();
+
+        return $this->success(new StatusResource(['ok' => true]));
+    }
+
     private function dispatchPhoneOtp(Customer $customer): void
     {
         $code = (string) random_int(1000, 9999);

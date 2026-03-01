@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingC
 use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
 use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
 use App\Http\Controllers\Api\Mobile\V1\CollectionController as MobileCollectionController;
+use App\Http\Controllers\Api\Mobile\V1\LegalController as MobileLegalController;
+use App\Http\Controllers\Api\Mobile\V1\StoryController as MobileStoryController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -100,6 +102,10 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('orders/track', [MobileOrderController::class, 'track']);
     Route::get('preferences/lookups', [MobilePreferencesController::class, 'lookups']);
     Route::post('newsletter/subscribe', [MobileNewsletterController::class, 'subscribe']);
+    Route::get('legal', [MobileLegalController::class, 'index']);
+    Route::get('legal/{slug}', [MobileLegalController::class, 'show']);
+    Route::get('stories', [MobileStoryController::class, 'index']);
+    Route::get('stories/{id}', [MobileStoryController::class, 'show']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('account')->group(function () {
@@ -120,6 +126,10 @@ Route::prefix('mobile/v1')->group(function () {
             Route::post('verify/email', [MobileAuthController::class, 'verifyEmailOtp']);
             Route::post('phone/send-otp', [MobileAuthController::class, 'sendPhoneOtp']);
             Route::post('phone/verify-otp', [MobileAuthController::class, 'verifyPhoneOtp']);
+        });
+
+        Route::prefix('account')->group(function () {
+            Route::delete('delete', [MobileAuthController::class, 'deleteAccount']);
         });
 
         Route::get('orders', [MobileOrderController::class, 'index']);

@@ -156,51 +156,76 @@ export default function CategoriesFilterScreen() {
                 <Text style={styles.statusText}>No subcategories available.</Text>
               </View>
             ) : null}
-            <View style={[styles.grid, { gap: columnGap }]}>
-              {featuredWithImages.map((item, index) => {
-                const imageSize = Math.min(tileWidth, theme.moderateScale(78));
-                return (
+            {activeChildren.map((child) => {
+              const childrenArray = 'children' in child && Array.isArray(child.children) ? child.children : [];
+              const hasGrandchildren = childrenArray.length > 0;
+              return (
+                <View key={child.id} style={styles.childSection}>
                   <Pressable
-                    key={item.id}
-                    style={[styles.tile, { width: tileWidth }]}
+                    style={styles.childHeader}
                     disabled={loading}
                     onPress={() => {
-                      const category = item.slug || item.label;
+                      const category = child.slug || child.name;
                       if (!category) return;
                       router.push({
                         pathname: '/(tabs)/categories/results',
                         params: {
                           category,
-                          title: item.label || undefined,
+                          title: child.name || undefined,
                         },
                       });
                     }}
                   >
-                    <View style={[styles.tileImageWrap, { width: imageSize, height: imageSize, borderRadius: imageSize / 2 }]}>
-                      {loading ? (
-                        <Skeleton height={imageSize} width={imageSize} radius={imageSize / 2} />
-                      ) : item.image ? (
-                        <Image source={{ uri: item.image }} style={styles.tileImage} />
-                      ) : (
-                        <View style={styles.tileImageFallback} />
-                      )}
-                      {item.hot ? (
-                        <View style={styles.hotBadge}>
-                          <Text style={styles.hotText}>HOT</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {loading ? (
-                      <Skeleton height={theme.moderateScale(10)} radius={theme.moderateScale(5)} width="80%" />
+                    {child.image ? (
+                      <Image source={{ uri: child.image }} style={styles.childImage} />
                     ) : (
-                      <Text style={styles.tileLabel} numberOfLines={2}>
-                        {item.label}
-                      </Text>
+                      <View style={styles.childImagePlaceholder} />
                     )}
+                    <Text style={styles.childTitle}>{child.name}</Text>
+                    {child.count > 0 && (
+                      <Text style={styles.childCount}>({child.count})</Text>
+                    )}
+                    <Feather name="chevron-right" size={16} color={theme.colors.muted} />
                   </Pressable>
-                );
-              })}
-            </View>
+                  {hasGrandchildren && (
+                    <View style={styles.grandchildrenGrid}>
+                      {childrenArray.map((grandchild: Category) => {
+                        const imageSize = Math.min(tileWidth, theme.moderateScale(78));
+                        return (
+                          <Pressable
+                            key={grandchild.id}
+                            style={[styles.tile, { width: tileWidth }]}
+                            disabled={loading}
+                            onPress={() => {
+                              const category = grandchild.slug || grandchild.name;
+                              if (!category) return;
+                              router.push({
+                                pathname: '/(tabs)/categories/results',
+                                params: {
+                                  category,
+                                  title: grandchild.name || undefined,
+                                },
+                              });
+                            }}
+                          >
+                            <View style={[styles.tileImageWrap, { width: imageSize, height: imageSize, borderRadius: imageSize / 2 }]}>
+                              {grandchild.image ? (
+                                <Image source={{ uri: grandchild.image }} style={styles.tileImage} />
+                              ) : (
+                                <View style={styles.tileImageFallback} />
+                              )}
+                            </View>
+                            <Text style={styles.tileLabel} numberOfLines={2}>
+                              {grandchild.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -361,5 +386,46 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: theme.moderateScale(12),
     color: theme.colors.mutedDark,
+  },
+  childSection: {
+    marginBottom: theme.moderateScale(16),
+  },
+  childHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.moderateScale(10),
+    paddingHorizontal: theme.moderateScale(12),
+    backgroundColor: theme.colors.gray100,
+    borderRadius: theme.moderateScale(8),
+    marginBottom: theme.moderateScale(8),
+    gap: theme.moderateScale(10),
+  },
+  childImage: {
+    width: theme.moderateScale(40),
+    height: theme.moderateScale(40),
+    borderRadius: theme.moderateScale(20),
+  },
+  childImagePlaceholder: {
+    width: theme.moderateScale(40),
+    height: theme.moderateScale(40),
+    borderRadius: theme.moderateScale(20),
+    backgroundColor: theme.colors.primarySoft,
+  },
+  childTitle: {
+    flex: 1,
+    fontSize: theme.moderateScale(13),
+    fontWeight: '700',
+    color: theme.colors.ink,
+  },
+  childCount: {
+    fontSize: theme.moderateScale(11),
+    color: theme.colors.muted,
+    marginRight: theme.moderateScale(8),
+  },
+  grandchildrenGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.moderateScale(12),
+    paddingLeft: theme.moderateScale(8),
   },
 });

@@ -151,18 +151,28 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .promotional-carousel {
-  margin: 2rem 0;
+  margin: 0;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
 }
 
 .carousel-container {
   position: relative;
-  border-radius: 24px;
+  border-radius: 0;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .carousel-slides {
   position: relative;
-  min-height: 350px;
+  min-height: 500px;
+  height: 70vh;
+  max-height: 700px;
 }
 
 .carousel-slide {
@@ -171,10 +181,12 @@ onBeforeUnmount(() => {
   opacity: 0;
   transition: opacity 0.5s ease;
   pointer-events: none;
-  padding: 3rem 2rem;
+  padding: 3rem 4rem;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  width: 100%;
+  height: 100%;
 }
 
 .carousel-slide.active {
@@ -194,20 +206,27 @@ onBeforeUnmount(() => {
   align-items: center;
   grid-template-columns: 1fr;
   height: 100%;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
   position: relative;
   z-index: 2;
+  padding: 0 2rem;
 }
 
 .carousel-cover {
   position: absolute;
   inset: 0;
   z-index: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .carousel-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .carousel-slide.is-image-only .carousel-cover {
@@ -239,7 +258,17 @@ onBeforeUnmount(() => {
 }
 
 .carousel-text {
-  max-width: 600px;
+  max-width: 650px;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+}
+
+.carousel-slide.is-cover .carousel-text {
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  padding: 3rem;
 }
 
 .carousel-badge {
@@ -285,12 +314,16 @@ onBeforeUnmount(() => {
 .carousel-image {
   display: flex;
   justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 
 .carousel-image img {
   max-width: 100%;
-  height: auto;
-  max-height: 250px;
+  width: 100%;
+  height: 100%;
+  max-height: 500px;
+  object-fit: contain;
   border-radius: 12px;
 }
 
@@ -355,7 +388,12 @@ onBeforeUnmount(() => {
   }
 
   .carousel-slide {
-    padding: 4rem 3rem;
+    padding: 4rem 5rem;
+  }
+
+  .carousel-slide.is-cover,
+  .carousel-slide.is-image-only {
+    padding: 0;
   }
 }
 
@@ -365,7 +403,20 @@ onBeforeUnmount(() => {
   }
 
   .carousel-slides {
-    min-height: 400px;
+    min-height: 450px;
+    height: 60vh;
+  }
+
+  .carousel-slide {
+    padding: 2rem 1.5rem;
+  }
+
+  .carousel-text {
+    padding: 1.5rem;
+  }
+
+  .carousel-content {
+    padding: 0 1rem;
   }
 }
 </style>

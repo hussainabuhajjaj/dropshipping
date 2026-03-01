@@ -67,32 +67,34 @@ class SyncCjVariantsJob implements ShouldQueue
                     continue;
                 }
 
-                // Find or create the variant
-                $variant = ProductVariant::where('product_id', $product->id)
+                // Find existing variant to get current values
+                $existingVariant = ProductVariant::where('product_id', $product->id)
                     ->where('cj_vid', $vid)
                     ->first();
 
-                if (!$variant) {
-                    // Create new variant
-                    $variant = new ProductVariant();
-                    $variant->product_id = $product->id;
-                    $variant->cj_vid = $vid;
-                }
+                $variantSku = trim((string) ($variantData['variantSku'] ?? $existingVariant?->sku ?? ''));
+                $sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
+                
+                $cjStock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
+                $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
+                $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);
 
-                $variantSku = trim((string) ($variantData['variantSku'] ?? $variant->sku ?? ''));
-                $variant->sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
-
-                // Update variant data
-                $variant->cj_variant_data = $variantData;
-                $variant->cj_stock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
-                $variant->stock_on_hand = $variant->cj_stock; // mirror CJ stock into local stock
-                $variant->cj_stock_synced_at = now();
-
-                // Ensure required fields are always populated for inserts.
-                $variant->price = $this->resolveVariantPrice($variantData, $variant, $product);
-                $variant->title = $this->resolveVariantTitle($variantData, $variant, $vid);
-
-                $variant->save();
+                // Use updateOrCreate to avoid column order issues
+                $variant = ProductVariant::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                    ],
+                    [
+                        'sku' => $sku,
+                        'cj_variant_data' => $variantData,
+                        'cj_stock' => $cjStock,
+                        'stock_on_hand' => $cjStock,
+                        'cj_stock_synced_at' => now(),
+                        'price' => $price,
+                        'title' => $title,
+                    ]
+                );
 
                 Log::info('Synced CJ variant', [
                     'product_id' => $product->id,

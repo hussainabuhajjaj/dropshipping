@@ -106,3 +106,10 @@ export async function apiPatch<T>(url: string, body: unknown, init?: RequestInit
     body: JSON.stringify(body),
   });
 }
+
+export async function apiDelete<T>(url: string, init?: RequestInit): Promise<T> {
+  return apiFetch<T>(url, {
+    method: 'DELETE',
+    ...init,
+  });
+}

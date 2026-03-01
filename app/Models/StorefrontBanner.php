@@ -17,6 +17,8 @@ class StorefrontBanner extends Model
         'description',
         'type',
         'display_type',
+        'story_type',
+        'story_content',
         'target_type',
         'product_id',
         'category_id',
@@ -42,6 +44,7 @@ class StorefrontBanner extends Model
         'is_active' => 'boolean',
         'targeting' => 'array',
         'locale_overrides' => 'array',
+        'story_content' => 'array',
     ];
 
     public function product(): BelongsTo
@@ -173,5 +176,25 @@ class StorefrontBanner extends Model
         }
 
         return $this->{$field} ?? null;
+    }
+
+    public function getStoryContent(): array
+    {
+        return $this->story_content ?? [];
+    }
+
+    public function getStoryType(): ?string
+    {
+        return $this->story_type;
+    }
+
+    public function isStory(): bool
+    {
+        return $this->display_type === 'story';
+    }
+
+    public function hasStoryType(): bool
+    {
+        return !empty($this->story_type);
     }
 }

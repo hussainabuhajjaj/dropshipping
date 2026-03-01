@@ -1,8 +1,8 @@
 import { backendApiBaseUrl } from './config';
-import { apiPost } from './http';
+import { apiDelete } from './http';
 
 export async function requestAccountDeletion() {
-  // Backend should authenticate (cookie or bearer) and schedule/perform deletion.
-  return apiPost<{ ok?: boolean }>(`${backendApiBaseUrl}/account/delete`, {});
+  // Backend authenticates via bearer token and deletes the account + all tokens
+  return apiDelete<{ ok?: boolean }>(`${backendApiBaseUrl}/mobile/v1/account/delete`);
 }
 

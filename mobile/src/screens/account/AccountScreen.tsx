@@ -24,9 +24,10 @@ import { formatCurrency } from '@/src/lib/formatCurrency';
 import { usePreferences } from '@/src/store/preferencesStore';
 import { fetchAnnouncements } from '@/src/api/announcements';
 import type { AnnouncementItem } from '@/src/types/announcements';
+import { fetchStories } from '@/src/api/stories';
+import type { Story } from '@/src/api/stories';
 
 const orderTabs = ['To Pay', 'To Receive', 'To Review'];
-const stories = Array.from({ length: 5 }, (_, index) => `story-${index}`);
 
 const mostPopular = [
   { id: 'popular-1', label: 'New', count: '1780' },
@@ -36,6 +37,7 @@ const mostPopular = [
 
 type ProductRowItem = Product | { id: string; skeleton: true };
 type CategoryGridItem = Category | { id: string; skeleton: true };
+type StoryRowItem = Story | { id: string; skeleton: true };
 type TopProduct = { id: string; label: string; slug?: string | null };
 
 const topProductsFallback: TopProduct[] = [
@@ -62,6 +64,9 @@ export default function AccountScreen() {
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [announcement, setAnnouncement] = useState<AnnouncementItem | null>(null);
   const [loadingAnnouncement, setLoadingAnnouncement] = useState(true);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [loadingStories, setLoadingStories] = useState(true);
+  const storiesRequestId = useRef(0);
   const gridGap = theme.moderateScale(12);
   const horizontalPadding = theme.moderateScale(20);
   const gridItemWidth = (width - horizontalPadding * 2 - gridGap) / 2;
@@ -180,9 +185,9 @@ export default function AccountScreen() {
     const id = ++announcementRequestId.current;
     setLoadingAnnouncement(true);
     try {
-      const { items } = await fetchAnnouncements({ per_page: 1 });
+      const response = await fetchAnnouncements();
       if (id !== announcementRequestId.current) return;
-      setAnnouncement(items[0] ?? null);
+      setAnnouncement(response.items.length > 0 ? response.items[0] : null);
     } catch {
       if (id !== announcementRequestId.current) return;
       setAnnouncement(null);
@@ -191,15 +196,36 @@ export default function AccountScreen() {
     }
   }, []);
 
+  const loadStories = useCallback(async () => {
+    const id = ++storiesRequestId.current;
+    setLoadingStories(true);
+    try {
+      const items = await fetchStories();
+      if (id !== storiesRequestId.current) return;
+      setStories(items);
+    } catch {
+      if (id !== storiesRequestId.current) return;
+      setStories([]);
+    } finally {
+      if (id === storiesRequestId.current) setLoadingStories(false);
+    }
+  }, []);
+
   useEffect(() => {
+    loadHome();
+    loadRecent();
     loadAnnouncement();
+    loadStories();
     return () => {
+      homeRequestId.current += 1;
+      recentRequestId.current += 1;
       announcementRequestId.current += 1;
+      storiesRequestId.current += 1;
     };
-  }, [loadAnnouncement]);
+  }, [loadHome, loadRecent, loadAnnouncement, loadStories]);
 
   const { refreshing, onRefresh } = usePullToRefresh(async () => {
-    await Promise.all([loadHome(), loadRecent(), loadMe(true), loadAnnouncement()]);
+    await Promise.all([loadHome(), loadRecent(), loadAnnouncement(), loadStories()]);
   });
 
   const openHref = (href?: string | null) => {
@@ -370,23 +396,43 @@ export default function AccountScreen() {
           ))}
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Stories</Text>
-        </View>
-        <FlatList
-          horizontal
-          data={stories}
-          keyExtractor={(item) => item}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storyRow}
-          renderItem={() => (
-            <Pressable style={styles.storyCard} onPress={() => router.push('/stories')}>
-              <View style={styles.storyLive}>
-                <Text style={styles.storyLiveText}>Live</Text>
-              </View>
-            </Pressable>
-          )}
-        />
+        {(stories.length > 0 || loadingStories) && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Stories</Text>
+            </View>
+            <FlatList<StoryRowItem>
+              horizontal
+              data={loadingStories ? Array.from({ length: 5 }, (_, i) => ({ id: `sk-${i}`, skeleton: true as const })) : stories}
+              keyExtractor={(item) => ('skeleton' in item ? item.id : String(item.id))}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.storyRow}
+              renderItem={({ item }) => {
+                if ('skeleton' in item) {
+                  return (
+                    <View style={styles.storyCard}>
+                      <Skeleton width={theme.moderateScale(80)} height={theme.moderateScale(80)} radius={theme.moderateScale(40)} />
+                    </View>
+                  );
+                }
+                return (
+                  <Pressable style={styles.storyCard} onPress={() => router.push(`/stories?id=${item.id}`)}>
+                    {item.image ? (
+                      <Image source={{ uri: item.image }} style={styles.storyImage} />
+                    ) : (
+                      <View style={[styles.storyPlaceholder, { backgroundColor: item.backgroundColor ?? theme.colors.sand }]} />
+                    )}
+                    {item.badgeText && (
+                      <View style={[styles.storyLive, { backgroundColor: item.badgeColor ?? theme.colors.danger }]}>
+                        <Text style={styles.storyLiveText}>{item.badgeText}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              }}
+            />
+          </>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>New Items</Text>
@@ -817,6 +863,16 @@ const styles = StyleSheet.create({
     fontSize: theme.moderateScale(10),
     color: theme.colors.white,
     fontWeight: '700',
+  },
+  storyImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: theme.moderateScale(40),
+  },
+  storyPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: theme.moderateScale(40),
   },
   horizontalRow: {
     paddingTop: theme.moderateScale(10),
