@@ -6,7 +6,7 @@
           v-for="(banner, index) in banners"
           :key="banner.id"
           class="carousel-slide"
-          :class="[{ active: index === currentIndex, 'is-cover': isCoverMode(banner), 'is-image-only': isImageOnly(banner) }]"
+          :class="[{ active: index === currentIndex, 'is-cover': isCoverMode(banner), 'is-image-only': isImageOnly(banner), 'is-contain': isContainMode(banner) }]"
           :style="{
             backgroundColor: banner.backgroundColor || '#ec4899',
             color: banner.textColor || '#ffffff',
@@ -139,6 +139,7 @@ const resumeAutoplay = () => {
 const imageMode = (banner) => banner?.imageMode || banner?.image_mode || 'split';
 const isCoverMode = (banner) => imageMode(banner) === 'cover' || imageMode(banner) === 'image_only';
 const isImageOnly = (banner) => imageMode(banner) === 'image_only';
+const isContainMode = (banner) => imageMode(banner) === 'contain';
 
 onMounted(() => {
   startAutoplay();
@@ -322,9 +323,13 @@ onBeforeUnmount(() => {
   max-width: 100%;
   width: 100%;
   height: 100%;
-  max-height: 500px;
-  object-fit: contain;
+  max-height: none;
+  object-fit: cover;
   border-radius: 12px;
+}
+
+.carousel-slide.is-contain .carousel-image img {
+  object-fit: contain;
 }
 
 .carousel-controls {
@@ -343,12 +348,13 @@ onBeforeUnmount(() => {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   color: #111827;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.16);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -403,20 +409,61 @@ onBeforeUnmount(() => {
   }
 
   .carousel-slides {
-    min-height: 450px;
-    height: 60vh;
+    min-height: 280px;
+    height: clamp(260px, 62vw, 380px);
   }
 
   .carousel-slide {
-    padding: 2rem 1.5rem;
+    padding: 1rem;
+  }
+
+  .carousel-cover img {
+    object-position: center center;
+  }
+
+  .carousel-slide.is-image-only .carousel-cover {
+    padding: 0.75rem;
+  }
+
+  .carousel-slide.is-image-only .carousel-cover img {
+    object-fit: contain;
   }
 
   .carousel-text {
-    padding: 1.5rem;
+    padding: 1rem;
+    max-width: 100%;
   }
 
   .carousel-content {
-    padding: 0 1rem;
+    padding: 0;
+    gap: 1rem;
+  }
+
+  .carousel-image {
+    min-height: 170px;
+  }
+
+  .carousel-image img {
+    border-radius: 14px;
+  }
+
+  .carousel-controls {
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    gap: 0.5rem;
+  }
+
+  .carousel-arrow {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .carousel-indicator {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+
+  .carousel-indicator.active {
+    width: 1.5rem;
   }
 }
 </style>

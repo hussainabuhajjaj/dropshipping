@@ -66,12 +66,17 @@ const getExpoHost = (): string | undefined => {
 const explicitBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ??
   process.env.EXPO_PUBLIC_API_BASE_URL ??
-  process.env.BACKEND_URL ??
+  process.env.BACKEND_URL;
+
+const bundledBaseUrl =
   fromExpoExtra('API_URL') ??
   fromExpoExtra('BACKEND_URL');
 
 const explicitSiteUrl =
   process.env.EXPO_PUBLIC_SITE_URL ??
+  process.env.SITE_URL;
+
+const bundledSiteUrl =
   fromExpoExtra('SITE_URL') ??
   fromExpoExtra('PUBLIC_SITE_URL');
 
@@ -90,7 +95,8 @@ const rebindLocalhostToExpoHost = (baseUrl: string): string | undefined => {
   }
 };
 
-const baseUrlCandidate = explicitBaseUrl ?? fallbackBaseUrl;
+const baseUrlCandidate = explicitBaseUrl
+  ?? (__DEV__ ? fallbackBaseUrl : bundledBaseUrl ?? fallbackBaseUrl);
 const resolvedBaseUrl =
   baseUrlCandidate && isLikelyLocalHost(baseUrlCandidate)
     ? rebindLocalhostToExpoHost(baseUrlCandidate) ?? baseUrlCandidate
@@ -99,9 +105,11 @@ const resolvedBaseUrl =
 export const apiBaseUrl = normalizeBaseUrl(resolvedBaseUrl);
 const normalizedApiRoot = normalizeBaseUrl(stripApiSuffix(apiBaseUrl));
 
+const siteUrlCandidate = explicitSiteUrl ?? (__DEV__ ? null : bundledSiteUrl ?? null);
+
 const normalizedSiteUrl =
-  explicitSiteUrl && !isLikelyLocalHost(explicitSiteUrl)
-    ? normalizeBaseUrl(explicitSiteUrl)
+  siteUrlCandidate && !isLikelyLocalHost(siteUrlCandidate)
+    ? normalizeBaseUrl(siteUrlCandidate)
     : null;
 export const publicSiteUrl = normalizedSiteUrl;
 

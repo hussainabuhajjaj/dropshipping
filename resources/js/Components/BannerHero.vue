@@ -114,11 +114,15 @@ defineProps({
 .hero-banner-image {
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
 .hero-banner-image img {
+  width: 100%;
   max-width: 100%;
   height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
@@ -134,12 +138,21 @@ defineProps({
 }
 
 @media (max-width: 767px) {
+  .hero-banner-card {
+    padding: 1.5rem 1rem;
+  }
+
   .hero-banner-title {
     font-size: 1.875rem;
   }
 
   .hero-banner-description {
     font-size: 1rem;
+  }
+
+  .hero-banner-image img {
+    aspect-ratio: 4 / 3;
+    border-radius: 14px;
   }
 }
 </style>

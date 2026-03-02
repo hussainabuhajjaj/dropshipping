@@ -39,6 +39,7 @@ class HomeController extends Controller
 
         $homeContent = HomePageSetting::latestForLocale($locale);
         $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
+        $featuredCategorySections = $this->buildFeaturedCategorySections($categoryHighlights, 8, 4);
         $heroSlides = $this->normalizeHeroSlides($homeContent, $homeBuilder);
 
         $homepagePromotions = $promotionHomepageService->getHomepagePromotions();
@@ -57,6 +58,7 @@ class HomeController extends Controller
             'flashDealsViewAllHref' => $flashDealsPayload['viewAllHref'],
             'categories' => $categoryList,
             'categoryHighlights' => $categoryHighlights,
+            'featuredCategorySections' => $featuredCategorySections,
             'currency' => 'USD',
             'banners' => $bannerResolution['banners'],
             'bannerDiagnostics' => $bannerResolution['diagnostics'],
@@ -392,6 +394,74 @@ class HomeController extends Controller
                 'count' => $category->products_count,
                 'views' => $category->view_count ?? 0,
             ]);
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function buildFeaturedCategorySections(Collection $categoryHighlights, int $productsPerCategory = 8, int $maxCategories = 4): Collection
+    {
+        $locale = app()->getLocale();
+
+        $categoryIds = $categoryHighlights
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->take($maxCategories)
+            ->values();
+
+        if ($categoryIds->isEmpty()) {
+            return collect();
+        }
+
+        $categories = Category::query()
+            ->with(['translations' => fn ($query) => $query->where('locale', $locale)])
+            ->whereIn('id', $categoryIds)
+            ->get()
+            ->keyBy('id');
+
+        $productsByCategory = Product::query()
+            ->where('is_active', true)
+            ->whereIn('category_id', $categoryIds)
+            ->with(['images', 'category', 'variants', 'translations'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->latest()
+            ->get()
+            ->groupBy('category_id');
+
+        return $categoryIds
+            ->map(function (int $categoryId) use ($categories, $productsByCategory, $productsPerCategory, $locale) {
+                $category = $categories->get($categoryId);
+                if (! $category) {
+                    return null;
+                }
+
+                $products = ($productsByCategory->get($categoryId) ?? collect())
+                    ->take($productsPerCategory)
+                    ->map(fn (Product $product) => $this->transformProduct($product))
+                    ->values();
+
+                if ($products->isEmpty()) {
+                    return null;
+                }
+
+                $categoryName = $category->translatedValue('name', $locale);
+                $categorySlug = $category->slug;
+
+                return [
+                    'id' => $category->id,
+                    'name' => $categoryName,
+                    'slug' => $categorySlug,
+                    'viewAllHref' => $categorySlug
+                        ? '/categories/' . urlencode((string) $categorySlug)
+                        : '/products?category=' . urlencode((string) $categoryName),
+                    'products' => $products,
+                ];
+            })
+            ->filter()
+            ->values();
     }
 
     private function transformBanner(StorefrontBanner $banner): array

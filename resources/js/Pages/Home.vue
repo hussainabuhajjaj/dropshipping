@@ -174,6 +174,30 @@
         </div>
       </section>
 
+      <section v-if="featuredCategorySections.length" class="featured-category-sections section-block">
+        <div
+          v-for="section in featuredCategorySections"
+          :key="`featured-category-${section.id}`"
+          class="featured-category-block"
+        >
+          <div class="section-head">
+            <h2 class="section-title featured-category-title">{{ section.name }}</h2>
+            <Link :href="section.viewAllHref" class="section-link">{{ t('View all') }}</Link>
+          </div>
+
+          <div class="featured-category-slider">
+            <ProductCard
+              v-for="product in section.products"
+              :key="`featured-category-product-${section.id}-${product.id}`"
+              :product="product"
+              :currency="currency"
+              :promotions="homepagePromotions"
+              class="featured-category-product"
+            />
+          </div>
+        </div>
+      </section>
+
       <section v-if="featuredDeals.length" class="section-block">
         <div class="section-head">
           <div>
@@ -344,6 +368,7 @@ const props = defineProps({
   flashDeals: { type: Array, default: () => [] },
   flashDealsViewAllHref: { type: String, default: '/promotions/flash-sales' },
   categoryHighlights: { type: Array, default: () => [] },
+  featuredCategorySections: { type: Array, default: () => [] },
   currency: { type: String, default: 'USD' },
   homeContent: { type: Object, default: null },
   banners: { type: Object, default: () => ({}) },
@@ -426,6 +451,20 @@ const categoryTiles = computed(() => {
     slug: category.slug ?? null,
     short: buildShort(String(category.name)),
   }))
+})
+
+const featuredCategorySections = computed(() => {
+  const source = Array.isArray(props.featuredCategorySections) ? props.featuredCategorySections : []
+
+  return source
+    .map((section) => ({
+      ...section,
+      id: section?.id ?? null,
+      name: section?.name ?? t('Featured category'),
+      viewAllHref: section?.viewAllHref || '/products',
+      products: Array.isArray(section?.products) ? section.products : [],
+    }))
+    .filter((section) => section.products.length > 0)
 })
 
 const formatCount = (count) => {
@@ -1119,6 +1158,35 @@ const valueProps = computed(() => {
   gap: 16px;
 }
 
+.featured-category-sections {
+  gap: 20px;
+}
+
+.featured-category-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.featured-category-title {
+  font-size: clamp(1.2rem, 1.1vw + 1rem, 1.65rem);
+  margin-top: 0;
+}
+
+.featured-category-slider {
+  display: grid;
+  gap: 14px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scroll-snap-type: x proximity;
+}
+
+.featured-category-product {
+  scroll-snap-align: start;
+}
+
 .deal-grid {
   display: grid;
   gap: 16px;
@@ -1255,13 +1323,36 @@ const valueProps = computed(() => {
 }
 
 @media (max-width: 700px) {
+  .hero-carousel {
+    padding: 16px;
+  }
+
+  .hero-frame {
+    min-height: auto;
+  }
+
+  .hero-slide {
+    position: static;
+    display: none;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .hero-slide.is-active {
+    display: grid;
+  }
+
   .hero-title {
     font-size: clamp(1.8rem, 4vw + 1rem, 2.5rem);
   }
 
   .hero-image img {
     width: 100%;
-    max-width: 360px;
+    max-width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-width: 3px;
   }
 
   .hero-controls {

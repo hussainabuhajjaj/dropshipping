@@ -49,10 +49,13 @@
         </Head>
 
         <!-- Marketplace Header -->
-        <header class="sticky top-0 z-50 shadow-md bg-slate-950 text-white">
+        <header
+            class="sticky top-0 z-50 shadow-md bg-slate-950 text-white transition-all duration-200"
+            :class="mobileHeaderCompact ? 'mobile-header-compact' : ''"
+        >
             <!-- Top row -->
             <div class="container mx-auto px-4">
-                <div class="flex items-center gap-3 py-3">
+                <div class="flex items-center gap-3 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
                     <!-- Mobile Menu Toggle -->
                     <button
                         type="button"
@@ -67,7 +70,7 @@
 
                     <!-- Brand Logo -->
                     <Link href="/" class="flex items-center gap-2">
-                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="h-10 w-auto"/>
+                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="w-auto transition-all duration-200" :class="mobileHeaderCompact ? 'h-8' : 'h-10'"/>
                         <span v-else class="text-xl font-bold text-white">{{ brandName }}</span>
                     </Link>
 
@@ -377,7 +380,10 @@
             </div>
 
             <!-- Mobile Search Bar -->
-            <div class="border-t border-slate-700/50 px-4 py-3 lg:hidden">
+            <div
+                class="mobile-search-wrap border-t border-slate-700/50 px-4 py-3 lg:hidden"
+                :class="mobileHeaderCompact ? 'mobile-search-wrap-collapsed' : ''"
+            >
                 <form class="flex items-center gap-2" @submit.prevent="submitSearch">
                     <div class="relative w-full">
                         <input
@@ -407,7 +413,8 @@
             </div>
 
             <!-- Categories Navigation Row (scrollbar hidden + arrows) -->
-            <div class="relative"
+            <div class="mobile-categories-wrap relative"
+                 :class="mobileHeaderCompact ? 'mobile-categories-wrap-collapsed' : ''"
                  style="background:linear-gradient(90deg,rgba(240,236,214,1) 0%,rgba(246,225,109,1) 50%,rgba(245,149,15,1) 100%);">
                 <div class="container mx-auto px-4">
                     <div class="relative py-3">
@@ -591,11 +598,11 @@
             </div>
         </Transition>
 
-        <main class="container-base pb-16 pt-10">
+        <main class="container-base pb-24 pt-6 lg:pb-16 lg:pt-10">
             <slot/>
         </main>
 
-        <footer class="border-t border-slate-200 bg-white/90">
+        <footer class="border-t border-slate-200 bg-white/90 pb-24 lg:pb-0">
             <div class="container-base grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-5">
                 <div class="space-y-3">
                     <p class="text-lg font-semibold text-slate-900">{{ brandName }}</p>
@@ -623,6 +630,46 @@
                 </div>
             </div>
         </footer>
+
+        <!-- Mobile bottom app tabs -->
+        <nav class="mobile-app-nav fixed inset-x-0 bottom-0 z-[55] border-t border-slate-200 bg-white/95 shadow-[0_-10px_35px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+            <div class="mx-auto flex max-w-lg items-center justify-between px-2 pt-2">
+                <Link
+                    v-for="tab in mobileTabs"
+                    :key="tab.key"
+                    :href="tab.href"
+                    class="mobile-app-tab"
+                    :class="isMobileTabActive(tab) ? 'mobile-app-tab-active' : 'mobile-app-tab-idle'"
+                >
+                    <span class="relative inline-flex h-7 w-7 items-center justify-center">
+                        <svg v-if="tab.icon === 'home'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5L12 3l9 7.5" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 9.75V21h13.5V9.75" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'categories'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'search'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'cart'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                        </svg>
+                        <svg v-else viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+
+                        <span
+                            v-if="tab.key === 'cart' && cartCount"
+                            class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.6rem] font-semibold text-white"
+                        >
+                            {{ cartCount > 99 ? '99+' : cartCount }}
+                        </span>
+                    </span>
+                    <span class="text-[0.65rem] font-semibold tracking-wide">{{ tab.label }}</span>
+                </Link>
+            </div>
+        </nav>
 
         <!-- Mobile overlay -->
         <Transition
@@ -868,6 +915,7 @@ const cartOpen = ref(false)
 const accountRef = ref(null)
 const cartRef = ref(null)
 const isNavigating = ref(false)
+const mobileHeaderCompact = ref(false)
 
 const selectedLocation = ref('Abidjan')
 const locationOpen = ref(false)
@@ -1178,6 +1226,55 @@ const submitSearch = () => {
     router.get('/search', {q: value}, {preserveState: true, replace: true})
 }
 
+const mobileTabs = computed(() => [
+    {
+        key: 'home',
+        href: '/',
+        label: t('Home'),
+        icon: 'home',
+    },
+    {
+        key: 'categories',
+        href: '/products',
+        label: t('Categories'),
+        icon: 'categories',
+    },
+    {
+        key: 'search',
+        href: '/search',
+        label: t('Search'),
+        icon: 'search',
+    },
+    {
+        key: 'cart',
+        href: '/cart',
+        label: t('Cart'),
+        icon: 'cart',
+    },
+    {
+        key: 'account',
+        href: authUser.value ? '/account' : route('login'),
+        label: t('Account'),
+        icon: 'account',
+    },
+])
+
+const isMobileTabActive = (tab) => {
+    const path = currentPath.value || '/'
+    if (tab.key === 'home') return path === '/'
+    if (tab.key === 'categories') return path.startsWith('/products') || path.startsWith('/categories')
+    if (tab.key === 'search') return path.startsWith('/search')
+    if (tab.key === 'cart') return path.startsWith('/cart') || path.startsWith('/checkout')
+    if (tab.key === 'account') return path.startsWith('/account') || path.startsWith('/orders')
+    return false
+}
+
+const updateMobileHeaderState = () => {
+    if (typeof window === 'undefined') return
+    const isMobileViewport = window.innerWidth < 1024
+    mobileHeaderCompact.value = isMobileViewport && window.scrollY > 28
+}
+
 
 
 // --- Router loader ---
@@ -1254,11 +1351,16 @@ onMounted(() => {
     document.addEventListener('click', handleDocumentClick)
     requestAnimationFrame(updateScrollArrows)
     window.addEventListener('resize', updateScrollArrows)
+    window.addEventListener('scroll', updateMobileHeaderState, {passive: true})
+    window.addEventListener('resize', updateMobileHeaderState)
+    requestAnimationFrame(updateMobileHeaderState)
 })
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick)
     window.removeEventListener('resize', updateScrollArrows)
+    window.removeEventListener('scroll', updateMobileHeaderState)
+    window.removeEventListener('resize', updateMobileHeaderState)
 })
 
 // update arrows when categories change (async load)
@@ -1324,9 +1426,59 @@ const categoryHref = (category) => {
     border-color: var(--brand-strong);
 }
 
+.mobile-app-nav {
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
+}
+
+.mobile-app-tab {
+    display: inline-flex;
+    min-width: 4.2rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border-radius: 0.9rem;
+    padding: 0.5rem 0.35rem;
+    transition: all 150ms ease;
+}
+
+.mobile-app-tab-idle {
+    color: rgb(100 116 139);
+}
+
+.mobile-app-tab-active {
+    color: rgb(15 23 42);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.08) 100%);
+}
+
+.mobile-search-wrap,
+.mobile-categories-wrap {
+    transition: max-height 200ms ease, opacity 180ms ease, transform 200ms ease, padding 200ms ease;
+}
+
+.mobile-search-wrap-collapsed {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    transform: translateY(-6px);
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+}
+
+.mobile-categories-wrap-collapsed {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    transform: translateY(-8px);
+}
+
 /* .nav-link utility classes should be used directly in the template. */
-</style>
+
 /* Header gradient background */
 .bg-gradient-header {
-background: linear-gradient(90deg,rgba(240, 236, 214, 1) 0%, rgba(246, 225, 109, 1) 50%, rgba(245, 149, 15, 1) 100%);
+    background: linear-gradient(90deg, rgba(240, 236, 214, 1) 0%, rgba(246, 225, 109, 1) 50%, rgba(245, 149, 15, 1) 100%);
 }
+</style>
