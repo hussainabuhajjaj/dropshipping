@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class SearchController extends ApiController
 {
@@ -23,8 +24,10 @@ class SearchController extends ApiController
         $sort = $validated['sort'] ?? 'newest';
         $perPage = min((int) ($validated['per_page'] ?? 18), 50);
         $categoriesLimit = min((int) ($validated['categories_limit'] ?? 6), 20);
+        $isMySql = in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
+        $booleanQuery = $this->toBooleanFullTextQuery((string) ($query ?? ''));
 
-        $productQuery = $this->buildProductQuery($query, $category, $minPrice, $maxPrice);
+        $productQuery = $this->buildProductQuery($query, $category, $minPrice, $maxPrice, $isMySql, $booleanQuery);
         $productQuery = $this->applyProductSort($productQuery, $sort);
         $products = $productQuery->paginate($perPage);
 
@@ -33,11 +36,22 @@ class SearchController extends ApiController
             ->withCount('products');
 
         if ($query) {
-            $categoriesQuery->where(function (Builder $builder) use ($query) {
-                $builder
-                    ->where('name', 'like', '%' . $query . '%')
-                    ->orWhere('slug', 'like', '%' . $query . '%');
-            });
+            if ($isMySql && $booleanQuery !== null) {
+                $categoriesQuery
+                    ->where(function (Builder $builder) use ($booleanQuery, $query) {
+                        $builder
+                            ->whereRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->orWhere('name', 'like', '%' . $query . '%')
+                            ->orWhere('slug', 'like', '%' . $query . '%');
+                    })
+                    ->orderByRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE) desc', [$booleanQuery]);
+            } else {
+                $categoriesQuery->where(function (Builder $builder) use ($query) {
+                    $builder
+                        ->where('name', 'like', '%' . $query . '%')
+                        ->orWhere('slug', 'like', '%' . $query . '%');
+                });
+            }
         }
 
         $categories = $categoriesQuery
@@ -71,7 +85,9 @@ class SearchController extends ApiController
         ?string $query,
         ?string $category,
         mixed $minPrice,
-        mixed $maxPrice
+        mixed $maxPrice,
+        bool $isMySql,
+        ?string $booleanQuery
     ): Builder {
         $productQuery = Product::query()
             ->where('is_active', true)
@@ -90,14 +106,29 @@ class SearchController extends ApiController
         $productQuery->priceRange($minValue, $maxValue);
 
         if ($query) {
-            $productQuery->where(function ($builder) use ($query) {
-                $builder
-                    ->where('name', 'like', '%' . $query . '%')
-                    ->orWhere('description', 'like', '%' . $query . '%');
-                $builder->orWhereHas('category', function ($categoryBuilder) use ($query) {
-                    $categoryBuilder->where('name', 'like', '%' . $query . '%');
+            if ($isMySql && $booleanQuery !== null) {
+                $productQuery
+                    ->select('products.*')
+                    ->selectRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
+                    ->where(function (Builder $builder) use ($booleanQuery, $query) {
+                        $builder
+                            ->whereRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->orWhereHas('category', function (Builder $categoryBuilder) use ($booleanQuery, $query) {
+                                $categoryBuilder
+                                    ->whereRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                                    ->orWhere('name', 'like', '%' . $query . '%');
+                            });
+                    });
+            } else {
+                $productQuery->where(function (Builder $builder) use ($query) {
+                    $builder
+                        ->where('name', 'like', '%' . $query . '%')
+                        ->orWhere('description', 'like', '%' . $query . '%');
+                    $builder->orWhereHas('category', function (Builder $categoryBuilder) use ($query) {
+                        $categoryBuilder->where('name', 'like', '%' . $query . '%');
+                    });
                 });
-            });
+            }
         }
 
         return $productQuery;
@@ -114,7 +145,40 @@ class SearchController extends ApiController
                 ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
             'rating' => $productQuery->orderByDesc('reviews_avg_rating'),
             'popular' => $productQuery->orderByDesc('reviews_count'),
-            default => $productQuery->latest(),
+            default => $this->applyDefaultSort($productQuery),
         };
+    }
+
+    private function applyDefaultSort(Builder $productQuery): Builder
+    {
+        $query = $productQuery->getQuery();
+        $hasRelevance = collect($query->columns ?? [])->contains(
+            fn ($column) => is_string($column) && str_contains(strtolower($column), 'search_relevance')
+        );
+
+        if ($hasRelevance) {
+            return $productQuery->orderByDesc('search_relevance')->latest();
+        }
+
+        return $productQuery->latest();
+    }
+
+    private function toBooleanFullTextQuery(string $query): ?string
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return null;
+        }
+
+        $terms = preg_split('/\s+/', $query) ?: [];
+        $tokens = collect($terms)
+            ->map(fn (string $term) => trim(preg_replace('/[^\pL\pN]+/u', '', $term) ?? ''))
+            ->filter(fn (string $term) => mb_strlen($term) >= 2)
+            ->unique()
+            ->map(fn (string $term) => $term . '*')
+            ->values()
+            ->all();
+
+        return $tokens === [] ? null : implode(' ', $tokens);
     }
 }

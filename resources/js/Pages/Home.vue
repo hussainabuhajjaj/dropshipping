@@ -833,7 +833,7 @@ const valueProps = computed(() => {
 .deal-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .hero-rails {
@@ -1046,7 +1046,7 @@ const valueProps = computed(() => {
 .seasonal-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .seasonal-card {
@@ -1190,7 +1190,7 @@ const valueProps = computed(() => {
 .deal-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   align-content: start;
 }
