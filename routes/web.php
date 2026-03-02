@@ -1,6 +1,8 @@
 <?php
 
 // --- Core Laravel & Vendor Imports ---
+use App\Http\Controllers\KorapayController;
+use App\Http\Controllers\Storefront\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -210,5 +212,24 @@ Route::middleware(['auth:customer', 'verified'])->group(function () {
 Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'redirect'])->name('aliexpress.oauth.redirect');
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
+
+
+Route::group(['prefix' => 'pay/{type}/{id}' , 'as' => 'pay.'], function () {
+
+    Route::get('index' , [PaymentController::class , 'index'])->name('index');
+    Route::post('checkout' , [PaymentController::class , 'checkout'])->name('checkout');
+    Route::get('test' , [PaymentController::class , 'test'])->name('test');
+    Route::get('redirect' , [PaymentController::class , 'redirect'])->name('redirect');
+});
+
+
+Route::post('/korapay/initialize', [KorapayController::class, 'initialize'])->name('korapay.initialize');
+Route::post('/korapay/webhook', [KorapayController::class, 'webhook'])->name('korapay.webhook');
+Route::get('/korapay/verify/{reference}', [KorapayController::class, 'verify'])->name('korapay.verify');
+
+
+Route::get('aa' , function(){
+    return view('payment');
+});
 
 require __DIR__.'/auth.php';

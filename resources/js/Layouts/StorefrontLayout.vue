@@ -833,6 +833,7 @@ import {computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useTranslations} from '@/i18n'
+
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
