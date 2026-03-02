@@ -37,6 +37,10 @@ class Kernel extends ConsoleKernel
             CjBatchSyncVariantsCommand::class,
             \App\Console\Commands\FixCorruptedMargins::class,
             \App\Console\Commands\MonitorPriceCorruption::class,
+            \App\Console\Commands\CreateAffiliateCommand::class,
+            \App\Console\Commands\CreateAffiliateUserCommand::class,
+            \App\Console\Commands\GenerateAffiliateReportsCommand::class,
+            \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
         ];
 
     protected function schedule(Schedule $schedule): void

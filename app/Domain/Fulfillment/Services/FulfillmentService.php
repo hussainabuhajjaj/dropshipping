@@ -36,6 +36,8 @@ class FulfillmentService
         $provider = $this->resolveProvider($orderItem);
         $strategy = $this->selector->resolveForOrderItem($orderItem);
         $requestData = new FulfillmentRequestData(
+
+            order_id: null,
             orderItem: $orderItem,
             provider: $provider,
             supplierProduct: $orderItem->supplierProduct,
@@ -94,8 +96,8 @@ class FulfillmentService
             billingAddress: $order?->billingAddress,
             options: ['currency' => $order?->currency],
         );
-
         return DB::transaction(function () use ($order, $product_items, $provider, $strategy, $requestData) {
+
             $job = FulfillmentJob::query()->create([
                 'order_id' => $order->id,
                 'fulfillment_provider_id' => $provider->id,
@@ -328,16 +330,18 @@ class FulfillmentService
 
     private function recordShipmentForOrder(Order $order, $order_items, FulfillmentResult $result)
     {
+        $primaryOrderItem = $order_items->first();
+
         $shipment = Shipment::query()->updateOrCreate(
             ['order_id' => $order->id, 'tracking_number' => $result->trackingNumber],
             [
-                'carrier' => $orderItem->meta['carrier'] ?? null,
+                'carrier' => $primaryOrderItem?->meta['carrier'] ?? null,
                 'tracking_url' => $result->trackingUrl,
                 'logistic_name' => $result->logisticName,
                 'cj_order_id' => $result->cjOrderId,
                 'shipment_order_id' => $result->shipmentOrderId,
                 'postage_amount' => $result->postageAmount,
-                'currency' => $result->currency ?? $orderItem->order?->currency,
+                'currency' => $result->currency ?? $order->currency,
                 'shipped_at' => now(),
                 'raw_events' => $result->rawResponse['events'] ?? null,
             ]
@@ -345,17 +349,18 @@ class FulfillmentService
 
         $shipment->items()->delete();
         foreach ($order_items as $order_item) {
-            $shipment->items->push($order_item->id);
+            $shipment->items()->create(['order_item_id' => $order_item->id]);
         }
 
-        if ($orderItem->order) {
-            $this->reconcileOrderShipping($orderItem->order);
+        if ($order) {
+            $this->reconcileOrderShipping($order);
 
             // Queue CJ payment after shipment recorded
-            if ($orderItem->order->cj_order_id) {
-                \App\Jobs\PayCJBalanceJob::dispatch($orderItem->order->id);
+            if ($order->cj_order_id) {
+                \App\Jobs\PayCJBalanceJob::dispatch($order->id);
             }
         }
+
         return $shipment;
     }
 
