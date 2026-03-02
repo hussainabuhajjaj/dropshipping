@@ -47,7 +47,7 @@ class CJCatalog extends BasePage implements HasTable
     private const LISTED_PRODUCTS_FETCH_SIZE = 200;
     private const ALLOWED_SORTS = ['1', '2', '5', '6'];
     private const PRESET_MAX_COUNT = 20;
-    private const IMPORT_TRACKING_POLL_SECONDS = 60;
+    private const IMPORT_TRACKING_POLL_SECONDS = 3; // Near real-time for production
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cloud-arrow-down';
     protected static UnitEnum|string|null $navigationGroup = 'Integrations';
@@ -423,13 +423,14 @@ class CJCatalog extends BasePage implements HasTable
                             \Filament\Forms\Components\Select::make('batch_size')
                                 ->label('Batch Size')
                                 ->options([
-                                    '5' => '5 products (Slow & Safe)',
-                                    '10' => '10 products (Recommended)',
-                                    '20' => '20 products (Fast)',
-                                    '50' => '50 products (Very Fast)',
+                                    '5' => '5 products (Very Safe)',
+                                    '10' => '10 products (Safe)',
+                                    '25' => '25 products (Balanced)',
+                                    '50' => '50 products (Fast)',
+                                    '100' => '100 products (Very Fast)',
                                 ])
-                                ->default('10')
-                                ->helperText('Number of products to import at once. Lower = safer, higher = faster'),
+                                ->default('25')
+                                ->helperText('Products processed per background job. Higher = faster but more memory usage'),
                         ]),
                 ])
                 ->action(function (Collection $records, array $data): void {
@@ -707,14 +708,14 @@ class CJCatalog extends BasePage implements HasTable
 
         $this->queueImportStatus = $status;
 
-        $isDone = in_array((string) ($status['status'] ?? ''), ['completed', 'completed_with_failures'], true);
+        $isDone = in_array((string) ($status['status'] ?? ''), ['completed', 'completed_with_failures', 'failed'], true);
         if ($isDone && ! $this->queueImportCompletionNotified) {
             $failed = (int) ($status['failed'] ?? 0);
             $total = (int) ($status['total'] ?? 0);
             $success = (int) ($status['success'] ?? 0);
 
             $notification = Notification::make()
-                ->title($failed > 0 ? 'Queue import completed with failures' : 'Queue import completed')
+                ->title($failed > 0 ? 'Import completed with failures' : 'Import completed')
                 ->body("Processed {$total}, success {$success}, failed {$failed}.")
                 ->seconds(8);
 
@@ -727,6 +728,9 @@ class CJCatalog extends BasePage implements HasTable
             $notification->send();
             $this->queueImportCompletionNotified = true;
             $this->fetch(notify: false);
+            
+            // Auto-clear tracking after completion to stop polling
+            $this->activeImportTrackingKey = null;
         }
     }
 
@@ -1225,93 +1229,63 @@ class CJCatalog extends BasePage implements HasTable
                 }
             }
 
-            $importService = app(\App\Domain\Products\Services\CjProductImportService::class);
-
-            // Process in batches if specified
+            // PERFORMANCE OPTIMIZATION: Dispatch to background job instead of synchronous processing
             $batchSize = (int) ($options['batch_size'] ?? 10);
-            $batches = array_chunk($pids, $batchSize);
-            $totalResults = [
-                'fetched' => 0,
-                'imported' => 0,
-                'activated' => 0,
-                'failed_activation' => 0,
-                'translations_queued' => 0,
-                'seo_queued' => 0,
-            ];
+            $chunks = array_chunk($pids, $batchSize);
+            
+            // Create tracking key for progress monitoring
+            $trackingKey = 'cj_bulk_import_' . auth()->id() . '_' . time();
+            
+            // Initialize tracking using the existing tracker method
+            $this->importTracker()->set($trackingKey, [
+                'status' => 'queued',
+                'total' => count($pids),
+                'processed' => 0,
+                'success' => 0,
+                'failed' => 0,
+                'started_at' => now()->toISOString(),
+                'chunks_total' => count($chunks),
+                'chunks_completed' => 0,
+            ]);
 
-            foreach ($batches as $batch) {
-                $result = $importService->importBulkWithPipeline([
-                    'pids' => $batch,
+            // Dispatch chunks as jobs for parallel processing
+            foreach ($chunks as $index => $chunk) {
+                \App\Jobs\ImportCjProductPipelineChunkJob::dispatch($chunk, [
                     'margin_percent' => (float) ($options['margin'] ?? 60),
                     'enrich' => (bool) ($options['enrich'] ?? true),
                     'force_activate' => (bool) ($options['auto_activate'] ?? true),
                     'skip_translations' => !(bool) ($options['queue_translations'] ?? true),
                     'skip_seo' => !(bool) ($options['queue_seo'] ?? true),
-                ]);
-
-                // Aggregate results
-                foreach ($totalResults as $key => $value) {
-                    $totalResults[$key] += ($result[$key] ?? 0);
-                }
-
-                // Apply default category if specified
-                if (!empty($options['default_category_id'])) {
-                    \App\Models\Product::whereIn('cj_pid', $batch)
-                        ->whereNull('category_id')
-                        ->update(['category_id' => $options['default_category_id']]);
-                }
+                    'default_category_id' => $options['default_category_id'] ?? null,
+                    'tracking_key' => $trackingKey,
+                    'chunk_index' => $index,
+                ])->onQueue('cj-import');
             }
 
-            // Build detailed message
-            $message = sprintf(
-                'Imported: %d/%d | Activated: %d | Failed: %d',
-                $totalResults['imported'],
-                $totalResults['fetched'],
-                $totalResults['activated'],
-                $totalResults['failed_activation']
-            );
+            // Set active tracking for UI polling using the proper method
+            $this->activeImportTrackingKey = $trackingKey;
+            $this->queueImportCompletionNotified = false;
 
-            if ($totalResults['translations_queued'] > 0) {
-                $message .= sprintf(' | Translations queued: %d', $totalResults['translations_queued']);
-            }
+            // Immediate success notification - no blocking!
+            Notification::make()
+                ->title('Import Started')
+                ->body(sprintf('Processing %d products in background. You can continue working.', count($pids)))
+                ->success()
+                ->seconds(5)
+                ->send();
 
-            if ($totalResults['seo_queued'] > 0) {
-                $message .= sprintf(' | SEO queued: %d', $totalResults['seo_queued']);
-            }
-
-            // Log bulk import completion
-            \App\Models\UserActivityLog::create([
-                'user_id' => auth()->id(),
-                'action' => 'cj.import.bulk.completed',
-                'description' => sprintf('Completed bulk import: %d imported, %d activated, %d failed', 
-                    $totalResults['imported'], $totalResults['activated'], $totalResults['failed_activation']),
-                'properties' => [
-                    'results' => $totalResults,
-                    'options' => $options,
-                    'total_products' => count($pids),
-                ],
-                'ip_address' => request()->ip(),
-                'user_agent' => request()->userAgent(),
-            ]);
-
-            if ($totalResults['failed_activation'] > 0) {
-                Notification::make()
-                    ->title('Bulk import completed with issues')
-                    ->body($message)
-                    ->warning()
-                    ->persistent()
-                    ->send();
-            } else {
-                Notification::make()
-                    ->title('Bulk import successful!')
-                    ->body($message)
-                    ->success()
-                    ->send();
-            }
-
-            $this->fetch();
         } catch (\Throwable $e) {
-            $this->notifyError($e->getMessage());
+            \Log::error('Bulk import dispatch failed', [
+                'error' => $e->getMessage(),
+                'pids_count' => count($pids),
+                'user_id' => auth()->id(),
+            ]);
+            
+            Notification::make()
+                ->title('Import Failed to Start')
+                ->body('Could not start import process. Please try again.')
+                ->danger()
+                ->send();
         }
     }
 

@@ -74,6 +74,15 @@ return [
             'after_commit' => false,
         ],
 
+        'cj-import' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'cj-import',
+            'retry_after' => 900, // 15 minutes
+            'block_for' => 10,
+            'after_commit' => true,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
