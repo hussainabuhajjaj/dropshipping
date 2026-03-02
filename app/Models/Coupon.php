@@ -123,4 +123,17 @@ class Coupon extends Model
 
         return $this->{$field} ?? null;
     }
+
+    private function serializeCoupon(): array
+    {
+        return [
+            'id' => $this->id,
+            'code' => $this->code,
+            'type' => $this->type,
+            'amount' => $this->amount,
+            'min_order_total' => $this->min_order_total,
+            'description' => $this->localizedValue('description', app()->getLocale()) ?? $this->description,
+        ];
+    }
+
 }

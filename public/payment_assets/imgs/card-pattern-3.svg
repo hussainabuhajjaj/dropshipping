@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="123.192" height="76.195" viewBox="0 0 123.192 76.195">
+  <g id="icons8_card_payment_1" transform="translate(-3.592 -19)" opacity="0.3">
+    <path id="Path_78837" data-name="Path 78837" d="M54.255,54a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,54.255,54ZM38.725,54a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,38.725,54Z" transform="translate(23.215 24.666)" fill="#fff"/>
+    <path id="Path_78838" data-name="Path 78838" d="M39.86,23.066c-6.343-3.779-11.336-2.429-19.7,4.5C15.32,31.574,5,40.184,5,40.184" transform="translate(0 0.725)" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="2"/>
+    <path id="Path_78839" data-name="Path 78839" d="M47.431,75.215h56.941a6.9,6.9,0,0,0,6.9-6.9V26.9a6.9,6.9,0,0,0-6.9-6.9H31.9A6.9,6.9,0,0,0,25,26.9V63.137" transform="translate(14.509)" fill="none" stroke="#fff" stroke-width="2"/>
+    <path id="Path_78840" data-name="Path 78840" d="M111.274,28H25" transform="translate(14.509 5.804)" fill="none" stroke="#fff" stroke-width="4"/>
+    <path id="Path_78841" data-name="Path 78841" d="M6,81.673H26.787A30.693,30.693,0,0,0,45.515,75.3l29.725-22.9-.04-.052A8.6,8.6,0,0,0,69.843,37c-1.931,0-3.786,1.073-5.132,1.727l0,0-31.6,14.9" transform="translate(0.725 12.333)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+    <path id="Path_78842" data-name="Path 78842" d="M28.574,65.427A7.76,7.76,0,0,0,35.348,69.4c4.288,0,7.765-6.039,7.765-6.039a7.765,7.765,0,0,0,7.765,7.765c4.79,0,6.786-4.459,7.765-7.765,0,0,.939,4.314,6.84,4.314,4.288,0,7.3-3.133,8.689-7.765l2.267-8.1" transform="translate(17.102 23.074)" fill="none" stroke="#fff" stroke-linejoin="bevel" stroke-width="2"/>
+    <path id="Path_78843" data-name="Path 78843" d="M50.706,52.706a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,50.706,52.706Zm-3.451-5.176a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,47.255,47.529ZM45.529,32a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,45.529,32Zm6.9,0a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,52.431,32ZM31.725,32a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,31.725,32Zm6.9,0a1.725,1.725,0,1,0,1.725,1.725A1.725,1.725,0,0,0,38.627,32Z" transform="translate(18.137 8.706)" fill="#fff"/>
+  </g>
+</svg>
