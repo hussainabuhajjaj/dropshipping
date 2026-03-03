@@ -313,7 +313,7 @@
                                     </div>
                                 @endif
                             </div>
-                        @else
+                        {{-- @else --}}
                             <div class="rounded-lg border border-gray-200/70 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/30">
                                 <div class="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
