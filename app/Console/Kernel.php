@@ -42,6 +42,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\GenerateAffiliateReportsCommand::class,
         \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
         \App\Console\Commands\CjSyncStockByVid::class,
+        \App\Console\Commands\ServerFixStockZero::class,
         \App\Console\Commands\CjSyncMedia::class,
     ];
 
@@ -95,6 +96,13 @@ class Kernel extends ConsoleKernel
             ->dailyAt('23:59')
             ->name('cj-daily-stock-refresh')
             ->withoutOverlapping();
+
+        // NEW: Automated stock zero fix
+        $schedule->job(new \App\Jobs\FixStockZeroJob(500, 48, 150))
+            ->everyFourHours()
+            ->name('cj-fix-stock-zero')
+            ->withoutOverlapping()
+            ->description('Fix variants with stock=0 that have actual CJ inventory');
 
         // Keep: Other non-CJ jobs
         $schedule->job(new CheckLowStockJob())->dailyAt('04:00');

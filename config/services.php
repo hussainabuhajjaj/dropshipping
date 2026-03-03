@@ -101,6 +101,7 @@ return [
         'import_auto_activate' => env('CJ_IMPORT_AUTO_ACTIVATE', true),
         'import_chunk_size' => env('CJ_IMPORT_CHUNK_SIZE', 25),
         'stock_queue' => env('CJ_STOCK_QUEUE', 'cj-sync'),
+        'stock_percentage' => env('CJ_STOCK_PERCENTAGE', 75.0), // Use 75% instead of 50%
     ],
 
     'queue_reporting' => [

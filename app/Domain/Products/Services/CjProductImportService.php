@@ -253,9 +253,9 @@ class CjProductImportService
             $sellingPrice = $maxReasonablePrice;
         }
 
-        // Extract stock information from CJ API data
+        // Extract stock information from CJ API data with configurable percentage
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
-        $stockOnHand = $totalStock > 0 ? (int) ($totalStock / 2) : 0; // Set half of total stock to stock_on_hand
+        $stockOnHand = $this->calculateStockOnHand($totalStock);
 
         $payload = [
             'name' => $name,
@@ -1127,7 +1127,7 @@ class CjProductImportService
                         foreach ($variant['inventories'] as $inventory) {
                             if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
                                 $variantStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
-                                $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0;
+                                $variantStockOnHand = $this->calculateStockOnHand($variantStock);
 
                                 Log::info('Variant stock extracted from inventories', [
                                     'cj_vid' => $vid,
@@ -1147,7 +1147,7 @@ class CjProductImportService
                     // Fallback to old structure if inventories not found
                     if ($variantStock === 0) {
                         $variantStock = (int) ($variant['stock'] ?? $variant['variantStock'] ?? $variant['inventoryNum'] ?? 0);
-                        $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0;
+                        $variantStockOnHand = $this->calculateStockOnHand($variantStock);
                     }
 
                     ProductVariant::updateOrCreate(
@@ -1784,8 +1784,13 @@ class CjProductImportService
 
         $report['imported']++;
 
-        // Sync real-time stock from CJ API
-        $this->syncProductStock($product);
+        // Sync real-time stock from CJ API with enhanced method
+        $this->syncProductStockEnhanced($product, [
+            'batch_size' => 10,
+            'api_delay_ms' => 150,
+            'max_retries' => 3,
+            'use_cache' => true,
+        ]);
 
         // Apply margin
         $costPrice = (float) ($product->cost_price ?? 0);
@@ -1846,7 +1851,332 @@ class CjProductImportService
     }
 
     /**
-     * Sync real-time stock from CJ API for a product and its variants
+     * Enhanced stock sync with batch processing, retry logic, and better error handling
+     */
+    private function syncProductStockEnhanced(Product $product, array $options = []): void
+    {
+        $variants = $product->variants()->whereNotNull('cj_vid')->get();
+        if ($variants->isEmpty()) {
+            return;
+        }
+
+        $batchSize = $options['batch_size'] ?? 10;
+        $apiDelay = $options['api_delay_ms'] ?? 150;
+        $maxRetries = $options['max_retries'] ?? 3;
+        $useCache = $options['use_cache'] ?? true;
+
+        $vids = $variants->pluck('cj_vid')->filter()->all();
+        $chunks = array_chunk($vids, $batchSize);
+
+        Log::info('Starting enhanced stock sync', [
+            'product_id' => $product->id,
+            'total_variants' => count($vids),
+            'batch_size' => $batchSize,
+            'total_batches' => count($chunks),
+        ]);
+
+        $totalProductStock = 0;
+        $syncResults = ['updated' => 0, 'errors' => 0, 'skipped' => 0];
+
+        foreach ($chunks as $chunkIndex => $vidChunk) {
+            $chunkResults = $this->syncVidChunk($vidChunk, [
+                'chunk_index' => $chunkIndex,
+                'api_delay_ms' => $apiDelay,
+                'max_retries' => $maxRetries,
+                'use_cache' => $useCache,
+            ]);
+
+            $totalProductStock += $chunkResults['total_stock'];
+            $syncResults['updated'] += $chunkResults['updated'];
+            $syncResults['errors'] += $chunkResults['errors'];
+            $syncResults['skipped'] += $chunkResults['skipped'];
+
+            // Delay between chunks to avoid rate limiting
+            if ($chunkIndex < count($chunks) - 1 && $apiDelay > 0) {
+                usleep($apiDelay * 1000);
+            }
+        }
+
+        // Update product-level stock
+        $product->update([
+            'cj_total_stock' => $totalProductStock,
+            'stock_on_hand' => $this->calculateStockOnHand($totalProductStock),
+        ]);
+
+        Log::info('Enhanced stock sync completed', [
+            'product_id' => $product->id,
+            'total_stock' => $totalProductStock,
+            'updated' => $syncResults['updated'],
+            'errors' => $syncResults['errors'],
+            'skipped' => $syncResults['skipped'],
+        ]);
+    }
+
+    /**
+     * Sync a chunk of VIDs with enhanced error handling and retry logic
+     */
+    private function syncVidChunk(array $vidChunk, array $options): array
+    {
+        $chunkIndex = $options['chunk_index'];
+        $apiDelay = $options['api_delay_ms'];
+        $maxRetries = $options['max_retries'];
+        $useCache = $options['use_cache'];
+
+        $results = [
+            'updated' => 0,
+            'errors' => 0,
+            'skipped' => 0,
+            'total_stock' => 0,
+        ];
+
+        foreach ($vidChunk as $vid) {
+            try {
+                $result = $this->syncSingleVariantEnhanced($vid, [
+                    'max_retries' => $maxRetries,
+                    'use_cache' => $useCache,
+                ]);
+
+                if ($result['updated']) {
+                    $results['updated']++;
+                    $results['total_stock'] += $result['stock'];
+                } elseif ($result['skipped']) {
+                    $results['skipped']++;
+                } else {
+                    $results['errors']++;
+                }
+
+                // Rate limiting between individual API calls
+                if ($apiDelay > 0) {
+                    usleep($apiDelay * 1000);
+                }
+
+            } catch (\Exception $e) {
+                $results['errors']++;
+                Log::error('Critical error syncing variant', [
+                    'vid' => $vid,
+                    'chunk_index' => $chunkIndex,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Enhanced single variant sync with retry logic and validation
+     */
+    private function syncSingleVariantEnhanced(string $vid, array $options): array
+    {
+        $maxRetries = $options['max_retries'];
+        $useCache = $options['use_cache'];
+
+        // Check cache first
+        if ($useCache) {
+            $cacheKey = "cj_stock_{$vid}";
+            $cached = Cache::get($cacheKey);
+            if ($cached) {
+                Log::debug('Using cached stock data', ['vid' => $vid]);
+                return $this->updateVariantFromCachedData($vid, $cached);
+            }
+        }
+
+        // Fetch with retry logic
+        $stockData = $this->fetchStockWithRetry($vid, $maxRetries);
+        if (!$stockData) {
+            return ['updated' => false, 'skipped' => false, 'stock' => 0];
+        }
+
+        // Calculate stock
+        $totalStock = $this->calculateTotalStockFromData($stockData);
+        $stockOnHand = $this->calculateStockOnHand($totalStock);
+
+        // Update variant
+        $updated = $this->updateVariantStock($vid, $totalStock, $stockOnHand);
+
+        // Cache the result
+        if ($useCache && $updated) {
+            Cache::put("cj_stock_{$vid}", $stockData, 300); // 5 minutes
+        }
+
+        return ['updated' => $updated, 'skipped' => !$updated, 'stock' => $totalStock];
+    }
+
+    /**
+     * Fetch stock data with retry logic and exponential backoff
+     */
+    private function fetchStockWithRetry(string $vid, int $maxRetries = 3): ?array
+    {
+        $attempt = 0;
+        $maxDelay = 5000; // 5 seconds max delay
+
+        while ($attempt < $maxRetries) {
+            try {
+                $response = $this->client->getStockByVid($vid);
+                $data = $response->data ?? null;
+
+                if (is_array($data) && !empty($data)) {
+                    return $data;
+                }
+
+                Log::warning('Invalid stock response', [
+                    'vid' => $vid,
+                    'attempt' => $attempt + 1,
+                    'data_type' => gettype($data),
+                ]);
+
+            } catch (ApiException $e) {
+                Log::warning('API error fetching stock', [
+                    'vid' => $vid,
+                    'attempt' => $attempt + 1,
+                    'status' => $e->status,
+                    'error' => $e->getMessage(),
+                ]);
+
+                // Don't retry on client errors (4xx)
+                if ($e->status >= 400 && $e->status < 500) {
+                    return null;
+                }
+
+            } catch (\Exception $e) {
+                Log::warning('Unexpected error fetching stock', [
+                    'vid' => $vid,
+                    'attempt' => $attempt + 1,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $attempt++;
+            if ($attempt < $maxRetries) {
+                // Exponential backoff: 100ms, 400ms, 1600ms
+                $delay = min(100 * pow(4, $attempt - 1), $maxDelay);
+                usleep($delay * 1000);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Calculate total stock from CJ API response data
+     */
+    private function calculateTotalStockFromData(array $stockData): int
+    {
+        $totalStock = 0;
+
+        foreach ($stockData as $warehouseStock) {
+            if (is_array($warehouseStock)) {
+                $stock = $warehouseStock['totalInventoryNum'] ??
+                         $warehouseStock['storageNum'] ??
+                         $warehouseStock['cjInventoryNum'] ??
+                         $warehouseStock['inventory'] ?? 0;
+                $totalStock += (int) $stock;
+            }
+        }
+
+        return $totalStock;
+    }
+
+    /**
+     * Update variant stock with validation
+     */
+    private function updateVariantStock(string $vid, int $totalStock, int $stockOnHand): bool
+    {
+        try {
+            $variant = ProductVariant::where('cj_vid', $vid)->first();
+            
+            if (!$variant) {
+                Log::warning('Variant not found for stock update', ['vid' => $vid]);
+                return false;
+            }
+
+            // Validate stock values
+            if ($totalStock < 0 || $stockOnHand < 0) {
+                Log::warning('Invalid stock values', [
+                    'vid' => $vid,
+                    'total_stock' => $totalStock,
+                    'stock_on_hand' => $stockOnHand,
+                ]);
+                return false;
+            }
+
+            // Check if update is needed
+            if ($variant->cj_stock === $totalStock && $variant->stock_on_hand === $stockOnHand) {
+                Log::debug('Stock unchanged, skipping update', [
+                    'vid' => $vid,
+                    'cj_stock' => $totalStock,
+                ]);
+                return true; // Consider this successful
+            }
+
+            $oldStock = $variant->cj_stock;
+            $oldStockOnHand = $variant->stock_on_hand;
+
+            $variant->update([
+                'cj_stock' => $totalStock,
+                'stock_on_hand' => $stockOnHand,
+                'cj_stock_synced_at' => now(),
+            ]);
+
+            Log::debug('Variant stock updated', [
+                'vid' => $vid,
+                'old_cj_stock' => $oldStock,
+                'new_cj_stock' => $totalStock,
+                'old_stock_on_hand' => $oldStockOnHand,
+                'new_stock_on_hand' => $stockOnHand,
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Database error updating variant stock', [
+                'vid' => $vid,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Update variant from cached data
+     */
+    private function updateVariantFromCachedData(string $vid, array $stockData): array
+    {
+        $totalStock = $this->calculateTotalStockFromData($stockData);
+        $stockOnHand = $this->calculateStockOnHand($totalStock);
+        $updated = $this->updateVariantStock($vid, $totalStock, $stockOnHand);
+
+        return ['updated' => $updated, 'skipped' => !$updated, 'stock' => $totalStock];
+    }
+
+    /**
+     * Calculate stock_on_hand with configurable percentage
+     */
+    private function calculateStockOnHand(int $totalStock): int
+    {
+        if ($totalStock <= 0) {
+            return 0;
+        }
+
+        // Get configurable stock percentage (default 75% instead of 50%)
+        $percentage = (float) config('services.cj.stock_percentage', 75.0);
+        
+        // Ensure percentage is between 10% and 100%
+        $percentage = max(10.0, min(100.0, $percentage));
+        
+        $stockOnHand = (int) ($totalStock * ($percentage / 100.0));
+        
+        Log::debug('Stock calculation', [
+            'total_stock' => $totalStock,
+            'percentage' => $percentage,
+            'stock_on_hand' => $stockOnHand,
+        ]);
+
+        return $stockOnHand;
+    }
+
+    /**
+     * Legacy stock sync method (kept for backward compatibility)
      */
     private function syncProductStock(Product $product): void
     {

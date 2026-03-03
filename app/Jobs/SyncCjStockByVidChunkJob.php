@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Arr;
 
 class SyncCjStockByVidChunkJob implements ShouldQueue
@@ -57,11 +58,13 @@ class SyncCjStockByVidChunkJob implements ShouldQueue
                     $totalInventory = 0;
                 }
 
+                $stockOnHand = $this->calculateStockOnHand($totalInventory);
+
                 $updated = ProductVariant::query()
                     ->where('cj_vid', $vid)
                     ->update([
                         'cj_stock' => $totalInventory,
-                        'stock_on_hand' => $totalInventory,
+                        'stock_on_hand' => $stockOnHand,
                         'cj_stock_synced_at' => now(),
                     ]);
 
@@ -71,6 +74,7 @@ class SyncCjStockByVidChunkJob implements ShouldQueue
                     Log::info('CJ stock sync: updated', [
                         'cj_vid' => $vid,
                         'total_inventory' => $totalInventory,
+                        'stock_on_hand' => $stockOnHand,
                         'updated_rows' => $updated,
                     ]);
                 }
@@ -149,5 +153,31 @@ class SyncCjStockByVidChunkJob implements ShouldQueue
         }
 
         return $foundAny ? max(0, $sum) : null;
+    }
+
+    /**
+     * Calculate stock_on_hand with configurable percentage
+     */
+    private function calculateStockOnHand(int $totalStock): int
+    {
+        if ($totalStock <= 0) {
+            return 0;
+        }
+
+        // Get configurable stock percentage (default 75% instead of 50%)
+        $percentage = (float) config('services.cj.stock_percentage', 75.0);
+        
+        // Ensure percentage is between 10% and 100%
+        $percentage = max(10.0, min(100.0, $percentage));
+        
+        $stockOnHand = (int) ($totalStock * ($percentage / 100.0));
+        
+        Log::debug('Stock calculation in job', [
+            'total_stock' => $totalStock,
+            'percentage' => $percentage,
+            'stock_on_hand' => $stockOnHand,
+        ]);
+
+        return $stockOnHand;
     }
 }
