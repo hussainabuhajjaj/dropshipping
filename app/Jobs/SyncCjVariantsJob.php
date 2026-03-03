@@ -77,23 +77,85 @@ class SyncCjVariantsJob implements ShouldQueue
 
                 // Extract stock information from CJ variant data with enhanced logic
                 $cjStock = 0;
+                $stockDebugInfo = [
+                    'vid' => $vid,
+                    'has_inventories' => isset($variantData['inventories']),
+                    'inventories_type' => gettype($variantData['inventories'] ?? null),
+                    'raw_variant_data_keys' => array_keys($variantData),
+                    'default_warehouse' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
+                ];
                 
                 // Handle new inventories structure
                 if (isset($variantData['inventories']) && is_array($variantData['inventories'])) {
-                    foreach ($variantData['inventories'] as $inventory) {
+                    $stockDebugInfo['inventories_count'] = count($variantData['inventories']);
+                    
+                    foreach ($variantData['inventories'] as $index => $inventory) {
+                        $stockDebugInfo['inventory_' . $index] = [
+                            'countryCode' => $inventory['countryCode'] ?? 'missing',
+                            'totalInventory' => $inventory['totalInventory'] ?? 'missing',
+                            'cjInventory' => $inventory['cjInventory'] ?? 'missing',
+                            'factoryInventory' => $inventory['factoryInventory'] ?? 'missing',
+                            'is_warehouse_match' => ($inventory['countryCode'] ?? null) === env('CJ_DEFAULT_WAREHOUSE', 'CN'),
+                        ];
+                        
                         if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
                             $cjStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
+                            $stockDebugInfo['found_warehouse_stock'] = $cjStock;
                             break;
+                        }
+                    }
+                    
+                    // If no CN warehouse found, try ANY warehouse as fallback
+                    if ($cjStock === 0 && !empty($variantData['inventories'])) {
+                        $stockDebugInfo['cn_warehouse_not_found'] = true;
+                        foreach ($variantData['inventories'] as $index => $inventory) {
+                            $stockValue = $inventory['totalInventory'] ?? $inventory['cjInventory'] ?? $inventory['factoryInventory'] ?? 0;
+                            if ((int) $stockValue > 0) {
+                                $cjStock = (int) $stockValue;
+                                $stockDebugInfo['fallback_warehouse'] = [
+                                    'index' => $index,
+                                    'country' => $inventory['countryCode'] ?? 'unknown',
+                                    'stock' => $cjStock,
+                                ];
+                                break;
+                            }
                         }
                     }
                 }
                 
                 // Fallback to old structure if inventories not found or stock is 0
                 if ($cjStock === 0) {
-                    $cjStock = (int) ($variantData['stock'] ?? $variantData['variantStock'] ?? $variantData['inventoryNum'] ?? 0);
+                    $fallbackFields = ['stock', 'variantStock', 'inventoryNum', 'cjInventory', 'totalInventory'];
+                    $stockDebugInfo['fallback_fields_checked'] = $fallbackFields;
+                    
+                    foreach ($fallbackFields as $field) {
+                        if (isset($variantData[$field])) {
+                            $value = (int) $variantData[$field];
+                            $stockDebugInfo['fallback_' . $field] = $value;
+                            
+                            if ($value > 0) {
+                                $cjStock = $value;
+                                $stockDebugInfo['fallback_used'] = $field;
+                                $stockDebugInfo['fallback_value'] = $cjStock;
+                                break;
+                            }
+                        } else {
+                            $stockDebugInfo['fallback_' . $field] = 'missing';
+                        }
+                    }
                 }
                 
                 $stockOnHand = $this->calculateStockOnHand($cjStock);
+                
+                // ALWAYS log detailed info for debugging the zero stock issue
+                if ($cjStock === 0) {
+                    Log::warning('CJ variant stock zero - INVESTIGATE THIS', $stockDebugInfo);
+                } else {
+                    Log::info('CJ variant stock extracted successfully', array_merge($stockDebugInfo, [
+                        'cj_stock' => $cjStock,
+                        'stock_on_hand' => $stockOnHand,
+                    ]));
+                }
                 $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
                 $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);
 
@@ -315,5 +377,109 @@ class SyncCjVariantsJob implements ShouldQueue
         ]);
 
         return $stockOnHand;
+    }
+
+    /**
+     * Debug method to investigate specific variant stock issues
+     * Call this method directly to debug a problematic variant
+     */
+    public function debugVariantStock(string $cjPid, string $vid): void
+    {
+        try {
+            $client = new CJDropshippingClient();
+            
+            Log::info("=== DEBUGGING VARIANT STOCK ===");
+            Log::info("CJ PID: {$cjPid}");
+            Log::info("VID: {$vid}");
+            Log::info("Default Warehouse: " . env('CJ_DEFAULT_WAREHOUSE', 'CN'));
+            
+            // Get variants from CJ API
+            $resp = $client->getVariantsByPid($cjPid);
+            $variants = $this->extractVariants($resp->data ?? null);
+            
+            if (!$variants) {
+                Log::error("No variants found for CJ PID: {$cjPid}");
+                return;
+            }
+            
+            // Find the specific variant
+            $targetVariant = null;
+            foreach ($variants as $variantData) {
+                if ((string) ($variantData['vid'] ?? '') === $vid) {
+                    $targetVariant = $variantData;
+                    break;
+                }
+            }
+            
+            if (!$targetVariant) {
+                Log::error("Variant {$vid} not found in CJ response for PID {$cjPid}");
+                Log::info("Available VIDs: " . implode(', ', array_map(fn($v) => $v['vid'] ?? 'missing', $variants)));
+                return;
+            }
+            
+            // Detailed analysis of the target variant
+            Log::info("=== TARGET VARIANT FOUND ===");
+            Log::info("Full variant data keys: " . implode(', ', array_keys($targetVariant)));
+            
+            // Check inventories structure
+            if (isset($targetVariant['inventories'])) {
+                Log::info("Inventories structure found:");
+                Log::info("Type: " . gettype($targetVariant['inventories']));
+                
+                if (is_array($targetVariant['inventories'])) {
+                    foreach ($targetVariant['inventories'] as $index => $inventory) {
+                        Log::info("Inventory {$index}:");
+                        Log::info("  Country: " . ($inventory['countryCode'] ?? 'missing'));
+                        Log::info("  Total Inventory: " . ($inventory['totalInventory'] ?? 'missing'));
+                        Log::info("  CJ Inventory: " . ($inventory['cjInventory'] ?? 'missing'));
+                        Log::info("  Factory Inventory: " . ($inventory['factoryInventory'] ?? 'missing'));
+                        Log::info("  Is Default Warehouse: " . (($inventory['countryCode'] ?? null) === env('CJ_DEFAULT_WAREHOUSE', 'CN') ? 'YES' : 'NO'));
+                    }
+                }
+            } else {
+                Log::warning("No inventories structure found");
+            }
+            
+            // Check fallback fields
+            $fallbackFields = ['stock', 'variantStock', 'inventoryNum'];
+            Log::info("Fallback field check:");
+            foreach ($fallbackFields as $field) {
+                $value = $targetVariant[$field] ?? 'missing';
+                Log::info("  {$field}: {$value}");
+            }
+            
+            // Test stock extraction
+            $cjStock = 0;
+            if (isset($targetVariant['inventories']) && is_array($targetVariant['inventories'])) {
+                foreach ($targetVariant['inventories'] as $inventory) {
+                    if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
+                        $cjStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
+                        Log::info("Found warehouse stock: {$cjStock}");
+                        break;
+                    }
+                }
+            }
+            
+            if ($cjStock === 0) {
+                foreach ($fallbackFields as $field) {
+                    if (isset($targetVariant[$field])) {
+                        $cjStock = (int) $targetVariant[$field];
+                        Log::info("Used fallback {$field}: {$cjStock}");
+                        break;
+                    }
+                }
+            }
+            
+            Log::info("=== FINAL RESULT ===");
+            Log::info("CJ Stock: {$cjStock}");
+            Log::info("Stock on Hand: " . $this->calculateStockOnHand($cjStock));
+            
+        } catch (\Exception $e) {
+            Log::error("Debug failed: " . $e->getMessage(), [
+                'cj_pid' => $cjPid,
+                'vid' => $vid,
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 }
