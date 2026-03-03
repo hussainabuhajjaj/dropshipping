@@ -60,8 +60,8 @@ class CjImportSnapshots extends Command
                     'selling_price' => is_numeric($price) ? (float) $price : 0,
                     'cost_price' => is_numeric($price) ? (float) $price : 0,
                     'currency' => $payload['currency'] ?? 'USD',
-                    'status' => 'active',
-                    'is_active' => true,
+                    'status' => 'draft',
+                    'is_active' => false,
                     'is_featured' => false,
                     'attributes' => array_merge($payload['inventoryInfo'] ?? [], [
                         'cj_pid' => $snap->pid,

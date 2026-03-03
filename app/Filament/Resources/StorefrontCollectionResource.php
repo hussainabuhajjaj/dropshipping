@@ -6,7 +6,6 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\StorefrontCollectionResource\Pages;
 use App\Models\Category;
-use App\Models\Product;
 use App\Models\StorefrontCollection;
 use BackedEnum;
 use Filament\Actions\DeleteBulkAction;
@@ -190,6 +189,11 @@ class StorefrontCollectionResource extends BaseResource
                                 ->placeholder('Default sorting'),
                         ]),
 
+                    Forms\Components\Placeholder::make('manual_products_help')
+                        ->label('Manual products')
+                        ->content('When Selection Mode is Manual or Hybrid, manage products in the Products tab.')
+                        ->visible(fn (Get $get): bool => in_array((string) $get('selection_mode'), ['manual', 'hybrid'], true)),
+
                     Section::make('Rule-based filters')
                         ->columnSpan('full')
                         ->description('Filter by category, price, stock, and rating when rules are enabled.')
@@ -218,35 +222,17 @@ class StorefrontCollectionResource extends BaseResource
                                 ]),
                             Forms\Components\TextInput::make('query')
                                 ->label('Search keyword'),
-                            Forms\Components\Select::make('exclude_product_ids')
-                                ->label('Exclude products')
-                                ->multiple()
-                                ->options(fn () => Product::query()->orderBy('name')->limit(200)->pluck('name', 'id'))
-                                ->searchable(),
                         ])
                         ->visible(fn (Get $get) => in_array($get('selection_mode'), ['rules', 'hybrid'], true)),
-
-                    Section::make('Manual products')
-                        ->columnSpan('full')
-                        ->description('Manually order featured products when manual mode is selected.')
-                        ->schema([
-                            Forms\Components\Repeater::make('manual_products')
-                                ->schema([
-                                    Forms\Components\Select::make('product_id')
-                                        ->label('Product')
-                                        ->options(fn () => Product::query()->orderBy('name')->limit(200)->pluck('name', 'id'))
-                                        ->searchable()
-                                        ->required(),
-                                    Forms\Components\TextInput::make('position')
-                                        ->numeric()
-                                        ->default(0),
-                                ])
-                                ->columns(2)
-                                ->reorderable()
-                                ->visible(fn (Get $get) => in_array($get('selection_mode'), ['manual', 'hybrid'], true)),
-                        ]),
                 ]),
         ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            StorefrontCollectionResource\RelationManagers\ProductsRelationManager::class,
+        ];
     }
 
     public static function table(Table $table): Table

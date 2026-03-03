@@ -231,26 +231,83 @@
                         </div>
 
                         @if ($activeImportTrackingKey)
-                            <div wire:poll.{{ $this->getImportPollIntervalSeconds() }}s="refreshQueueImportStatus" class="rounded-lg border border-primary-200/70 bg-primary-50 p-3 dark:border-primary-800 dark:bg-primary-900/30">
-                                <div class="mb-2 flex items-center justify-between">
-                                    <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Queued Import Progress</p>
-                                    <x-filament::badge color="{{ $importFailed > 0 ? 'warning' : 'primary' }}">
-                                        {{ str_replace('_', ' ', ucfirst($importStatusLabel)) }}
+                            <!-- Compact Enhanced Progress Bar -->
+                            <div wire:poll.{{ $this->getImportPollIntervalSeconds() }}s="refreshQueueImportStatus"
+                                 class="relative overflow-hidden rounded-lg border border-primary-300 bg-gradient-to-br from-primary-50 to-primary-100 p-3 shadow-md dark:border-primary-700 dark:from-primary-900/50 dark:to-primary-800/50">
+
+                                <!-- Header with status -->
+                                <div class="relative mb-3 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-white">
+                                            <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold text-primary-800 dark:text-primary-200">Import Progress</p>
+                                            <p class="text-xs text-primary-600 dark:text-primary-400">{{ str_replace('_', ' ', ucfirst($importStatusLabel)) }}</p>
+                                        </div>
+                                    </div>
+                                    <x-filament::badge color="{{ $importFailed > 0 ? 'warning' : 'success' }}" size="xs">
+                                        {{ $importPercent }}%
                                     </x-filament::badge>
                                 </div>
-                                <div class="mb-2 h-2 overflow-hidden rounded-full bg-primary-100 dark:bg-primary-900">
-                                    <div class="h-full rounded-full bg-primary-600 transition-all" style="width: {{ min(100, max(0, $importPercent)) }}%"></div>
+
+                                <!-- Main progress bar -->
+                                <div class="relative mb-3 h-3 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 shadow-inner">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-500 ease-out shadow"
+                                         style="width: {{ min(100, max(0, $importPercent)) }}%">
+                                        <!-- Animated shimmer effect -->
+                                        <div class="h-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                                    </div>
+                                    <!-- Progress text overlay -->
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-xs font-bold text-white mix-blend-difference">
+                                            {{ min(100, max(0, $importPercent)) }}%
+                                        </span>
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-3 gap-2 text-xs text-gray-700 dark:text-gray-200">
-                                    <span>Total {{ number_format($importTotal) }}</span>
-                                    <span>Done {{ number_format($importProcessed) }}</span>
-                                    <span>Failed {{ number_format($importFailed) }}</span>
+
+                                <!-- Compact stats -->
+                                <div class="relative flex justify-between text-center">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-bold text-primary-800 dark:text-primary-200">{{ number_format($importTotal) }}</p>
+                                        <p class="text-xs text-primary-600 dark:text-primary-400">Total</p>
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-bold text-green-700 dark:text-green-300">{{ number_format($importProcessed) }}</p>
+                                        <p class="text-xs text-green-600 dark:text-green-400">Done</p>
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-bold {{ $importFailed > 0 ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-300' }}">{{ number_format($importFailed) }}</p>
+                                        <p class="text-xs {{ $importFailed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400' }}">Failed</p>
+                                    </div>
                                 </div>
+
+                                <!-- Action button for failures -->
                                 @if ($importFailed > 0)
-                                    <x-filament::button type="button" color="warning" size="sm" class="mt-3 w-full justify-center" wire:click="retryFailedQueuedImports" wire:loading.attr="disabled">
-                                        Retry Failed PIDs
-                                    </x-filament::button>
+                                    <div class="relative mt-3">
+                                        <x-filament::button type="button" color="warning" size="xs"
+                                                            class="w-full justify-center text-xs"
+                                                            wire:click="retryFailedQueuedImports"
+                                                            wire:loading.attr="disabled">
+                                            Retry Failed
+                                        </x-filament::button>
+                                    </div>
                                 @endif
+                            </div>
+                        @else
+                            <div class="rounded-lg border border-gray-200/70 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/30">
+                                <div class="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <p class="text-xs">No active imports</p>
+                                </div>
+                                <p class="mt-1 text-center text-xs text-gray-500 dark:text-gray-500">
+                                    Select products and click "Import with Pipeline"
+                                </p>
                             </div>
                         @endif
 
@@ -340,8 +397,14 @@
 
                                 <x-filament::button
                                     type="button"
-                                    color="primary"
-                                    x-on:click.prevent="$wire.queueImportSelectedByKeys(Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value))"
+                                    color="success"
+                                    icon="heroicon-o-rocket-launch"
+                                    x-on:click.prevent="
+                                        const selected = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value);
+                                        if (selected.length > 0) {
+                                            $wire.mountTableBulkAction('importPipeline', selected);
+                                        }
+                                    "
                                     x-bind:disabled="selectedCount < 1"
                                     wire:loading.attr="disabled"
                                     class="justify-center"

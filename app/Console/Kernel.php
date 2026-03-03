@@ -25,49 +25,84 @@ class Kernel extends ConsoleKernel
      *
      * @var array
      */
-        protected $commands = [
-            CjSyncCatalog::class,
-            TranslateProducts::class,
-            TranslateCategories::class,
-            \App\Console\Commands\TranslateMobileStrings::class,
-            \App\Console\Commands\CjCleanupWebhooks::class,
-            \App\Console\Commands\CjRefreshToken::class,
-            SyncCjVariants::class,
-            \App\Console\Commands\CjFixProductDetails::class,
-            CjBatchSyncVariantsCommand::class,
-            \App\Console\Commands\FixCorruptedMargins::class,
-            \App\Console\Commands\MonitorPriceCorruption::class,
-            \App\Console\Commands\CreateAffiliateCommand::class,
-            \App\Console\Commands\CreateAffiliateUserCommand::class,
-            \App\Console\Commands\GenerateAffiliateReportsCommand::class,
-            \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
-        ];
+    protected $commands = [
+        CjSyncCatalog::class,
+        TranslateProducts::class,
+        TranslateCategories::class,
+        \App\Console\Commands\TranslateMobileStrings::class,
+        \App\Console\Commands\CjCleanupWebhooks::class,
+        \App\Console\Commands\CjRefreshToken::class,
+        SyncCjVariants::class,
+        \App\Console\Commands\CjFixProductDetails::class,
+        CjBatchSyncVariantsCommand::class,
+        \App\Console\Commands\FixCorruptedMargins::class,
+        \App\Console\Commands\MonitorPriceCorruption::class,
+        \App\Console\Commands\CreateAffiliateCommand::class,
+        \App\Console\Commands\CreateAffiliateUserCommand::class,
+        \App\Console\Commands\GenerateAffiliateReportsCommand::class,
+        \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
+        \App\Console\Commands\CjSyncStockByVid::class,
+        \App\Console\Commands\CjSyncMedia::class,
+    ];
 
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('cj:sync-catalog')->dailyAt('02:00');
-        // Hourly CJ inventory sync for active products (every hour)
-        $schedule->job(new SyncCjInventoryHourly())->hourly();
-        // Sync CJ variants and stock levels (runs daily at 02:30)
-        $schedule->command('cj:sync-variants')->dailyAt('02:30');
-        // Proactive token refresh to avoid expiry gaps (runs daily at 03:30)
+        // DISABLED: Daily full catalog sync - too heavy on server resources
+        // Using weekly sync instead to prevent database corruption and OOM issues
+        // $schedule->call(function () {
+        //     $service = app(\App\Domain\Products\Services\CjProductImportService::class);
+        //     $result = $service->importBulkWithPipeline([
+        //         'margin_percent' => (float) config('services.cj.import_margin', 35),
+        //         'enrich' => true,
+        //         'skip_existing' => true,
+        //     ]);
+        //     \Illuminate\Support\Facades\Log::info('CJ daily sync completed', $result);
+        // })->dailyAt('00:00')
+        //   ->name('cj-daily-import-new')
+        //   ->withoutOverlapping();
+
+        // NEW: Weekly full refresh (update all products, no skip-existing)
+        $schedule->call(function () {
+            $service = app(\App\Domain\Products\Services\CjProductImportService::class);
+            $service->importBulkWithPipeline([
+                'margin_percent' => (float) config('services.cj.import_margin', 35),
+                'enrich' => true,
+                'skip_existing' => false, // Update all products weekly
+            ]);
+        })->weeklyOn(0, '03:00')
+            ->name('cj-full-sync-weekly')
+            ->withoutOverlapping();
+
+        // REMOVED: Duplicate sync at 02:00 (already covered by cj-full-sync-daily above)
+        // $schedule->command('cj:sync-catalog')->dailyAt('02:00');
+
+        // OPTIMIZED: Use new smart stock sync instead of hourly heavy job
+        // Old: $schedule->job(new SyncCjInventoryHourly())->hourly();
+        $schedule->command('cj:sync-existing-stock --fast --skip-recent=6')
+            ->everySixHours()
+            ->name('cj-smart-stock-sync')
+            ->withoutOverlapping();
+
+        // DEPRECATED: Old fragmented sync commands (kept for safety, will remove after testing)
+        // $schedule->command('cj:sync-variants')->dailyAt('02:30');
+        // $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
+
+        // Keep: Token refresh
         $schedule->command('cj:refresh-token')->dailyAt('03:30');
-        // Low stock check and alert email (runs daily at 04:00)
+
+        // OPTIMIZED: Reduced from 10k to 1k products, use smart skip
+        $schedule->command('cj:sync-existing-stock --turbo --skip-recent=24')
+            ->dailyAt('23:59')
+            ->name('cj-daily-stock-refresh')
+            ->withoutOverlapping();
+
+        // Keep: Other non-CJ jobs
         $schedule->job(new CheckLowStockJob())->dailyAt('04:00');
-        // Calculate customer lifetime values (runs weekly on Sunday at 01:00)
         $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');
-        // Abandoned cart reminder emails (runs every 30 minutes)
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
-        // Request product reviews (7 days after delivery)
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
-
-        // Auto-approve pending CJ fulfillment items (every 10 minutes)
         $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
-
-        // Flag shipments that have no tracking updates for too long
         $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
-        
-        // Monitor for price corruption every 30 minutes
         $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
     }
 

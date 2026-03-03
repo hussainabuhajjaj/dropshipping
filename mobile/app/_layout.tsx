@@ -24,213 +24,236 @@ import { ToastProvider } from '@/src/overlays/ToastProvider';
 import { registerSupportChatNotificationHandlers } from '@/src/lib/supportChatNotifications';
 
 const loadGestureHandlerModule = () => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
-  } catch {
-    return null;
-  }
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        return require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
+    } catch {
+        return null;
+    }
 };
 
 const gestureHandler = loadGestureHandlerModule();
 if (!gestureHandler && __DEV__) {
-  // Helps catch "stale dev client" / missing native module issues without crashing the app.
-  // eslint-disable-next-line no-console
-  console.warn(
-    "[native] 'react-native-gesture-handler' is unavailable. If you're using a dev client, rebuild the native app (expo run:*)."
-  );
+    // Helps catch "stale dev client" / missing native module issues without crashing the app.
+    // eslint-disable-next-line no-console
+    console.warn(
+        "[native] 'react-native-gesture-handler' is unavailable. If you're using a dev client, rebuild the native app (expo run:*)."
+    );
 }
 
 const GestureRootView: any = gestureHandler?.GestureHandlerRootView ?? View;
 
 const ROUTE_TITLE_OVERRIDES: Record<string, string> = {
-  '+not-found': 'Not Found',
-  'account/wishlist': 'Wish List',
-  modal: 'Product',
+    '+not-found': 'Not Found',
+    'account/wishlist': 'Wish List',
+    modal: 'Product',
 };
 
 const SEGMENT_TITLE_OVERRIDES: Record<string, string> = {
-  wishlist: 'Wish List',
-  faq: 'FAQ',
+    wishlist: 'Wish List',
+    faq: 'FAQ',
 };
 
 const DYNAMIC_TITLE_BY_PARENT: Record<string, string> = {
-  products: 'Product',
-  orders: 'Order Details',
-  legal: 'Legal',
+    products: 'Product',
+    orders: 'Order Details',
+    legal: 'Legal',
 };
 
 const formatRouteTitle = (routeName: string, t: (key: string, fallback?: string) => string) => {
-  const normalized = routeName
-    .replace(/\(.*?\)\//g, '')
-    .replace(/\/index$/, '')
-    .replace(/^index$/, '');
+    const normalized = routeName
+        .replace(/\(.*?\)\//g, '')
+        .replace(/\/index$/, '')
+        .replace(/^index$/, '');
 
-  if (!normalized) {
-    return t('Home', 'Home');
-  }
+    if (!normalized) {
+        return t('Home', 'Home');
+    }
 
-  const override = ROUTE_TITLE_OVERRIDES[normalized];
-  if (override) {
-    return t(override, override);
-  }
+    const override = ROUTE_TITLE_OVERRIDES[normalized];
+    if (override) {
+        return t(override, override);
+    }
 
-  const parts = normalized.split('/').filter(Boolean);
-  const last = parts[parts.length - 1] ?? normalized;
+    const parts = normalized.split('/').filter(Boolean);
+    const last = parts[parts.length - 1] ?? normalized;
 
-  if (last.startsWith('[') && last.endsWith(']')) {
-    const parent = parts[parts.length - 2] ?? '';
-    const fallback = DYNAMIC_TITLE_BY_PARENT[parent] ?? 'Details';
-    return t(fallback, fallback);
-  }
+    if (last.startsWith('[') && last.endsWith(']')) {
+        const parent = parts[parts.length - 2] ?? '';
+        const fallback = DYNAMIC_TITLE_BY_PARENT[parent] ?? 'Details';
+        return t(fallback, fallback);
+    }
 
-  const cleaned = last.replace(/-\d+$/, '');
-  const segmentOverride = SEGMENT_TITLE_OVERRIDES[cleaned];
-  if (segmentOverride) {
-    return t(segmentOverride, segmentOverride);
-  }
+    const cleaned = last.replace(/-\d+$/, '');
+    const segmentOverride = SEGMENT_TITLE_OVERRIDES[cleaned];
+    if (segmentOverride) {
+        return t(segmentOverride, segmentOverride);
+    }
 
-  const title = cleaned
-    .split('-')
-    .filter(Boolean)
-    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
-    .join(' ');
+    const title = cleaned
+        .split('-')
+        .filter(Boolean)
+        .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+        .join(' ');
 
-  return t(title, title);
+    return t(title, title);
 };
 
 export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+    // Catch any errors thrown by the Layout component.
+    ErrorBoundary,
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: 'index',
+    // Ensure that reloading on `/modal` keeps a back button present.
+    initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
-  });
+    const [loaded, error] = useFonts({
+        SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+        ...FontAwesome.font,
+    });
 
-  useEffect(() => {
-    LogBox.ignoreLogs([
-      'SafeAreaView has been deprecated',
-      'Clipboard has been extracted from react-native core',
-      'PushNotificationIOS has been extracted from react-native core',
-    ]);
-  }, []);
+    useEffect(() => {
+        LogBox.ignoreLogs([
+            'SafeAreaView has been deprecated',
+            'Clipboard has been extracted from react-native core',
+            'PushNotificationIOS has been extracted from react-native core',
+        ]);
+    }, []);
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+    useEffect(() => {
+        if (error) throw error;
+    }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    useEffect(() => {
+        if (loaded) {
+            SplashScreen.hideAsync();
+        }
+    }, [loaded]);
+
+    useEffect(() => {
+        if (loaded) {
+            requestAppPermissions();
+        }
+    }, [loaded]);
+
+    if (!loaded) {
+        return null;
     }
-  }, [loaded]);
 
-  useEffect(() => {
-    if (loaded) {
-      requestAppPermissions();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
+    return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+    const colorScheme = useColorScheme();
 
-  useEffect(() => {
-    return registerSupportChatNotificationHandlers();
-  }, []);
+    useEffect(() => {
+        return registerSupportChatNotificationHandlers();
+    }, []);
 
-  return (
-    <GestureRootView style={styles.gestureRoot}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthProvider>
-          <PreferencesProvider>
-            <TranslationsProvider>
-              <PortalHost>
-                <ToastProvider>
-                  <CartProvider>
-                    <OrdersProvider>
-                      <PaymentMethodsProvider>
-                        <AddressesProvider>
-                          <WishlistProvider>
-                            <RecentlyViewedProvider>
-                              <StackWithTranslations />
-                              {/* <DebugApiBanner /> */}
-                            </RecentlyViewedProvider>
-                          </WishlistProvider>
-                        </AddressesProvider>
-                      </PaymentMethodsProvider>
-                    </OrdersProvider>
-                  </CartProvider>
-                </ToastProvider>
-              </PortalHost>
-            </TranslationsProvider>
-          </PreferencesProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </GestureRootView>
-  );
+    return (
+        <GestureRootView style={styles.gestureRoot}>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <AuthProvider>
+                    <PreferencesProvider>
+                        <TranslationsProvider>
+                            <PortalHost>
+                                <ToastProvider>
+                                    <CartProvider>
+                                        <OrdersProvider>
+                                            <PaymentMethodsProvider>
+                                                <AddressesProvider>
+                                                    <WishlistProvider>
+                                                        <RecentlyViewedProvider>
+                                                            <StackWithTranslations />
+                                                            {/* <DebugApiBanner /> */}
+                                                        </RecentlyViewedProvider>
+                                                    </WishlistProvider>
+                                                </AddressesProvider>
+                                            </PaymentMethodsProvider>
+                                        </OrdersProvider>
+                                    </CartProvider>
+                                </ToastProvider>
+                            </PortalHost>
+                        </TranslationsProvider>
+                    </PreferencesProvider>
+                </AuthProvider>
+            </ThemeProvider>
+        </GestureRootView>
+    );
 }
 
 function StackWithTranslations() {
-  const { t } = useTranslations();
+    const { t } = useTranslations();
 
-  return (
-    <Stack
-      screenOptions={({ route }) => ({
-        title: formatRouteTitle(route.name, t),
-      })}
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="products" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
-  );
+    return (
+        <Stack
+            screenOptions={({ route }) => ({
+                title: formatRouteTitle(route.name, t),
+            })}
+        >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="products" options={{ headerShown: false }} />
+            <Stack.Screen name="orders" options={{ headerShown: false }} />
+            <Stack.Screen name="payment" options={{ headerShown: false }} />
+            <Stack.Screen name="checkout" options={{ headerShown: false }} />
+            <Stack.Screen name="account" options={{ headerShown: false }} />
+            <Stack.Screen name="auth" options={{ headerShown: false }} />
+            <Stack.Screen name="cart" options={{ headerShown: false }} />
+            <Stack.Screen name="chat" options={{ headerShown: false }} />
+            <Stack.Screen name="contact" options={{ headerShown: false }} />
+            <Stack.Screen name="faq" options={{ headerShown: false }} />
+            <Stack.Screen name="feedback" options={{ headerShown: false }} />
+            <Stack.Screen name="flash-sale" options={{ headerShown: false }} />
+            <Stack.Screen name="image-search" options={{ headerShown: false }} />
+            <Stack.Screen name="legal" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="preferences" options={{ headerShown: false }} />
+            <Stack.Screen name="rewards" options={{ headerShown: false }} />
+            <Stack.Screen name="search" options={{ headerShown: false }} />
+            <Stack.Screen name="settings" options={{ headerShown: false }} />
+            <Stack.Screen name="shipping" options={{ headerShown: false }} />
+            <Stack.Screen name="shop" options={{ headerShown: false }} />
+            <Stack.Screen name="stories" options={{ headerShown: false }} />
+            <Stack.Screen name="support" options={{ headerShown: false }} />
+            <Stack.Screen name="about" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+    );
 }
 
 function DebugApiBanner() {
-  if (!__DEV__) return null;
-  return (
-    <View pointerEvents="none" style={styles.apiBanner}>
-      <Text style={styles.apiBannerText}>API: {apiBaseUrl}</Text>
-    </View>
-  );
+    if (!__DEV__) return null;
+    return (
+        <View pointerEvents="none" style={styles.apiBanner}>
+            <Text style={styles.apiBannerText}>API: {apiBaseUrl}</Text>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  gestureRoot: {
-    flex: 1,
-  },
-  apiBanner: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  apiBannerText: {
-    color: '#fff',
-    fontSize: 11,
-  },
+    gestureRoot: {
+        flex: 1,
+    },
+    apiBanner: {
+        position: 'absolute',
+        left: 12,
+        right: 12,
+        bottom: 12,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 8,
+    },
+    apiBannerText: {
+        color: '#fff',
+        fontSize: 11,
+    },
 });

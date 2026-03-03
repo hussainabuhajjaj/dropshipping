@@ -49,10 +49,13 @@
         </Head>
 
         <!-- Marketplace Header -->
-        <header class="sticky top-0 z-50 shadow-md bg-slate-950 text-white">
+        <header
+            class="sticky top-0 z-[100] shadow-md bg-slate-950 text-white transition-all duration-200"
+            :class="mobileHeaderCompact ? 'mobile-header-compact' : ''"
+        >
             <!-- Top row -->
             <div class="container mx-auto px-4">
-                <div class="flex items-center gap-3 py-3">
+                <div class="flex items-center gap-3 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
                     <!-- Mobile Menu Toggle -->
                     <button
                         type="button"
@@ -67,7 +70,7 @@
 
                     <!-- Brand Logo -->
                     <Link href="/" class="flex items-center gap-2">
-                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="h-10 w-auto"/>
+                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="w-auto transition-all duration-200" :class="mobileHeaderCompact ? 'h-8' : 'h-10'"/>
                         <span v-else class="text-xl font-bold text-white">{{ brandName }}</span>
                     </Link>
 
@@ -99,13 +102,18 @@
 
                     <!-- Large Search Bar (desktop) -->
                     <form class="hidden flex-1 items-center lg:flex" @submit.prevent="submitSearch">
-                        <div class="relative mx-auto w-full max-w-3xl">
+                        <div ref="desktopSearchRef" class="relative mx-auto w-full max-w-3xl">
                             <input
                                 v-model="search"
                                 type="search"
                                 :placeholder="t('What are you looking for?')"
                                 class="w-full rounded-lg border-2 border-slate-600 bg-white px-5 py-3 pl-12 text-sm text-slate-900 placeholder-slate-500 focus:border-[#f59e0b] focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
                                 :aria-label="t('Search products')"
+                                @focus="handleSearchFocus"
+                                @keydown.down.prevent="handleSuggestionNext"
+                                @keydown.up.prevent="handleSuggestionPrev"
+                                @keydown.enter.prevent="handleSearchEnter"
+                                @keydown.esc.prevent="closeSearchSuggestions"
                             />
                             <svg
                                 viewBox="0 0 24 24"
@@ -124,6 +132,44 @@
                             >
                                 {{ t('Search') }}
                             </button>
+
+                            <div
+                                v-if="showSearchSuggestions"
+                                class="search-suggestions-panel absolute left-0 right-0 top-full mt-2 rounded-xl border border-slate-200 bg-white shadow-xl"
+                            >
+                                <div v-if="isFetchingSuggestions" class="search-suggestion-loading">
+                                    {{ t('Searching...') }}
+                                </div>
+                                <div v-else class="py-1">
+                                    <div v-if="isShowingRecentSuggestions" class="search-suggestions-header">
+                                        <span>{{ t('Recent searches') }}</span>
+                                        <button type="button" class="text-xs text-slate-500 transition hover:text-slate-900" @click="clearRecentSearches">
+                                            {{ t('Clear') }}
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        v-for="(item, index) in searchSuggestionItems"
+                                        :key="`${item.type}-${item.id || item.href}-${index}`"
+                                        type="button"
+                                        class="search-suggestion-item"
+                                        :class="selectedSuggestionIndex === index ? 'search-suggestion-item-active' : ''"
+                                        @mousedown.prevent
+                                        @click="selectSuggestion(item)"
+                                    >
+                                        <img v-if="item.image" :src="item.image" :alt="item.label" class="h-8 w-8 rounded-md object-cover"/>
+                                        <span v-else class="search-suggestion-icon">{{ item.type === 'category' ? 'C' : item.type === 'view_all' ? '↵' : 'P' }}</span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-semibold text-slate-900">{{ item.label }}</span>
+                                            <span v-if="item.meta" class="block truncate text-xs text-slate-500">{{ item.meta }}</span>
+                                        </span>
+                                    </button>
+
+                                    <div v-if="showNoSuggestionsState" class="search-no-results">
+                                        {{ t('No quick matches found. Press Enter to see full results.') }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </form>
 
@@ -377,15 +423,22 @@
             </div>
 
             <!-- Mobile Search Bar -->
-            <div class="border-t border-slate-700/50 px-4 py-3 lg:hidden">
+            <div
+                class="border-t border-slate-700/50 px-4 py-3 lg:hidden"
+            >
                 <form class="flex items-center gap-2" @submit.prevent="submitSearch">
-                    <div class="relative w-full">
+                    <div ref="mobileSearchRef" class="relative w-full">
                         <input
                             v-model="search"
                             type="search"
                             :placeholder="t('What are you looking for?')"
                             class="w-full rounded-lg border-2 border-slate-600 bg-white px-4 py-2 pl-10 text-sm text-slate-900 placeholder-slate-500 focus:border-[#f59e0b] focus:outline-none"
                             :aria-label="t('Search products')"
+                            @focus="handleSearchFocus"
+                            @keydown.down.prevent="handleSuggestionNext"
+                            @keydown.up.prevent="handleSuggestionPrev"
+                            @keydown.enter.prevent="handleSearchEnter"
+                            @keydown.esc.prevent="closeSearchSuggestions"
                         />
                         <svg
                             viewBox="0 0 24 24"
@@ -397,6 +450,44 @@
                             <path stroke-linecap="round" stroke-linejoin="round"
                                   d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
                         </svg>
+
+                        <div
+                            v-if="showSearchSuggestions"
+                            class="search-suggestions-panel absolute left-0 right-0 top-full mt-2 rounded-xl border border-slate-200 bg-white shadow-xl"
+                        >
+                            <div v-if="isFetchingSuggestions" class="search-suggestion-loading">
+                                {{ t('Searching...') }}
+                            </div>
+                            <div v-else class="py-1">
+                                <div v-if="isShowingRecentSuggestions" class="search-suggestions-header">
+                                    <span>{{ t('Recent searches') }}</span>
+                                    <button type="button" class="text-xs text-slate-500 transition hover:text-slate-900" @click="clearRecentSearches">
+                                        {{ t('Clear') }}
+                                    </button>
+                                </div>
+
+                                <button
+                                    v-for="(item, index) in searchSuggestionItems"
+                                    :key="`mobile-${item.type}-${item.id || item.href}-${index}`"
+                                    type="button"
+                                    class="search-suggestion-item"
+                                    :class="selectedSuggestionIndex === index ? 'search-suggestion-item-active' : ''"
+                                    @mousedown.prevent
+                                    @click="selectSuggestion(item)"
+                                >
+                                    <img v-if="item.image" :src="item.image" :alt="item.label" class="h-8 w-8 rounded-md object-cover"/>
+                                    <span v-else class="search-suggestion-icon">{{ item.type === 'category' ? 'C' : item.type === 'view_all' ? '↵' : 'P' }}</span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-semibold text-slate-900">{{ item.label }}</span>
+                                        <span v-if="item.meta" class="block truncate text-xs text-slate-500">{{ item.meta }}</span>
+                                    </span>
+                                </button>
+
+                                <div v-if="showNoSuggestionsState" class="search-no-results">
+                                    {{ t('No quick matches found. Press Enter to see full results.') }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <button type="submit"
@@ -484,7 +575,7 @@
                             <div class="grid grid-cols-1 gap-8 lg:grid-cols-5">
                                 <!-- 4 Columns of Links -->
                                 <div v-for="(section, idx) in selectedCategory.sections" :key="'section-' + idx"
-                                      class="space-y-3">
+                                     class="space-y-3">
                                     <h3 class="text-sm font-bold uppercase tracking-wider text-[#0f172a]">
                                         {{ section.title }}
                                     </h3>
@@ -591,11 +682,11 @@
             </div>
         </Transition>
 
-        <main class="container-base pb-16 pt-10">
+        <main class="container-base pb-24 pt-6 lg:pb-16 lg:pt-10">
             <slot/>
         </main>
 
-        <footer class="border-t border-slate-200 bg-white/90">
+        <footer class="border-t border-slate-200 bg-white/90 pb-24 lg:pb-0">
             <div class="container-base grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-5">
                 <div class="space-y-3">
                     <p class="text-lg font-semibold text-slate-900">{{ brandName }}</p>
@@ -623,6 +714,46 @@
                 </div>
             </div>
         </footer>
+
+        <!-- Mobile bottom app tabs -->
+        <nav class="mobile-app-nav fixed inset-x-0 bottom-0 z-[55] border-t border-slate-200 bg-white/95 shadow-[0_-10px_35px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
+            <div class="mx-auto flex max-w-lg items-center justify-between px-2 pt-2">
+                <Link
+                    v-for="tab in mobileTabs"
+                    :key="tab.key"
+                    :href="tab.href"
+                    class="mobile-app-tab"
+                    :class="isMobileTabActive(tab) ? 'mobile-app-tab-active' : 'mobile-app-tab-idle'"
+                >
+                    <span class="relative inline-flex h-7 w-7 items-center justify-center">
+                        <svg v-if="tab.icon === 'home'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5L12 3l9 7.5" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 9.75V21h13.5V9.75" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'categories'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'search'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
+                        </svg>
+                        <svg v-else-if="tab.icon === 'cart'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                        </svg>
+                        <svg v-else viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+
+                        <span
+                            v-if="tab.key === 'cart' && cartCount"
+                            class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.6rem] font-semibold text-white"
+                        >
+                            {{ cartCount > 99 ? '99+' : cartCount }}
+                        </span>
+                    </span>
+                    <span class="text-[0.65rem] font-semibold tracking-wide">{{ tab.label }}</span>
+                </Link>
+            </div>
+        </nav>
 
         <!-- Mobile overlay -->
         <Transition
@@ -833,7 +964,6 @@ import {computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useTranslations} from '@/i18n'
-
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
@@ -868,7 +998,21 @@ const accountOpen = ref(false)
 const cartOpen = ref(false)
 const accountRef = ref(null)
 const cartRef = ref(null)
+const desktopSearchRef = ref(null)
+const mobileSearchRef = ref(null)
 const isNavigating = ref(false)
+const mobileHeaderCompact = ref(false)
+const isSearchFocused = ref(false)
+const isFetchingSuggestions = ref(false)
+const selectedSuggestionIndex = ref(-1)
+const searchSuggestions = ref({products: [], categories: []})
+const recentSearches = ref([])
+const recentSearchStorageKey = 'simbazu_recent_searches'
+const maxRecentSearches = 6
+let searchSuggestionsTimer = null
+let searchSuggestionsAbortController = null
+const enableMobileHeaderCompact = false
+let mobileHeaderStateRaf = null
 
 const selectedLocation = ref('Abidjan')
 const locationOpen = ref(false)
@@ -1163,6 +1307,190 @@ const rootCategories = computed(() => categories.value)
 // --- Search ---
 const resolveSearch = () => page.props.query ?? page.props.filters?.q ?? ''
 const search = ref(resolveSearch())
+const normalizedSearchQuery = computed(() => String(search.value || '').trim())
+const recentSuggestionItems = computed(() =>
+    recentSearches.value.map((term) => ({
+        type: 'recent',
+        id: `recent-${term}`,
+        label: term,
+        meta: t('Recent'),
+        href: `/search?q=${encodeURIComponent(term)}`,
+    }))
+)
+const searchSuggestionItems = computed(() => {
+    const query = normalizedSearchQuery.value
+    if (query.length < 2) return recentSuggestionItems.value
+
+    const categoryItems = (searchSuggestions.value.categories ?? []).map((category) => ({
+        type: 'category',
+        id: category.id,
+        label: category.name,
+        meta: t('Category'),
+        href: category.href,
+    }))
+
+    const productItems = (searchSuggestions.value.products ?? []).map((product) => ({
+        type: 'product',
+        id: product.id,
+        label: product.name,
+        meta: product.category || t('Product'),
+        href: product.href,
+        image: product.image || null,
+    }))
+
+    return [
+        ...categoryItems,
+        ...productItems,
+        {
+            type: 'view_all',
+            id: `view-all-${query}`,
+            label: t('View all results for ":query"', {query}),
+            meta: t('Search'),
+            href: `/search?q=${encodeURIComponent(query)}`,
+        },
+    ]
+})
+const isShowingRecentSuggestions = computed(() => normalizedSearchQuery.value.length < 2)
+const showNoSuggestionsState = computed(() => {
+    if (isShowingRecentSuggestions.value || isFetchingSuggestions.value) {
+        return false
+    }
+
+    return (searchSuggestions.value.products?.length ?? 0) === 0 && (searchSuggestions.value.categories?.length ?? 0) === 0
+})
+const showSearchSuggestions = computed(() => {
+    const queryLength = normalizedSearchQuery.value.length
+    if (!isSearchFocused.value) return false
+
+    if (queryLength < 2) {
+        return searchSuggestionItems.value.length > 0
+    }
+
+    return isFetchingSuggestions.value || searchSuggestionItems.value.length > 0 || showNoSuggestionsState.value
+})
+
+const persistRecentSearches = () => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(recentSearchStorageKey, JSON.stringify(recentSearches.value))
+}
+
+const loadRecentSearches = () => {
+    if (typeof window === 'undefined') return
+    try {
+        const raw = window.localStorage.getItem(recentSearchStorageKey)
+        const parsed = JSON.parse(raw || '[]')
+        recentSearches.value = Array.isArray(parsed)
+            ? parsed
+                .map((term) => String(term || '').trim())
+                .filter((term) => term.length >= 2)
+                .slice(0, maxRecentSearches)
+            : []
+    } catch {
+        recentSearches.value = []
+    }
+}
+
+const addRecentSearch = (term) => {
+    const value = String(term || '').trim()
+    if (value.length < 2) return
+
+    recentSearches.value = [
+        value,
+        ...recentSearches.value.filter((item) => item.toLowerCase() !== value.toLowerCase()),
+    ].slice(0, maxRecentSearches)
+    persistRecentSearches()
+}
+
+const clearRecentSearches = () => {
+    recentSearches.value = []
+    persistRecentSearches()
+}
+
+const fetchSearchSuggestions = async (query) => {
+    if (searchSuggestionsAbortController) {
+        searchSuggestionsAbortController.abort()
+    }
+
+    const controller = new AbortController()
+    searchSuggestionsAbortController = controller
+    isFetchingSuggestions.value = true
+
+    try {
+        const response = await fetch(`/search/suggest?q=${encodeURIComponent(query)}&products_limit=5&categories_limit=4`, {
+            headers: {
+                Accept: 'application/json',
+            },
+            signal: controller.signal,
+        })
+
+        if (!response.ok) {
+            throw new Error('suggestions_request_failed')
+        }
+
+        const payload = await response.json()
+        if (controller !== searchSuggestionsAbortController) {
+            return
+        }
+
+        searchSuggestions.value = {
+            products: Array.isArray(payload?.products) ? payload.products : [],
+            categories: Array.isArray(payload?.categories) ? payload.categories : [],
+        }
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            searchSuggestions.value = {products: [], categories: []}
+        }
+    } finally {
+        if (controller === searchSuggestionsAbortController) {
+            isFetchingSuggestions.value = false
+        }
+    }
+}
+
+const closeSearchSuggestions = () => {
+    isSearchFocused.value = false
+    selectedSuggestionIndex.value = -1
+}
+
+const handleSearchFocus = () => {
+    isSearchFocused.value = true
+    const query = String(search.value || '').trim()
+    if (query.length >= 2) {
+        fetchSearchSuggestions(query)
+    }
+}
+
+const handleSuggestionNext = () => {
+    const total = searchSuggestionItems.value.length
+    if (!total) return
+    selectedSuggestionIndex.value = (selectedSuggestionIndex.value + 1 + total) % total
+}
+
+const handleSuggestionPrev = () => {
+    const total = searchSuggestionItems.value.length
+    if (!total) return
+    selectedSuggestionIndex.value = (selectedSuggestionIndex.value - 1 + total) % total
+}
+
+const selectSuggestion = (item) => {
+    if (!item?.href) return
+    if (item.type === 'recent') {
+        search.value = item.label
+    }
+    addRecentSearch(normalizedSearchQuery.value || item.label)
+    closeSearchSuggestions()
+    router.get(item.href)
+}
+
+const handleSearchEnter = () => {
+    const total = searchSuggestionItems.value.length
+    if (showSearchSuggestions.value && total > 0 && selectedSuggestionIndex.value >= 0 && selectedSuggestionIndex.value < total) {
+        selectSuggestion(searchSuggestionItems.value[selectedSuggestionIndex.value])
+        return
+    }
+    submitSearch()
+}
+
 watch(
     () => [page.props.query, page.props.filters?.q],
     () => {
@@ -1170,13 +1498,112 @@ watch(
     }
 )
 
+watch(search, (value) => {
+    const query = String(value || '').trim()
+    selectedSuggestionIndex.value = -1
+
+    if (searchSuggestionsTimer) {
+        clearTimeout(searchSuggestionsTimer)
+        searchSuggestionsTimer = null
+    }
+
+    if (query.length < 2) {
+        searchSuggestions.value = {products: [], categories: []}
+        isFetchingSuggestions.value = false
+        return
+    }
+
+    searchSuggestionsTimer = setTimeout(() => {
+        fetchSearchSuggestions(query)
+    }, 220)
+})
+
 const submitSearch = () => {
     const value = String(search.value || '').trim()
+    closeSearchSuggestions()
     if (!value) {
         router.get('/products')
         return
     }
+    addRecentSearch(value)
     router.get('/search', {q: value}, {preserveState: true, replace: true})
+}
+
+const mobileTabs = computed(() => [
+    {
+        key: 'home',
+        href: '/',
+        label: t('Home'),
+        icon: 'home',
+    },
+    {
+        key: 'categories',
+        href: '/products',
+        label: t('Categories'),
+        icon: 'categories',
+    },
+    {
+        key: 'search',
+        href: '/search',
+        label: t('Search'),
+        icon: 'search',
+    },
+    {
+        key: 'cart',
+        href: '/cart',
+        label: t('Cart'),
+        icon: 'cart',
+    },
+    {
+        key: 'account',
+        href: authUser.value ? '/account' : route('login'),
+        label: t('Account'),
+        icon: 'account',
+    },
+])
+
+const isMobileTabActive = (tab) => {
+    const path = currentPath.value || '/'
+    if (tab.key === 'home') return path === '/'
+    if (tab.key === 'categories') return path.startsWith('/products') || path.startsWith('/categories')
+    if (tab.key === 'search') return path.startsWith('/search')
+    if (tab.key === 'cart') return path.startsWith('/cart') || path.startsWith('/checkout')
+    if (tab.key === 'account') return path.startsWith('/account') || path.startsWith('/orders')
+    return false
+}
+
+const updateMobileHeaderState = () => {
+    if (typeof window === 'undefined') return
+
+    if (!enableMobileHeaderCompact) {
+        mobileHeaderCompact.value = false
+        return
+    }
+
+    const isMobileViewport = window.innerWidth < 1024
+    if (!isMobileViewport) {
+        mobileHeaderCompact.value = false
+        return
+    }
+
+    const scrollY = window.scrollY
+    const enterThreshold = Math.max(120, Math.round(window.innerHeight * 0.16))
+    const exitThreshold = Math.max(56, Math.round(enterThreshold * 0.55))
+
+    if (mobileHeaderCompact.value) {
+        mobileHeaderCompact.value = scrollY > exitThreshold
+        return
+    }
+
+    mobileHeaderCompact.value = scrollY > enterThreshold
+}
+
+const scheduleMobileHeaderStateUpdate = () => {
+    if (mobileHeaderStateRaf) return
+    mobileHeaderStateRaf = window.requestAnimationFrame(() => {
+        mobileHeaderStateRaf = null
+        updateMobileHeaderState()
+    })
 }
 
 
@@ -1249,17 +1676,47 @@ const handleDocumentClick = (event) => {
     const target = event.target
     if (accountOpen.value && accountRef.value && !accountRef.value.contains(target)) accountOpen.value = false
     if (cartOpen.value && cartRef.value && !cartRef.value.contains(target)) cartOpen.value = false
+
+    const inDesktopSearch = desktopSearchRef.value && desktopSearchRef.value.contains(target)
+    const inMobileSearch = mobileSearchRef.value && mobileSearchRef.value.contains(target)
+    if (!inDesktopSearch && !inMobileSearch) {
+        closeSearchSuggestions()
+    }
 }
 
 onMounted(() => {
     document.addEventListener('click', handleDocumentClick)
+    loadRecentSearches()
     requestAnimationFrame(updateScrollArrows)
     window.addEventListener('resize', updateScrollArrows)
+
+    if (enableMobileHeaderCompact) {
+        window.addEventListener('scroll', scheduleMobileHeaderStateUpdate, {passive: true})
+        window.addEventListener('resize', updateMobileHeaderState)
+        requestAnimationFrame(updateMobileHeaderState)
+    }
 })
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick)
     window.removeEventListener('resize', updateScrollArrows)
+
+    if (enableMobileHeaderCompact) {
+        window.removeEventListener('scroll', scheduleMobileHeaderStateUpdate)
+        window.removeEventListener('resize', updateMobileHeaderState)
+    }
+
+    if (mobileHeaderStateRaf) {
+        window.cancelAnimationFrame(mobileHeaderStateRaf)
+        mobileHeaderStateRaf = null
+    }
+
+    if (searchSuggestionsTimer) {
+        clearTimeout(searchSuggestionsTimer)
+    }
+    if (searchSuggestionsAbortController) {
+        searchSuggestionsAbortController.abort()
+    }
 })
 
 // update arrows when categories change (async load)
@@ -1325,9 +1782,133 @@ const categoryHref = (category) => {
     border-color: var(--brand-strong);
 }
 
+.mobile-app-nav {
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
+}
+
+.mobile-app-tab {
+    display: inline-flex;
+    min-width: 4.2rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border-radius: 0.9rem;
+    padding: 0.5rem 0.35rem;
+    transition: all 150ms ease;
+}
+
+.mobile-app-tab-idle {
+    color: rgb(100 116 139);
+}
+
+.mobile-app-tab-active {
+    color: rgb(15 23 42);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.08) 100%);
+}
+
+.search-suggestions-panel {
+    z-index: 90;
+    max-height: min(22rem, 60vh);
+    overflow-y: auto;
+}
+
+.search-suggestion-loading {
+    padding: 0.75rem 0.9rem;
+    font-size: 0.8rem;
+    color: rgb(71 85 105);
+}
+
+.search-suggestion-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 0.85rem;
+    text-align: left;
+    transition: background-color 120ms ease;
+}
+
+.search-suggestion-item:hover,
+.search-suggestion-item-active {
+    background: rgb(248 250 252);
+}
+
+.search-suggestions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.85rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+}
+
+.search-suggestion-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: rgb(241 245 249);
+    color: rgb(51 65 85);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.search-no-results {
+    padding: 0.6rem 0.9rem 0.8rem;
+    font-size: 0.75rem;
+    color: rgb(100 116 139);
+}
+
+.mobile-search-wrap,
+.mobile-categories-wrap {
+    overflow: hidden;
+    transition: max-height 200ms ease, opacity 180ms ease, transform 200ms ease, padding 200ms ease;
+}
+
+.mobile-search-wrap {
+    max-height: 5.5rem;
+}
+
+.mobile-categories-wrap {
+    max-height: 6.5rem;
+}
+
+.mobile-search-wrap-collapsed {
+    max-height: 0;
+    min-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    overflow: hidden;
+    transform: translateY(-6px);
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+}
+
+.mobile-categories-wrap-collapsed {
+    max-height: 0;
+    min-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    overflow: hidden;
+    transform: translateY(-8px);
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+}
+
 /* .nav-link utility classes should be used directly in the template. */
-</style>
+
 /* Header gradient background */
 .bg-gradient-header {
-background: linear-gradient(90deg,rgba(240, 236, 214, 1) 0%, rgba(246, 225, 109, 1) 50%, rgba(245, 149, 15, 1) 100%);
+    background: linear-gradient(90deg, rgba(240, 236, 214, 1) 0%, rgba(246, 225, 109, 1) 50%, rgba(245, 149, 15, 1) 100%);
 }
+</style>

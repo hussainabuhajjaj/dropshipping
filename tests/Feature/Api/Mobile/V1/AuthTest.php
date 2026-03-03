@@ -56,4 +56,35 @@ class AuthTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_delete_account_removes_customer_and_tokens(): void
+    {
+        $customer = Customer::factory()->create([
+            'email' => 'delete@example.com',
+            'password' => 'secret123',
+        ]);
+
+        $token = $customer->createToken('test-device')->plainTextToken;
+
+        $this->assertDatabaseHas('customers', ['id' => $customer->id]);
+        $this->assertDatabaseHas('personal_access_tokens', ['tokenable_id' => $customer->id]);
+
+        $response = $this->deleteJson('/api/mobile/v1/account/delete', [], [
+            'Authorization' => "Bearer {$token}",
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.ok', true);
+
+        $this->assertDatabaseMissing('customers', ['id' => $customer->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['tokenable_id' => $customer->id]);
+    }
+
+    public function test_delete_account_requires_authentication(): void
+    {
+        $response = $this->deleteJson('/api/mobile/v1/account/delete');
+
+        $response->assertUnauthorized();
+    }
 }

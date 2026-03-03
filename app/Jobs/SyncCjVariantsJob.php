@@ -44,6 +44,7 @@ class SyncCjVariantsJob implements ShouldQueue
             $resp = $client->getVariantsByPid($this->cjPid);
 
             $variants = $this->extractVariants($resp->data ?? null);
+//            dd($variants);
             if ($variants === null) {
                 $data = $resp->data ?? null;
                 Log::warning('No variants found in CJ response', [
@@ -66,32 +67,34 @@ class SyncCjVariantsJob implements ShouldQueue
                     continue;
                 }
 
-                // Find or create the variant
-                $variant = ProductVariant::where('product_id', $product->id)
+                // Find existing variant to get current values
+                $existingVariant = ProductVariant::where('product_id', $product->id)
                     ->where('cj_vid', $vid)
                     ->first();
 
-                if (!$variant) {
-                    // Create new variant
-                    $variant = new ProductVariant();
-                    $variant->product_id = $product->id;
-                    $variant->cj_vid = $vid;
-                }
+                $variantSku = trim((string) ($variantData['variantSku'] ?? $existingVariant?->sku ?? ''));
+                $sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
 
-                $variantSku = trim((string) ($variantData['variantSku'] ?? $variant->sku ?? ''));
-                $variant->sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
+                $cjStock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
+                $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
+                $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);
 
-                // Update variant data
-                $variant->cj_variant_data = $variantData;
-                $variant->cj_stock = (int) ($variantData['stock'] ?? 0);
-                $variant->stock_on_hand = $variant->cj_stock; // mirror CJ stock into local stock
-                $variant->cj_stock_synced_at = now();
-
-                // Ensure required fields are always populated for inserts.
-                $variant->price = $this->resolveVariantPrice($variantData, $variant, $product);
-                $variant->title = $this->resolveVariantTitle($variantData, $variant, $vid);
-
-                $variant->save();
+                // Use updateOrCreate to avoid column order issues
+                $variant = ProductVariant::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                    ],
+                    [
+                        'sku' => $sku,
+                        'cj_variant_data' => $variantData,
+                        'cj_stock' => $cjStock,
+                        'stock_on_hand' => $cjStock,
+                        'cj_stock_synced_at' => now(),
+                        'price' => $price,
+                        'title' => $title,
+                    ]
+                );
 
                 Log::info('Synced CJ variant', [
                     'product_id' => $product->id,
@@ -237,7 +240,7 @@ class SyncCjVariantsJob implements ShouldQueue
         $candidate = $variantData['variantSellPrice']
             ?? $variantData['variantSugSellPrice']
             ?? $variantData['variantPrice'];
-        
+
         // If variant price is not available, calculate from variant cost
         if (!is_numeric($candidate)) {
             $variantCost = $variantData['variantSellPrice'] ?? $variant->cost_price ?? 0;
@@ -249,12 +252,12 @@ class SyncCjVariantsJob implements ShouldQueue
                 $candidate = 0.0;
             }
         }
-        
+
         // Final validation to prevent corruption
         if (!is_numeric($candidate) || $candidate < 0) {
             $candidate = 0.0;
         }
-        
+
         // Additional corruption prevention
         $variantCost = $variant->cost_price ?? 0;
         if ($variantCost > 0 && $candidate > ($variantCost * 100)) { // >100x markup is corruption
@@ -267,7 +270,7 @@ class SyncCjVariantsJob implements ShouldQueue
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
             $candidate = $pricing->minSellingPrice((float) $variantCost);
         }
-        
+
         return (float) $candidate;
     }
 }

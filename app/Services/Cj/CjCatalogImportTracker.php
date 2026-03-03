@@ -52,6 +52,18 @@ class CjCatalogImportTracker
         return is_array($run) ? $run : null;
     }
 
+    /**
+     * Set tracking data directly
+     * @param array<string, mixed> $data
+     */
+    public function set(string $trackingKey, array $data): void
+    {
+        $runKey = $this->runKey($trackingKey);
+        $data['updated_at'] = Carbon::now()->toDateTimeString();
+
+        Cache::put($runKey, $data, now()->addDays(2));
+    }
+
     public function getActiveKey(int $userId): ?string
     {
         $value = Cache::get($this->activeRunKey($userId));
@@ -142,4 +154,3 @@ class CjCatalogImportTracker
         return self::ACTIVE_RUN_PREFIX . $userId;
     }
 }
-

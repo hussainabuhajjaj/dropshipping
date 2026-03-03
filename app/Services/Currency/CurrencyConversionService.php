@@ -10,7 +10,7 @@ use RuntimeException;
 
 class CurrencyConversionService
 {
-    public function convertAmount(?float $amount, string $from = 'USD', string $to = 'XOF'): ?float
+     public function convertAmount(?float $amount, string $from = 'USD', string $to = 'XOF'): ?float
     {
         if ($amount === null) {
             return null;

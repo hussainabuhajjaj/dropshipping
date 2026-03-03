@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Domain\Products\Models\Product;
+use App\Services\Storefront\HomeBuilderService;
 
 trait TransformsProducts
 {
     protected function transformProduct(Product $product, bool $includeMeta = false): array
     {
+        $homeBuilder = app(HomeBuilderService::class);
         $media = $product->images?->sortBy('position')->pluck('url')->values()->all() ?? [];
+        $media = collect($media)
+            ->map(fn ($url) => $homeBuilder->normalizeImage(is_string($url) ? $url : null))
+            ->filter()
+            ->values()
+            ->all();
         $locale = app()->getLocale();
         $variants = collect($product->variants ?? []);
         $variantPayload = $variants->map(function ($variant) use ($locale, $product) {

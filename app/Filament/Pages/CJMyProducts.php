@@ -11,6 +11,7 @@ use App\Services\Api\ApiException;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\BadgeColumn;
@@ -143,60 +144,66 @@ class CJMyProducts extends Page implements HasTable
 
     public function importProduct(string $pid): void
     {
-        $pid = trim($pid);
         if ($pid === '') {
-            Notification::make()->title('Invalid PID')->warning()->send();
+            Notification::make()->title('Invalid PID')->body('Please provide a valid CJ PID.')->warning()->send();
             return;
         }
 
-        $importer = app(CjProductImportService::class);
         try {
-            $product = $importer->importByPid($pid, [
-                'respectSyncFlag' => false,
-                'defaultSyncEnabled' => true,
-                'syncReviews' => true,
-                'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-            ]);
+            $service = app(CjProductImportService::class);
+            $product = $service->importByPid($pid);
 
-            if (! $product) {
-                Notification::make()->title('CJ product not found')->danger()->send();
-                return;
-            }
-
-            Notification::make()->title("Imported {$product->name}")->success()->send();
-            $this->loadSyncInfo();
-        } catch (ApiException $e) {
-            Log::error('CJ API exception in importProduct()', [
-                'message' => $e->getMessage(),
-                'status' => $e->status,
-                'code' => $e->codeString,
-                'body' => $e->body,
-                'pid' => $pid,
-            ]);
-
-            // Save sanitized error details for admin UI
-            $this->lastApiErrorMessage = $e->getMessage();
-            $this->lastApiErrorStatus = $e->status;
-            $this->lastApiErrorCode = $e->codeString;
-            $body = $e->body;
-            if (is_array($body) || is_object($body)) {
-                $this->lastApiErrorBody = $body;
+            if ($product) {
+                Notification::make()->title('Product imported')->body("Imported: {$product->name}")->success()->send();
             } else {
-                $str = (string) $body;
-                $this->lastApiErrorBody = strlen($str) > 2000 ? substr($str, 0, 2000) . '... (truncated)' : $str;
+                Notification::make()->title('Import failed')->body('Product not found or could not be imported.')->warning()->send();
             }
-
-            // Compute and set an admin hint for remediation
-            $this->lastApiErrorHint = \App\Infrastructure\Fulfillment\Clients\CJ\CjErrorMapper::hint($this->lastApiErrorCode, $this->lastApiErrorStatus, $e->body);
-
-            Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
+        } catch (ApiException $e) {
+            Notification::make()->title('CJ API error')->body($e->getMessage())->danger()->send();
         } catch (\Throwable $e) {
-            Log::error('CJ unexpected exception in importProduct()', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+            Notification::make()->title('Import error')->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    public function importProductWithPipeline(string $pid, array $options): void
+    {
+        if ($pid === '') {
+            Notification::make()->title('Invalid PID')->body('Please provide a valid CJ PID.')->warning()->send();
+            return;
+        }
+
+        try {
+            $service = app(CjProductImportService::class);
+            $result = $service->importBulkWithPipeline([
+                'pids' => [$pid],
+                'margin_percent' => (float) ($options['margin'] ?? 35),
+                'enrich' => (bool) ($options['enrich'] ?? true),
+                'force_activate' => (bool) ($options['auto_activate'] ?? true),
             ]);
 
-            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+            if ($result['activated'] > 0) {
+                Notification::make()
+                    ->title('Product imported and activated')
+                    ->body("Imported with {$options['margin']}% margin")
+                    ->success()
+                    ->send();
+            } elseif ($result['imported'] > 0) {
+                $errors = $result['activation_errors'][$pid] ?? ['Unknown error'];
+                $errorMsg = implode(', ', $errors);
+                Notification::make()
+                    ->title('Product imported but not activated')
+                    ->body("Reason: {$errorMsg}")
+                    ->warning()
+                    ->send();
+            } else {
+                Notification::make()->title('Import failed')->body('Product not found or could not be imported.')->warning()->send();
+            }
+
+            $this->fetch();
+        } catch (ApiException $e) {
+            Notification::make()->title('CJ API error')->body($e->getMessage())->danger()->send();
+        } catch (\Throwable $e) {
+            Notification::make()->title('Import error')->body($e->getMessage())->danger()->send();
         }
     }
 
@@ -373,9 +380,33 @@ class CJMyProducts extends Page implements HasTable
                     ->action(function (): void {
                         $this->testConnection();
                     }),
+                Action::make('importPipeline')
+                    ->label('Import by PID (Pipeline)')
+                    ->icon('heroicon-o-rocket-launch')
+                    ->color('success')
+                    ->schema([
+                        TextInput::make('pid')->label('CJ PID')->required()->maxLength(200),
+                        TextInput::make('margin')
+                            ->label('Margin %')
+                            ->numeric()
+                            ->default(config('services.cj.import_margin', 35))
+                            ->required()
+                            ->minValue(0)
+                            ->maxValue(200),
+                        Toggle::make('enrich')
+                            ->label('Fetch full details')
+                            ->default(true),
+                        Toggle::make('auto_activate')
+                            ->label('Auto-activate if valid')
+                            ->default(true),
+                    ])
+                    ->action(function (array $data): void {
+                        $this->importProductWithPipeline(trim((string) ($data['pid'] ?? '')), $data);
+                    }),
                 Action::make('import')
-                    ->label('Import by PID')
+                    ->label('Import by PID (Legacy)')
                     ->icon('heroicon-o-cloud-arrow-down')
+                    ->color('gray')
                     ->schema([
                         TextInput::make('pid')->label('CJ PID')->required()->maxLength(200),
                     ])
@@ -411,7 +442,7 @@ class CJMyProducts extends Page implements HasTable
                         $this->importProduct((string) ($record['pid'] ?? ''));
                     })
                     ->requiresConfirmation()
-                    ->visible(fn (?array $record): bool => is_array($record) && ! empty($record['pid'])), 
+                    ->visible(fn (?array $record): bool => is_array($record) && ! empty($record['pid'])),
                 Action::make('view')
                     ->label('View on CJ')
                     ->icon('heroicon-o-eye')

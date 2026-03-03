@@ -6,6 +6,12 @@ import {resolvePageComponent} from 'laravel-vite-plugin/inertia-helpers';
 import {createApp, h} from 'vue';
 import {ZiggyVue} from '../../vendor/tightenco/ziggy';
 
+if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => null)
+    })
+}
+
 
 
 const appName = import.meta.env.VITE_APP_NAME || 'Simbazu';

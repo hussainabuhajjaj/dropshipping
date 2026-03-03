@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-//use App\Domain\Products\Models\ProductVariant;
 use App\Http\Resources\User\CartResource;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\CartMinimumService;
@@ -181,7 +180,7 @@ class Cart extends Model
                     ];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
-                    $weight = explode('-', (string)$weight);
+                    $weight = explode('-', (string) $weight);
                     $unit_weight = $weight[count($weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
@@ -201,7 +200,7 @@ class Cart extends Model
             } else {
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
-                    $pack_weight = explode('-', (string)$pack_weight);
+                    $pack_weight = explode('-', (string) $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
@@ -211,7 +210,7 @@ class Cart extends Model
                     ];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
-                    $weight = explode('-', (string)$weight);
+                    $weight = explode('-', (string) $weight);
                     $unit_weight = $weight[count($weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
@@ -222,12 +221,11 @@ class Cart extends Model
                 }
             }
 //dd($weight_breakdown,$total_weight,$product_attrs['cj_payload']['packingWeight']);
-            $total_weight += (float)$unit_weight * $item->quantity;
-
+            $total_weight += (float) $unit_weight * $item->quantity;
         }
         Log::info('Cart weight summary', [
             'cart_id' => $this->id,
-            'total_weight_g' => $total_weight,
+            'total_weight_g' => $total_weight ,
             'weight_breakdown' => $weight_breakdown,
         ]);
         $total_weight_in_kg = $total_weight / 1000;

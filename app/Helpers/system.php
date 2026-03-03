@@ -17,7 +17,6 @@ function calculateTax(float $amount, $tax_rate = 0): float
     return round($amount * ($rate / 100), 2);
 }
 
-
 function calculateTaxFromSettings(float $taxableAmount, ?SiteSetting $settings): float
 {
     if (!$settings || !$settings->tax_rate) {

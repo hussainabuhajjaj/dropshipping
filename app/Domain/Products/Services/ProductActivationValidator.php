@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Products\Services;
 
-use App\Models\Product;
+use App\Domain\Products\Models\Product;
 
 class ProductActivationValidator
 {
@@ -97,4 +97,3 @@ class ProductActivationValidator
         return array_values(array_unique($errors));
     }
 }
-

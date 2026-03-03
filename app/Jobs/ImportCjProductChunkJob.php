@@ -45,7 +45,9 @@ class ImportCjProductChunkJob implements ShouldQueue
             $samplePid = $this->resolvePidFromPayload($this->products[0] ?? []);
             \Log::info('ImportCjProductChunkJob starting', ['count' => count($this->products), 'sample_pid' => $samplePid]);
             $result = $importService->importBulkFromPayloads($this->products, [
-                'dispatchChunkSize' => 50,
+                'dispatchChunkSize' => 100,     // Larger for SEO/translations (CPU-bound)
+                'mediaChunkSize' => 10,          // Small for media (IO-bound)
+                'variantsChunkSize' => 25,       // Medium for variants (DB-heavy)
                 'translate' => true,
                 'generateSeo' => true,
                 'syncMedia' => true,

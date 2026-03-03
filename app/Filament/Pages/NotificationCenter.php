@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Domain\Products\Models\Product as DomainProduct;
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\NewsletterSubscriber;
+use App\Models\Promotion;
 use App\Models\User;
 use App\Notifications\Channels\WhatsAppChannel;
 use App\Notifications\System\ManualNotification;
@@ -37,6 +40,9 @@ class NotificationCenter extends BasePage
     public bool $sendPush = true;
     public bool $sendMail = false;
     public bool $sendWhatsApp = false;
+    public string $targetType = 'custom';
+    public ?string $targetIdentifier = null;
+    public ?string $imageUrl = null;
 
     public function send(): void
     {
@@ -51,6 +57,9 @@ class NotificationCenter extends BasePage
             'sendPush' => ['boolean'],
             'sendMail' => ['boolean'],
             'sendWhatsApp' => ['boolean'],
+            'targetType' => ['required', 'in:custom,product,promotion,category'],
+            'targetIdentifier' => ['nullable', 'string', 'max:255'],
+            'imageUrl' => ['nullable', 'url', 'max:500'],
         ]);
 
         if ($this->audience === 'newsletter') {
@@ -76,11 +85,14 @@ class NotificationCenter extends BasePage
             return;
         }
 
+        [$resolvedActionUrl, $targetPayload] = $this->resolveTargetMetadata();
+
         $notification = new ManualNotification(
             title: $this->notificationTitle,
             body: $this->body,
-            actionUrl: $this->actionUrl,
+            actionUrl: $resolvedActionUrl,
             actionLabel: $this->actionLabel,
+            payload: $targetPayload,
             channels: $channels,
         );
 
@@ -104,7 +116,16 @@ class NotificationCenter extends BasePage
                 ->count('owner_id')
             : 0;
 
-        $this->reset(['notificationTitle', 'body', 'actionUrl', 'actionLabel', 'recipientEmails']);
+        $this->reset([
+            'notificationTitle',
+            'body',
+            'actionUrl',
+            'actionLabel',
+            'recipientEmails',
+            'targetIdentifier',
+            'imageUrl',
+        ]);
+        $this->targetType = 'custom';
 
         Notification::make()
             ->title('Notification sent')
@@ -168,6 +189,101 @@ class NotificationCenter extends BasePage
         }
 
         return $recipients->unique('email')->values();
+    }
+
+    private function resolveTargetMetadata(): array
+    {
+        $actionUrl = $this->actionUrl;
+        $payload = [
+            'target_type' => $this->targetType,
+            'target_identifier' => $this->targetIdentifier,
+        ];
+
+        if ($this->imageUrl) {
+            $payload['image_url'] = $this->imageUrl;
+        }
+
+        $base = $this->frontendBaseUrl();
+
+        if ($this->targetType === 'product' && $this->targetIdentifier) {
+            $query = DomainProduct::query()
+                ->with('images')
+                ->where('slug', $this->targetIdentifier);
+            if (ctype_digit($this->targetIdentifier)) {
+                $query->orWhere('id', (int) $this->targetIdentifier);
+            }
+            $product = $query->first();
+            if ($product) {
+                $payload['target_id'] = $product->id;
+                $payload['target_slug'] = $product->slug;
+                $payload['image_url'] = $payload['image_url'] ?? optional($product->images?->first())->url;
+                $resolved = "{$base}/products/{$product->slug}";
+                $actionUrl = $actionUrl ?: $resolved;
+            }
+        } elseif ($this->targetType === 'promotion' && $this->targetIdentifier) {
+            $query = Promotion::query()->where('slug', $this->targetIdentifier);
+            if (ctype_digit($this->targetIdentifier)) {
+                $query->orWhere('id', (int) $this->targetIdentifier);
+            }
+            $promotion = $query->first();
+            if ($promotion) {
+                $payload['target_id'] = $promotion->id;
+                $payload['target_slug'] = $promotion->slug;
+                $payload['image_url'] = $payload['image_url'] ?? $promotion->hero_image;
+                $resolved = "{$base}/shop?promotion={$promotion->slug}";
+                $actionUrl = $actionUrl ?: $resolved;
+            }
+        } elseif ($this->targetType === 'category' && $this->targetIdentifier) {
+            $query = Category::query()->where('slug', $this->targetIdentifier);
+            if (ctype_digit($this->targetIdentifier)) {
+                $query->orWhere('id', (int) $this->targetIdentifier);
+            }
+            $category = $query->first();
+            if ($category) {
+                $payload['target_id'] = $category->id;
+                $payload['target_slug'] = $category->slug;
+                $resolved = "{$base}/shop?category={$category->slug}";
+                $actionUrl = $actionUrl ?: $resolved;
+            }
+        }
+
+        return [$actionUrl, array_filter($payload, fn ($value) => $value !== null && $value !== '')];
+    }
+
+    public function targetIdentifierLabel(): string
+    {
+        return match ($this->targetType) {
+            'product' => 'Product slug or ID',
+            'promotion' => 'Promotion slug or ID',
+            'category' => 'Category slug or ID',
+            default => 'Target identifier (optional)',
+        };
+    }
+
+    public function targetIdentifierPlaceholder(): string
+    {
+        return match ($this->targetType) {
+            'product' => 'e.g. summer-dress or 1258',
+            'promotion' => 'e.g. valentines-sale or 42',
+            'category' => 'e.g. womens-fashion or 11',
+            default => 'Leave empty to rely on custom URL',
+        };
+    }
+
+    public function targetIdentifierHint(): string
+    {
+        return match ($this->targetType) {
+            'custom' => 'Optional when you type a custom action URL.',
+            'product' => 'Selecting a product auto-populates the action URL and payload.',
+            'promotion' => 'Slugs can include letters, and IDs allow fallback if slug is missing.',
+            'category' => 'Use the slug shown in the Categories list (or the numeric ID).',
+            default => '',
+        };
+    }
+
+    private function frontendBaseUrl(): string
+    {
+        return rtrim((string) config('app.frontend_url', config('app.url')), '/');
     }
 
     private function sendNewsletterCampaign(): void

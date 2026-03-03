@@ -32,6 +32,9 @@ use App\Http\Controllers\Api\Mobile\V1\TranslationsController as MobileTranslati
 use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingController;
 use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
 use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
+use App\Http\Controllers\Api\Mobile\V1\CollectionController as MobileCollectionController;
+use App\Http\Controllers\Api\Mobile\V1\LegalController as MobileLegalController;
+use App\Http\Controllers\Api\Mobile\V1\StoryController as MobileStoryController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -91,12 +94,18 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('products', [MobileProductController::class, 'index']);
     Route::get('products/{product:slug}', [MobileProductController::class, 'show']);
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
+    Route::get('collections', [MobileCollectionController::class, 'index']);
+    Route::get('collections/{collection:slug}', [MobileCollectionController::class, 'show']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::post('translations/register', [MobileTranslationsController::class, 'register']);
     Route::get('orders/track', [MobileOrderController::class, 'track']);
     Route::get('preferences/lookups', [MobilePreferencesController::class, 'lookups']);
     Route::post('newsletter/subscribe', [MobileNewsletterController::class, 'subscribe']);
+    Route::get('legal', [MobileLegalController::class, 'index']);
+    Route::get('legal/{slug}', [MobileLegalController::class, 'show']);
+    Route::get('stories', [MobileStoryController::class, 'index']);
+    Route::get('stories/{id}', [MobileStoryController::class, 'show']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('account')->group(function () {
@@ -119,6 +128,10 @@ Route::prefix('mobile/v1')->group(function () {
             Route::post('phone/verify-otp', [MobileAuthController::class, 'verifyPhoneOtp']);
         });
 
+        Route::prefix('account')->group(function () {
+            Route::delete('delete', [MobileAuthController::class, 'deleteAccount']);
+        });
+
         Route::get('orders', [MobileOrderController::class, 'index']);
         Route::get('orders/{order:number}', [MobileOrderController::class, 'show']);
 
@@ -137,7 +150,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('notifications/mark-read', [MobileNotificationController::class, 'markRead']);
         Route::post('notifications/expo-token', [MobileNotificationController::class, 'registerExpoToken']);
         Route::delete('notifications/expo-token', [MobileNotificationController::class, 'removeExpoToken']);
-      
+
         Route::post('checkout/preview', [MobileCheckoutController::class, 'preview']);
         Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm']);
 

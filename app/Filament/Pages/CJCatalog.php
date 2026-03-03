@@ -13,12 +13,15 @@ use App\Jobs\SyncCjProductsJob;
 use App\Models\CjCatalogFilterPreset;
 use App\Services\Api\ApiException;
 use App\Services\Cj\CjCatalogImportTracker;
+use App\Traits\LogsUserActivity;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Section;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -34,6 +37,7 @@ use UnitEnum;
 class CJCatalog extends BasePage implements HasTable
 {
     use InteractsWithTable;
+    use LogsUserActivity;
 
     private const DEFAULT_PAGE_SIZE = 24;
     private const MIN_PAGE_SIZE = 10;
@@ -43,7 +47,7 @@ class CJCatalog extends BasePage implements HasTable
     private const LISTED_PRODUCTS_FETCH_SIZE = 200;
     private const ALLOWED_SORTS = ['1', '2', '5', '6'];
     private const PRESET_MAX_COUNT = 20;
-    private const IMPORT_TRACKING_POLL_SECONDS = 60;
+    private const IMPORT_TRACKING_POLL_SECONDS = 3; // Near real-time for production
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cloud-arrow-down';
     protected static UnitEnum|string|null $navigationGroup = 'Integrations';
@@ -205,70 +209,70 @@ class CJCatalog extends BasePage implements HasTable
     {
         return [
             ImageColumn::make('image')
-                    ->label('Image')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordImage($record))
-                    ->square()
-                    ->imageSize(48)
-                    ->action(function (array $record): void {
-                        $this->showImagePreview(
-                            $this->recordImage($record),
-                            $this->recordName($record),
-                            $this->recordPid($record),
-                        );
-                    })
-                    ->extraImgAttributes(function (array $record): array {
-                        return $this->recordImage($record)
-                            ? ['class' => 'cursor-zoom-in']
-                            : ['class' => 'cursor-default'];
-                    }),
-                TextColumn::make('name')
-                    ->label('Product')
-                    ->getStateUsing(fn (array $record): string => $this->recordName($record))
-                    ->description(fn (array $record): string => $this->recordSubline($record))
-                    ->wrap()
-                    ->sortable()
-                    ->searchable(),
-                TextColumn::make('category')
-                    ->label('Category')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordCategory($record))
-                    ->placeholder('--')
-                    ->toggleable()
-                    ->searchable(),
-                TextColumn::make('price')
-                    ->label('Price')
-                    ->getStateUsing(fn (array $record): ?float => $this->recordPrice($record))
-                    ->money('USD')
-                    ->placeholder('--')
-                    ->sortable(),
-                TextColumn::make('inventory')
-                    ->label('Inventory')
-                    ->getStateUsing(fn (array $record): ?int => $this->recordInventory($record))
-                    ->badge()
-                    ->color(fn (array $record): string => $this->recordInventoryColor($record))
-                    ->placeholder('n/a')
-                    ->sortable(),
-                TextColumn::make('status')
-                    ->label('Status')
-                    ->getStateUsing(fn (array $record): string => $this->recordStatusLabel($record))
-                    ->badge()
-                    ->color(fn (array $record): string => $this->recordStatusColor($record))
-                    ->sortable(),
-                TextColumn::make('synced_at')
-                    ->label('Last synced')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordSyncedAt($record))
-                    ->placeholder('--')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('pid')
-                    ->label('PID')
-                    ->getStateUsing(fn (array $record): string => $this->recordPid($record))
-                    ->copyable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('sku')
-                    ->label('SKU')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordSku($record))
-                    ->placeholder('--')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                ->label('Image')
+                ->getStateUsing(fn (array $record): ?string => $this->recordImage($record))
+                ->square()
+                ->imageSize(48)
+                ->action(function (array $record): void {
+                    $this->showImagePreview(
+                        $this->recordImage($record),
+                        $this->recordName($record),
+                        $this->recordPid($record),
+                    );
+                })
+                ->extraImgAttributes(function (array $record): array {
+                    return $this->recordImage($record)
+                        ? ['class' => 'cursor-zoom-in']
+                        : ['class' => 'cursor-default'];
+                }),
+            TextColumn::make('name')
+                ->label('Product')
+                ->getStateUsing(fn (array $record): string => $this->recordName($record))
+                ->description(fn (array $record): string => $this->recordSubline($record))
+                ->wrap()
+                ->sortable()
+                ->searchable(),
+            TextColumn::make('category')
+                ->label('Category')
+                ->getStateUsing(fn (array $record): ?string => $this->recordCategory($record))
+                ->placeholder('--')
+                ->toggleable()
+                ->searchable(),
+            TextColumn::make('price')
+                ->label('Price')
+                ->getStateUsing(fn (array $record): ?float => $this->recordPrice($record))
+                ->money('USD')
+                ->placeholder('--')
+                ->sortable(),
+            TextColumn::make('inventory')
+                ->label('Inventory')
+                ->getStateUsing(fn (array $record): ?int => $this->recordInventory($record))
+                ->badge()
+                ->color(fn (array $record): string => $this->recordInventoryColor($record))
+                ->placeholder('n/a')
+                ->sortable(),
+            TextColumn::make('status')
+                ->label('Status')
+                ->getStateUsing(fn (array $record): string => $this->recordStatusLabel($record))
+                ->badge()
+                ->color(fn (array $record): string => $this->recordStatusColor($record))
+                ->sortable(),
+            TextColumn::make('synced_at')
+                ->label('Last synced')
+                ->getStateUsing(fn (array $record): ?string => $this->recordSyncedAt($record))
+                ->placeholder('--')
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('pid')
+                ->label('PID')
+                ->getStateUsing(fn (array $record): string => $this->recordPid($record))
+                ->copyable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('sku')
+                ->label('SKU')
+                ->getStateUsing(fn (array $record): ?string => $this->recordSku($record))
+                ->placeholder('--')
+                ->toggleable(isToggledHiddenByDefault: true),
         ];
     }
 
@@ -278,8 +282,40 @@ class CJCatalog extends BasePage implements HasTable
     private function tableRecordActions(): array
     {
         return [
+            Action::make('importPipeline')
+                ->label('Import (Pipeline)')
+                ->icon('heroicon-o-rocket-launch')
+                ->color('success')
+                ->form([
+                    TextInput::make('margin')
+                        ->label('Margin %')
+                        ->numeric()
+                        ->default(config('services.cj.import_margin', 35))
+                        ->required()
+                        ->minValue(0)
+                        ->maxValue(200)
+                        ->helperText('Markup percentage to apply on cost price'),
+                    Toggle::make('enrich')
+                        ->label('Fetch full details')
+                        ->default(true)
+                        ->helperText('Calls CJ API for complete product data (slower but accurate)'),
+                    Toggle::make('auto_activate')
+                        ->label('Auto-activate if valid')
+                        ->default(true)
+                        ->helperText('Activate product if it passes validation'),
+                ])
+                ->action(function (array $record, array $data): void {
+                    $this->importWithPipeline($this->recordPid($record), $data);
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Import with Full Pipeline')
+                ->modalDescription(fn (array $record) =>
+                "Import {$this->recordName($record)} with automatic pricing, validation, and activation."
+                )
+                ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
             Action::make('import')
-                ->label('Import')
+                ->label('Import (Legacy)')
+                ->color('gray')
                 ->action(function (array $record): void {
                     $this->import($this->recordPid($record));
                 })
@@ -314,10 +350,99 @@ class CJCatalog extends BasePage implements HasTable
     private function tableBulkActions(): array
     {
         return [
+            BulkAction::make('importPipeline')
+                ->label('Import with Pipeline')
+                ->icon('heroicon-o-rocket-launch')
+                ->color('success')
+                ->modalHeading('Bulk Import Products')
+                ->modalDescription('Configure import settings for selected products')
+                ->modalWidth('2xl')
+                ->form([
+                    Section::make('Pricing Settings')
+                        ->schema([
+                            TextInput::make('margin')
+                                ->label('Margin %')
+                                ->numeric()
+                                ->default(config('services.cj.import_margin', 60))
+                                ->required()
+                                ->minValue(0)
+                                ->maxValue(200)
+                                ->suffix('%')
+                                ->helperText('Markup percentage to apply on cost price (recommended: 60%)'),
+                            Toggle::make('apply_to_variants')
+                                ->label('Apply margin to all variants')
+                                ->default(true)
+                                ->helperText('Apply the same margin to all product variants'),
+                        ])
+                        ->columns(2),
+
+                    Section::make('Import Options')
+                        ->schema([
+                            Toggle::make('enrich')
+                                ->label('Fetch full product details')
+                                ->default(true)
+                                ->helperText('Get complete product info, images, and variants from CJ API')
+                                ->reactive(),
+                            Toggle::make('auto_activate')
+                                ->label('Auto-activate if valid')
+                                ->default(true)
+                                ->helperText('Automatically activate products that pass validation'),
+                            Toggle::make('skip_existing')
+                                ->label('Skip already imported products')
+                                ->default(false)
+                                ->helperText('Only import products that don\'t exist in your catalog'),
+                        ])
+                        ->columns(3),
+
+                    Section::make('Category & Organization')
+                        ->schema([
+                            \Filament\Forms\Components\Select::make('default_category_id')
+                                ->label('Default Category (Optional)')
+                                ->options(function () {
+                                    return \App\Models\Category::pluck('name', 'id')->toArray();
+                                })
+                                ->searchable()
+                                ->helperText('Assign products to this category if CJ category mapping fails'),
+                        ]),
+
+                    Section::make('Translation & SEO')
+                        ->schema([
+                            Toggle::make('queue_translations')
+                                ->label('Queue translations')
+                                ->default(true)
+                                ->helperText('Automatically translate products to configured languages'),
+                            Toggle::make('queue_seo')
+                                ->label('Generate SEO metadata')
+                                ->default(true)
+                                ->helperText('Automatically generate SEO titles and descriptions'),
+                        ])
+                        ->columns(2),
+
+                    Section::make('Batch Processing')
+                        ->schema([
+                            \Filament\Forms\Components\Select::make('batch_size')
+                                ->label('Batch Size')
+                                ->options([
+                                    '5' => '5 products (Very Safe)',
+                                    '10' => '10 products (Safe)',
+                                    '25' => '25 products (Balanced)',
+                                    '50' => '50 products (Fast)',
+                                    '100' => '100 products (Very Fast)',
+                                ])
+                                ->default('25')
+                                ->helperText('Products processed per background job. Higher = faster but more memory usage'),
+                        ]),
+                ])
+                ->action(function (Collection $records, array $data): void {
+                    $pids = $this->selectedPids($records);
+                    $this->bulkImportWithPipeline($pids, $data);
+                })
+                ->modalSubmitActionLabel('Import Selected Products')
+                ->modalCancelActionLabel('Cancel'),
             BulkAction::make('importSelected')
-                ->label('Queue import selected')
+                ->label('Queue import (Legacy)')
                 ->icon('heroicon-o-cloud-arrow-down')
-                ->color('primary')
+                ->color('gray')
                 ->requiresConfirmation()
                 ->action(function (Collection $records): void {
                     $pids = $this->selectedPids($records);
@@ -329,6 +454,45 @@ class CJCatalog extends BasePage implements HasTable
                 ->color('secondary')
                 ->action(function (Collection $records): void {
                     $this->addSelectedToMyProducts($records);
+                }),
+
+            BulkAction::make('previewPricing')
+                ->label('Preview Pricing')
+                ->icon('heroicon-o-calculator')
+                ->color('info')
+                ->modalHeading('Preview Pricing for Selected Products')
+                ->modalWidth('3xl')
+                ->schema([
+                    TextInput::make('preview_margin')
+                        ->label('Margin %')
+                        ->numeric()
+                        ->default(60)
+                        ->required()
+                        ->suffix('%')
+                        ->reactive(),
+                ])
+                ->action(function (Collection $records, array $data): void {
+                    $pids = $this->selectedPids($records);
+                    $this->showPricingPreview($pids, $data['preview_margin']);
+                })
+                ->modalSubmitActionLabel('Close'),
+
+            BulkAction::make('checkInventory')
+                ->label('Check Stock Levels')
+                ->icon('heroicon-o-archive-box')
+                ->color('warning')
+                ->action(function (Collection $records): void {
+                    $pids = $this->selectedPids($records);
+                    $this->bulkCheckInventory($pids);
+                }),
+
+            BulkAction::make('exportSelection')
+                ->label('Export to CSV')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->action(function (Collection $records): void {
+                    $pids = $this->selectedPids($records);
+                    $this->exportSelectionToCsv($records);
                 }),
         ];
     }
@@ -544,14 +708,14 @@ class CJCatalog extends BasePage implements HasTable
 
         $this->queueImportStatus = $status;
 
-        $isDone = in_array((string) ($status['status'] ?? ''), ['completed', 'completed_with_failures'], true);
+        $isDone = in_array((string) ($status['status'] ?? ''), ['completed', 'completed_with_failures', 'failed'], true);
         if ($isDone && ! $this->queueImportCompletionNotified) {
             $failed = (int) ($status['failed'] ?? 0);
             $total = (int) ($status['total'] ?? 0);
             $success = (int) ($status['success'] ?? 0);
 
             $notification = Notification::make()
-                ->title($failed > 0 ? 'Queue import completed with failures' : 'Queue import completed')
+                ->title($failed > 0 ? 'Import completed with failures' : 'Import completed')
                 ->body("Processed {$total}, success {$success}, failed {$failed}.")
                 ->seconds(8);
 
@@ -564,6 +728,9 @@ class CJCatalog extends BasePage implements HasTable
             $notification->send();
             $this->queueImportCompletionNotified = true;
             $this->fetch(notify: false);
+
+            // Auto-clear tracking after completion to stop polling
+            $this->activeImportTrackingKey = null;
         }
     }
 
@@ -606,7 +773,6 @@ class CJCatalog extends BasePage implements HasTable
     {
         try {
             $product = $this->importService()->importByPid($pid, $this->defaultImportOptions());
-
             if (! $product) {
                 $this->notifyError('CJ product not found');
                 return;
@@ -979,6 +1145,150 @@ class CJCatalog extends BasePage implements HasTable
         $this->bulkAddToMyProducts($pids);
     }
 
+    public function importWithPipeline(string $pid, array $options): void
+    {
+        try {
+            $importService = app(\App\Domain\Products\Services\CjProductImportService::class);
+            $result = $importService->importBulkWithPipeline([
+                'pids' => [$pid],
+                'margin_percent' => (float) ($options['margin'] ?? 35),
+                'enrich' => (bool) ($options['enrich'] ?? true),
+                'force_activate' => (bool) ($options['auto_activate'] ?? true),
+            ]);
+
+            if ($result['activated'] > 0) {
+                $this->notifySuccess("Product imported and activated with {$options['margin']}% margin");
+            } elseif ($result['imported'] > 0) {
+                $errors = $result['activation_errors'][$pid] ?? [];
+                if (empty($errors)) {
+                    $errorMsg = 'Product imported successfully but validation details not available. Check product in admin panel.';
+                } else {
+                    $errorMsg = implode(', ', $errors);
+                }
+                Notification::make()
+                    ->title('Product imported but not activated')
+                    ->body($errorMsg)
+                    ->warning()
+                    ->persistent()
+                    ->send();
+            } else {
+                $this->notifyError('Import failed');
+            }
+
+            $this->fetch();
+        } catch (\Throwable $e) {
+            $this->notifyError($e->getMessage());
+        }
+    }
+
+    public function bulkImportWithPipeline(array $pids, array $options): void
+    {
+        if (empty($pids)) {
+            Notification::make()->title('No products selected')->warning()->send();
+            return;
+        }
+
+        // Log bulk import initiation
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.import.bulk.initiated',
+            'description' => 'Initiated bulk import of ' . count($pids) . ' products from CJ Catalog',
+            'properties' => [
+                'product_count' => count($pids),
+                'options' => $options,
+                'pids_sample' => array_slice($pids, 0, 5),
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'url' => request()->fullUrl(),
+        ]);
+
+        try {
+            // Filter out already imported products if skip_existing is enabled
+            if ($options['skip_existing'] ?? false) {
+                $existingPids = \App\Models\Product::whereIn('cj_pid', $pids)
+                    ->pluck('cj_pid')
+                    ->toArray();
+                $pids = array_diff($pids, $existingPids);
+
+                if (empty($pids)) {
+                    \App\Models\UserActivityLog::create([
+                        'user_id' => auth()->id(),
+                        'action' => 'cj.import.bulk.skipped',
+                        'description' => 'All ' . count($existingPids) . ' selected products already imported',
+                        'properties' => ['skipped_count' => count($existingPids)],
+                        'ip_address' => request()->ip(),
+                        'user_agent' => request()->userAgent(),
+                    ]);
+                    Notification::make()
+                        ->title('All products already imported')
+                        ->body('All selected products are already in your catalog')
+                        ->warning()
+                        ->send();
+                    return;
+                }
+            }
+
+            // PERFORMANCE OPTIMIZATION: Dispatch to background job instead of synchronous processing
+            $batchSize = (int) ($options['batch_size'] ?? 10);
+            $chunks = array_chunk($pids, $batchSize);
+
+            // Create tracking key for progress monitoring
+            $trackingKey = 'cj_bulk_import_' . auth()->id() . '_' . time();
+
+            // Initialize tracking using the existing tracker method
+            $this->importTracker()->set($trackingKey, [
+                'status' => 'queued',
+                'total' => count($pids),
+                'processed' => 0,
+                'success' => 0,
+                'failed' => 0,
+                'started_at' => now()->toISOString(),
+                'chunks_total' => count($chunks),
+                'chunks_completed' => 0,
+            ]);
+
+            // Dispatch chunks as jobs for parallel processing
+            foreach ($chunks as $index => $chunk) {
+                \App\Jobs\ImportCjProductPipelineChunkJob::dispatch($chunk, [
+                    'margin_percent' => (float) ($options['margin'] ?? 60),
+                    'enrich' => (bool) ($options['enrich'] ?? true),
+                    'force_activate' => (bool) ($options['auto_activate'] ?? true),
+                    'skip_translations' => !(bool) ($options['queue_translations'] ?? true),
+                    'skip_seo' => !(bool) ($options['queue_seo'] ?? true),
+                    'default_category_id' => $options['default_category_id'] ?? null,
+                    'tracking_key' => $trackingKey,
+                    'chunk_index' => $index,
+                ])->onQueue('cj-import');
+            }
+
+            // Set active tracking for UI polling using the proper method
+            $this->activeImportTrackingKey = $trackingKey;
+            $this->queueImportCompletionNotified = false;
+
+            // Immediate success notification - no blocking!
+            Notification::make()
+                ->title('Import Started')
+                ->body(sprintf('Processing %d products in background. You can continue working.', count($pids)))
+                ->success()
+                ->seconds(5)
+                ->send();
+
+        } catch (\Throwable $e) {
+            \Log::error('Bulk import dispatch failed', [
+                'error' => $e->getMessage(),
+                'pids_count' => count($pids),
+                'user_id' => auth()->id(),
+            ]);
+
+            Notification::make()
+                ->title('Import Failed to Start')
+                ->body('Could not start import process. Please try again.')
+                ->danger()
+                ->send();
+        }
+    }
+
     private function hydrateResults(bool $append = false): void
     {
         $payload = $this->products ?? [];
@@ -1247,14 +1557,32 @@ class CJCatalog extends BasePage implements HasTable
 
     private function recordCategory(array $record): ?string
     {
-        return $record['categoryName'] ?? $record['categoryNameEn'] ?? null;
+        // API returns threeCategoryName (3rd level), twoCategoryName (2nd level), oneCategoryName (1st level)
+        return $record['threeCategoryName']
+            ?? $record['twoCategoryName']
+            ?? $record['oneCategoryName']
+            ?? $record['categoryName']      // Fallback for older API versions
+            ?? $record['categoryNameEn']    // Fallback
+            ?? null;
     }
 
     private function recordPrice(array $record): ?float
     {
-        return is_numeric($record['sellPrice'] ?? null)
-            ? (float) $record['sellPrice']
-            : (is_numeric($record['productSellPrice'] ?? null) ? (float) $record['productSellPrice'] : null);
+        // Check all possible price fields from CJ API
+        $priceFields = [
+            'nowPrice',           // Current/discount price (preferred)
+            'discountPrice',      // Best discount price
+            'sellPrice',          // Regular sell price
+            'productSellPrice',   // Alternative sell price field
+        ];
+
+        foreach ($priceFields as $field) {
+            if (is_numeric($record[$field] ?? null)) {
+                return (float) $record[$field];
+            }
+        }
+
+        return null;
     }
 
     private function recordInventory(array $record): ?int
@@ -1762,5 +2090,286 @@ class CJCatalog extends BasePage implements HasTable
         }
 
         return [[], []];
+    }
+
+    /**
+     * Show pricing preview for selected products
+     */
+    public function showPricingPreview(array $pids, float $margin): void
+    {
+        if (empty($pids)) {
+            Notification::make()->title('No products selected')->warning()->send();
+            return;
+        }
+
+        // Log pricing preview
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.pricing.preview',
+            'description' => 'Previewed pricing for ' . count($pids) . ' products with ' . $margin . '% margin',
+            'properties' => [
+                'product_count' => count($pids),
+                'margin' => $margin,
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        $previewData = [];
+        $totalCost = 0;
+        $totalSelling = 0;
+
+        foreach (array_slice($pids, 0, 10) as $pid) {
+            // Find product in current items
+            $record = collect($this->items)->firstWhere(fn($item) => $this->recordPid($item) === $pid);
+            if (!$record) continue;
+
+            $costPrice = $this->recordPrice($record);
+            if (!$costPrice) continue;
+
+            $sellingPrice = round($costPrice * (1 + $margin / 100), 2);
+            $profit = $sellingPrice - $costPrice;
+
+            $previewData[] = [
+                'name' => substr($this->recordName($record), 0, 40),
+                'cost' => $costPrice,
+                'selling' => $sellingPrice,
+                'profit' => $profit,
+            ];
+
+            $totalCost += $costPrice;
+            $totalSelling += $sellingPrice;
+        }
+
+        $message = "Pricing Preview ({$margin}% margin)\n\n";
+        foreach ($previewData as $item) {
+            $message .= sprintf(
+                "%s\nCost: $%.2f → Selling: $%.2f (Profit: $%.2f)\n\n",
+                $item['name'],
+                $item['cost'],
+                $item['selling'],
+                $item['profit']
+            );
+        }
+
+        if (count($pids) > 10) {
+            $message .= sprintf("... and %d more products\n\n", count($pids) - 10);
+        }
+
+        $message .= sprintf(
+            "Total (first 10): Cost $%.2f → Selling $%.2f",
+            $totalCost,
+            $totalSelling
+        );
+
+        Notification::make()
+            ->title('Pricing Preview')
+            ->body($message)
+            ->info()
+            ->persistent()
+            ->send();
+    }
+
+    /**
+     * Check inventory for selected products using real-time CJ API
+     */
+    public function bulkCheckInventory(array $pids): void
+    {
+        if (empty($pids)) {
+            Notification::make()->title('No products selected')->warning()->send();
+            return;
+        }
+
+        // Log inventory check
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.inventory.check.initiated',
+            'description' => 'Started inventory check for ' . count($pids) . ' products',
+            'properties' => ['product_count' => count($pids)],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        $inStock = 0;
+        $outOfStock = 0;
+        $lowStock = 0;
+        $errors = 0;
+        $stockDetails = [];
+
+        $client = $this->catalogClient();
+
+        // Check real-time stock for each product via CJ API
+        foreach ($pids as $pid) {
+            try {
+                // Get product variants first
+                $productResponse = $client->getProduct($pid);
+                $productData = $productResponse->data ?? null;
+
+                if (!$productData) {
+                    $errors++;
+                    continue;
+                }
+
+                // Get variants from product data
+                $variants = $productData['variants'] ?? $productData['variantList'] ?? [];
+                $totalStock = 0;
+
+                // Check stock for each variant using queryByVid
+                foreach ($variants as $variant) {
+                    $vid = $variant['vid'] ?? null;
+                    if (!$vid) continue;
+
+                    try {
+                        // Use getStockByVid which calls queryByVid endpoint
+                        $stockResponse = $client->getStockByVid($vid);
+                        $stockData = $stockResponse->data ?? [];
+
+                        // Parse response according to CJ API docs
+                        // data is an array of warehouse stock info
+                        foreach ($stockData as $warehouseStock) {
+                            // totalInventoryNum is the total available stock
+                            $stock = $warehouseStock['totalInventoryNum'] ??
+                                $warehouseStock['storageNum'] ??
+                                $warehouseStock['cjInventoryNum'] ?? 0;
+                            $totalStock += (int) $stock;
+                        }
+                    } catch (\Exception $e) {
+                        // Skip variant if error
+                        \Illuminate\Support\Facades\Log::debug('CJ stock check failed for VID', [
+                            'vid' => $vid,
+                            'error' => $e->getMessage(),
+                        ]);
+                        continue;
+                    }
+                }
+
+                // Categorize stock level
+                if ($totalStock === 0) {
+                    $outOfStock++;
+                } elseif ($totalStock < 10) {
+                    $lowStock++;
+                } else {
+                    $inStock++;
+                }
+
+                $stockDetails[$pid] = $totalStock;
+
+            } catch (\Exception $e) {
+                $errors++;
+                \Illuminate\Support\Facades\Log::warning('CJ stock check failed for PID', [
+                    'pid' => $pid,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $message = sprintf(
+            "In Stock: %d | Low Stock (<10): %d | Out of Stock: %d",
+            $inStock,
+            $lowStock,
+            $outOfStock
+        );
+
+        if ($errors > 0) {
+            $message .= sprintf(" | Errors: %d", $errors);
+        }
+
+        // Log inventory check results
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.inventory.check.completed',
+            'description' => sprintf('Inventory check: %d in stock, %d low stock, %d out of stock',
+                $inStock, $lowStock, $outOfStock),
+            'properties' => [
+                'in_stock' => $inStock,
+                'low_stock' => $lowStock,
+                'out_of_stock' => $outOfStock,
+                'total_checked' => count($pids),
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        if ($outOfStock > 0 || $errors > 0) {
+            Notification::make()
+                ->title('Stock Check - Warning')
+                ->body($message)
+                ->warning()
+                ->send();
+        } else {
+            Notification::make()
+                ->title('Stock Check - All Good')
+                ->body($message)
+                ->success()
+                ->send();
+        }
+    }
+
+    /**
+     * Export selected products to CSV
+     */
+    public function exportSelectionToCsv(Collection $records): void
+    {
+        // Log export initiation
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.export.csv.initiated',
+            'description' => 'Started CSV export of ' . $records->count() . ' products',
+            'properties' => ['record_count' => $records->count()],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        $data = [];
+
+        foreach ($records as $record) {
+            $data[] = [
+                'PID' => $this->recordPid($record),
+                'SKU' => $this->recordSku($record) ?? '',
+                'Name' => $this->recordName($record),
+                'Category' => $this->recordCategory($record) ?? '',
+                'Price' => $this->recordPrice($record) ?? 0,
+                'Inventory' => $this->recordInventory($record) ?? 0,
+            ];
+        }
+
+        $filename = 'cj-catalog-export-' . date('Y-m-d-His') . '.csv';
+        $filepath = storage_path('app/public/' . $filename);
+
+        $file = fopen($filepath, 'w');
+        fputcsv($file, ['PID', 'SKU', 'Name', 'Category', 'Price', 'Inventory']);
+
+        foreach ($data as $row) {
+            fputcsv($file, $row);
+        }
+
+        fclose($file);
+
+        // Log export completion
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.export.csv.completed',
+            'description' => 'Exported ' . count($data) . ' products to ' . $filename,
+            'properties' => [
+                'product_count' => count($data),
+                'filename' => $filename,
+                'file_path' => $filepath,
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        Notification::make()
+            ->title('Export Complete')
+            ->body("Exported " . count($data) . " products to {$filename}")
+            ->success()
+            ->actions([
+                \Filament\Notifications\Actions\Action::make('download')
+                    ->label('Download')
+                    ->url(asset('storage/' . $filename))
+                    ->openUrlInNewTab(),
+            ])
+            ->persistent()
+            ->send();
     }
 }

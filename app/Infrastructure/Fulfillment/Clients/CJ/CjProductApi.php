@@ -61,6 +61,7 @@ class CjProductApi extends CjBaseApi
 
     public function getProduct(string $pid): ApiResponse
     {
+
         return $this->getProductBy(['pid' => $pid]);
     }
 
@@ -70,9 +71,9 @@ class CjProductApi extends CjBaseApi
             'pid' => $criteria['pid'] ?? null,
             'productSku' => $criteria['productSku'] ?? null,
             'variantSku' => $criteria['variantSku'] ?? null,
-            'featured' => ['enable_description', 'enable_category','enable_inventories','enable_combine','enable_video'],
+            'features' => 'enable_inventory',
+            'countryCode'=>env('CJ_DEFAULT_WAREHOUSE','CN'),
         ], fn ($v) => $v !== null && $v !== '');
-
         return $this->client()->get('/v1/product/query', $params);
     }
 
@@ -215,6 +216,7 @@ class CjProductApi extends CjBaseApi
 
     public function getVariantsByPid(string $pid): ApiResponse
     {
+
         return $this->client()->get('/v1/product/variant/query', ['pid' => $pid]);
     }
 
