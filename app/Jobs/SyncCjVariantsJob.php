@@ -14,6 +14,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 
 class SyncCjVariantsJob implements ShouldQueue
 {
@@ -159,6 +161,45 @@ class SyncCjVariantsJob implements ShouldQueue
                 $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
                 $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);
 
+                // Real-time stock management: Check for actual changes
+                $stockChanged = false;
+                $previousStock = $existingVariant?->cj_stock ?? 0;
+                $previousStockOnHand = $existingVariant?->stock_on_hand ?? 0;
+                
+                if ($previousStock !== $cjStock || $previousStockOnHand !== $stockOnHand) {
+                    $stockChanged = true;
+                    
+                    // Log stock changes for real-time monitoring
+                    Log::info('CJ variant stock changed', [
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                        'previous_cj_stock' => $previousStock,
+                        'new_cj_stock' => $cjStock,
+                        'previous_stock_on_hand' => $previousStockOnHand,
+                        'new_stock_on_hand' => $stockOnHand,
+                        'change_amount' => $cjStock - $previousStock,
+                    ]);
+                    
+                    // Cache stock for real-time access
+                    Cache::put("variant_stock_{$vid}", [
+                        'cj_stock' => $cjStock,
+                        'stock_on_hand' => $stockOnHand,
+                        'updated_at' => now(),
+                    ], 300); // 5 minutes cache
+                    
+                    // Dispatch stock change event for real-time systems
+                    Event::dispatch('variant.stock.changed', [
+                        'variant' => $existingVariant,
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                        'previous_stock' => $previousStock,
+                        'new_stock' => $cjStock,
+                        'previous_stock_on_hand' => $previousStockOnHand,
+                        'new_stock_on_hand' => $stockOnHand,
+                        'timestamp' => now(),
+                    ]);
+                }
+
                 // Use updateOrCreate to avoid column order issues
                 $variant = ProductVariant::updateOrCreate(
                     [
@@ -175,11 +216,24 @@ class SyncCjVariantsJob implements ShouldQueue
                     ]
                 );
 
-                Log::info('Synced CJ variant', [
-                    'product_id' => $product->id,
-                    'cj_vid' => $vid,
-                    'stock' => $variant->cj_stock,
-                ]);
+                // Enhanced logging for real-time monitoring
+                if ($stockChanged) {
+                    Log::info('CJ variant synced with stock changes', [
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                        'stock' => $variant->cj_stock,
+                        'stock_on_hand' => $variant->stock_on_hand,
+                        'changed' => true,
+                    ]);
+                } else {
+                    Log::debug('CJ variant synced (no stock change)', [
+                        'product_id' => $product->id,
+                        'cj_vid' => $vid,
+                        'stock' => $variant->cj_stock,
+                        'stock_on_hand' => $variant->stock_on_hand,
+                        'changed' => false,
+                    ]);
+                }
             }
 
             // Update product sync timestamp
