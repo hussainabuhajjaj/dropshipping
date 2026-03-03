@@ -438,7 +438,7 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
 
         return $response->data ?? [];
 //        $code = $response?->raw?->code;
- //        $status = Arr::get($body, 'status');
+        //        $status = Arr::get($body, 'status');
 //
 //        if ($code && (int)$code !== 200 && strtolower((string)$status) !== 'success') {
 //            throw new FulfillmentException("{$context}: " . json_encode($body));

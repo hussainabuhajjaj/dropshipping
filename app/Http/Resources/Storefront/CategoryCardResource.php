@@ -12,7 +12,7 @@ class CategoryCardResource extends JsonResource
     public function toArray(Request $request): array
     {
         $heroImageRaw = data_get($this->resource, 'hero_image');
-        
+
         // Fallback: if no hero_image, try to get first product image from this category or its children
         if (!$heroImageRaw && method_exists($this->resource, 'getAttribute')) {
             $categoryId = $this->resource->getAttribute('id');
@@ -22,13 +22,13 @@ class CategoryCardResource extends JsonResource
                     ->where('is_active', true)
                     ->with('images')
                     ->first();
-                
+
                 // If no direct products, try products from child categories
                 if (!$firstProduct || $firstProduct->images->isEmpty()) {
                     $childCategoryIds = \App\Models\Category::where('parent_id', $categoryId)
                         ->where('is_active', true)
                         ->pluck('id');
-                    
+
                     if ($childCategoryIds->isNotEmpty()) {
                         $firstProduct = \App\Models\Product::whereIn('category_id', $childCategoryIds)
                             ->where('is_active', true)
@@ -36,13 +36,13 @@ class CategoryCardResource extends JsonResource
                             ->first();
                     }
                 }
-                
+
                 if ($firstProduct && $firstProduct->images->isNotEmpty()) {
                     $heroImageRaw = $firstProduct->images->first()->url;
                 }
             }
         }
-        
+
         // Use hero_image as the primary image since there's no separate image column
         $image = $this->resolveImage($heroImageRaw);
         $heroImage = $this->resolveImage($heroImageRaw);

@@ -60,7 +60,7 @@ class CjCatalogImportTracker
     {
         $runKey = $this->runKey($trackingKey);
         $data['updated_at'] = Carbon::now()->toDateTimeString();
-        
+
         Cache::put($runKey, $data, now()->addDays(2));
     }
 
@@ -154,4 +154,3 @@ class CjCatalogImportTracker
         return self::ACTIVE_RUN_PREFIX . $userId;
     }
 }
-

@@ -112,13 +112,13 @@ class ManualNotification extends Notification implements ShouldQueue
             ->body($this->body)
             ->channelId('default')
             ->sound('default')
-                ->jsonData(array_merge([
-                    'type' => 'manual_notification',
-                    'title' => $this->title,
-                    'body' => $this->body,
-                    'action_url' => $this->actionUrl,
-                    'action_label' => $this->actionLabel,
-                ], $this->payload));
+            ->jsonData(array_merge([
+                'type' => 'manual_notification',
+                'title' => $this->title,
+                'body' => $this->body,
+                'action_url' => $this->actionUrl,
+                'action_label' => $this->actionLabel,
+            ], $this->payload));
     }
 
     private function canSendMail(object $notifiable): bool

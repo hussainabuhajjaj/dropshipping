@@ -74,7 +74,7 @@ class SyncCjVariantsJob implements ShouldQueue
 
                 $variantSku = trim((string) ($variantData['variantSku'] ?? $existingVariant?->sku ?? ''));
                 $sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
-                
+
                 $cjStock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
                 $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
                 $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);

@@ -256,7 +256,7 @@ class CjProductImportService
         // Extract stock information from CJ API data
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
         $stockOnHand = $totalStock > 0 ? (int) ($totalStock / 2) : 0; // Set half of total stock to stock_on_hand
-        
+
         $payload = [
             'name' => $name,
             'category_id' => $category?->id,
@@ -1103,8 +1103,8 @@ class CjProductImportService
 
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
-                            ?? $variant['variantNameEn']
-                            ?? ($variant['variantKey'] ?? 'Variant'),
+                        ?? $variant['variantNameEn']
+                        ?? ($variant['variantKey'] ?? 'Variant'),
                         $product->name
                     );
 
@@ -1128,7 +1128,7 @@ class CjProductImportService
                             if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
                                 $variantStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
                                 $variantStockOnHand = $variantStock > 0 ? (int) ($variantStock / 2) : 0;
-                                
+
                                 Log::info('Variant stock extracted from inventories', [
                                     'cj_vid' => $vid,
                                     'country' => $inventory['countryCode'],
@@ -1138,7 +1138,7 @@ class CjProductImportService
                                     'extracted_stock' => $variantStock,
                                     'stock_on_hand' => $variantStockOnHand
                                 ]);
-                                
+
                                 break;
                             }
                         }
@@ -1875,9 +1875,9 @@ class CjProductImportService
                     // data is an array of warehouse stock info
                     foreach ($stockData as $warehouseStock) {
                         // totalInventoryNum is the total available stock
-                        $stock = $warehouseStock['totalInventoryNum'] ?? 
-                                 $warehouseStock['storageNum'] ?? 
-                                 $warehouseStock['cjInventoryNum'] ?? 0;
+                        $stock = $warehouseStock['totalInventoryNum'] ??
+                            $warehouseStock['storageNum'] ??
+                            $warehouseStock['cjInventoryNum'] ?? 0;
                         $variantTotalStock += (int) $stock;
                     }
 

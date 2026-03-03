@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Domain\Orders\Models\Order;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -122,5 +123,39 @@ class Coupon extends Model
         }
 
         return $this->{$field} ?? null;
+    }
+
+    private function serializeCoupon(): array
+    {
+        return [
+            'id' => $this->id,
+            'code' => $this->code,
+            'type' => $this->type,
+            'amount' => $this->amount,
+            'min_order_total' => $this->min_order_total,
+            'description' => $this->localizedValue('description', app()->getLocale()) ?? $this->description,
+        ];
+    }
+
+    private function redeemCoupon(?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
+    {
+        if ($discountSource !== 'coupon' || $discountAmount <= 0) {
+            return;
+        }
+
+        $this->increment('uses');
+
+        if (!$customer) {
+            return;
+        }
+
+        CouponRedemption::updateOrCreate(
+            ['coupon_id' => $this->id, 'customer_id' => $customer->id],
+            [
+                'order_id' => $order->id,
+                'status' => 'redeemed',
+                'redeemed_at' => now(),
+            ]
+        );
     }
 }

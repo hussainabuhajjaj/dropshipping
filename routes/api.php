@@ -150,7 +150,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('notifications/mark-read', [MobileNotificationController::class, 'markRead']);
         Route::post('notifications/expo-token', [MobileNotificationController::class, 'registerExpoToken']);
         Route::delete('notifications/expo-token', [MobileNotificationController::class, 'removeExpoToken']);
-      
+
         Route::post('checkout/preview', [MobileCheckoutController::class, 'preview']);
         Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm']);
 

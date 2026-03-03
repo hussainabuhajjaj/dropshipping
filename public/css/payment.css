@@ -1,0 +1,72 @@
+/* أنماط إضافية لمكونات الدفع */
+.wpwl-form-card {
+    max-width: 100% !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.wpwl-group-card-number,
+.wpwl-group-expiry,
+.wpwl-group-cvv {
+    margin-bottom: 15px !important;
+}
+
+.wpwl-control {
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 12px 15px !important;
+    font-family: 'Cairo', sans-serif !important;
+}
+
+.wpwl-button-pay {
+    background: #ef4051 !important;
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 14px !important;
+    font-family: 'Cairo', sans-serif !important;
+    font-weight: 700 !important;
+    width: 100% !important;
+}
+
+.wpwl-button-pay:hover {
+    background: #d63242 !important;
+}
+
+/* RTL support for HyperPay forms */
+[dir="rtl"] .wpwl-control {
+    text-align: right;
+}
+
+[dir="rtl"] .wpwl-group-card-number:before,
+[dir="rtl"] .wpwl-group-cvv:before {
+    right: 10px;
+    left: auto;
+}
+
+/* Loader styles */
+.loader-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 9999;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #ef4051;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

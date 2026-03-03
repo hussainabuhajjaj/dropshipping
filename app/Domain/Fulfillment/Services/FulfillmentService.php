@@ -141,7 +141,7 @@ class FulfillmentService
         });
     }
 
-    
+
 
     private function resolveProvider(OrderItem $orderItem): FulfillmentProvider
     {

@@ -442,7 +442,7 @@ class CJMyProducts extends Page implements HasTable
                         $this->importProduct((string) ($record['pid'] ?? ''));
                     })
                     ->requiresConfirmation()
-                    ->visible(fn (?array $record): bool => is_array($record) && ! empty($record['pid'])), 
+                    ->visible(fn (?array $record): bool => is_array($record) && ! empty($record['pid'])),
                 Action::make('view')
                     ->label('View on CJ')
                     ->icon('heroicon-o-eye')

@@ -209,70 +209,70 @@ class CJCatalog extends BasePage implements HasTable
     {
         return [
             ImageColumn::make('image')
-                    ->label('Image')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordImage($record))
-                    ->square()
-                    ->imageSize(48)
-                    ->action(function (array $record): void {
-                        $this->showImagePreview(
-                            $this->recordImage($record),
-                            $this->recordName($record),
-                            $this->recordPid($record),
-                        );
-                    })
-                    ->extraImgAttributes(function (array $record): array {
-                        return $this->recordImage($record)
-                            ? ['class' => 'cursor-zoom-in']
-                            : ['class' => 'cursor-default'];
-                    }),
-                TextColumn::make('name')
-                    ->label('Product')
-                    ->getStateUsing(fn (array $record): string => $this->recordName($record))
-                    ->description(fn (array $record): string => $this->recordSubline($record))
-                    ->wrap()
-                    ->sortable()
-                    ->searchable(),
-                TextColumn::make('category')
-                    ->label('Category')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordCategory($record))
-                    ->placeholder('--')
-                    ->toggleable()
-                    ->searchable(),
-                TextColumn::make('price')
-                    ->label('Price')
-                    ->getStateUsing(fn (array $record): ?float => $this->recordPrice($record))
-                    ->money('USD')
-                    ->placeholder('--')
-                    ->sortable(),
-                TextColumn::make('inventory')
-                    ->label('Inventory')
-                    ->getStateUsing(fn (array $record): ?int => $this->recordInventory($record))
-                    ->badge()
-                    ->color(fn (array $record): string => $this->recordInventoryColor($record))
-                    ->placeholder('n/a')
-                    ->sortable(),
-                TextColumn::make('status')
-                    ->label('Status')
-                    ->getStateUsing(fn (array $record): string => $this->recordStatusLabel($record))
-                    ->badge()
-                    ->color(fn (array $record): string => $this->recordStatusColor($record))
-                    ->sortable(),
-                TextColumn::make('synced_at')
-                    ->label('Last synced')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordSyncedAt($record))
-                    ->placeholder('--')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('pid')
-                    ->label('PID')
-                    ->getStateUsing(fn (array $record): string => $this->recordPid($record))
-                    ->copyable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('sku')
-                    ->label('SKU')
-                    ->getStateUsing(fn (array $record): ?string => $this->recordSku($record))
-                    ->placeholder('--')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                ->label('Image')
+                ->getStateUsing(fn (array $record): ?string => $this->recordImage($record))
+                ->square()
+                ->imageSize(48)
+                ->action(function (array $record): void {
+                    $this->showImagePreview(
+                        $this->recordImage($record),
+                        $this->recordName($record),
+                        $this->recordPid($record),
+                    );
+                })
+                ->extraImgAttributes(function (array $record): array {
+                    return $this->recordImage($record)
+                        ? ['class' => 'cursor-zoom-in']
+                        : ['class' => 'cursor-default'];
+                }),
+            TextColumn::make('name')
+                ->label('Product')
+                ->getStateUsing(fn (array $record): string => $this->recordName($record))
+                ->description(fn (array $record): string => $this->recordSubline($record))
+                ->wrap()
+                ->sortable()
+                ->searchable(),
+            TextColumn::make('category')
+                ->label('Category')
+                ->getStateUsing(fn (array $record): ?string => $this->recordCategory($record))
+                ->placeholder('--')
+                ->toggleable()
+                ->searchable(),
+            TextColumn::make('price')
+                ->label('Price')
+                ->getStateUsing(fn (array $record): ?float => $this->recordPrice($record))
+                ->money('USD')
+                ->placeholder('--')
+                ->sortable(),
+            TextColumn::make('inventory')
+                ->label('Inventory')
+                ->getStateUsing(fn (array $record): ?int => $this->recordInventory($record))
+                ->badge()
+                ->color(fn (array $record): string => $this->recordInventoryColor($record))
+                ->placeholder('n/a')
+                ->sortable(),
+            TextColumn::make('status')
+                ->label('Status')
+                ->getStateUsing(fn (array $record): string => $this->recordStatusLabel($record))
+                ->badge()
+                ->color(fn (array $record): string => $this->recordStatusColor($record))
+                ->sortable(),
+            TextColumn::make('synced_at')
+                ->label('Last synced')
+                ->getStateUsing(fn (array $record): ?string => $this->recordSyncedAt($record))
+                ->placeholder('--')
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('pid')
+                ->label('PID')
+                ->getStateUsing(fn (array $record): string => $this->recordPid($record))
+                ->copyable()
+                ->toggleable(isToggledHiddenByDefault: true),
+            TextColumn::make('sku')
+                ->label('SKU')
+                ->getStateUsing(fn (array $record): ?string => $this->recordSku($record))
+                ->placeholder('--')
+                ->toggleable(isToggledHiddenByDefault: true),
         ];
     }
 
@@ -310,7 +310,7 @@ class CJCatalog extends BasePage implements HasTable
                 ->requiresConfirmation()
                 ->modalHeading('Import with Full Pipeline')
                 ->modalDescription(fn (array $record) =>
-                    "Import {$this->recordName($record)} with automatic pricing, validation, and activation."
+                "Import {$this->recordName($record)} with automatic pricing, validation, and activation."
                 )
                 ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
             Action::make('import')
@@ -728,7 +728,7 @@ class CJCatalog extends BasePage implements HasTable
             $notification->send();
             $this->queueImportCompletionNotified = true;
             $this->fetch(notify: false);
-            
+
             // Auto-clear tracking after completion to stop polling
             $this->activeImportTrackingKey = null;
         }
@@ -1232,10 +1232,10 @@ class CJCatalog extends BasePage implements HasTable
             // PERFORMANCE OPTIMIZATION: Dispatch to background job instead of synchronous processing
             $batchSize = (int) ($options['batch_size'] ?? 10);
             $chunks = array_chunk($pids, $batchSize);
-            
+
             // Create tracking key for progress monitoring
             $trackingKey = 'cj_bulk_import_' . auth()->id() . '_' . time();
-            
+
             // Initialize tracking using the existing tracker method
             $this->importTracker()->set($trackingKey, [
                 'status' => 'queued',
@@ -1280,7 +1280,7 @@ class CJCatalog extends BasePage implements HasTable
                 'pids_count' => count($pids),
                 'user_id' => auth()->id(),
             ]);
-            
+
             Notification::make()
                 ->title('Import Failed to Start')
                 ->body('Could not start import process. Please try again.')
@@ -2234,9 +2234,9 @@ class CJCatalog extends BasePage implements HasTable
                         // data is an array of warehouse stock info
                         foreach ($stockData as $warehouseStock) {
                             // totalInventoryNum is the total available stock
-                            $stock = $warehouseStock['totalInventoryNum'] ?? 
-                                     $warehouseStock['storageNum'] ?? 
-                                     $warehouseStock['cjInventoryNum'] ?? 0;
+                            $stock = $warehouseStock['totalInventoryNum'] ??
+                                $warehouseStock['storageNum'] ??
+                                $warehouseStock['cjInventoryNum'] ?? 0;
                             $totalStock += (int) $stock;
                         }
                     } catch (\Exception $e) {
@@ -2276,25 +2276,25 @@ class CJCatalog extends BasePage implements HasTable
             $outOfStock
         );
 
-    if ($errors > 0) {
-        $message .= sprintf(" | Errors: %d", $errors);
-    }
+        if ($errors > 0) {
+            $message .= sprintf(" | Errors: %d", $errors);
+        }
 
-    // Log inventory check results
-    \App\Models\UserActivityLog::create([
-        'user_id' => auth()->id(),
-        'action' => 'cj.inventory.check.completed',
-        'description' => sprintf('Inventory check: %d in stock, %d low stock, %d out of stock', 
-            $inStock, $lowStock, $outOfStock),
-        'properties' => [
-            'in_stock' => $inStock,
-            'low_stock' => $lowStock,
-            'out_of_stock' => $outOfStock,
-            'total_checked' => count($pids),
-        ],
-        'ip_address' => request()->ip(),
-        'user_agent' => request()->userAgent(),
-    ]);
+        // Log inventory check results
+        \App\Models\UserActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'cj.inventory.check.completed',
+            'description' => sprintf('Inventory check: %d in stock, %d low stock, %d out of stock',
+                $inStock, $lowStock, $outOfStock),
+            'properties' => [
+                'in_stock' => $inStock,
+                'low_stock' => $lowStock,
+                'out_of_stock' => $outOfStock,
+                'total_checked' => count($pids),
+            ],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
 
         if ($outOfStock > 0 || $errors > 0) {
             Notification::make()

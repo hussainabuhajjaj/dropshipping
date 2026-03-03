@@ -1,9 +1,10 @@
 <?php
 
 // --- Core Laravel & Vendor Imports ---
+use App\Http\Controllers\KorapayController;
+use App\Http\Controllers\Storefront\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 
 // --- Storefront Controllers ---
@@ -103,6 +104,7 @@ Route::post('/newsletter/subscribe', [NewsletterController::class, 'store'])->na
 Route::get('/newsletter/unsubscribe/{token}', [NewsletterController::class, 'unsubscribe'])->name('newsletter.unsubscribe');
 Route::get('/newsletter/track/open/{token}', [NewsletterTrackingController::class, 'open'])->name('newsletter.track.open');
 Route::get('/newsletter/track/click/{token}', [NewsletterTrackingController::class, 'click'])->name('newsletter.track.click');
+
 Route::get('/media/proxy', function () {
     $url = (string) request()->query('url', '');
     if ($url === '') {
@@ -128,6 +130,7 @@ Route::get('/media/proxy', function () {
         ->header('Content-Type', $response->header('Content-Type') ?? 'image/jpeg')
         ->header('Cache-Control', 'public, max-age=86400');
 });
+
 Route::get('/coming-soon', function () {
     return Inertia::render('ComingSoon');
 })->name('coming-soon');
@@ -237,5 +240,24 @@ Route::middleware(['auth:customer', 'verified'])->group(function () {
 Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'redirect'])->name('aliexpress.oauth.redirect');
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
+
+
+Route::group(['prefix' => 'pay/{type}/{id}' , 'as' => 'pay.'], function () {
+
+    Route::get('index' , [PaymentController::class , 'index'])->name('index');
+    Route::post('checkout' , [PaymentController::class , 'checkout'])->name('checkout');
+    Route::get('test' , [PaymentController::class , 'test'])->name('test');
+    Route::get('redirect' , [PaymentController::class , 'redirect'])->name('redirect');
+});
+
+
+Route::post('/korapay/initialize', [KorapayController::class, 'initialize'])->name('korapay.initialize');
+Route::post('/korapay/webhook', [KorapayController::class, 'webhook'])->name('korapay.webhook');
+Route::get('/korapay/verify/{reference}', [KorapayController::class, 'verify'])->name('korapay.verify');
+
+
+Route::get('aa' , function(){
+    return view('payment');
+});
 
 require __DIR__.'/auth.php';

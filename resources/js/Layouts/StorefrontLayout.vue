@@ -575,7 +575,7 @@
                             <div class="grid grid-cols-1 gap-8 lg:grid-cols-5">
                                 <!-- 4 Columns of Links -->
                                 <div v-for="(section, idx) in selectedCategory.sections" :key="'section-' + idx"
-                                      class="space-y-3">
+                                     class="space-y-3">
                                     <h3 class="text-sm font-bold uppercase tracking-wider text-[#0f172a]">
                                         {{ section.title }}
                                     </h3>

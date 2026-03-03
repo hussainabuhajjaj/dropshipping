@@ -110,46 +110,46 @@ class ProductResource extends BaseResource
     public static function form(Schema $schema): Schema
     {
         return $schema->schema([
-           Section::make('Basics')
+            Section::make('Basics')
                 ->schema([
-                   TextInput::make('name')
+                    TextInput::make('name')
                         ->required()
                         ->maxLength(255),
-                   Select::make('category_id')
+                    Select::make('category_id')
                         ->label('Category')
                         ->relationship('category', 'name')
                         ->searchable()
                         ->preload(),
-                   TextInput::make('slug')
+                    TextInput::make('slug')
                         ->required()
                         ->maxLength(255)
                         ->helperText('URL slug')
                         ->dehydrateStateUsing(fn ($state, callable $get) => $state ?: Str::slug($get('name'))),
-                   Textarea::make('description')->rows(3),
-                   Toggle::make('is_active')->label('Active')->default(true),
-                   Toggle::make('is_featured')->label('Featured'),
+                    Textarea::make('description')->rows(3),
+                    Toggle::make('is_active')->label('Active')->default(true),
+                    Toggle::make('is_featured')->label('Featured'),
                 ])->columns(2),
-           Section::make('SEO')
+            Section::make('SEO')
                 ->schema([
-                   TextInput::make('meta_title')
+                    TextInput::make('meta_title')
                         ->label('Meta title')
                         ->maxLength(255),
-                   Textarea::make('meta_description')
+                    Textarea::make('meta_description')
                         ->label('Meta description')
                         ->rows(3),
                 ])->columns(2),
-           Section::make('Pricing')
+            Section::make('Pricing')
                 ->schema([
-                   Placeholder::make('pricing_guide')
+                    Placeholder::make('pricing_guide')
                         ->label('Pricing hierarchy')
                         ->content(
                             htmlspecialchars('<div class="text-sm text-slate-600 space-y-1">'
-                            . '<p><strong>Product price:</strong> default for all variants.</p>'
-                            . '<p><strong>Variant price:</strong> overrides product price when set.</p>'
-                            . '<p><strong>Margin:</strong> calculated from cost; must meet minimum threshold.</p>'
-                            . '</div>')
+                                . '<p><strong>Product price:</strong> default for all variants.</p>'
+                                . '<p><strong>Variant price:</strong> overrides product price when set.</p>'
+                                . '<p><strong>Margin:</strong> calculated from cost; must meet minimum threshold.</p>'
+                                . '</div>')
                         ),
-                   TextInput::make('selling_price')
+                    TextInput::make('selling_price')
                         ->label('Selling Price (USD)')
                         ->helperText('Default product-level price in USD; variants can override.')
                         ->prefix('$')
@@ -170,7 +170,7 @@ class ProductResource extends BaseResource
                                 },
                             ];
                         }),
-                   TextInput::make('cost_price')
+                    TextInput::make('cost_price')
                         ->label('Cost Price (USD)')
                         ->helperText('Baseline cost in USD; used when variant cost is missing.')
                         ->prefix('$')
@@ -181,13 +181,13 @@ class ProductResource extends BaseResource
                             $warning = self::marginWarning($get('selling_price'), $get('cost_price'));
                             $set('margin_warning', $warning);
                         }),
-                   Placeholder::make('margin_warning')
+                    Placeholder::make('margin_warning')
                         ->label('Margin warning')
                         ->content(fn (callable $get) => self::marginWarning($get('selling_price'), $get('cost_price')))
                         ->visible(fn (callable $get) => self::marginWarning($get('selling_price'), $get('cost_price')) !== null)
                         ->extraAttributes(['class' => 'text-sm text-amber-600']),
                 ])->columns(3),
-           Section::make('Inventory')
+            Section::make('Inventory')
                 ->schema([
                     TextInput::make('stock_on_hand')
                         ->label('Stock on hand')
@@ -197,22 +197,22 @@ class ProductResource extends BaseResource
                 ])
                 ->columns(1)
                 ->visible(fn ($record) => blank($record?->cj_pid)),
-           Section::make('Suppliers & Fulfillment')
+            Section::make('Suppliers & Fulfillment')
                 ->schema([
-                   Select::make('supplier_id')
+                    Select::make('supplier_id')
                         ->label('Supplier')
                         ->options(fn () => FulfillmentProvider::query()->where('is_active', true)->pluck('name', 'id'))
                         ->searchable()
                         ->preload(),
-                   Select::make('default_fulfillment_provider_id')
+                    Select::make('default_fulfillment_provider_id')
                         ->label('Default Fulfillment Provider')
                         ->options(fn () => FulfillmentProvider::query()->where('is_active', true)->pluck('name', 'id'))
                         ->searchable()
                         ->preload(),
-                   TextInput::make('supplier_product_url')
+                    TextInput::make('supplier_product_url')
                         ->label('Supplier product URL')
                         ->url(),
-                   TextInput::make('shipping_estimate_days')
+                    TextInput::make('shipping_estimate_days')
                         ->label('Ship estimate (days)')
                         ->numeric()
                         ->minValue(0),
@@ -342,33 +342,33 @@ class ProductResource extends BaseResource
     {
         return $table
             ->columns([
- Tables\Columns\ImageColumn::make('primary_image')
-                        ->label('Image')
-                        ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
-                        ->square()
-                        ->checkFileExistence(false)
-                        ->action(
-                            Action::make('viewImages')
-                                ->modalHeading(fn (Product $record) => $record->name)
-                                ->modalContent(fn (Product $record) => view('filament.modals.product-images', [
-                                    'images' => $record->images->sortBy('position')->pluck('url')->filter()->values()->all(),
-                                ]))
-                                ->modalWidth('4xl')
-                                ->modalSubmitAction(false)
-                                ->modalCancelActionLabel('Close')
-                        ),
-                    Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(20,'...')->tooltip(fn ($record) => $record->name),
-                    Tables\Columns\TextColumn::make('quality_score')
-                        ->label('Quality')
-                        ->numeric(decimalPlaces: 0)
-                        ->badge()
-                        ->color(fn (int|float|string|null $state): string => match (true) {
-                            (float) $state < 40 => 'danger',
-                            (float) $state < 70 => 'warning',
-                            default => 'success',
-                        })
-                        ->sortable()
-                        ->toggleable(),
+                Tables\Columns\ImageColumn::make('primary_image')
+                    ->label('Image')
+                    ->getStateUsing(fn (Product $record) => $record->images->sortBy('position')->first()?->url)
+                    ->square()
+                    ->checkFileExistence(false)
+                    ->action(
+                        Action::make('viewImages')
+                            ->modalHeading(fn (Product $record) => $record->name)
+                            ->modalContent(fn (Product $record) => view('filament.modals.product-images', [
+                                'images' => $record->images->sortBy('position')->pluck('url')->filter()->values()->all(),
+                            ]))
+                            ->modalWidth('4xl')
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Close')
+                    ),
+                Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(20,'...')->tooltip(fn ($record) => $record->name),
+                Tables\Columns\TextColumn::make('quality_score')
+                    ->label('Quality')
+                    ->numeric(decimalPlaces: 0)
+                    ->badge()
+                    ->color(fn (int|float|string|null $state): string => match (true) {
+                        (float) $state < 40 => 'danger',
+                        (float) $state < 70 => 'warning',
+                        default => 'success',
+                    })
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('cj_pid')->searchable()->sortable()->limit(10),
                     Tables\Columns\TextColumn::make('source')
                         ->label('Source')
@@ -548,8 +548,172 @@ class ProductResource extends BaseResource
                     Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 ])
                 ->paginated()
-
-            ->filters([
+                                Tables\Columns\TextColumn::make('source')
+                    ->label('Source')
+                    ->getStateUsing(fn (Product $record) => self::sourceLabel($record))
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'CJ' => 'info',
+                        'AliExpress' => 'warning',
+                        default => 'gray',
+                    })
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('sync_status')
+                    ->label('Sync')
+                    ->getStateUsing(fn (Product $record) => self::syncStatus($record))
+                    ->badge()
+                    ->color(fn (Product $record) => self::syncStatusColor($record))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('cj_availability')
+                    ->label('CJ Availability')
+                    ->getStateUsing(fn (Product $record) => self::cjAvailability($record))
+                    ->badge()
+                    ->color(fn (Product $record) => self::cjAvailabilityColor($record))
+                    ->tooltip(fn (Product $record) => $record->cj_removed_reason ?: null)
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('translation_status')
+                    ->label('Translation')
+                    ->badge()
+                    ->getStateUsing(fn (Product $record) => $record->translation_status ?? 'not translated')
+                    ->color(fn (?string $state) => match ($state) {
+                        'completed' => 'success',
+                        'in_progress' => 'warning',
+                        'failed' => 'danger',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state) => Str::headline($state ?? 'not translated'))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('cj_pid')
+                    ->label('CJ PID')
+                    ->copyable()
+                    ->searchable()
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('category.name')->label('Category')->sortable()->toggleable(),
+                Tables\Columns\IconColumn::make('is_active')->boolean(),
+                Tables\Columns\IconColumn::make('is_featured')->boolean()->label('Featured')->toggleable(),
+                Tables\Columns\TextColumn::make('selling_price')
+                    ->label('Selling Price')
+                    ->formatStateUsing(fn (float $state, Product $record): string => AdminCurrencyService::formatPrice($state, $record->currency))
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('cost_price')
+                    ->label('Cost Price')
+                    ->formatStateUsing(fn (float $state, Product $record): string => AdminCurrencyService::formatCost($state, $record->currency))
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('latestMarginLog.old_selling_price')
+                    ->label('Old Price')
+                    ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('latestMarginLog.new_selling_price')
+                    ->label('New Price')
+                    ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('latestMarginLog.created_at')
+                    ->label('Margin Updated At')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\BadgeColumn::make('margin_status')
+                    ->label('Margin Status')
+                    ->getStateUsing(function ($record) {
+                        $cost = self::normalizeAmount($record->cost_price);
+                        $selling = self::normalizeAmount($record->selling_price);
+                        if ($cost === null || $selling === null) {
+                            return 'Missing';
+                        }
+                        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                        $min = $pricing->minSellingPrice($cost);
+                        if ($selling < $min) {
+                            return 'Below Required';
+                        }
+                        return 'OK';
+                    })
+                    ->colors([
+                        'danger' => 'Missing',
+                        'warning' => 'Below Required',
+                        'success' => 'OK',
+                    ]),
+                Tables\Columns\TextColumn::make('stock_on_hand')
+                    ->label('Stock')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('variants.compare_at_price')
+                    ->label('Compare At Price')
+                    ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('images_count')
+                    ->label('Images')
+                    ->badge()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('variants_count')
+                    ->label('Variants')
+                    ->badge()
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('variants_without_price_count')
+                    ->label('Variants No Price')
+                    ->badge()
+                    ->color(fn (int|string|null $state): string => ((int) $state) > 0 ? 'danger' : 'success')
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('reviews_count')
+                    ->label('Reviews')
+                    ->badge()
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('orders_count')
+                    ->label('Orders')
+                    ->badge()
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('supplier.name')->label('Supplier')->sortable()->toggleable(),
+                Tables\Columns\TextColumn::make('defaultFulfillmentProvider.name')
+                    ->label('Fulfillment')
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('shipping_estimate_days')
+                    ->label('Ship est. (d)')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('cj_synced_at')
+                    ->label('Last synced')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TagsColumn::make('cj_last_changed_fields')
+                    ->label('Recent changes')
+                    ->getStateUsing(fn (Product $record) => is_array($record->cj_last_changed_fields) ? $record->cj_last_changed_fields : [])
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
+                Tables\Columns\TextColumn::make('media_status')
+                    ->label('Media status')
+                    ->getStateUsing(fn (Product $record) => self::mediaStatus($record))
+                    ->badge(fn (Product $record) => self::mediaStatusColor($record))
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('cj_lock_price')
+                    ->label('Price lock')
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('cj_lock_description')
+                    ->label('Description lock')
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('cj_lock_images')
+                    ->label('Images lock')
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('cj_lock_variants')
+                    ->label('Variants lock')
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-lock-open')
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->paginated()
                 Tables\Filters\TernaryFilter::make('is_active'),
                 Tables\Filters\Filter::make('ali_express')
                     ->label('AliExpress')
@@ -808,404 +972,404 @@ class ProductResource extends BaseResource
             ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContent)
             ->recordActions([
                 ActionGroup::make([
-                ViewAction::make(),
- ActionsEditAction::make(),
-                Action::make('quickEdit')
-                    ->label('Quick edit')
-                    ->icon('heroicon-o-pencil-square')
-                    ->slideOver()
-                    ->schema([
-                        TextInput::make('selling_price')->label('Selling Price (USD)')->helperText('Default product-level price in USD; variants may override.')->numeric()->required()->prefix('$')->step(0.01),
-                        TextInput::make('cost_price')->label('Cost Price (USD)')->numeric()->required()->prefix('$')->step(0.01),
-                        TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
-                        Toggle::make('is_active')->label('Active'),
-                        Toggle::make('is_featured')->label('Featured'),
-                    ])
-                    ->fillForm(fn (Product $record) => [
-                        'selling_price' => $record->selling_price,
-                        'cost_price' => $record->cost_price,
-                        'stock_on_hand' => $record->stock_on_hand,
-                        'is_active' => (bool) $record->is_active,
-                        'is_featured' => (bool) $record->is_featured,
-                    ])
-                    ->action(function (Product $record, array $data): void {
-                        $record->update([
-                            'selling_price' => $data['selling_price'],
-                            'cost_price' => $data['cost_price'],
-                            'stock_on_hand' => $data['stock_on_hand'] ?? null,
-                            'is_active' => (bool) ($data['is_active'] ?? $record->is_active),
-                            'is_featured' => (bool) ($data['is_featured'] ?? $record->is_featured),
-                        ]);
-                    }),
-                Action::make('setMargin')
-                    ->label('Set margin')
-                    ->icon('heroicon-o-calculator')
-                    ->schema([
-                        TextInput::make('margin_percent')
-                            ->label('Margin %')
-                            ->numeric()
-                            ->default(35)
-                            ->minValue(0)
-                            ->maxValue(500)
-                            ->required(),
-                        Toggle::make('apply_to_variants')
-                            ->label('Apply to variants')
-                            ->default(true),
-                        Toggle::make('queue_compare_at')
-                            ->label('Queue compare-at refresh')
-                            ->default(true),
-                        Toggle::make('activate_if_valid')
-                            ->label('Activate if valid')
-                            ->default(true),
-                    ])
-                    ->action(function (Product $record, array $data): void {
-                        try {
-                            $margin = (float) ($data['margin_percent'] ?? 0);
-                            if ($margin < 0) {
-                                Notification::make()
-                                    ->title('Invalid margin')
-                                    ->body('Margin must be greater than or equal to 0.')
-                                    ->danger()
-                                    ->send();
-                                return;
-                            }
-
-                            $cost = self::normalizeAmount($record->cost_price);
-                            if ($cost === null || $cost < 0) {
-                                Notification::make()
-                                    ->title('Missing cost price')
-                                    ->body('Set a valid cost price before applying margin.')
-                                    ->danger()
-                                    ->send();
-                                return;
-                            }
-
-                            $applyVariants = (bool) ($data['apply_to_variants'] ?? true);
-                            $queueCompareAt = (bool) ($data['queue_compare_at'] ?? true);
-                            $activateIfValid = (bool) ($data['activate_if_valid'] ?? true);
-
-                            $oldSelling = self::normalizeAmount($record->selling_price);
-                            $oldStatus = $record->status;
-                            $oldActive = (bool) $record->is_active;
-
-                            // Calculate new selling price with minimum price validation
-                            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                            $minSelling = $pricing->minSellingPrice($cost);
-                            $calculatedPrice = $cost * (1 + $margin / 100);
-                            $newSelling = max($calculatedPrice, $minSelling);
-                            $newSelling = round($newSelling, 2);
-
+                    ViewAction::make(),
+                    ActionsEditAction::make(),
+                    Action::make('quickEdit')
+                        ->label('Quick edit')
+                        ->icon('heroicon-o-pencil-square')
+                        ->slideOver()
+                        ->schema([
+                            TextInput::make('selling_price')->label('Selling Price (USD)')->helperText('Default product-level price in USD; variants may override.')->numeric()->required()->prefix('$')->step(0.01),
+                            TextInput::make('cost_price')->label('Cost Price (USD)')->numeric()->required()->prefix('$')->step(0.01),
+                            TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
+                            Toggle::make('is_active')->label('Active'),
+                            Toggle::make('is_featured')->label('Featured'),
+                        ])
+                        ->fillForm(fn (Product $record) => [
+                            'selling_price' => $record->selling_price,
+                            'cost_price' => $record->cost_price,
+                            'stock_on_hand' => $record->stock_on_hand,
+                            'is_active' => (bool) $record->is_active,
+                            'is_featured' => (bool) $record->is_featured,
+                        ])
+                        ->action(function (Product $record, array $data): void {
                             $record->update([
-                                'selling_price' => $newSelling,
+                                'selling_price' => $data['selling_price'],
+                                'cost_price' => $data['cost_price'],
+                                'stock_on_hand' => $data['stock_on_hand'] ?? null,
+                                'is_active' => (bool) ($data['is_active'] ?? $record->is_active),
+                                'is_featured' => (bool) ($data['is_featured'] ?? $record->is_featured),
                             ]);
-
-                            $logger = app(ProductMarginLogger::class);
-                            $logger->logProduct($record, [
-                                'event' => 'margin_updated',
-                                'source' => 'manual',
-                                'old_selling_price' => $oldSelling,
-                                'new_selling_price' => $newSelling,
-                                'old_status' => $oldStatus,
-                                'new_status' => $record->status,
-                                'notes' => "Margin set to {$margin}% (single product)",
-                                'skip_sales_count' => true,
-                            ]);
-
-                            $variantUpdated = 0;
-                            $variantSkipped = 0;
-
-                            if ($applyVariants) {
-                                $record->loadMissing('variants');
-                                foreach ($record->variants as $variant) {
-                                    $variant->setRelation('product', $record);
-                                    $variantCost = self::normalizeAmount($variant->cost_price);
-                                    if ($variantCost === null || $variantCost < 0) {
-                                        $variantSkipped++;
-                                        continue;
-                                    }
-
-                                    $oldVariantPrice = self::normalizeAmount($variant->price);
-
-                                    // Calculate new variant price with minimum price validation
-                                    $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                                    $minVariantPrice = $pricing->minSellingPrice($variantCost);
-                                    $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
-                                    $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
-                                    $newVariantPrice = round($newVariantPrice, 2);
-
-                                    $variant->update([
-                                        'price' => $newVariantPrice,
-                                    ]);
-                                    $variantUpdated++;
-
-                                    $logger->logVariant($variant, [
-                                        'event' => 'variant_margin_updated',
-                                        'source' => 'manual',
-                                        'old_selling_price' => $oldVariantPrice,
-                                        'new_selling_price' => $newVariantPrice,
-                                        'notes' => "Margin set to {$margin}% for variant",
-                                        'skip_sales_count' => true,
-                                    ]);
-                                }
-                            }
-
-                            $activationNote = '';
-                            if ($activateIfValid && ! $oldActive) {
-                                $validator = app(ProductActivationValidator::class);
-                                $record->loadMissing('images', 'variants');
-                                $errors = $validator->errorsForActivation($record);
-                                if ($errors === []) {
-                                    $record->update([
-                                        'is_active' => true,
-                                        'status' => 'active',
-                                    ]);
-                                    $logger->logProduct($record, [
-                                        'event' => 'activated',
-                                        'source' => 'manual',
-                                        'old_selling_price' => $oldSelling,
-                                        'new_selling_price' => $newSelling,
-                                        'old_status' => $oldStatus,
-                                        'new_status' => 'active',
-                                        'notes' => 'Product activated after single-product margin update',
-                                        'skip_sales_count' => true,
-                                    ]);
-                                    $activationNote = ' Product activated.';
-                                } else {
-                                    $activationNote = ' Activation skipped: ' . implode(' ', $errors);
-                                }
-                            }
-
-                            if ($queueCompareAt) {
-                                \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false)
-                                    ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
-                            }
-
-                            $oldLabel = $oldSelling !== null ? AdminCurrencyService::formatPrice($oldSelling) : 'N/A';
-                            $newLabel = AdminCurrencyService::formatPrice($newSelling);
-                            $body = "Old: {$oldLabel} -> New: {$newLabel}. Variants updated: {$variantUpdated}, skipped: {$variantSkipped}.{$activationNote}";
-
-                            Notification::make()
-                                ->title('Margin updated')
-                                ->body($body)
-                                ->success()
-                                ->send();
-                        } catch (\Throwable $e) {
-                            report($e);
-                            Notification::make()
-                                ->title('Failed to update margin')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-                Action::make('syncMedia')
-                    ->label('Sync media')
-                    ->icon('heroicon-o-photo')
-                    ->requiresConfirmation()
-                    ->visible(fn (Product $record) => filled($record->cj_pid))
-                    ->action(function (Product $record): void {
-                        $importer = app(CjProductImportService::class);
-
-                        try {
-                            $updated = $importer->syncMedia($record, [
-                                'respectSyncFlag' => false,
-                                'respectLocks' => true,
-                            ]);
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->title('Error')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        if (! $updated) {
-                            Notification::make()
-                                ->title('Media not updated')
-                                ->body('Unlock images or confirm CJ media exists before retrying.')
-                                ->warning()
-                                ->send();
-                            return;
-                        }
-
-                        Notification::make()
-                            ->title('Media synced')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('importReviews')
-                    ->label('Import reviews')
-                    ->icon('heroicon-o-star')
-                    ->requiresConfirmation()
-                    ->visible(fn (Product $record) => filled($record->cj_pid))
-                    ->action(function (Product $record): void {
-                        $importer = app(CjProductImportService::class);
-
-                        try {
-                            $result = $importer->syncReviews($record, [
-                                'throwOnFailure' => true,
-                            ]);
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->title('Error importing reviews')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        Notification::make()
-                            ->title('Reviews imported')
-                            ->body("Fetched {$result['fetched']} | Created {$result['created']} | Updated {$result['updated']}")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('translate')
-                    ->label('Translate')
-                    ->icon('heroicon-o-language')
-                    ->requiresConfirmation()
-                    ->action(function (Product $record): void {
-                        if (empty(config('services.deepseek.key'))) {
-                            Notification::make()
-                                ->title('DeepSeek not configured')
-                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        TranslateProductJob::dispatch((int) $record->id, ['en', 'fr'], 'en', false);
-
-                        Notification::make()
-                            ->title('Translation queued')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('generateSeo')
-                    ->label('Generate SEO')
-                    ->icon('heroicon-o-sparkles')
-                    ->requiresConfirmation()
-                    ->action(function (Product $record): void {
-                        if (empty(config('services.deepseek.key'))) {
-                            Notification::make()
-                                ->title('DeepSeek not configured')
-                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        \App\Jobs\GenerateProductSeoJob::dispatch((int) $record->id, 'en', true);
-
-                        Notification::make()
-                            ->title('SEO queued')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('generateMarketing')
-                    ->label('Generate Marketing')
-                    ->icon('heroicon-o-megaphone')
-                    ->requiresConfirmation()
-                    ->action(function (Product $record): void {
-                        if (empty(config('services.deepseek.key'))) {
-                            Notification::make()
-                                ->title('DeepSeek not configured')
-                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        \App\Jobs\GenerateProductMarketingJob::dispatch((int) $record->id, 'en', true, 'friendly');
-
-                        Notification::make()
-                            ->title('Marketing queued')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('generateCompareAt')
-                    ->label('Generate Compare-at')
-                    ->icon('heroicon-o-receipt-percent')
-                    ->requiresConfirmation()
-                    ->schema([
-                        Toggle::make('force')
-                            ->label('Force overwrite')
-                            ->default(false),
-                        Toggle::make('run_now')
-                            ->label('Run now (no queue)')
-                            ->default(false),
-                    ])
-                    ->action(function (Product $record, array $data): void {
-                        if (empty(config('services.deepseek.key'))) {
-                            Notification::make()
-                                ->title('DeepSeek not configured')
-                                ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        $force = (bool) ($data['force'] ?? false);
-                        $runNow = (bool) ($data['run_now'] ?? false);
-
-                        if ($runNow) {
+                        }),
+                    Action::make('setMargin')
+                        ->label('Set margin')
+                        ->icon('heroicon-o-calculator')
+                        ->schema([
+                            TextInput::make('margin_percent')
+                                ->label('Margin %')
+                                ->numeric()
+                                ->default(35)
+                                ->minValue(0)
+                                ->maxValue(500)
+                                ->required(),
+                            Toggle::make('apply_to_variants')
+                                ->label('Apply to variants')
+                                ->default(true),
+                            Toggle::make('queue_compare_at')
+                                ->label('Queue compare-at refresh')
+                                ->default(true),
+                            Toggle::make('activate_if_valid')
+                                ->label('Activate if valid')
+                                ->default(true),
+                        ])
+                        ->action(function (Product $record, array $data): void {
                             try {
-                                app(\App\Services\AI\ProductCompareAtService::class)->generate($record, $force);
+                                $margin = (float) ($data['margin_percent'] ?? 0);
+                                if ($margin < 0) {
+                                    Notification::make()
+                                        ->title('Invalid margin')
+                                        ->body('Margin must be greater than or equal to 0.')
+                                        ->danger()
+                                        ->send();
+                                    return;
+                                }
+
+                                $cost = self::normalizeAmount($record->cost_price);
+                                if ($cost === null || $cost < 0) {
+                                    Notification::make()
+                                        ->title('Missing cost price')
+                                        ->body('Set a valid cost price before applying margin.')
+                                        ->danger()
+                                        ->send();
+                                    return;
+                                }
+
+                                $applyVariants = (bool) ($data['apply_to_variants'] ?? true);
+                                $queueCompareAt = (bool) ($data['queue_compare_at'] ?? true);
+                                $activateIfValid = (bool) ($data['activate_if_valid'] ?? true);
+
+                                $oldSelling = self::normalizeAmount($record->selling_price);
+                                $oldStatus = $record->status;
+                                $oldActive = (bool) $record->is_active;
+
+                                // Calculate new selling price with minimum price validation
+                                $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                $minSelling = $pricing->minSellingPrice($cost);
+                                $calculatedPrice = $cost * (1 + $margin / 100);
+                                $newSelling = max($calculatedPrice, $minSelling);
+                                $newSelling = round($newSelling, 2);
+
+                                $record->update([
+                                    'selling_price' => $newSelling,
+                                ]);
+
+                                $logger = app(ProductMarginLogger::class);
+                                $logger->logProduct($record, [
+                                    'event' => 'margin_updated',
+                                    'source' => 'manual',
+                                    'old_selling_price' => $oldSelling,
+                                    'new_selling_price' => $newSelling,
+                                    'old_status' => $oldStatus,
+                                    'new_status' => $record->status,
+                                    'notes' => "Margin set to {$margin}% (single product)",
+                                    'skip_sales_count' => true,
+                                ]);
+
+                                $variantUpdated = 0;
+                                $variantSkipped = 0;
+
+                                if ($applyVariants) {
+                                    $record->loadMissing('variants');
+                                    foreach ($record->variants as $variant) {
+                                        $variant->setRelation('product', $record);
+                                        $variantCost = self::normalizeAmount($variant->cost_price);
+                                        if ($variantCost === null || $variantCost < 0) {
+                                            $variantSkipped++;
+                                            continue;
+                                        }
+
+                                        $oldVariantPrice = self::normalizeAmount($variant->price);
+
+                                        // Calculate new variant price with minimum price validation
+                                        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                        $minVariantPrice = $pricing->minSellingPrice($variantCost);
+                                        $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
+                                        $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
+                                        $newVariantPrice = round($newVariantPrice, 2);
+
+                                        $variant->update([
+                                            'price' => $newVariantPrice,
+                                        ]);
+                                        $variantUpdated++;
+
+                                        $logger->logVariant($variant, [
+                                            'event' => 'variant_margin_updated',
+                                            'source' => 'manual',
+                                            'old_selling_price' => $oldVariantPrice,
+                                            'new_selling_price' => $newVariantPrice,
+                                            'notes' => "Margin set to {$margin}% for variant",
+                                            'skip_sales_count' => true,
+                                        ]);
+                                    }
+                                }
+
+                                $activationNote = '';
+                                if ($activateIfValid && ! $oldActive) {
+                                    $validator = app(ProductActivationValidator::class);
+                                    $record->loadMissing('images', 'variants');
+                                    $errors = $validator->errorsForActivation($record);
+                                    if ($errors === []) {
+                                        $record->update([
+                                            'is_active' => true,
+                                            'status' => 'active',
+                                        ]);
+                                        $logger->logProduct($record, [
+                                            'event' => 'activated',
+                                            'source' => 'manual',
+                                            'old_selling_price' => $oldSelling,
+                                            'new_selling_price' => $newSelling,
+                                            'old_status' => $oldStatus,
+                                            'new_status' => 'active',
+                                            'notes' => 'Product activated after single-product margin update',
+                                            'skip_sales_count' => true,
+                                        ]);
+                                        $activationNote = ' Product activated.';
+                                    } else {
+                                        $activationNote = ' Activation skipped: ' . implode(' ', $errors);
+                                    }
+                                }
+
+                                if ($queueCompareAt) {
+                                    \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false)
+                                        ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
+                                }
+
+                                $oldLabel = $oldSelling !== null ? AdminCurrencyService::formatPrice($oldSelling) : 'N/A';
+                                $newLabel = AdminCurrencyService::formatPrice($newSelling);
+                                $body = "Old: {$oldLabel} -> New: {$newLabel}. Variants updated: {$variantUpdated}, skipped: {$variantSkipped}.{$activationNote}";
+
                                 Notification::make()
-                                    ->title('Compare-at updated')
+                                    ->title('Margin updated')
+                                    ->body($body)
                                     ->success()
                                     ->send();
                             } catch (\Throwable $e) {
+                                report($e);
                                 Notification::make()
-                                    ->title('Compare-at failed')
+                                    ->title('Failed to update margin')
                                     ->body($e->getMessage())
                                     ->danger()
                                     ->send();
                             }
-                            return;
-                        }
+                        }),
+                    Action::make('syncMedia')
+                        ->label('Sync media')
+                        ->icon('heroicon-o-photo')
+                        ->requiresConfirmation()
+                        ->visible(fn (Product $record) => filled($record->cj_pid))
+                        ->action(function (Product $record): void {
+                            $importer = app(CjProductImportService::class);
 
-                        \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, $force);
+                            try {
+                                $updated = $importer->syncMedia($record, [
+                                    'respectSyncFlag' => false,
+                                    'respectLocks' => true,
+                                ]);
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Error')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
 
-                        Notification::make()
-                            ->title('Compare-at queued')
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('preview')
-                    ->label('Preview')
-                    ->icon('heroicon-o-arrow-top-right-on-square')
-                    ->url(fn (Product $record) => route('products.show', $record->slug))
-                    ->openUrlInNewTab(),
-                Action::make('toggleActive')
-                    ->label('Activate/Deactivate')
-                    ->icon('heroicon-o-power')
-                    ->action(function (Product $record): void {
-                        $newActive = ! $record->is_active;
+                            if (! $updated) {
+                                Notification::make()
+                                    ->title('Media not updated')
+                                    ->body('Unlock images or confirm CJ media exists before retrying.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
 
-                        if (! $newActive) {
-                            $record->update(['is_active' => false]);
-                            return;
-                        }
-
-                        $validator = app(ProductActivationValidator::class);
-                        $errors = $validator->errorsForActivation($record->loadMissing('images', 'variants'));
-
-                        if ($errors !== []) {
                             Notification::make()
-                                ->title('Cannot activate product')
-                                ->body(implode(' ', $errors))
-                                ->danger()
+                                ->title('Media synced')
+                                ->success()
                                 ->send();
-                            return;
-                        }
+                        }),
+                    Action::make('importReviews')
+                        ->label('Import reviews')
+                        ->icon('heroicon-o-star')
+                        ->requiresConfirmation()
+                        ->visible(fn (Product $record) => filled($record->cj_pid))
+                        ->action(function (Product $record): void {
+                            $importer = app(CjProductImportService::class);
 
-                        $record->update([
-                            'is_active' => true,
-                            'status' => 'active',
-                        ]);
-                    }),
+                            try {
+                                $result = $importer->syncReviews($record, [
+                                    'throwOnFailure' => true,
+                                ]);
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->title('Error importing reviews')
+                                    ->body($e->getMessage())
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            Notification::make()
+                                ->title('Reviews imported')
+                                ->body("Fetched {$result['fetched']} | Created {$result['created']} | Updated {$result['updated']}")
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('translate')
+                        ->label('Translate')
+                        ->icon('heroicon-o-language')
+                        ->requiresConfirmation()
+                        ->action(function (Product $record): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            TranslateProductJob::dispatch((int) $record->id, ['en', 'fr'], 'en', false);
+
+                            Notification::make()
+                                ->title('Translation queued')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('generateSeo')
+                        ->label('Generate SEO')
+                        ->icon('heroicon-o-sparkles')
+                        ->requiresConfirmation()
+                        ->action(function (Product $record): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            \App\Jobs\GenerateProductSeoJob::dispatch((int) $record->id, 'en', true);
+
+                            Notification::make()
+                                ->title('SEO queued')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('generateMarketing')
+                        ->label('Generate Marketing')
+                        ->icon('heroicon-o-megaphone')
+                        ->requiresConfirmation()
+                        ->action(function (Product $record): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            \App\Jobs\GenerateProductMarketingJob::dispatch((int) $record->id, 'en', true, 'friendly');
+
+                            Notification::make()
+                                ->title('Marketing queued')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('generateCompareAt')
+                        ->label('Generate Compare-at')
+                        ->icon('heroicon-o-receipt-percent')
+                        ->requiresConfirmation()
+                        ->schema([
+                            Toggle::make('force')
+                                ->label('Force overwrite')
+                                ->default(false),
+                            Toggle::make('run_now')
+                                ->label('Run now (no queue)')
+                                ->default(false),
+                        ])
+                        ->action(function (Product $record, array $data): void {
+                            if (empty(config('services.deepseek.key'))) {
+                                Notification::make()
+                                    ->title('DeepSeek not configured')
+                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            $force = (bool) ($data['force'] ?? false);
+                            $runNow = (bool) ($data['run_now'] ?? false);
+
+                            if ($runNow) {
+                                try {
+                                    app(\App\Services\AI\ProductCompareAtService::class)->generate($record, $force);
+                                    Notification::make()
+                                        ->title('Compare-at updated')
+                                        ->success()
+                                        ->send();
+                                } catch (\Throwable $e) {
+                                    Notification::make()
+                                        ->title('Compare-at failed')
+                                        ->body($e->getMessage())
+                                        ->danger()
+                                        ->send();
+                                }
+                                return;
+                            }
+
+                            \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, $force);
+
+                            Notification::make()
+                                ->title('Compare-at queued')
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('preview')
+                        ->label('Preview')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->url(fn (Product $record) => route('products.show', $record->slug))
+                        ->openUrlInNewTab(),
+                    Action::make('toggleActive')
+                        ->label('Activate/Deactivate')
+                        ->icon('heroicon-o-power')
+                        ->action(function (Product $record): void {
+                            $newActive = ! $record->is_active;
+
+                            if (! $newActive) {
+                                $record->update(['is_active' => false]);
+                                return;
+                            }
+
+                            $validator = app(ProductActivationValidator::class);
+                            $errors = $validator->errorsForActivation($record->loadMissing('images', 'variants'));
+
+                            if ($errors !== []) {
+                                Notification::make()
+                                    ->title('Cannot activate product')
+                                    ->body(implode(' ', $errors))
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            $record->update([
+                                'is_active' => true,
+                                'status' => 'active',
+                            ]);
+                        }),
                 ])
 
             ])
@@ -1334,9 +1498,9 @@ class ProductResource extends BaseResource
                             Notification::make()
                                 ->title('CJ sync complete')
                                 ->body("Synced {$synced} product(s), skipped {$skipped}, errors {$errors}.")
-                                 ->success()
-                                 ->send();
-                         }),
+                                ->success()
+                                ->send();
+                        }),
                     BulkAction::make('importReviews')
                         ->label('Import reviews')
                         ->icon('heroicon-o-star')

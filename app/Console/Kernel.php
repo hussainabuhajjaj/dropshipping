@@ -70,32 +70,32 @@ class Kernel extends ConsoleKernel
                 'skip_existing' => false, // Update all products weekly
             ]);
         })->weeklyOn(0, '03:00')
-          ->name('cj-full-sync-weekly')
-          ->withoutOverlapping();
+            ->name('cj-full-sync-weekly')
+            ->withoutOverlapping();
 
         // REMOVED: Duplicate sync at 02:00 (already covered by cj-full-sync-daily above)
         // $schedule->command('cj:sync-catalog')->dailyAt('02:00');
-        
+
         // OPTIMIZED: Use new smart stock sync instead of hourly heavy job
         // Old: $schedule->job(new SyncCjInventoryHourly())->hourly();
         $schedule->command('cj:sync-existing-stock --fast --skip-recent=6')
             ->everySixHours()
             ->name('cj-smart-stock-sync')
             ->withoutOverlapping();
-        
+
         // DEPRECATED: Old fragmented sync commands (kept for safety, will remove after testing)
         // $schedule->command('cj:sync-variants')->dailyAt('02:30');
         // $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
-        
+
         // Keep: Token refresh
         $schedule->command('cj:refresh-token')->dailyAt('03:30');
-        
+
         // OPTIMIZED: Reduced from 10k to 1k products, use smart skip
         $schedule->command('cj:sync-existing-stock --turbo --skip-recent=24')
             ->dailyAt('23:59')
             ->name('cj-daily-stock-refresh')
             ->withoutOverlapping();
-        
+
         // Keep: Other non-CJ jobs
         $schedule->job(new CheckLowStockJob())->dailyAt('04:00');
         $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');

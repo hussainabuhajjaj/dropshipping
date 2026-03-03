@@ -2,9 +2,13 @@
 
 namespace App\Models;
 
-//use App\Domain\Products\Models\ProductVariant;
+use App\Http\Resources\User\CartResource;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\CartMinimumService;
+use App\Services\Promotions\PromotionEngine;
+use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -166,7 +170,7 @@ class Cart extends Model
             if (isset($variant)) {
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
-                    $pack_weight = explode('-', (string) $pack_weight);
+                    $pack_weight = explode('-', (string)$pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
@@ -218,7 +222,6 @@ class Cart extends Model
             }
 //dd($weight_breakdown,$total_weight,$product_attrs['cj_payload']['packingWeight']);
             $total_weight += (float) $unit_weight * $item->quantity;
-
         }
         Log::info('Cart weight summary', [
             'cart_id' => $this->id,
@@ -323,5 +326,85 @@ class Cart extends Model
             $sessionCart->items()->delete();
             $sessionCart->delete();
         });
+    }
+
+    public function getSummery()
+    {
+        $cart_items = $this->items;
+        $customer = auth('customer')->user();
+
+        $subtotal = $this->subTotal();
+        $shipping = $this->calculateShippingFees();
+
+        $coupon = session('cart_coupon');
+        $discounts = calculateDiscounts($this, $cart_items, $coupon, $customer, $subtotal);
+        $discount = @$discounts['amount']??0;
+        $promotionDiscounts = @$discounts['promotion_discounts'] ?? [];
+
+
+        $settings = SiteSetting::query()->first();
+
+        $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings);
+        $taxTotal = calculateTaxFromSettings(max(0, $subtotal - $discount), $settings);
+        $taxIncluded = (bool)($settings?->tax_included ?? false);
+        $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
+        $cartContext = $this->buildCartContext($cart_items, $subtotal);
+
+        $promotionEngine = app(PromotionEngine::class);
+        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
+        $locale = app()->getLocale();
+        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
+            return [
+                'id' => $promo->id,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
+                'type' => $promo->type,
+                'value_type' => $promo->value_type,
+                'value' => $promo->value,
+                'start_at' => $promo->start_at,
+                'end_at' => $promo->end_at,
+                'targets' => $promo->targets,
+                'conditions' => $promo->conditions,
+            ];
+        })->values()->all();
+
+        $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
+        $categoryIds = $cart_items->map(fn($line) => $line->product?->category_id)->filter()->unique()->values()->all();
+        $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
+        $selectedMethod = 'standard';
+
+
+
+
+
+        return [
+            'subtotal' => $subtotal,
+            'shipping' => $shipping,
+            'shippingTotal' => $shippingTotal,
+            'discount' => $discount,
+            'coupon' => $coupon,
+            'discount_label' => @$discounts['label'],
+            'discount_source' => @$discounts['source'],
+            'promotionDiscounts' => $promotionDiscounts,
+            'appliedPromotions' => $appliedPromotions,
+            'cartPromotions' => $cartPromotions,
+            'minimum_cart_requirement' => $minimumRequirement,
+            'tax_total' => $taxTotal,
+            'tax_label' => $settings?->tax_label ?? 'Tax',
+            'tax_included' => $taxIncluded,
+            'total' => $total,
+            'currency' => $cart[0]['currency'] ?? 'USD',
+            'shipping_method' => $selectedMethod,
+        ];
+    }
+
+    protected function buildCartContext(Collection $cartItems, float $subtotal): array
+    {
+        return [
+            'lines' => (CartResource::collection($cartItems))->jsonSerialize(),
+            'subtotal' => $subtotal,
+            'user_id' => auth('customer')->id(),
+        ];
     }
 }

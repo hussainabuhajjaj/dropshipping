@@ -97,4 +97,3 @@ class ProductActivationValidator
         return array_values(array_unique($errors));
     }
 }
-
