@@ -75,7 +75,25 @@ class SyncCjVariantsJob implements ShouldQueue
                 $variantSku = trim((string) ($variantData['variantSku'] ?? $existingVariant?->sku ?? ''));
                 $sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
 
-                $cjStock = (int) ($variantData['inventories']['totalInventory'] ?? 0);
+                // Extract stock information from CJ variant data with enhanced logic
+                $cjStock = 0;
+                
+                // Handle new inventories structure
+                if (isset($variantData['inventories']) && is_array($variantData['inventories'])) {
+                    foreach ($variantData['inventories'] as $inventory) {
+                        if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
+                            $cjStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
+                            break;
+                        }
+                    }
+                }
+                
+                // Fallback to old structure if inventories not found or stock is 0
+                if ($cjStock === 0) {
+                    $cjStock = (int) ($variantData['stock'] ?? $variantData['variantStock'] ?? $variantData['inventoryNum'] ?? 0);
+                }
+                
+                $stockOnHand = $this->calculateStockOnHand($cjStock);
                 $price = $this->resolveVariantPrice($variantData, $existingVariant ?? new ProductVariant(), $product);
                 $title = $this->resolveVariantTitle($variantData, $existingVariant ?? new ProductVariant(), $vid);
 
@@ -87,9 +105,8 @@ class SyncCjVariantsJob implements ShouldQueue
                     ],
                     [
                         'sku' => $sku,
-                        'cj_variant_data' => $variantData,
                         'cj_stock' => $cjStock,
-                        'stock_on_hand' => $cjStock,
+                        'stock_on_hand' => $stockOnHand,
                         'cj_stock_synced_at' => now(),
                         'price' => $price,
                         'title' => $title,
@@ -272,5 +289,31 @@ class SyncCjVariantsJob implements ShouldQueue
         }
 
         return (float) $candidate;
+    }
+
+    /**
+     * Calculate stock_on_hand with configurable percentage
+     */
+    private function calculateStockOnHand(int $totalStock): int
+    {
+        if ($totalStock <= 0) {
+            return 0;
+        }
+
+        // Get configurable stock percentage (default 75% instead of 50%)
+        $percentage = (float) config('services.cj.stock_percentage', 75.0);
+        
+        // Ensure percentage is between 10% and 100%
+        $percentage = max(10.0, min(100.0, $percentage));
+        
+        $stockOnHand = (int) ($totalStock * ($percentage / 100.0));
+        
+        Log::debug('Stock calculation in SyncCjVariantsJob', [
+            'total_stock' => $totalStock,
+            'percentage' => $percentage,
+            'stock_on_hand' => $stockOnHand,
+        ]);
+
+        return $stockOnHand;
     }
 }
