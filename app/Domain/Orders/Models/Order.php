@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Domain\Orders\Models;
 
 use App\Domain\Common\Models\Address;
+use App\Domain\Orders\Models\OrderAuditLog;
 use App\Domain\Payments\Models\Payment;
 use App\Domain\Orders\Models\OrderEvent;
 use App\Domain\Orders\Models\OrderItem;
-use App\Domain\Orders\Models\OrderAuditLog;
 use App\Enums\RefundReasonEnum;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
+use App\Models\Customer;
 use App\Models\OrderShipping;
+use App\Models\PromotionUsage;
 use App\Notifications\OrderStatusChanged;
 use App\Notifications\RefundApproved;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -314,5 +318,58 @@ class Order extends Model
 //
 //        return $number;
     }
+
+
+    public function recordPromotionUsage( array $promotionDiscounts, float $subtotal, ?string $campaignSource): void
+    {
+        if (empty($promotionDiscounts)) {
+            return;
+        }
+
+        $now = now();
+        foreach ($promotionDiscounts as $discount) {
+            if (empty($discount['promotion_id'])) {
+                continue;
+            }
+            PromotionUsage::create([
+                'promotion_id' => $discount['promotion_id'],
+                'user_id' => null,
+                'order_id' => $this->id,
+                'discount_amount' => $discount['amount'] ?? null,
+                'used_at' => $now,
+                'meta' => [
+                    'promotion_intent' => $discount['intent'] ?? null,
+                    'pre_discount_subtotal' => $subtotal,
+                    'discount_breakdown' => $promotionDiscounts,
+                    'chosen_campaign_source' => $campaignSource,
+                ],
+            ]);
+        }
+
+        $intents = collect($promotionDiscounts)->pluck('intent')->filter()->unique()->values();
+        $intentLabels = $intents->map(function ($intent) {
+            return match ($intent) {
+                'shipping_support' => 'Logistics support applied',
+                'cart_growth' => 'Cart growth discount applied',
+                'urgency' => 'Flash deal applied',
+                'acquisition' => 'Acquisition offer applied',
+                default => 'Promotion applied',
+            };
+        })->unique()->values()->all();
+
+        OrderAuditLog::create([
+            'order_id' => $this->id,
+            'user_id' => null,
+            'action' => 'promotion_applied',
+            'note' => $intentLabels ? implode(' | ', $intentLabels) : 'Promotions applied during checkout',
+            'payload' => [
+                'discounts' => $promotionDiscounts,
+                'pre_discount_subtotal' => $subtotal,
+                'chosen_campaign_source' => $campaignSource,
+            ],
+        ]);
+    }
+
+
 
 }

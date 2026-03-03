@@ -19,7 +19,11 @@
                     />
 
 
-                    <Address/>
+                    <Address v-if="type === 'cart'"
+                             :user="customer"
+                             :defaultAddress="defaultAddress"
+                             @change-address="changeAddress"
+                    />
                     <!-- Payment Methods Component -->
                     <PaymentMethods
                         :amount="final_total"
@@ -42,7 +46,6 @@
                         :selected-method="selectedMethod"
                         :method-name="selectedMethodName"
                     />
-
 
 
                     <!-- Error Card Component (if payment fails) -->
@@ -83,8 +86,9 @@ const type = page.props.type
 const id = page.props.id
 const summery = page.props.summery
 const final_total = page.props.final_total
+const customer = page.props.customer
+const defaultAddress = page.props.defaultAddress
 const items = computed(() => page.props.items)
-
 
 
 const payment_result = page.props.payment_result
@@ -94,28 +98,10 @@ const successMessage = page.props.successMessage
 // const errors = page.props.errors
 
 
-// Mock order data
-const orderItems = ref([
-    {
-        id: 1,
-        name: 'Package 1',
-        price: 200,
-        quantity: 1,
-        currency: 'USD',
-        image: null
-    }
-])
-
-
-// const shipping = ref(0)
-// const tax = ref(0)
-// const discount = ref(0)
 const currency = ref('USD')
 const is_processing = ref(false)
+const address = ref(null);
 
-// const total = computed(() => {
-//     return subtotal.value + shipping.value + tax.value - discount.value
-// })
 
 const totalItems = computed(() => {
     return items.value.reduce((sum, item) => sum + item.quantity, 0)
@@ -124,11 +110,7 @@ const totalItems = computed(() => {
 // Payment state
 const selectedMethod = ref('card')
 const selectedMethodName = ref('')
-// const paymentStatus = ref('Pending')
-const estimatedDelivery = ref('3-5 business days')
-
-// Auth modal state
-// const pendingPaymentData = ref(null)
+const estimatedDelivery = ref('7-21 business days')
 
 
 // Error state
@@ -146,35 +128,32 @@ const handleMethodChange = (method) => {
     }
     selectedMethodName.value = methodNames[method] || method
 }
-
-
-
-
-const contactSupport = () => {
-    window.location.href = 'mailto:support@example.com?subject=Payment Issue&body=' +
-        encodeURIComponent(`Checkout ID: ${checkoutId.value}\nTimestamp: ${errorTimestamp.value}`)
-}
-
-
 const payWithKorapay = async (method) => {
-
+    is_processing.value = true;
     try {
-
-        axios.post(`/pay/${type}/${id}/checkout` , {
+        axios.post(`/pay/${type}/${id}/checkout`, {
             "method": method,
+            ...address.value
         }).then(({data}) => {
+            is_processing.value = false;
             console.log(data)
-            if (data.status && data?.data?.redirect){
+            if (data.status && data?.data?.redirect) {
                 console.log(123)
                 window.location = data?.data?.redirect;
-            }else{
+            } else {
                 // error
             }
+        }).catch(({response}) => {
+            is_processing.value = false;
+
+            if (response?.data?.message) {
+                toastAlert('error', response?.data?.message);
+            }
+            // console.error('Payment failed:')
+            console.log(response.data)
+
         });
-
-
     } catch (error) {
-        console.error('Payment failed:', error)
         // emit('payment-failed', {
         //     message: error.message || 'Payment failed',
         //     provider: 'korapay'
@@ -186,4 +165,7 @@ onMounted(() => {
     handleMethodChange(selectedMethod.value)
 })
 
+const changeAddress = (income_address) => {
+    address.value = income_address.value;
+}
 </script>
