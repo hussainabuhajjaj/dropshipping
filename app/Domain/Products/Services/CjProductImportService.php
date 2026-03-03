@@ -307,8 +307,22 @@ class CjProductImportService
             $payload['is_active'] = false;
             $payload['is_featured'] = false;
             $payload['cj_sync_enabled'] = $defaultSyncEnabled;
+            
+            // Set import tracking for new products
+            $payload['cj_imported_at'] = now();
+            $payload['cj_import_batch_id'] = $options['import_batch_id'] ?? null;
+            
             $product = Product::create($payload);
         } else {
+            // Only set import tracking if it's not already set (first time import)
+            if (!$product->cj_imported_at) {
+                $payload['cj_imported_at'] = now();
+                $payload['cj_import_batch_id'] = $options['import_batch_id'] ?? null;
+            }
+            
+            // Preserve original created_at timestamp for existing products
+            unset($payload['created_at']);
+            
             $product->fill($payload);
             if (!$product->slug) {
                 $product->slug = $slug;

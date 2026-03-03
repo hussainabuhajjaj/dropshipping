@@ -29,6 +29,8 @@ class Product extends Model
         'cj_warehouse_id',
         'cj_warehouse_name',
         'cj_synced_at',
+        'cj_imported_at',
+        'cj_import_batch_id',
         'cj_removed_from_shelves_at',
         'cj_removed_reason',
         'cj_last_payload',
@@ -74,6 +76,7 @@ class Product extends Model
         'is_featured' => 'boolean',
         'cj_sync_enabled' => 'boolean',
         'cj_synced_at' => 'datetime',
+        'cj_imported_at' => 'datetime',
         'cj_removed_from_shelves_at' => 'datetime',
         'cj_last_payload' => 'array',
         'cj_last_changed_fields' => 'array',
@@ -267,6 +270,38 @@ SQL;
         return $query
             ->withQualityScore($staleHours)
             ->having('quality_score', '<=', $maxScore);
+    }
+
+    // Scopes for filtering newly imported products
+    public function scopeWhereCjImported(Builder $query): Builder
+    {
+        return $query->whereNotNull('cj_imported_at');
+    }
+
+    public function scopeWhereCjImportedToday(Builder $query): Builder
+    {
+        return $query->whereDate('cj_imported_at', today());
+    }
+
+    public function scopeWhereCjImportedThisWeek(Builder $query): Builder
+    {
+        return $query->whereBetween('cj_imported_at', [now()->startOfWeek(), now()->endOfWeek()]);
+    }
+
+    public function scopeWhereCjImportedThisMonth(Builder $query): Builder
+    {
+        return $query->whereMonth('cj_imported_at', now()->month)
+            ->whereYear('cj_imported_at', now()->year);
+    }
+
+    public function scopeWhereCjImportedBatch(Builder $query, string $batchId): Builder
+    {
+        return $query->where('cj_import_batch_id', $batchId);
+    }
+
+    public function scopeWhereRecentlyCjImported(Builder $query, int $hours = 24): Builder
+    {
+        return $query->where('cj_imported_at', '>=', now()->subHours($hours));
     }
 
     protected static function booted(): void

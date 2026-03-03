@@ -1994,7 +1994,13 @@ class CJCatalog extends BasePage implements HasTable
             'defaultSyncEnabled' => true,
             'syncReviews' => true,
             'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+            'import_batch_id' => $this->generateImportBatchId(),
         ];
+    }
+
+    private function generateImportBatchId(): string
+    {
+        return 'cj_import_' . now()->format('Y-m-d_His') . '_' . Str::random(8);
     }
 
     private function normalizeCountryCode(mixed $country): ?string

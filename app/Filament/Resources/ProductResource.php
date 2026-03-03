@@ -503,6 +503,18 @@ class ProductResource extends BaseResource
                         ->dateTime()
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('cj_imported_at')
+                        ->label('CJ Imported')
+                        ->dateTime()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true)
+                        ->color(fn ($record) => $record && $record->cj_imported_at && $record->cj_imported_at->isToday() ? 'success' : null)
+                        ->description(fn ($record) => $record && $record->cj_imported_at ? $record->cj_imported_at->diffForHumans() : null),
+                    Tables\Columns\TextColumn::make('cj_import_batch_id')
+                        ->label('Import Batch')
+                        ->copyable()
+                        ->toggleable(isToggledHiddenByDefault: true)
+                        ->visible(fn ($record) => $record && filled($record->cj_import_batch_id)),
                     TagsColumn::make('cj_last_changed_fields')
                         ->label('Recent changes')
                         ->getStateUsing(fn (Product $record) => is_array($record->cj_last_changed_fields) ? $record->cj_last_changed_fields : [])
@@ -539,10 +551,6 @@ class ProductResource extends BaseResource
 
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active'),
-                Tables\Filters\Filter::make('cj')
-                    ->label('CJ')
-                    ->query(fn ($query) => $query->whereNotNull('cj_pid'))
-                    ->toggle(),
                 Tables\Filters\Filter::make('ali_express')
                     ->label('AliExpress')
                     ->query(function ($query) {
@@ -551,10 +559,6 @@ class ProductResource extends BaseResource
                                 ->orWhere('attributes->supplier_code', 'ae');
                         });
                     })
-                    ->toggle(),
-                Tables\Filters\Filter::make('local')
-                    ->label('Local')
-                    ->query(fn ($query) => $query->whereNull('cj_pid'))
                     ->toggle(),
                 Tables\Filters\SelectFilter::make('category_id')
                     ->label('Category')
@@ -577,14 +581,10 @@ class ProductResource extends BaseResource
                             return $query->whereNull('category_id');
                         }
 
-                        return $query->where('category_id', (int) $value);
+                        return $query->where('category_id', $value);
                     })
                     ->searchable()
                     ->preload(),
-                Tables\Filters\Filter::make('sync_enabled')
-                    ->label('Sync Enabled')
-                    ->query(fn ($query) => $query->where('cj_sync_enabled', true))
-                    ->toggle(),
                 Tables\Filters\Filter::make('cj_removed')
                     ->label('Removed from CJ')
                     ->query(fn (Builder $query): Builder => $query->whereNotNull('cj_removed_from_shelves_at'))
@@ -593,13 +593,13 @@ class ProductResource extends BaseResource
                     ->label('Out of Sync')
                     ->query(function ($query) {
                         $cutoff = now()->subHours(self::CJ_SYNC_STALE_HOURS);
-
-                        return $query
-                            ->whereNotNull('cj_pid')
-                            ->where('cj_sync_enabled', true)
-                            ->where(function ($inner) use ($cutoff) {
-                                $inner->whereNull('cj_synced_at')
-                                    ->orWhere('cj_synced_at', '<', $cutoff);
+                        return $query->where(function ($inner) use ($cutoff) {
+                            $inner->where('cj_pid', '!=', '')
+                                ->where('cj_sync_enabled', true)
+                                ->where(function ($sync) use ($cutoff) {
+                                    $sync->whereNull('cj_synced_at')
+                                        ->orWhere('cj_synced_at', '<', $cutoff);
+                                });
                             });
                     })
                     ->toggle(),
@@ -612,7 +612,7 @@ class ProductResource extends BaseResource
                     ->query(function (Builder $query): Builder {
                         return $query->where(function (Builder $inner): void {
                             $inner->whereNull('selling_price')
-                                ->orWhere('selling_price', '<=', 0);
+                                ->orWhere('selling_price', '=', 0);
                         });
                     })
                     ->toggle(),
@@ -620,9 +620,9 @@ class ProductResource extends BaseResource
                     ->label('Variants Missing Price')
                     ->query(function (Builder $query): Builder {
                         return $query->whereHas('variants', function (Builder $variants): void {
-                            $variants->where(function (Builder $inner): void {
-                                $inner->whereNull('price')
-                                    ->orWhere('price', '<=', 0);
+                            $variants->where(function (Builder $price): void {
+                                $price->whereNull('price')
+                                    ->orWhere('price', '=', 0);
                             });
                         });
                     })
@@ -631,9 +631,13 @@ class ProductResource extends BaseResource
                     ->label('Untranslated')
                     ->query(function (Builder $query): Builder {
                         return $query->where(function (Builder $inner): void {
-                            $inner->whereNull('translation_status')
-                                ->orWhere('translation_status', 'not translated')
-                                ->orWhereDoesntHave('translations');
+                            $inner->where('translation_status', '!=', 'completed')
+                                ->orWhereNull('translation_status')
+                                ->orWhereNotExists(function ($subquery) {
+                                    $subquery->selectRaw('1')
+                                        ->from('product_translations pt')
+                                        ->where('pt.product_id', '=', 'products.id');
+                                });
                         });
                     })
                     ->toggle(),
@@ -641,117 +645,166 @@ class ProductResource extends BaseResource
                     ->label('Low Quality (<= 60)')
                     ->query(function (Builder $query): Builder {
                         // Apply the quality score scope first
-                        return $query->withQualityScore(self::CJ_SYNC_STALE_HOURS)
+                        return $query->withQualityScore()
                             ->having('quality_score', '<=', 60);
                     })
-                    ->toggle(),
-                Tables\Filters\Filter::make('under_one_dollar')
-                    ->label('Under $1')
-                    ->query(fn (Builder $query): Builder => $query->whereNotNull('selling_price')->where('selling_price', '<', 1))
                     ->toggle(),
                 Tables\Filters\SelectFilter::make('sync_flag')
                     ->label('Sync')
                     ->options([
                         'enabled' => 'Enabled',
                         'disabled' => 'Disabled',
-                    ])
-                    ->query(function ($query, array $data) {
-                        $value = $data['value'] ?? null;
-                        if ($value === 'enabled') {
-                            $query->where('cj_sync_enabled', true);
-                        } elseif ($value === 'disabled') {
-                            $query->whereNotNull('cj_pid')->where('cj_sync_enabled', false);
-                        }
-
-                        return $query;
-                    }),
-                Tables\Filters\Filter::make('created_at_range')
-                    ->label('Created Date Range')
-                    ->form([
-                        Forms\Components\DatePicker::make('from')
-                            ->label('From date')
-                            ->native(false),
-                        Forms\Components\DatePicker::make('to')
-                            ->label('To date')
-                            ->native(false),
+                        'all' => 'All',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $from = $data['from'] ?? null;
-                        $to = $data['to'] ?? null;
-
-                        if ($from) {
-                            $query->whereDate('created_at', '>=', $from);
+                        $flag = $data['value'] ?? 'all';
+                        if ($flag === 'enabled') {
+                            return $query->where('cj_sync_enabled', true);
+                        } elseif ($flag === 'disabled') {
+                            return $query->where(function (Builder $inner): void {
+                                $inner->where('cj_sync_enabled', false)
+                                    ->orWhereNull('cj_pid');
+                            });
                         }
-
-                        if ($to) {
-                            $query->whereDate('created_at', '<=', $to);
-                        }
-
                         return $query;
                     })
-                    ->indicateUsing(function (array $data): string {
-                        $from = $data['from'] ?? null;
-                        $to = $data['to'] ?? null;
-
-                        if ($from && $to) {
-                            return "Created: {$from} to {$to}";
-                        } elseif ($from) {
-                            return "Created from: {$from}";
-                        } elseif ($to) {
-                            return "Created to: {$to}";
-                        }
-
-                        return '';
-                    }),
+                    ->default('all')
+                    ->searchable()
+                    ->preload(),
                 Tables\Filters\Filter::make('updated_at_range')
                     ->label('Updated Date Range')
                     ->form([
                         Forms\Components\DatePicker::make('from')
-                            ->label('From date')
-                            ->native(false),
-                        Forms\Components\DatePicker::make('to')
-                            ->label('To date')
-                            ->native(false),
+                            ->label('From')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->closeOnDateSelection(),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('Until')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->closeOnDateSelection(),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         $from = $data['from'] ?? null;
-                        $to = $data['to'] ?? null;
+                        $until = $data['until'] ?? null;
 
-                        if ($from) {
-                            $query->whereDate('updated_at', '>=', $from);
-                        }
-
-                        if ($to) {
-                            $query->whereDate('updated_at', '<=', $to);
+                        if ($from && $until) {
+                            $query->whereBetween('updated_at', [$from, $until]);
+                        } elseif ($from) {
+                            $query->where('updated_at', '>=', $from);
+                        } elseif ($until) {
+                            $query->where('updated_at', '<=', $until);
                         }
 
                         return $query;
                     })
                     ->indicateUsing(function (array $data): string {
                         $from = $data['from'] ?? null;
-                        $to = $data['to'] ?? null;
+                        $until = $data['until'] ?? null;
 
-                        if ($from && $to) {
-                            return "Updated: {$from} to {$to}";
-                        } elseif ($from) {
-                            return "Updated from: {$from}";
-                        } elseif ($to) {
-                            return "Updated to: {$to}";
+                        if (!$from && !$until) {
+                            return '';
                         }
 
-                        return '';
+                        if ($from && $until) {
+                            return "Updated: {$from} - {$until}";
+                        } elseif ($from) {
+                            return "Updated from: {$from}";
+                        } else {
+                            return "Updated until: {$until}";
+                        }
                     }),
                 Tables\Filters\Filter::make('margin_not_set')
                     ->label('Margin Not Set')
                     ->query(function (Builder $query): Builder {
                         return $query->where(function (Builder $inner): void {
                             $inner->whereNull('cost_price')
-                                ->orWhere('cost_price', '<=', 0)
                                 ->orWhereNull('selling_price')
                                 ->orWhere('selling_price', '<', 0);
                         });
                     })
                     ->toggle(),
+                
+                // CJ Import Filters
+                Tables\Filters\Filter::make('cj_imported')
+                    ->label('CJ Imported')
+                    ->query(fn (Builder $query): Builder => $query->whereNotNull('cj_imported_at'))
+                    ->toggle(),
+                
+                Tables\Filters\SelectFilter::make('cj_import_timeframe')
+                    ->label('CJ Import Timeframe')
+                    ->options([
+                        'today' => 'Today',
+                        'this_week' => 'This Week',
+                        'this_month' => 'This Month',
+                        'last_24h' => 'Last 24 Hours',
+                        'last_7d' => 'Last 7 Days',
+                        'last_30d' => 'Last 30 Days',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!isset($data['value'])) {
+                            return $query;
+                        }
+                        
+                        return match ($data['value']) {
+                            'today' => $query->whereDate('cj_imported_at', today()),
+                            'this_week' => $query->whereBetween('cj_imported_at', [now()->startOfWeek(), now()->endOfWeek()]),
+                            'this_month' => $query->whereMonth('cj_imported_at', now()->month)->whereYear('cj_imported_at', now()->year),
+                            'last_24h' => $query->where('cj_imported_at', '>=', now()->subHours(24)),
+                            'last_7d' => $query->where('cj_imported_at', '>=', now()->subDays(7)),
+                            'last_30d' => $query->where('cj_imported_at', '>=', now()->subDays(30)),
+                            default => $query,
+                        };
+                    })
+                    ->default('all')
+                    ->searchable()
+                    ->preload(),
+                
+                Tables\Filters\Filter::make('cj_import_date_range')
+                    ->label('CJ Import Date Range')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('From')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->closeOnDateSelection(),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('Until')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->closeOnDateSelection(),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $from = $data['from'] ?? null;
+                        $until = $data['until'] ?? null;
+
+                        if ($from && $until) {
+                            $query->whereBetween('cj_imported_at', [$from, $until]);
+                        } elseif ($from) {
+                            $query->where('cj_imported_at', '>=', $from);
+                        } elseif ($until) {
+                            $query->where('cj_imported_at', '<=', $until);
+                        }
+
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): string {
+                        $from = $data['from'] ?? null;
+                        $until = $data['until'] ?? null;
+
+                        if (!$from && !$until) {
+                            return '';
+                        }
+
+                        if ($from && $until) {
+                            return "CJ Imported: {$from} - {$until}";
+                        } elseif ($from) {
+                            return "CJ Imported: From {$from}";
+                        } else {
+                            return "CJ Imported: Until {$until}";
+                        }
+                    }),
             ], layout: \Filament\Tables\Enums\FiltersLayout::AboveContent)
             ->recordActions([
                 ActionGroup::make([
