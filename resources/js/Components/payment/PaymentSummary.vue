@@ -91,14 +91,14 @@
                     <span>{{ t('Items') }}</span>
                     <span>{{ itemCount }}</span>
                 </li>
-                <li class="flex justify-between">
-                    <span>{{ t('Shipping Method') }}</span>
-                    <span>{{ summary.labels.shipping_method }}</span>
-                </li>
-                <li class="flex justify-between">
-                    <span>{{ t('Payment Status') }}</span>
-                    <span :class="paymentStatusClass">{{ paymentStatus }}</span>
-                </li>
+<!--                <li class="flex justify-between">-->
+<!--                    <span>{{ t('Shipping Method') }}</span>-->
+<!--                    <span>{{ summary.labels.shipping_method }}</span>-->
+<!--                </li>-->
+<!--                <li class="flex justify-between">-->
+<!--                    <span>{{ t('Payment Status') }}</span>-->
+<!--                    <span :class="paymentStatusClass">{{ paymentStatus }}</span>-->
+<!--                </li>-->
                 <li v-if="estimatedDelivery" class="flex justify-between">
                     <span>{{ t('Estimated Delivery') }}</span>
                     <span>{{ estimatedDelivery }}</span>

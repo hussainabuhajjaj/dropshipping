@@ -15,7 +15,7 @@
           {{ t("Your order :number is confirmed. We will share tracking once the supplier dispatches. Delivery to Cote d'Ivoire with transparent customs.", { number: `#${order.number}` }) }}
         </span>
         <span v-else>
-          {{ t('We have received your order :number. Payment is pending, and we will confirm once it clears.', { number: `#${order.number}` }) }}
+          {{ t('We have received your order :number. Payment is :payment, and we will confirm once it clears.', { number: `#${order.number}` , payment : order.payment_status }) }}
         </span>
       </p>
 

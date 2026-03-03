@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\SiteSetting;
 use App\Services\Payments\KorapayService;
+use App\Services\Payments\PaymentResultService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -26,10 +27,11 @@ class PaymentController extends Controller
 
     public function index($type, $id)
     {
+        $customer = auth('customer')->user();
         $item = $this->getItem($type, $id);
         if (!$item) {
             if ($type == "cart") {
-                if (!$item || !$item || !$item->count()) {
+                if (!isset($item) || !isset($item->items) || !$item->items->count()) {
                     return redirect()->route('products.index');
                 }
             } else {
@@ -38,6 +40,7 @@ class PaymentController extends Controller
         }
 
         $summery = [];
+        $items = [];
         if ($item instanceof Cart) {
             $summery = $item->getSummery();
             $items = (CartResource::collection($item->items))->jsonSerialize();
@@ -46,19 +49,15 @@ class PaymentController extends Controller
 
         $final_total = @$summery['total'] ?? 0;
 
-        //        $data = [
-//            'classType' => $type,
-//            'id' => $id,
-//            'price' => $orderData['price'] ?? 0,
-//            'orderItems' => $orderData['items'] ?? [],
-//            'locales' => ['ar', 'en'],
-//            'successMessage' => session('success'),
-//            'errorMessage' => session('error'),
-//            'errors' => session('errors') ? session('errors')->toArray() : (object)[]
-//        ];
+        $defaultAddress = isset($customer) ? $customer?->addresses()
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first() : null;
 
 
         return Inertia::render('Payments/Index', [
+            'customer' => $customer,
+            'defaultAddress' => $defaultAddress,
             'type' => $type,
             'id' => $id,
             'summery' => $summery,
@@ -75,21 +74,37 @@ class PaymentController extends Controller
     public function checkout($type, $id, Request $request)
     {
         $item = $this->getItem($type, $id);
-        $amount = $this->getTotal($item);
-        $customer = auth('customer')->user();
-//        return back()->withErrors([
-//            'card_number' => 'Invalid card number'
-//        ]);
+        if (!$item) {
+            if ($type == "cart") {
+                if (!$item || !$item || !$item->count()) {
+                    return redirect()->route('products.index');
+                }
+            } else {
+                return response()->json([
+                    'status' => false,
+                    'message' => "Item not found",
+                ]);
+            }
+        }
+
+        $summery = [];
+        if ($item instanceof Cart) {
+            $summery = $item->getSummery();
+        }
 
 
-        $request->validate([
+        $extra_validation_rules = $this->getItemValidationArray($type);
+        $request->validate(array_merge([
             'method' => 'required|in:card,mobile_money',
-        ]);
+        ], $extra_validation_rules));
 
-        $method = $request->get('method');
+        $final_total = @$summery['total'] ?? 0;
+
+        $method = $request->input('method');
 
         if (in_array($method, ['card', 'mobile_money'])) {
-            $checkout = $this->korapayService->initializePayment($amount, $method);
+            session()->put('request_body', $request->all());
+            $checkout = $this->korapayService->initializePayment($final_total, $method);
 
             if (isset($checkout['data'])) {
                 session()->put('reference', $checkout['data']['reference']);
@@ -102,17 +117,45 @@ class PaymentController extends Controller
             }
         }
 
-        dd($item, $amount, $request->all());
     }
 
-    public function redirect($type, $id, Request $request)
+    public function redirect($type, $id, Request $request, PaymentResultService $paymentResultService)
     {
         $item = $this->getItem($type, $id);
 
-        $amount = $item['grand_total'] ?? 100;
+        if (!$item) {
+            if ($type == "cart") {
+                if (!$item || !$item || !$item->count()) {
+                    return redirect()->route('products.index');
+                }
+            } else {
+                return redirect('/')->withErrors([
+                    "Item not found"
+                ]);
+            }
+        }
 
-        $checkout = $this->korapayService->initializePayment($amount);
-        dd($checkout);
+        $reference = $request->input('reference');
+
+        if (!$reference) {
+            abort(404);
+        }
+        $verify_result = $this->korapayService->checkStatus($reference);
+
+        if (isset($verify_result) && $verify_result['status']) {
+
+            $payment_result = $verify_result['data']['status'];
+
+            if ($payment_result == "success") {
+                // do register payment
+                return $paymentResultService->registerCompletePayment($item, $verify_result);
+            } else {
+                return $paymentResultService->registerFailedPayment($type , $id , $verify_result);
+                // do failed payment
+            }
+        }else{
+            return $paymentResultService->registerFailedPayment($type , $id , $verify_result);
+        }
 
     }
 
@@ -129,13 +172,24 @@ class PaymentController extends Controller
         }
     }
 
-    private function getTotal($item)
+    private function getItemValidationArray($type)
     {
-        if ($item instanceof Order) {
-            return $item['grand_total'] ?? 100;
-        } elseif ($item instanceof Cart) {
-
-            dd($item->getSummery());
+        if ($type == "order") {
+            return [];
+        } elseif ($type == "cart") {
+            return [
+                'email' => ['required', 'email'],
+                'phone' => ['required', 'string', 'max:30'],
+                'first_name' => ['required', 'string', 'max:120'],
+                'last_name' => ['nullable', 'string', 'max:120'],
+                'line1' => ['required', 'string', 'max:255'],
+                'line2' => ['nullable', 'string', 'max:255'],
+                'city' => ['required', 'string', 'max:120'],
+                'state' => ['nullable', 'string', 'max:120'],
+                'postal_code' => ['nullable', 'string', 'max:30'],
+                'country' => ['required', 'string', 'max:2'],
+                'delivery_notes' => ['nullable', 'string', 'max:500'],
+            ];
         }
     }
 }

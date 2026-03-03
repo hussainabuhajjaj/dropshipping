@@ -341,10 +341,12 @@ class Cart extends Model
         $coupon = session('cart_coupon');
         $discounts = calculateDiscounts($this, $cart_items, $coupon, $customer, $subtotal);
         $discount = @$discounts['amount']??0;
+        $promotionDiscounts = @$discounts['promotion_discounts'] ?? [];
 
 
         $settings = SiteSetting::query()->first();
 
+        $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings);
         $taxTotal = calculateTaxFromSettings(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
@@ -374,12 +376,19 @@ class Cart extends Model
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
         $selectedMethod = 'standard';
 
+
+
+
+
         return [
             'subtotal' => $subtotal,
             'shipping' => $shipping,
+            'shippingTotal' => $shippingTotal,
             'discount' => $discount,
             'coupon' => $coupon,
             'discount_label' => @$discounts['label'],
+            'discount_source' => @$discounts['source'],
+            'promotionDiscounts' => $promotionDiscounts,
             'appliedPromotions' => $appliedPromotions,
             'cartPromotions' => $cartPromotions,
             'minimum_cart_requirement' => $minimumRequirement,

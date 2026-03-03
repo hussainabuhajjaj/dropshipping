@@ -20,11 +20,11 @@ function calculateTax(float $amount, $tax_rate = 0): float
 
 function calculateTaxFromSettings(float $taxableAmount, ?SiteSetting $settings): float
 {
-    if (! $settings || ! $settings->tax_rate) {
+    if (!$settings || !$settings->tax_rate) {
         return 0.0;
     }
 
-    return round($taxableAmount * ((float) $settings->tax_rate / 100), 2);
+    return round($taxableAmount * ((float)$settings->tax_rate / 100), 2);
 }
 
 function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $customer, float $subtotal): array
@@ -61,5 +61,43 @@ function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $custo
         'coupon' => null,
         'coupon_model' => null,
         'promotion_discounts' => $campaign['promotion_discounts'] ?? [],
+    ];
+}
+
+
+function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
+{
+    $eligibleTotal = max(0, $subtotal - $discount);
+    $threshold = (float)($settings?->free_shipping_threshold ?? 0);
+    $handlingFee = (float)($settings?->shipping_handling_fee ?? 0);
+
+    if ($threshold > 0 && $eligibleTotal >= $threshold) {
+        return 0.0;
+    }
+
+    if ($handlingFee > 0 && $shippingTotal > 0) {
+        return round($shippingTotal + $handlingFee, 2);
+    }
+
+    return $shippingTotal;
+}
+
+function buildDiscountSnapshot(
+    float   $discountAmount,
+    ?string $label,
+    ?string $source,
+    ?array  $coupon,
+    array   $promotionDiscounts,
+    string  $currency
+): array
+{
+    return [
+        'source' => $source,
+        'label' => $label,
+        'discount_total' => $discountAmount,
+        'currency' => $currency,
+        'coupon' => $coupon,
+        'promotion_discounts' => array_values($promotionDiscounts),
+        'computed_at' => now()->toIso8601String(),
     ];
 }
