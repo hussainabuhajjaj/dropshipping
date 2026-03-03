@@ -45,6 +45,14 @@ class SyncCjVariantsJob implements ShouldQueue
             // Get variants from CJ API
             $resp = $client->getVariantsByPid($this->cjPid);
 
+            // DEBUG: Log the raw CJ API response structure
+            Log::info('CJ API raw response structure', [
+                'cj_pid' => $this->cjPid,
+                'response_data_type' => gettype($resp->data ?? null),
+                'response_data_keys' => is_array($resp->data) ? array_keys(array_slice($resp->data, 0, 10, true)) : null,
+                'response_data_preview' => is_array($resp->data) ? array_slice($resp->data, 0, 3, true) : $resp->data,
+            ]);
+
             $variants = $this->extractVariants($resp->data ?? null);
 //            dd($variants);
             if ($variants === null) {
