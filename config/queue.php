@@ -101,6 +101,15 @@ return [
             'after_commit' => true,
         ],
 
+        'translations' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'translations',
+            'retry_after' => 900, // 15 minutes for translation jobs
+            'block_for' => null,
+            'after_commit' => true,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
