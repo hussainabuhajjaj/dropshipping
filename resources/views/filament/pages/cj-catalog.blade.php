@@ -235,8 +235,6 @@
                         @endphp
 
                         @if ($activeImportTrackingKey)
-                            {{--
-                            Progress Indicator Component - Real Import (disabled to keep compact indicator only)
                             @include('filament.components.progress-indicator-selector', [
                                 'activeImportTrackingKey' => $activeImportTrackingKey,
                                 'importPercent' => $importPercent ?? 0,
@@ -248,7 +246,7 @@
                                 'pollInterval' => $this->getImportPollIntervalSeconds(),
                                 'selectedDesign' => $selectedDesign,
                             ])
-                            --}}
+                            {{--
                             <!-- Compact Enhanced Progress Bar -->
                             <div wire:poll.{{ $this->getImportPollIntervalSeconds() }}s="refreshQueueImportStatus"
                                  class="relative overflow-hidden rounded-lg border border-primary-300 bg-gradient-to-br from-primary-50 to-primary-100 p-3 shadow-md dark:border-primary-700 dark:from-primary-900/50 dark:to-primary-800/50">
@@ -296,6 +294,7 @@
                                     </div>
                                 @endif
                             </div>
+                            --}}
                         {{-- @else --}}
                             <div class="rounded-lg border border-gray-200/70 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/30">
                                 <div class="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
