@@ -342,15 +342,35 @@ Artisan::command('categories:dedupe {--dry-run}', function () {
             }
 
             DB::transaction(function () use ($dup, $keep) {
-                Product::where('category_id', $dup->id)->update(['category_id' => $keep->id]);
-                Category::where('parent_id', $dup->id)->update(['parent_id' => $keep->id]);
+                $mergeCategory = function (Category $source, Category $target) use (&$mergeCategory): void {
+                    Product::where('category_id', $source->id)->update(['category_id' => $target->id]);
 
-                if (! $keep->cj_id && $dup->cj_id) {
-                    $keep->cj_id = $dup->cj_id;
-                    $keep->save();
-                }
+                    $children = Category::where('parent_id', $source->id)->get();
+                    foreach ($children as $child) {
+                        $existing = Category::where('parent_id', $target->id)
+                            ->where('name', $child->name)
+                            ->orderByRaw('cj_id IS NULL')
+                            ->orderBy('id')
+                            ->first();
 
-                $dup->delete();
+                        if ($existing && $existing->id !== $child->id) {
+                            $mergeCategory($child, $existing);
+                            continue;
+                        }
+
+                        $child->parent_id = $target->id;
+                        $child->save();
+                    }
+
+                    if (! $target->cj_id && $source->cj_id) {
+                        $target->cj_id = $source->cj_id;
+                        $target->save();
+                    }
+
+                    $source->delete();
+                };
+
+                $mergeCategory($dup, $keep);
             });
 
             $totalDeleted++;
