@@ -24,12 +24,19 @@ class GenerateProductCompareAtJob implements ShouldQueue
     public int $timeout = 180; // 3 minutes timeout
     public int $tries = 3;
     public int $maxExceptions = 3;
-    public string $queue = 'pricing';
 
     public function __construct(
         public int $productId,
         public bool $force = false
     ) {
+    }
+
+    /**
+     * Get the queue the job should be dispatched to.
+     */
+    public function queue(): string
+    {
+        return 'pricing';
     }
 
     public function handle(ProductCompareAtService $service): void
