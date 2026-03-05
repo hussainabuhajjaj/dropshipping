@@ -21,6 +21,11 @@ class GenerateProductCompareAtJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    public int $timeout = 180; // 3 minutes timeout
+    public int $tries = 3;
+    public int $maxExceptions = 3;
+    public string $queue = 'pricing';
+
     public function __construct(
         public int $productId,
         public bool $force = false
@@ -61,6 +66,11 @@ class GenerateProductCompareAtJob implements ShouldQueue
 
     private function isTransientFailure(\Throwable $exception): bool
     {
+        // Check for Laravel queue timeout exception
+        if ($exception instanceof \Illuminate\Queue\TimeoutExceededException) {
+            return true;
+        }
+
         if ($exception instanceof ConnectionException) {
             return true;
         }
@@ -76,11 +86,14 @@ class GenerateProductCompareAtJob implements ShouldQueue
         foreach ([
             'timed out',
             'timeout',
-            'curl error 28',
+            'curl error 28', // CURLE_OPERATION_TIMEDOUT
             'could not resolve host',
             'connection refused',
             'temporarily unavailable',
             'too many requests',
+            'operation timed out',
+            'read timeout',
+            'connection timeout',
         ] as $needle) {
             if (str_contains($message, $needle)) {
                 return true;

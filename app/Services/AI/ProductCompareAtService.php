@@ -88,7 +88,7 @@ class ProductCompareAtService
                 'role' => 'user',
                 'content' => $prompt,
             ],
-        ], 0.2);
+        ], 0.2, 120); // Use 120 second timeout for pricing jobs
 
         $decoded = $this->parseJsonResponse($content);
         if (! is_array($decoded) || $decoded === []) {

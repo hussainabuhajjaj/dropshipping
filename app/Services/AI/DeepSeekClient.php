@@ -72,7 +72,7 @@ class DeepSeekClient implements TranslationProvider
     /**
      * @param array<int, array{role: string, content: string}> $messages
      */
-    public function chat(array $messages, float $temperature = 0.4): string
+    public function chat(array $messages, float $temperature = 0.4, ?int $customTimeout = null): string
     {
         if ($this->apiKey === '') {
             throw new RuntimeException('DeepSeek API key is not configured.');
@@ -86,10 +86,12 @@ class DeepSeekClient implements TranslationProvider
             }
         }
 
+        $timeout = $customTimeout ?? $this->timeout;
+
         try {
             $response = Http::withToken($this->apiKey)
                 ->connectTimeout($this->connectTimeout)
-                ->timeout($this->timeout)
+                ->timeout($timeout)
                 ->retry($this->retryTimes, $this->retryDelayMs, function ($exception): bool {
                     if ($exception instanceof ConnectionException) {
                         return true;

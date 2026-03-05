@@ -83,6 +83,15 @@ return [
             'after_commit' => true,
         ],
 
+        'pricing' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'pricing',
+            'retry_after' => 300, // 5 minutes
+            'block_for' => null,
+            'after_commit' => true,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
