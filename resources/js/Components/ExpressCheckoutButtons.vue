@@ -45,10 +45,10 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useTranslations } from '@/i18n'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 import { ref, onMounted, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { useTranslations } from '@/i18n'
 
 const props = defineProps({
   amount: { type: Number, required: true },
@@ -59,6 +59,7 @@ const props = defineProps({
 })
 
 const { t } = useTranslations()
+const { formatCurrency, convertCurrency } = useUserPreferences()
 const effectiveDisplayCurrency = computed(() => props.displayCurrency || props.currency)
 const displayAmount = computed(() =>
   formatCurrency(convertCurrency(props.amount, 'USD', effectiveDisplayCurrency.value), effectiveDisplayCurrency.value)

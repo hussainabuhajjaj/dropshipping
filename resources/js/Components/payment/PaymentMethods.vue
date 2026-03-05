@@ -1,6 +1,6 @@
 <template>
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 mb-4">Payment Methods</h2>
+        <h2 class="text-xl font-semibold text-slate-900 mb-4">{{ t('Payment Methods') }}</h2>
 
         <!-- Payment Method Selection -->
         <div class="space-y-3 mb-6">
@@ -44,9 +44,9 @@
                     <path class="opacity-75" fill="currentColor"
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
                 </svg>
-                Processing...
+                {{ t('Processing...') }}
             </span>
-            <span v-else>Pay with Korapay • {{ formatPrice(amount) }}</span>
+            <span v-else>{{ t('Pay with Korapay') }} • {{ formattedAmount }}</span>
         </button>
 
         <!-- Secure Payment Notice -->
@@ -72,11 +72,18 @@
 <script setup>
 import {ref, computed, watch, onMounted} from 'vue'
 import {router} from "@inertiajs/vue3";
+import {useTranslations} from '@/i18n'
 import PaymentBadges from "@/Components/PaymentBadges.vue";
+
+const { t } = useTranslations()
 
 const props = defineProps({
     amount: {
         type: Number,
+        required: true
+    },
+    formattedAmount: {
+        type: String,
         required: true
     },
     currency: {
@@ -120,15 +127,4 @@ const processCardPayment = () => {
 watch(selectedMethod, (newMethod) => {
     emit('method-change', newMethod)
 })
-
-
-// Format price
-const formatPrice = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: props.currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 3
-    }).format(amount)
-}
 </script>

@@ -165,20 +165,20 @@
               </div>
             </div>
           </div>
-          <div v-else class="text-sm text-slate-500">No saved addresses yet.</div>
+          <div v-else class="text-sm text-slate-500">{{ t('No saved addresses yet') }}</div>
 
           <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="addAddress">
-            <input v-model="addressForm.name" type="text" placeholder="Full name" class="input-base" />
-            <input v-model="addressForm.phone" type="text" placeholder="Phone" class="input-base" />
-            <input v-model="addressForm.line1" type="text" placeholder="Address line 1" class="input-base sm:col-span-2" />
-            <input v-model="addressForm.line2" type="text" placeholder="Address line 2" class="input-base sm:col-span-2" />
-            <input v-model="addressForm.city" type="text" placeholder="City" class="input-base" />
-            <input v-model="addressForm.state" type="text" placeholder="State" class="input-base" />
-            <input v-model="addressForm.postal_code" type="text" placeholder="Postal code" class="input-base" />
-            <input v-model="addressForm.country" type="text" placeholder="Country code" class="input-base" />
+            <input v-model="addressForm.name" type="text" :placeholder="t('Full name')" class="input-base" />
+            <input v-model="addressForm.phone" type="text" :placeholder="t('Phone')" class="input-base" />
+            <input v-model="addressForm.line1" type="text" :placeholder="t('Address line 1')" class="input-base sm:col-span-2" />
+            <input v-model="addressForm.line2" type="text" :placeholder="t('Address line 2')" class="input-base sm:col-span-2" />
+            <input v-model="addressForm.city" type="text" :placeholder="t('City')" class="input-base" />
+            <input v-model="addressForm.state" type="text" :placeholder="t('State')" class="input-base" />
+            <input v-model="addressForm.postal_code" type="text" :placeholder="t('Postal code')" class="input-base" />
+            <input v-model="addressForm.country" type="text" :placeholder="t('Country code')" class="input-base" />
             <select v-model="addressForm.type" class="input-base sm:col-span-2">
-              <option value="shipping">Shipping</option>
-              <option value="billing">Billing</option>
+              <option value="shipping">{{ t('Shipping') }}</option>
+              <option value="billing">{{ t('Billing') }}</option>
             </select>
             <label class="flex items-center gap-2 text-xs text-slate-600 sm:col-span-2">
               <input v-model="addressForm.is_default" type="checkbox" class="rounded border-slate-300" />
@@ -314,6 +314,7 @@
 <script setup>
 import { Link, router, useForm, usePage } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
+import { useTranslations } from '@/i18n'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 
 const props = defineProps({
@@ -328,6 +329,7 @@ const props = defineProps({
 })
 
 const page = usePage()
+const { t } = useTranslations()
 const flashSuccess = computed(() => page.props.flash?.success || null)
 
 const orderSearch = ref('')

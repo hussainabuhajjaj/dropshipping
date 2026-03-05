@@ -46,15 +46,28 @@ class ProductController extends Controller
 
         $productQuery = Product::query()
             ->where('is_active', true)
-            ->with(['images', 'category', 'variants', 'translations'])
+            ->with([
+                'images',
+                'category',
+                'category.translations' => fn ($query) => $query->where('locale', $locale),
+                'variants',
+                'translations' => fn ($query) => $query->where('locale', $locale),
+            ])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
         $filterContext = [];
 
         if ($category) {
-            $productQuery->whereHas('category', function ($builder) use ($category) {
-                $builder->where('name', $category)->orWhere('slug', $category);
+            $productQuery->whereHas('category', function ($builder) use ($category, $locale) {
+                $builder
+                    ->where('name', $category)
+                    ->orWhere('slug', $category)
+                    ->orWhereHas('translations', function ($translations) use ($category, $locale) {
+                        $translations
+                            ->where('locale', $locale)
+                            ->where('name', $category);
+                    });
             });
         }
 
@@ -67,13 +80,29 @@ class ProductController extends Controller
         }
 
         if ($query) {
-            $productQuery->where(function ($builder) use ($query) {
+            $productQuery->where(function ($builder) use ($query, $locale) {
                 $builder
                     ->where('name', 'like', '%' . $query . '%')
                     ->orWhere('description', 'like', '%' . $query . '%');
 
-                $builder->orWhereHas('category', function ($categoryBuilder) use ($query) {
-                    $categoryBuilder->where('name', 'like', '%' . $query . '%');
+                $builder->orWhereHas('translations', function ($translations) use ($query, $locale) {
+                    $translations
+                        ->where('locale', $locale)
+                        ->where(function ($translated) use ($query) {
+                            $translated
+                                ->where('name', 'like', '%' . $query . '%')
+                                ->orWhere('description', 'like', '%' . $query . '%');
+                        });
+                });
+
+                $builder->orWhereHas('category', function ($categoryBuilder) use ($query, $locale) {
+                    $categoryBuilder
+                        ->where('name', 'like', '%' . $query . '%')
+                        ->orWhereHas('translations', function ($translations) use ($query, $locale) {
+                            $translations
+                                ->where('locale', $locale)
+                                ->where('name', 'like', '%' . $query . '%');
+                        });
                 });
             });
         }
@@ -156,8 +185,15 @@ class ProductController extends Controller
     public function show(Product $product): Response
     {
         abort_if(! $product->is_active, 404);
+        $locale = app()->getLocale();
 
-        $product->load(['images', 'variants', 'category', 'translations']);
+        $product->load([
+            'images',
+            'variants',
+            'category',
+            'category.translations' => fn ($query) => $query->where('locale', $locale),
+            'translations' => fn ($query) => $query->where('locale', $locale),
+        ]);
 
         $reviews = ProductReview::query()
             ->with('customer')
@@ -234,6 +270,7 @@ class ProductController extends Controller
             'product' => $this->transformProduct($product, true),
             'currency' => $product->currency ?? 'USD',
             'promotions' => $promotions,
+            'errorMessages'=>session('error'),
             'reviews' => $reviews->map(fn (ProductReview $review) => [
                 'id' => $review->id,
                 'rating' => $review->rating,
@@ -244,6 +281,8 @@ class ProductController extends Controller
                 'helpful_count' => $review->helpful_count ?? 0,
                 'created_at' => $review->created_at,
                 'author' => $review->customer?->name ?? 'Verified buyer',
+                'errorMessages'=>session('errors')
+
             ]),
             'reviewSummary' => [
                 'count' => $reviewCount,

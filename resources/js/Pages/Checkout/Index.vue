@@ -28,36 +28,13 @@
           <p v-if="form.errors.payment" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {{ form.errors.payment }}
           </p>
-          <section class="card p-5">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('Contact') }}</h2>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <input v-model="form.email" type="email" required :placeholder="t('Email')" class="input-base" />
-              <input v-model="form.phone" type="tel" required :placeholder="t('Phone')" class="input-base" />
-            </div>
-          </section>
-
-          <section class="card p-5">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('Shipping address') }}</h2>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <input v-model="form.first_name" required :placeholder="t('First name')" class="input-base" />
-              <input v-model="form.last_name" :placeholder="t('Last name')" class="input-base" />
-              <input v-model="form.line1" required :placeholder="t('Address line 1')" class="input-base sm:col-span-2" />
-              <input v-model="form.line2" :placeholder="t('Address line 2')" class="input-base sm:col-span-2" />
-              <input v-model="form.city" required :placeholder="t('City')" class="input-base" />
-              <input v-model="form.state" :placeholder="t('State / Region')" class="input-base" />
-              <input v-model="form.postal_code" :placeholder="t('Postal code')" class="input-base" />
-              <input v-model="form.country" required :placeholder="t('Country')" class="input-base" />
-            </div>
-            <textarea
-              v-model="form.delivery_notes"
-              rows="3"
-              :placeholder="t('Delivery notes (optional)')"
-              class="input-base mt-4 w-full"
-            />
-            <p class="mt-3 text-xs text-slate-500">
-              {{ t("Duties and VAT for Cote d'Ivoire are shown before payment. By placing the order you acknowledge customs may contact you if additional verification is required.") }}
-            </p>
-          </section>
+          <Address 
+            :user="user"
+            :defaultAddress="defaultAddress"
+            :userAddresses="addresses"
+            :t="t"
+            @change-address="handleAddressChange"
+          />
 
           <section class="card p-5">
             <h2 class="text-sm font-semibold text-slate-900">{{ t('Payment method') }}</h2>
@@ -165,10 +142,10 @@ import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
+import Address from '@/Components/payment/Address.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { useCurrency } from '@/composables/useCurrency.js'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
@@ -185,6 +162,7 @@ const props = defineProps({
   tax_included: { type: Boolean, default: false },
   user: { type: Object, default: null },
   defaultAddress: { type: Object, default: null },
+  addresses: { type: Array, default: () => [] },
   shipping: { type: Number, default: 0 },
   stripeKey: { type: String, default: '' },
   paystackKey: { type: String, default: '' },
@@ -197,8 +175,8 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const displayPromotions = computed(() =>
   props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
 )
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || currency.value || 'USD')
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || currency.value || 'USD')
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
@@ -241,5 +219,20 @@ watch(
 
 const submit = () => {
   form.post('/checkout')
+}
+
+const handleAddressChange = (addressData) => {
+  // Update form with address data from Address component
+  form.email = addressData.email
+  form.phone = addressData.phone
+  form.first_name = addressData.first_name
+  form.last_name = addressData.last_name
+  form.line1 = addressData.line1
+  form.line2 = addressData.line2
+  form.city = addressData.city
+  form.state = addressData.state
+  form.postal_code = addressData.postal_code
+  form.country = addressData.country
+  form.delivery_notes = addressData.delivery_notes
 }
 </script>

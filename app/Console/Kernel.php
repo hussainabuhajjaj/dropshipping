@@ -66,7 +66,7 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             $service = app(\App\Domain\Products\Services\CjProductImportService::class);
             $service->importBulkWithPipeline([
-                'margin_percent' => (float) config('services.cj.import_margin', 35),
+                'margin_percent' => (float) config('services.cj.import_margin', 60),
                 'enrich' => true,
                 'skip_existing' => false, // Update all products weekly
             ]);

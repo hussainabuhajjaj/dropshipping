@@ -30,6 +30,8 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'locale',
         'phone',
         'country_code',
+        'preferred_currency',
+        'preferred_language',
         'city',
         'region',
         'address_line1',
@@ -148,6 +150,6 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
 
     public function preferredLocale(): string
     {
-        return $this->locale ?: app()->getLocale();
+        return $this->preferred_language ?: $this->locale ?: app()->getLocale();
     }
 }

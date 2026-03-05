@@ -51,8 +51,9 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
+const { formatCurrency, convertCurrency } = useUserPreferences()
 const displayRefundAmount = computed(() => {
   // Assume refund is in USD unless a currency prop is added
   return formatCurrency(convertCurrency(props.refundAmount ?? 0, 'USD', 'USD'), 'USD')

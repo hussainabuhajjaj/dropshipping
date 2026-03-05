@@ -103,9 +103,8 @@
 import { computed, ref } from 'vue'
 import { Link, router, useForm } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -117,8 +116,8 @@ const { t } = useTranslations()
 const wishlisted = ref(Boolean(props.product.is_in_wishlist))
 const wishlistProcessing = ref(false)
 const now = usePromoNow()
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 
 // Promotion logic
 const productPromotion = computed(() => {

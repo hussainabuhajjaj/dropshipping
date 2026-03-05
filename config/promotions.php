@@ -17,4 +17,15 @@ return [
         'first_order_max_discount' => 10.00,
         'high_value_max_discount' => 15.00,
     ],
+    'thresholds' => [
+        'high_value_min_order' => 50.00,
+    ],
+    'percentages' => [
+        'first_order_discount' => 0.10,
+        'high_value_discount' => 0.05,
+    ],
+    'labels' => [
+        'first_order' => 'First order 10% off',
+        'high_value' => '5% off orders over $50',
+    ],
 ];

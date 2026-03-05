@@ -32,9 +32,9 @@
           <EmptyState
             v-else
             variant="compact"
-            eyebrow="Gift cards"
-            title="No gift cards yet"
-            message="Redeem a gift card to see your balance here."
+            :eyebrow="t('Gift cards')"
+            :title="t('No gift cards yet')"
+            :message="t('Redeem a gift card to see your balance here.')"
           />
 
           <form class="flex flex-col gap-3" @submit.prevent="redeemGiftCard">
@@ -83,9 +83,9 @@
           </div>
 
           <form class="flex flex-col gap-3" @submit.prevent="saveCoupon">
-            <input v-model="couponForm.code" type="text" placeholder="Coupon code" class="input-base" />
+            <input v-model="couponForm.code" type="text" :placeholder="t('Coupon code')" class="input-base" />
             <button type="submit" class="btn-secondary" :disabled="couponForm.processing">
-              {{ couponForm.processing ? 'Saving...' : 'Save coupon' }}
+              {{ couponForm.processing ? t('Saving...') : t('Save coupon') }}
             </button>
           </form>
         </div>
@@ -95,8 +95,11 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import { useTranslations } from '@/i18n'
 
+const { formatCurrency, convertCurrency } = useUserPreferences()
+const { t } = useTranslations()
 function displayCardBalance(card) {
   return formatCurrency(convertCurrency(Number(card.balance ?? 0), 'USD', card.currency), card.currency)
 }

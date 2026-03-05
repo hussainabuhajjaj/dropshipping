@@ -13,7 +13,7 @@ use App\Filament\Resources\FulfillmentProviderResource;
 use App\Filament\Resources\ShippingZoneResource;
 use App\Filament\Resources\NotificationTemplateResource;
 use App\Filament\Pages\CJIntegration;
-use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\CurrencySettings;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\ImageEntry;
@@ -69,6 +69,12 @@ class SettingsHub extends BasePage
                         'description' => 'Taxes, pricing, customer accounts',
                         'icon' => 'heroicon-o-credit-card',
                         'url' => SiteSettingResource::getUrl('index'),
+                    ],
+                    [
+                        'label' => 'Currencies',
+                        'description' => 'Exchange rates, formatting, display settings',
+                        'icon' => 'heroicon-o-banknotes',
+                        'url' => CurrencySettings::getUrl(),
                     ],
                     [
                         'label' => 'Taxes & Duties',

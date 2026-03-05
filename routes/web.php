@@ -18,6 +18,7 @@ use App\Http\Controllers\Storefront\TrackingPageController;
 use App\Http\Controllers\Storefront\OrderController;
 use App\Http\Controllers\Storefront\AccountController;
 use App\Http\Controllers\Storefront\WishlistController;
+use App\Http\Controllers\Storefront\UserPreferenceController;
 use App\Http\Controllers\Storefront\SearchController;
 use App\Http\Controllers\Storefront\ProductReviewController;
 use App\Http\Controllers\Storefront\ReviewHelpfulController;
@@ -255,7 +256,11 @@ Route::post('/korapay/initialize', [KorapayController::class, 'initialize'])->na
 Route::post('/korapay/webhook', [KorapayController::class, 'webhook'])->name('korapay.webhook');
 Route::get('/korapay/verify/{reference}', [KorapayController::class, 'verify'])->name('korapay.verify');
 
-
+// Currency & Language routes (legacy - redirect to new API)
+Route::post('/currency', [UserPreferenceController::class, 'updateCurrency'])->name('currency.set');
+Route::post('/language', [UserPreferenceController::class, 'updateLanguage'])->name('language.set');
+Route::post('/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'setPreferences'])->name('preferences.set');
+Route::get('/api/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'getPreferences'])->name('preferences.get');
 Route::get('aa' , function(){
     return view('payment');
 });

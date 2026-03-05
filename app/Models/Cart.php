@@ -31,8 +31,8 @@ class Cart extends Model
 
     public static function createCart(): self
     {
-        if (auth('web')->check()) {
-            return self::query()->create(['user_id' => auth('web')->id()]);
+        if (auth('customer')->check()) {
+            return self::query()->create(['user_id' => auth('customer')->id()]);
         } else {
             return self::query()->create(['session_id' => session()->id()]);
         }

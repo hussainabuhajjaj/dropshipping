@@ -401,6 +401,8 @@
 
 <script setup>
 // Promotion logic for product details
+import {useToast} from "vue-toast-notification";
+import {toastAlert} from "@/utils/toast.js";
 function productPromotionForDetails(product, promotions) {
   if (!promotions?.length) return null
   const targeted = promotions.find(p =>
@@ -415,15 +417,16 @@ function productPromotionForDetails(product, promotions) {
 }
 
 import { computed, ref } from 'vue'
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3'
+import { Head, Link, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { useCurrency } from '@/composables/useCurrency.js'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import {usePage} from '@inertiajs/vue3'
 
+const page = usePage();
 const props = defineProps({
   product: { type: Object, required: true },
   currency: { type: String, default: 'USD' },
@@ -436,8 +439,8 @@ const props = defineProps({
 
 const { t, locale } = useTranslations()
 const now = usePromoNow()
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 
 const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
@@ -452,7 +455,6 @@ const form = useForm({
   variant_id: props.product.variants?.[0]?.id ?? null,
   quantity: 1,
 })
-
 const submit = () => {
   form.product_id = props.product.id
   form.variant_id = selectedVariantId.value
@@ -462,6 +464,12 @@ const submit = () => {
       successMessage.value = t('Added to cart.')
       clearSuccessSoon()
     },
+        onError:()=>{
+        console.log(page.props.errors[0]);
+            // successMessage.value = t('Not Added to cart.')
+            // useToast('error','123')
+            toastAlert('error',page.props.errors[0])
+        }
   })
 }
 
@@ -541,7 +549,6 @@ const isOutOfStock = computed(() => stockStatus.value.status === 'out')
 const selectedImage = ref(props.product.media?.[0] ?? null)
 const activeTab = ref('description')
 
-const page = usePage()
 const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
 const productPromotion = computed(() => productPromotionForDetails(props.product, activePromotions.value))
 const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))

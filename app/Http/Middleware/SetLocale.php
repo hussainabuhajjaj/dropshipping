@@ -14,6 +14,12 @@ class SetLocale
 
     public function handle(Request $request, Closure $next): Response
     {
+        $customerPreferredLocale = null;
+        $customer = $request->user('customer');
+        if ($customer) {
+            $customerPreferredLocale = $customer->preferred_language ?: $customer->locale;
+        }
+
         $sessionLocale = null;
         if ($request->hasSession()) {
             $sessionLocale = $request->session()->get('locale');
@@ -22,7 +28,8 @@ class SetLocale
         $cookieLocale = $request->cookie('locale');
         $headerLocale = $this->resolveFromHeader($request->header('Accept-Language', ''));
 
-        $locale = $sessionLocale
+        $locale = $customerPreferredLocale
+            ?? $sessionLocale
             ?? $cookieLocale
             ?? $headerLocale;
 
@@ -44,11 +51,6 @@ class SetLocale
 
         if ($cookieLocale !== $locale) {
             $response->headers->setCookie(Cookie::forever('locale', $locale));
-        }
-
-        $customer = $request->user('customer');
-        if ($customer && (! $customer->locale)) {
-            $customer->forceFill(['locale' => $locale])->save();
         }
 
         return $response;

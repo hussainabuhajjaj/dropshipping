@@ -57,27 +57,30 @@ class CampaignManager
         }
 
         $cap = (float) (config('promotions.caps.first_order_max_discount') ?? 10.0);
-        $amount = round($subtotal * 0.10, 2);
+        $percentage = (float) (config('promotions.percentages.first_order_discount') ?? 0.10);
+        $amount = round($subtotal * $percentage, 2);
         $amount = min($amount, $cap);
         return $amount > 0 ? [
             'amount' => $amount,
-            'label' => __('First order 10% off'),
+            'label' => config('promotions.labels.first_order', 'First order 10% off'),
             'source' => 'first_order',
         ] : null;
     }
 
     private function highValueThreshold(float $subtotal): ?array
     {
-        if ($subtotal < 50) {
+        $threshold = (float) (config('promotions.thresholds.high_value_min_order') ?? 50.0);
+        if ($subtotal < $threshold) {
             return null;
         }
 
         $cap = (float) (config('promotions.caps.high_value_max_discount') ?? 15.0);
-        $amount = round($subtotal * 0.05, 2);
+        $percentage = (float) (config('promotions.percentages.high_value_discount') ?? 0.05);
+        $amount = round($subtotal * $percentage, 2);
         $amount = min($amount, $cap);
         return [
             'amount' => $amount,
-            'label' => __('5% off orders over $50'),
+            'label' => config('promotions.labels.high_value', '5% off orders over $50'),
             'source' => 'high_value',
         ];
     }

@@ -51,9 +51,10 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 // Helper to display order price in selected currency (default to order's currency if not available)
+const { formatCurrency, convertCurrency } = useUserPreferences()
 function displayOrderPrice(amount, orderCurrency) {
   // If you want to always show in user's selected currency, replace 'orderCurrency' with a prop or global currency
   return formatCurrency(convertCurrency(Number(amount), 'USD', orderCurrency), orderCurrency)

@@ -46,7 +46,6 @@ class CheckoutController extends Controller
             ->orWhere('session_id', session()->id())
             ->with('items')
             ->first();
-
         $data['cart_items'] = $data['cart']?->items;
         if (!$data['cart'] || !$data['cart_items'] || !$data['cart_items']->count()) {
             return redirect()->route('products.index');
@@ -65,20 +64,15 @@ class CheckoutController extends Controller
 
     public function index(): Response|RedirectResponse
     {
-
+return redirect()->route('pay.index',['cart',0]);
         $result = $this->getCartWithItems();
 
         if ($result instanceof RedirectResponse) {
             return $result;
         }
+
         $cart = $result['cart'];
         $cart_items = $result['cart_items'];
-
-
-//        if (!$this->validateStock($cart)) {
-//            return back()->withErrors(['cart' => 'One or more items are out of stock. Please adjust your cart.']);
-//        }
-
         $subtotal = $cart->subTotal();
         $shipping = $cart->calculateShippingFees();
 
@@ -90,6 +84,11 @@ class CheckoutController extends Controller
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->first() : null;
+
+        $addresses = isset($customer) ? $customer?->addresses()
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->get() : collect();
 
         $selectedMethod = 'standard';
         $coupon = session('cart_coupon');
@@ -159,6 +158,18 @@ class CheckoutController extends Controller
                 'postal_code' => $defaultAddress->postal_code,
                 'country' => $defaultAddress->country,
             ] : null,
+            'addresses' => $addresses->map(fn ($address) => [
+                'id' => $address->id,
+                'name' => $address->name,
+                'phone' => $address->phone,
+                'line1' => $address->line1,
+                'line2' => $address->line2,
+                'city' => $address->city,
+                'state' => $address->state,
+                'postal_code' => $address->postal_code,
+                'country' => $address->country,
+                'is_default' => $address->is_default,
+            ])->values()->all(),
         ]);
     }
 

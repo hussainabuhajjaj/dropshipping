@@ -93,25 +93,26 @@ class ProductResource extends JsonResource
             'is_in_wishlist' => false,
         ];
 
-        $converter = app(CurrencyConversionService::class);
-        $requestedCurrency = $this->resolveRequestedCurrency($request, $converter);
-        if ($requestedCurrency && $requestedCurrency !== $currency) {
-            try {
-                $data['price'] = $converter->convertAmount($data['price'], $currency, $requestedCurrency);
-                $data['compare_at_price'] = $converter->convertAmount($data['compare_at_price'], $currency, $requestedCurrency);
-                $data['currency'] = $requestedCurrency;
+        // Disable backend conversion - handle it all on frontend
+        // $converter = app(CurrencyConversionService::class);
+        // $requestedCurrency = $this->resolveRequestedCurrency($request, $converter);
+        // if ($requestedCurrency && $requestedCurrency !== $currency) {
+        //     try {
+        //         $data['price'] = $converter->convertAmount($data['price'], $currency, $requestedCurrency);
+        //         $data['compare_at_price'] = $converter->convertAmount($data['compare_at_price'], $currency, $requestedCurrency);
+        //         $data['currency'] = $requestedCurrency;
 
-                $data['variants'] = collect($variantPayload)->map(function (array $variant) use ($converter, $requestedCurrency, $currency) {
-                    $baseCurrency = $variant['currency'] ?? $currency;
-                    $variant['price'] = $converter->convertAmount($variant['price'], $baseCurrency, $requestedCurrency);
-                    $variant['compare_at_price'] = $converter->convertAmount($variant['compare_at_price'], $baseCurrency, $requestedCurrency);
-                    $variant['currency'] = $requestedCurrency;
-                    return $variant;
-                })->values()->all();
-            } catch (\Throwable) {
-                // Fall back to original currency when rate is not configured.
-            }
-        }
+        //         $data['variants'] = collect($variantPayload)->map(function (array $variant) use ($converter, $requestedCurrency, $currency) {
+        //             $baseCurrency = $variant['currency'] ?? $currency;
+        //             $variant['price'] = $converter->convertAmount($variant['price'], $baseCurrency, $requestedCurrency);
+        //             $variant['compare_at_price'] = $converter->convertAmount($variant['compare_at_price'], $baseCurrency, $requestedCurrency);
+        //             $variant['currency'] = $requestedCurrency;
+        //             return $variant;
+        //         })->values()->all();
+        //     } catch (\Throwable) {
+        //         // Fall back to original currency when rate is not configured.
+        //     }
+        // }
 
         if ($this->includeMeta) {
             $data['lead_time_days'] = $product->shipping_estimate_days;
@@ -125,7 +126,11 @@ class ProductResource extends JsonResource
 
     private function resolveRequestedCurrency(Request $request, CurrencyConversionService $converter): ?string
     {
-        $currency = $request->header('X-Currency')
+        // Check session currency first (from SetUserPreferences middleware)
+        $currency = session('user_currency');
+        
+        // Fall back to header/query/input methods
+        $currency ??= $request->header('X-Currency')
             ?? $request->query('currency')
             ?? $request->input('currency');
 

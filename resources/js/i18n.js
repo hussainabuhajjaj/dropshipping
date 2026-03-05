@@ -23,6 +23,15 @@ export const useTranslations = () => {
   const translations = computed(() => page.props.translations ?? {})
   const locale = computed(() => page.props.locale ?? 'en')
   const availableLocales = computed(() => page.props.availableLocales ?? { en: 'English', fr: 'Français' })
+  
+  // Convert availableLocales to localeOptions format for template
+  const localeOptions = computed(() => {
+    const locales = availableLocales.value
+    return Object.entries(locales).map(([code, label]) => ({
+      code,
+      label
+    }))
+  })
 
   const t = (key, replacements = {}) => {
     if (!key) {
@@ -36,5 +45,6 @@ export const useTranslations = () => {
     t,
     locale,
     availableLocales,
+    localeOptions,
   }
 }

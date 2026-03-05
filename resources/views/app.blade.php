@@ -20,6 +20,11 @@
 
         <!-- CSRF Token -->
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        
+        <!-- User Preferences -->
+        <meta name="current-currency" content="{{ $current_currency ?? 'USD' }}">
+        <meta name="current-language" content="{{ $current_language ?? 'en' }}">
+        
         <!-- PWA -->
         <meta name="theme-color" content="#0f172a">
         <meta name="apple-mobile-web-app-capable" content="yes">

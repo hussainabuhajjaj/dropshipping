@@ -5,6 +5,9 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import { useTranslations } from '@/i18n';
+
+const { t } = useTranslations()
 
 const passwordInput = ref(null);
 const currentPasswordInput = ref(null);
@@ -48,7 +51,7 @@ const updatePassword = () => {
 
         <form @submit.prevent="updatePassword" class="mt-6 space-y-6">
             <div>
-                <InputLabel for="current_password" value="Current Password" />
+                <InputLabel for="current_password" :value="t('Current Password')" />
 
                 <TextInput
                     id="current_password"
@@ -66,7 +69,7 @@ const updatePassword = () => {
             </div>
 
             <div>
-                <InputLabel for="password" value="New Password" />
+                <InputLabel for="password" :value="t('New Password')" />
 
                 <TextInput
                     id="password"
@@ -83,7 +86,7 @@ const updatePassword = () => {
             <div>
                 <InputLabel
                     for="password_confirmation"
-                    value="Confirm Password"
+                    :value="t('Confirm Password')"
                 />
 
                 <TextInput

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
+use App\Services\User\UserPreferenceService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
@@ -12,11 +13,19 @@ use App\Models\StorefrontSetting;
 use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Support\Facades\Schema;
 use App\Models\StorefrontBanner;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
 
 class HandleInertiaRequests extends Middleware
 {
     use FormatsCategories;
+
+    private UserPreferenceService $preferenceService;
+
+    public function __construct(UserPreferenceService $preferenceService)
+    {
+        $this->preferenceService = $preferenceService;
+    }
 
     /**
      * The root template that is loaded on the first page visit.
@@ -65,12 +74,16 @@ class HandleInertiaRequests extends Middleware
         $site = Schema::hasTable('site_settings')
             ? SiteSetting::query()->first()
             : null;
-        $locale = app()->getLocale();
+        $userPreferences = $this->preferenceService->getPreferences();
+        $locale = (string) ($userPreferences['language'] ?? app()->getLocale());
+        App::setLocale($locale);
+        
         $storefront = Schema::hasTable('storefront_settings')
             ? StorefrontSetting::latestForLocale($locale)
             : null;
         $translations = [];
         $translationsPath = resource_path("lang/{$locale}.json");
+        
         if (is_file($translationsPath)) {
             $decoded = json_decode(file_get_contents($translationsPath), true);
             if (is_array($decoded)) {
@@ -118,10 +131,8 @@ class HandleInertiaRequests extends Middleware
             'storefront' => $storefront,
             'appUrl' => rtrim(config('app.url'), '/'),
             'locale' => $locale,
-            'availableLocales' => [
-                'en' => 'English',
-                'fr' => 'Français',
-            ],
+            'availableLocales' => $this->preferenceService->getAvailableLanguages(),
+            'user_preferences' => $userPreferences,
             'translations' => $translations,
             'supportChatRealtime' => $supportChatRealtime,
             'seo' => [

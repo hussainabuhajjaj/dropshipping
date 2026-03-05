@@ -69,7 +69,7 @@ class CategoryController extends Controller
         }
 
         // IMPORTANT: pass $categoryIds (descendants), not just $category->id
-        $productQuery = $this->buildProductQuery($filters, $attributeDefs, $categoryIds);
+        $productQuery = $this->buildProductQuery($filters, $attributeDefs, $categoryIds, $locale);
 
         $products = $productQuery
             ->paginate($perPage)
@@ -139,25 +139,45 @@ class CategoryController extends Controller
         return array_values(array_unique($ids));
     }
 
-    private function buildProductQuery(array $filters, array $attributeDefs, int|array $categoryIds)
+    private function buildProductQuery(array $filters, array $attributeDefs, int|array $categoryIds, string $locale)
     {
         $categoryIds = is_array($categoryIds) ? $categoryIds : [$categoryIds];
 
         $productQuery = Product::query()
             ->where('is_active', true)
             ->whereIn('category_id', $categoryIds)
-            ->with(['images', 'category', 'variants', 'translations'])
+            ->with([
+                'images',
+                'category',
+                'category.translations' => fn ($query) => $query->where('locale', $locale),
+                'variants',
+                'translations' => fn ($query) => $query->where('locale', $locale),
+            ])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
         if (!empty($filters['q'])) {
             $q = $filters['q'];
-            $productQuery->where(function ($builder) use ($q) {
+            $productQuery->where(function ($builder) use ($q, $locale) {
                 $builder->where('name', 'like', "%{$q}%")
                     ->orWhere('description', 'like', "%{$q}%")
+                    ->orWhereHas('translations', function ($translationBuilder) use ($q, $locale) {
+                        $translationBuilder
+                            ->where('locale', $locale)
+                            ->where(function ($translated) use ($q) {
+                                $translated
+                                    ->where('name', 'like', "%{$q}%")
+                                    ->orWhere('description', 'like', "%{$q}%");
+                            });
+                    })
                     ->orWhereHas('category', function ($catBuilder) use ($q) {
                         $catBuilder->where('name', 'like', "%{$q}%")
                             ->orWhere('slug', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('category.translations', function ($categoryTranslationBuilder) use ($q, $locale) {
+                        $categoryTranslationBuilder
+                            ->where('locale', $locale)
+                            ->where('name', 'like', "%{$q}%");
                     });
             });
         }

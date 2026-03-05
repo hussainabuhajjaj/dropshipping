@@ -1,6 +1,6 @@
 <template>
   <GuestLayout>
-    <Head title="Reset Password" />
+    <Head :title="t('Reset Password')" />
 
     <div class="mx-auto max-w-md space-y-6">
       <div class="space-y-2">

@@ -1,5 +1,15 @@
 @php
     $supportEmail = config('mail.from.address', 'support@example.com');
+    
+    // Helper function to format currency with proper decimals
+    $formatCurrency = function($amount, $currencyCode) {
+        $decimals = match($currencyCode) {
+            'XOF', 'XAF' => 0,
+            'JOD' => 3,
+            default => 2
+        };
+        return number_format((float) $amount, $decimals);
+    };
 @endphp
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
@@ -23,7 +33,7 @@
     <tr>
         <td style="font-size:13px; color:#64748b; padding-top:6px;">Amount due</td>
         <td align="right" style="font-size:16px; font-weight:800; color:#0f172a; padding-top:6px;">
-            {{ $currency }} {{ $summary['grand_total'] }}
+            {{ $currency }} {{ $formatCurrency($summary['grand_total'], $currency) }}
         </td>
     </tr>
     <tr>
@@ -55,11 +65,11 @@
                     </div>
                 @endif
                 <div style="font-size:12px; color:#64748b; padding-top:4px;">
-                    Qty {{ $item['qty'] }} · {{ $currency }} {{ $item['unit'] }}
+                    Qty {{ $item['qty'] }} · {{ $currency }} {{ $formatCurrency($item['unit'], $currency) }}
                 </div>
             </td>
             <td align="right" valign="top" style="padding:10px 0; font-size:14px; font-weight:700; color:#0f172a;">
-                {{ $currency }} {{ $item['total'] }}
+                {{ $currency }} {{ $formatCurrency($item['total'], $currency) }}
             </td>
         </tr>
         <tr>
@@ -71,26 +81,26 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
     <tr>
         <td style="font-size:13px; color:#64748b;">Subtotal</td>
-        <td align="right" style="font-size:13px; color:#0f172a;">{{ $currency }} {{ $summary['subtotal'] }}</td>
+        <td align="right" style="font-size:13px; color:#0f172a;">{{ $currency }} {{ $formatCurrency($summary['subtotal'], $currency) }}</td>
     </tr>
     <tr>
         <td style="font-size:13px; color:#64748b; padding-top:6px;">Shipping</td>
-        <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">{{ $currency }} {{ $summary['shipping'] }}</td>
+        <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">{{ $currency }} {{ $formatCurrency($summary['shipping'], $currency) }}</td>
     </tr>
     <tr>
         <td style="font-size:13px; color:#64748b; padding-top:6px;">Tax</td>
-        <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">{{ $currency }} {{ $summary['tax'] }}</td>
+        <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">{{ $currency }} {{ $formatCurrency($summary['tax'], $currency) }}</td>
     </tr>
     @if((float) $summary['discount'] > 0)
         <tr>
             <td style="font-size:13px; color:#64748b; padding-top:6px;">Discount</td>
-            <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">-{{ $currency }} {{ $summary['discount'] }}</td>
+            <td align="right" style="font-size:13px; color:#0f172a; padding-top:6px;">-{{ $currency }} {{ $formatCurrency($summary['discount'], $currency) }}</td>
         </tr>
     @endif
     <tr>
         <td style="font-size:14px; font-weight:800; color:#0f172a; padding-top:10px;">Total due now</td>
         <td align="right" style="font-size:14px; font-weight:800; color:#0f172a; padding-top:10px;">
-            {{ $currency }} {{ $summary['grand_total'] }}
+            {{ $currency }} {{ $formatCurrency($summary['grand_total'], $currency) }}
         </td>
     </tr>
 </table>

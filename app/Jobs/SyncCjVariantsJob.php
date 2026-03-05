@@ -153,6 +153,18 @@ class SyncCjVariantsJob implements ShouldQueue
                             $stockDebugInfo['fallback_' . $field] = 'missing';
                         }
                     }
+                    
+                    // SPECIAL FIX: Check if inventoryNum exists but was missed
+                    if ($cjStock === 0 && in_array('inventoryNum', array_keys($variantData))) {
+                        $inventoryNum = (int) ($variantData['inventoryNum'] ?? 0);
+                        $stockDebugInfo['special_inventoryNum_check'] = $inventoryNum;
+                        
+                        if ($inventoryNum > 0) {
+                            $cjStock = $inventoryNum;
+                            $stockDebugInfo['fallback_used'] = 'inventoryNum_special';
+                            $stockDebugInfo['fallback_value'] = $cjStock;
+                        }
+                    }
                 }
                 
                 $stockOnHand = $this->calculateStockOnHand($cjStock);

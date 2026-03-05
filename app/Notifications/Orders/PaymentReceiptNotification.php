@@ -43,14 +43,14 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
     {
         $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
         $items = $this->order->items()->with('productVariant.product')->get();
-        
+
         $itemsList = $items->map(function ($item) {
             $productName = $item->snapshot['name'] ?? $item->productVariant?->product?->name ?? 'Product';
             $variant = $item->snapshot['variant'] ?? '';
             $variantText = $variant ? " ({$variant})" : '';
             $qty = $item->quantity;
             $price = number_format((float) $item->unit_price, 2);
-            $total = number_format((float) $item->total, 2);
+            $total = number_format((float) $item->total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2));
             return "{$productName}{$variantText} × {$qty} — {$this->order->currency} {$total}";
         })->implode("\n");
 
@@ -62,15 +62,15 @@ class PaymentReceiptNotification extends Notification implements ShouldQueue
             ->line('**Order Items:**')
             ->line($itemsList)
             ->line('')
-            ->line("**Subtotal:** {$this->order->currency} " . number_format((float) $this->order->subtotal, 2))
-            ->line("**Shipping:** {$this->order->currency} " . number_format((float) $this->order->shipping_total, 2))
+            ->line("**Subtotal:** {$this->order->currency} " . number_format((float) $this->order->subtotal, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
+            ->line("**Shipping:** {$this->order->currency} " . number_format((float) $this->order->shipping_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
             ->when($this->order->discount_total > 0, function ($mail) {
-                return $mail->line("**Discount:** -{$this->order->currency} " . number_format((float) $this->order->discount_total, 2));
+                return $mail->line("**Discount:** -{$this->order->currency} " . number_format((float) $this->order->discount_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)));
             })
             ->when($this->order->tax_total > 0, function ($mail) {
-                return $mail->line("**Tax:** {$this->order->currency} " . number_format((float) $this->order->tax_total, 2));
+                return $mail->line("**Tax:** {$this->order->currency} " . number_format((float) $this->order->tax_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)));
             })
-            ->line("**Total Paid:** {$this->order->currency} " . number_format((float) $this->order->grand_total, 2))
+            ->line("**Total Paid:** {$this->order->currency} " . number_format((float) $this->order->grand_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
             ->line('')
             ->line("**Payment Method:** " . ucfirst(str_replace('_', ' ', $this->payment->method ?? 'card')))
             ->line("**Payment ID:** {$this->payment->gateway_transaction_id}")

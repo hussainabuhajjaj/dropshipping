@@ -27,7 +27,7 @@
 
                 <DotLottieVue style="height: 240px; width: 240px" autoplay loop src="/lottie/loader.json"/>
 
-                <p class="text-sm text-slate-600 dark:text-slate-300">Loading...</p>
+                <p class="text-sm text-slate-600 dark:text-slate-300">{{ t('Loading...') }}</p>
             </div>
         </Transition>
 
@@ -178,13 +178,13 @@
                         <!-- Language Toggle (desktop) -->
                         <div class="hidden items-center gap-1 lg:flex">
                             <button
-                                v-for="option in localeOptions"
+                                v-for="option in getLocaleOptions"
                                 :key="option.code"
                                 type="button"
                                 class="rounded px-2 py-1 text-xs font-semibold uppercase transition"
-                                :class="option.code === locale ? 'bg-[#f59e0b] text-white' : 'text-slate-300 hover:text-white'"
+                                :class="option.code === currentLanguage ? 'bg-[#f59e0b] text-white' : 'text-slate-300 hover:text-white'"
                                 :title="option.label"
-                                @click="setLocale(option.code)"
+                                @click="setLanguage(option.code)"
                             >
                                 {{ option.code }}
                             </button>
@@ -192,11 +192,12 @@
 
                         <!-- Currency selector (desktop) -->
                         <select
-                            v-model="selectedCurrency"
+                            v-if="displaySettings?.show_currency_selector"
+                            v-model="currentCurrency"
                             @change="onCurrencyChange"
-                            class="hidden rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-white focus:border-[#f59e0b] focus:outline-none lg:block"
+                            class="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-white focus:border-[#f59e0b] focus:outline-none hidden lg:block"
                         >
-                            <option v-for="currency in currencyOptions" :key="currency" :value="currency">
+                            <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
                                 {{ currency }}
                             </option>
                         </select>
@@ -205,7 +206,7 @@
                         <Link
                             href="/account/wishlist"
                             class="relative inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"
-                            aria-label="Wishlist"
+                            :aria-label="t('Wishlist')"
                         >
                             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
                                 <path
@@ -227,7 +228,7 @@
                             <button
                                 type="button"
                                 class="relative inline-flex h-10 w-10 items-center justify-center overflow-visible text-white transition hover:text-[#f59e0b]"
-                                aria-label="Account"
+                                :aria-label="t('Account')"
                                 :aria-expanded="accountOpen"
                                 @click.stop="toggleAccount"
                             >
@@ -341,7 +342,7 @@
                             <button
                                 type="button"
                                 class="relative inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"
-                                aria-label="Cart"
+                                :aria-label="t('Cart')"
                                 :aria-expanded="cartOpen"
                                 @click.stop="toggleCart"
                             >
@@ -508,7 +509,7 @@
                             type="button"
                             class="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-900/70 p-2 text-dark shadow hover:text-[#f59e0b]"
                             @click="scrollCategories('left')"
-                            aria-label="Scroll left"
+                            :aria-label="t('Scroll left')"
                         >
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -541,7 +542,7 @@
                             type="button"
                             class="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-900/70 p-2 text-white shadow hover:text-[#f59e0b]"
                             @click="scrollCategories('right')"
-                            aria-label="Scroll right"
+                            :aria-label="t('Scroll right')"
                         >
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -859,6 +860,42 @@
                         </Link>
                     </div>
 
+                    <!-- Language & Currency Selectors (Mobile) -->
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">{{
+                                t('Language')
+                            }}</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button
+                                    v-for="option in getLocaleOptions"
+                                    :key="option.code"
+                                    type="button"
+                                    class="rounded-lg border px-3 py-2 text-xs font-medium transition"
+                                    :class="option.code === currentLanguage ? 'border-[#f59e0b] bg-[#f59e0b] text-white' : 'border-slate-200 text-slate-600 hover:border-slate-300'"
+                                    @click="setLanguage(option.code); mobileOpen = false"
+                                >
+                                    {{ option.code }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="displaySettings?.show_currency_selector">
+                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">{{
+                                t('Currency')
+                            }}</p>
+                            <select
+                                v-model="currentCurrency"
+                                @change="onCurrencyChange(); mobileOpen = false"
+                                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:border-[#f59e0b] focus:outline-none"
+                            >
+                                <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
+                                    {{ currency }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="space-y-2 text-sm text-slate-600">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{
                                 t('Account')
@@ -921,12 +958,12 @@
                             }}</p>
                         <div class="flex flex-wrap gap-2">
                             <button
-                                v-for="option in localeOptions"
+                                v-for="option in getLocaleOptions"
                                 :key="option.code"
                                 type="button"
                                 class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase text-slate-700 transition"
-                                :class="option.code === locale ? 'bg-slate-900 text-white' : 'hover:border-slate-300'"
-                                @click="setLocale(option.code)"
+                                :class="option.code === currentLanguage ? 'bg-slate-900 text-white' : 'hover:border-slate-300'"
+                                @click="setLanguage(option.code)"
                             >
                                 {{ option.code }}
                             </button>
@@ -937,11 +974,11 @@
                                     t('Currency')
                                 }}</p>
                             <select
-                                v-model="selectedCurrency"
+                                v-model="currentCurrency"
                                 @change="onCurrencyChange"
                                 class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#f59e0b] focus:outline-none"
                             >
-                                <option v-for="currency in currencyOptions" :key="currency" :value="currency">
+                                <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
                                     {{ currency }}
                                 </option>
                             </select>
@@ -963,34 +1000,54 @@ import {computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
-import {useTranslations} from '@/i18n'
+import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
 
 import { toastAlert } from "@/utils/toast";
-import { useCurrency } from '@/composables/useCurrency.js'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-
-
 
 /** Persistent cart (kept here, remove if unused) */
 const {cart: persistentCart, setCart, addLine, updateLine, removeLine, clearCart} = usePersistentCart()
 
 // --- Multi-currency support ---
-const { currencyOptions, selectedCurrency, setCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || 'USD')
+const { 
+    currentCurrency, 
+    currentLanguage, 
+    setCurrency, 
+    setLanguage, 
+    formatCurrency, 
+    convertCurrency,
+    availableCurrencies,
+    availableLanguages,
+    getLocaleOptions,
+    displaySettings
+} = useUserPreferences()
+
 const formatPrice = (amount) =>
-    formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
+    formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', currentCurrency.value), currentCurrency.value)
 
 function onCurrencyChange() {
-    setCurrency(selectedCurrency.value)
+    setCurrency(currentCurrency.value)
 }
 
 // --- App / page ---
 const page = usePage()
-const {t, locale, availableLocales} = useTranslations()
+
+// Simple fallback for translations
+const t = (key, replacements = {}) => {
+  // Try to get from page props first
+  const translations = page.props.translations || {}
+  const text = translations[key] || key
+  
+  // Apply simple replacements
+  if (replacements && typeof replacements === 'object') {
+    return text.replace(/:(\w+)/g, (match, key) => replacements[key] || match)
+  }
+  
+  return text
+}
 
 // --- UI state ---
 const mobileOpen = ref(false)
@@ -1058,11 +1115,6 @@ const unreadNotifications = computed(() => {
         return Number(prop.unreadCount ?? 0)
     }
     return Number(page.props.unreadCount ?? 0)
-})
-
-const localeOptions = computed(() => {
-    const entries = Object.entries(availableLocales.value ?? {})
-    return entries.map(([code, label]) => ({code, label}))
 })
 
 const notices = computed(() => {
@@ -1666,10 +1718,7 @@ const toggleCart = () => {
 }
 
 // --- Locale ---
-const setLocale = (target) => {
-    if (!target || target === locale.value) return
-    router.get(`/locale/${target}`, {}, {preserveScroll: true})
-}
+// Note: setLocale is now provided by useUserPreferences composable
 
 // --- Outside click close ---
 const handleDocumentClick = (event) => {

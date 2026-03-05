@@ -1,7 +1,9 @@
 <template>
     <StorefrontLayout>
         <div class="max-w-7xl mx-auto">
-            <h1 class="text-3xl font-bold text-slate-900 mb-8">Payment</h1>
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-3xl font-bold text-slate-900">{{ t('Payment') }}</h1>
+            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- Left Column - Order Summary & Payment Methods -->
@@ -10,24 +12,43 @@
                     <OrderSummary
                         :type="type"
                         :items="items"
-                        :shipping="20"
-                        :tax="6.01"
-                        :discount="3.71"
-                        discount-label="First order 10% off"
+                        :shipping="displayAmount(20)"
+                        :tax="displayAmount(6.01)"
+                        :discount="displayAmount(discount)"
+                        :discount-label="discountLabel"
                         tax-label="VAT"
-                        currency="USD"
+                        :currency="displayCurrency"
                     />
+
+                    <!-- Promotions Section -->
+                    <div v-if="displayPromotions.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-slate-700">
+                        <div class="mb-1 font-semibold text-amber-700">{{ t('Promotions applied:') }}</div>
+                        <ul class="space-y-1">
+                            <li v-for="promo in displayPromotions" :key="promo.id">
+                                <span class="font-semibold">{{ promo.name }}</span>
+                                <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
+                                <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
+                                <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ displayAmount(Number(promo.value ?? 0)) }}</span>
+                                <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
+                                    {{ t('Ends in') }} {{ promoCountdown(promo) }}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
 
 
                     <Address v-if="type === 'cart'"
                              :user="customer"
                              :defaultAddress="defaultAddress"
+                             :userAddresses="userAddresses"
+                             :t="t"
                              @change-address="changeAddress"
                     />
                     <!-- Payment Methods Component -->
                     <PaymentMethods
                         :amount="final_total"
-                        :currency="currency"
+                        :formatted-amount="displayAmount(final_total)"
+                        :currency="displayCurrency"
                         :initial-method="selectedMethod"
                         :is_processing="is_processing"
                         @method-change="handleMethodChange"
@@ -40,7 +61,7 @@
                 <div class="lg:col-span-1 space-y-6">
                     <PaymentSummary
                         :summary-data="summery"
-                        :currency="currency"
+                        :currency="displayCurrency"
                         :item-count="totalItems"
                         :estimated-delivery="estimatedDelivery"
                         :selected-method="selectedMethod"
@@ -66,20 +87,38 @@
 
 <script setup>
 import {ref, computed, onMounted} from 'vue'
+import {useTranslations} from '@/i18n'
+import {useUserPreferences} from '@/composables/useUserPreferences.js'
+import {usePromoNow, formatCountdown} from '@/composables/usePromoCountdown.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import OrderSummary from '@/Components/payment/OrderSummary.vue'
 import PaymentMethods from '@/Components/payment/PaymentMethods.vue'
 import PaymentSummary from '@/Components/payment/PaymentSummary.vue'
-
-import ErrorCard from '@/Components/common/ErrorCard.vue'
 import {toastAlert} from "@/utils/toast.js";
 
 
-import {usePage, router} from '@inertiajs/vue3'
+import {usePage} from '@inertiajs/vue3'
 
 const page = usePage();
 import axios from "axios";
 import Address from "@/Components/payment/Address.vue";
+
+const {t} = useTranslations()
+const { 
+  currentCurrency, 
+  formatCurrency, 
+  convertCurrency
+} = useUserPreferences()
+
+const now = usePromoNow()
+const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
+
+// Extract discount and promotion data from summery
+const discount = computed(() => summery?.discount || 0)
+const discountLabel = computed(() => summery?.discount_label || '')
+const displayPromotions = computed(() => 
+  summery?.appliedPromotions?.length ? summery.appliedPromotions : []
+)
 
 
 const type = page.props.type
@@ -88,20 +127,17 @@ const summery = page.props.summery
 const final_total = page.props.final_total
 const customer = page.props.customer
 const defaultAddress = page.props.defaultAddress
+const userAddresses = page.props.addresses || []
 const items = computed(() => page.props.items)
 
-
-const payment_result = page.props.payment_result
-
-const successMessage = page.props.successMessage
-// const errorMessage = page.props.errorMessage
-// const errors = page.props.errors
-
-
-const currency = ref('USD')
+const displayCurrency = computed(() => currentCurrency.value || 'USD')
 const is_processing = ref(false)
 const address = ref(null);
 
+// Currency conversion helper
+const displayAmount = (amount) => {
+  return formatCurrency(convertCurrency(Number(amount || 0), 'USD', displayCurrency.value), displayCurrency.value)
+}
 
 const totalItems = computed(() => {
     return items.value.reduce((sum, item) => sum + item.quantity, 0)

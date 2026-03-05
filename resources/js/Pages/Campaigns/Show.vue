@@ -125,8 +125,7 @@ import { computed } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   campaign: { type: Object, required: true },
@@ -138,8 +137,8 @@ const props = defineProps({
 
 const { t, locale } = useTranslations()
 const page = usePage()
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || page.props.currency || 'USD')
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || page.props.currency || 'USD')
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 

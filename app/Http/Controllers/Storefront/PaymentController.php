@@ -27,6 +27,7 @@ class PaymentController extends Controller
 
     public function index($type, $id)
     {
+
         $customer = auth('customer')->user();
         $item = $this->getItem($type, $id);
         if (!$item) {
@@ -54,10 +55,27 @@ class PaymentController extends Controller
             ->orderBy('id')
             ->first() : null;
 
+        $addresses = isset($customer) ? $customer?->addresses()
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->get() : collect();
+
 
         return Inertia::render('Payments/Index', [
             'customer' => $customer,
             'defaultAddress' => $defaultAddress,
+            'addresses' => $addresses->map(fn ($address) => [
+                'id' => $address->id,
+                'name' => $address->name,
+                'phone' => $address->phone,
+                'line1' => $address->line1,
+                'line2' => $address->line2,
+                'city' => $address->city,
+                'state' => $address->state,
+                'postal_code' => $address->postal_code,
+                'country' => $address->country,
+                'is_default' => $address->is_default,
+            ])->values()->all(),
             'type' => $type,
             'id' => $id,
             'summery' => $summery,

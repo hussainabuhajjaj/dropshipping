@@ -1,12 +1,15 @@
 import { ref } from 'vue'
+import { router } from '@inertiajs/vue3'
+import { getAvailableCurrencies, getCurrencyDisplaySettings } from '@/utils/currency'
 
 const CURRENCY_KEY = 'dropshipping_currency'
-const currencyOptions = ['USD', 'XOF']
+const currencyOptions = ['USD', 'XOF', 'JOD', 'EUR']
 const selectedCurrency = ref('USD')
 
 const normalizeCurrency = (value) => {
   const normalized = String(value || '').trim().toUpperCase()
-  return currencyOptions.includes(normalized) ? normalized : 'USD'
+  const availableCurrencies = getAvailableCurrencies()
+  return availableCurrencies.includes(normalized) ? normalized : 'USD'
 }
 
 const setCurrency = (value) => {
@@ -14,6 +17,16 @@ const setCurrency = (value) => {
   selectedCurrency.value = next
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(CURRENCY_KEY, next)
+    // Make API call to backend to persist currency preference
+    router.post('/currency', { currency: next }, {
+      preserveScroll: true,
+      onSuccess: () => {
+        console.log('Currency preference saved successfully')
+      },
+      onError: (errors) => {
+        console.error('Failed to save currency preference:', errors)
+      }
+    })
   }
 }
 
@@ -21,6 +34,13 @@ if (typeof window !== 'undefined') {
   const stored = window.localStorage.getItem(CURRENCY_KEY)
   if (stored) {
     selectedCurrency.value = normalizeCurrency(stored)
+  }
+  
+  // Initialize from backend if available
+  const backendCurrency = document.querySelector('meta[name="current-currency"]')?.getAttribute('content')
+  if (backendCurrency) {
+    selectedCurrency.value = normalizeCurrency(backendCurrency)
+    window.localStorage.setItem(CURRENCY_KEY, selectedCurrency.value)
   }
 
   window.addEventListener('storage', (event) => {
@@ -32,8 +52,9 @@ if (typeof window !== 'undefined') {
 
 export function useCurrency() {
   return {
-    currencyOptions,
+    currencyOptions: getAvailableCurrencies(),
     selectedCurrency,
     setCurrency,
+    displaySettings: getCurrencyDisplaySettings(),
   }
 }

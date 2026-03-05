@@ -35,7 +35,7 @@
 
         <!-- Amount Breakdown -->
         <div class="space-y-2 text-sm">
-            <div v-for="item in summary.items.filter(i => i.type !== 'total')"
+            <div v-for="item in convertedSummary.items.filter(i => i.type !== 'total')"
                  :key="item.id"
                  class="flex justify-between"
                  :class="{
@@ -54,7 +54,7 @@
 
             <div class="flex justify-between font-semibold text-slate-900 pt-2 border-t border-slate-200 mt-2">
                 <span>{{ t('Total') }}</span>
-                <span class="text-lg text-[#f59e0b]">{{ summary.formatted.total }}</span>
+                <span class="text-lg text-[#f59e0b]">{{ convertedSummary.formatted.total }}</span>
             </div>
         </div>
 
@@ -121,9 +121,14 @@
 
 <script setup>
 import {computed} from 'vue'
+import {useTranslations} from '@/i18n'
+import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePaymentSummary} from '@/composables/usePaymentSummary'
 import TrustBadges from "@/Components/TrustBadges.vue";
 import DeliveryTimeline from "@/Components/DeliveryTimeline.vue";
+
+const { t } = useTranslations()
+const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
 
 const props = defineProps({
     summaryData: {
@@ -161,6 +166,31 @@ const freeShippingEligible = computed(() => {
     return checkFreeShippingEligibility(summary.value)
 })
 
+// Convert amounts to user's preferred currency
+const convertedSummary = computed(() => {
+    if (!summary.value?.items) return summary.value
+    
+    const convertedItems = summary.value.items.map(item => ({
+        ...item,
+        formatted: formatCurrency(
+            convertCurrency(Number(item.amount || 0), 'USD', currentCurrency.value || 'USD'),
+            currentCurrency.value || 'USD'
+        )
+    }))
+    
+    return {
+        ...summary.value,
+        items: convertedItems,
+        formatted: {
+            ...summary.value.formatted,
+            total: formatCurrency(
+                convertCurrency(Number(summary.value.raw?.total || 0), 'USD', currentCurrency.value || 'USD'),
+                currentCurrency.value || 'USD'
+            )
+        }
+    }
+})
+
 const paymentStatusClass = computed(() => {
     return {
         'text-amber-600': props.paymentStatus.toLowerCase() === 'pending',
@@ -169,27 +199,4 @@ const paymentStatusClass = computed(() => {
         'text-blue-600': props.paymentStatus.toLowerCase() === 'processing'
     }
 })
-
-const t = (key, params = {}) => {
-    const translations = {
-        'Payment Summary': 'Payment Summary',
-        'Payment Method': 'Payment Method',
-        'Subtotal': 'Subtotal',
-        'Shipping': 'Shipping',
-        'Discount': 'Discount',
-        'Tax': 'Tax',
-        'Total': 'Total',
-        'Applied Promotions': 'Applied Promotions',
-        'Order Details': 'Order Details',
-        'Items': 'Items',
-        'Shipping Method': 'Shipping Method',
-        'Payment Status': 'Payment Status',
-        'Estimated Delivery': 'Estimated Delivery',
-        'Tax included in prices': 'Tax included in prices',
-        'Coupon applied: :code': `Coupon applied: ${params.code || ''}`,
-        'Congratulations! You qualify for free shipping!': 'Congratulations! You qualify for free shipping!',
-        'Add :amount more to meet minimum requirement': `Add ${params.amount || ''} more to meet minimum requirement`
-    }
-    return translations[key] || key
-}
 </script>

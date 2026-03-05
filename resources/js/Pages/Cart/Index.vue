@@ -118,10 +118,10 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 // Helper to display price in selected currency
+const { formatCurrency, convertCurrency } = useUserPreferences()
 function displayPrice(amount) {
     return formatCurrency(convertCurrency(amount, 'USD', displayCurrency.value), displayCurrency.value)
 }
@@ -159,8 +159,8 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const displayPromotions = computed(() =>
     props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
 )
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 
 const couponCode = ref('')
 

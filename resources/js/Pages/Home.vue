@@ -344,8 +344,7 @@ import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 // Helper: Check if a category is targeted by any promotion
 function categoryHasPromotion(category, promotions) {
@@ -379,8 +378,8 @@ const props = defineProps({
 const page = usePage()
 const { t } = useTranslations()
 const now = usePromoNow()
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 const homepagePromotions = computed(() =>
     Array.isArray(page.props.homepagePromotions) ? page.props.homepagePromotions : []
 )

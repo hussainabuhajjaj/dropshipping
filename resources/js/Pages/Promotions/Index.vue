@@ -35,15 +35,14 @@
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { useTranslations } from '@/i18n'
 import { computed } from 'vue'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   promotions: { type: Array, default: () => [] },
 })
 const { t } = useTranslations()
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || 'USD')
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || 'USD')
 
 function displayPrice(amount) {
   return formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)

@@ -18,7 +18,7 @@
         </span>
         <span v-else class="text-slate-500">→</span>
         {{ category.name }}
-        <span v-if="categoryPromotion(category)" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">Promo!</span>
+        <span v-if="categoryPromotion(category)" class="ml-2 px-2 py-0.5 rounded bg-yellow-200 text-yellow-900 font-bold">{{ t('Promo!') }}</span>
         <span v-if="categoryCountdown(category)" class="text-[10px] font-semibold text-amber-700">
           {{ t('Ends in') }} {{ categoryCountdown(category) }}
         </span>

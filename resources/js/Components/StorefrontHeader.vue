@@ -276,12 +276,30 @@ const toggleAccount = () => {
 }
 
 const setLocale = (code) => {
-    locale.value = code
+    if (!code || code === locale.value) return
+    router.post('/language', { language: code }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            console.log('Language preference saved successfully')
+        },
+        onError: (errors) => {
+            console.error('Failed to save language preference:', errors)
+        }
+    })
 }
 
 const onCurrencyChange = () => {
     // Handle currency change
     console.log('Currency changed to:', selectedCurrency.value)
+    router.post('/currency', { currency: selectedCurrency.value }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            console.log('Currency preference saved successfully')
+        },
+        onError: (errors) => {
+            console.error('Failed to save currency preference:', errors)
+        }
+    })
 }
 
 const submitSearch = () => {

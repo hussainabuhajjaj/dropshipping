@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Storefront\ProductController;
 use App\Http\Controllers\Api\Storefront\TrackingController;
 use App\Http\Controllers\Api\Storefront\AuthController as StorefrontAuthController;
 use App\Http\Controllers\Api\Storefront\AccountController as StorefrontAccountController;
+use App\Http\Controllers\Storefront\UserPreferenceController;
 use App\Http\Controllers\CjApiMonitoringController;
 use App\Http\Controllers\Api\Mobile\V1\AuthController as MobileAuthController;
 use App\Http\Controllers\Api\Mobile\V1\HomeController as MobileHomeController;
@@ -17,6 +18,97 @@ use App\Http\Controllers\Api\Mobile\V1\ProductController as MobileProductControl
 use App\Http\Controllers\Api\Mobile\V1\ProductReviewController as MobileProductReviewController;
 use App\Http\Controllers\Api\Mobile\V1\CartController as MobileCartController;
 use App\Http\Controllers\Api\Mobile\V1\CheckoutController as MobileCheckoutController;
+use Illuminate\Support\Facades\Route;
+
+if (app()->environment('local')) {
+    Route::prefix('debug')->group(function () {
+        Route::get('/session', function () {
+            $localeCookie = request()->cookie('locale');
+            $decryptedLocale = null;
+            $sessionDecryptError = null;
+
+            if ($localeCookie) {
+                try {
+                    $decryptedLocale = decrypt($localeCookie);
+                } catch (\Throwable $exception) {
+                    $decryptedLocale = 'Failed to decrypt: ' . $exception->getMessage();
+                }
+            }
+
+            $sessionCookie = request()->cookie(config('session.cookie', 'simbazu-session'));
+            $decryptedSession = null;
+
+            if ($sessionCookie) {
+                try {
+                    $decryptedSession = decrypt($sessionCookie);
+                } catch (\Throwable $exception) {
+                    $sessionDecryptError = $exception->getMessage();
+                    $decryptedSession = 'Failed to decrypt: ' . $sessionDecryptError;
+                }
+            }
+
+            $currentAppKey = config('app.key');
+            $appKeyHash = substr(md5((string) $currentAppKey), 0, 8);
+
+            return response()->json([
+                'session_id' => session()->getId(),
+                'session_data' => session()->all(),
+                'session_has_data' => session()->has('user_currency') || session()->has('locale'),
+                'auth_check' => [
+                    'web' => auth()->check(),
+                    'customer' => auth()->guard('customer')->check(),
+                ],
+                'customer_auth' => auth()->guard('customer')->user() ? [
+                    'id' => auth()->guard('customer')->user()->id,
+                    'email' => auth()->guard('customer')->user()->email,
+                ] : null,
+                'decrypted_data' => [
+                    'locale_cookie' => $decryptedLocale,
+                    'session_cookie' => $decryptedSession,
+                ],
+                'app_key_info' => [
+                    'current_key_hash' => $appKeyHash,
+                    'key_length' => strlen((string) $currentAppKey),
+                    'encryption_issue' => is_string($sessionDecryptError) && str_contains($sessionDecryptError, 'unserialize'),
+                ],
+            ]);
+        });
+
+        Route::get('/clear-cookies', function () {
+            $cookiesToClear = [
+                'locale',
+                config('session.cookie', 'simbazu-session'),
+                'XSRF-TOKEN',
+            ];
+
+            $cleared = [];
+            foreach ($cookiesToClear as $cookie) {
+                if (request()->cookie($cookie)) {
+                    $cleared[] = $cookie;
+                    cookie()->queue(cookie()->forget($cookie, '/'));
+                }
+            }
+
+            return response()->json([
+                'message' => 'Cookies cleared successfully',
+                'cleared_cookies' => $cleared,
+                'instruction' => 'Please refresh the page to continue',
+            ]);
+        });
+
+        Route::get('/reset-session', function () {
+            session()->invalidate();
+            session()->regenerateToken();
+
+            return response()->json([
+                'message' => 'Session reset at Laravel level',
+                'new_session_id' => session()->getId(),
+                'instruction' => 'Please close browser completely and re-login',
+            ]);
+        });
+    });
+}
+
 use App\Http\Controllers\Api\Mobile\V1\OrderController as MobileOrderController;
 use App\Http\Controllers\Api\Mobile\V1\PaymentController as MobilePaymentController;
 use App\Http\Controllers\Api\Mobile\V1\AddressController as MobileAddressController;
@@ -38,7 +130,6 @@ use App\Http\Controllers\Api\Mobile\V1\StoryController as MobileStoryController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
-use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [StorefrontAuthController::class, 'register']);
@@ -64,6 +155,41 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('payment-methods', [StorefrontPaymentMethodController::class, 'store']);
         Route::delete('payment-methods/{paymentMethod}', [StorefrontPaymentMethodController::class, 'destroy']);
     });
+});
+
+// User Preferences API
+Route::middleware('web')->group(function () {
+    Route::get('user-preferences', [UserPreferenceController::class, 'index']);
+    Route::put('user-preferences/currency', [UserPreferenceController::class, 'updateCurrency']);
+    Route::put('user-preferences/language', [UserPreferenceController::class, 'updateLanguage']);
+    Route::put('user-preferences', [UserPreferenceController::class, 'update']);
+});
+
+Route::get('currency-settings', function () {
+    $rates = config('currency.rates', []);
+    $baseCurrency = config('currency.base', 'USD');
+
+    // Build comprehensive rates array including base currency
+    $allRates = [$baseCurrency => 1.0];
+
+    foreach ($rates as $rateKey => $rateValue) {
+        if (str_contains($rateKey, '_')) {
+            [$from, $to] = explode('_', $rateKey);
+            $allRates[$from] = $allRates[$from] ?? 1.0;
+            $allRates[$to] = $rateValue;
+        }
+    }
+
+    return response()->json([
+        'rates' => $allRates,
+        'base' => $baseCurrency,
+        'decimals' => config('currency.decimals', []),
+        'display' => [
+            'auto_convert_prices' => cache('currency_auto_convert', true),
+            'show_currency_selector' => cache('currency_show_selector', true),
+            'default_customer_currency' => cache('currency_default_customer', 'USD'),
+        ]
+    ]);
 });
 
 Route::prefix('storefront')->group(function () {

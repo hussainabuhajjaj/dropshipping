@@ -64,11 +64,10 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
 import { useTranslations } from '@/i18n'
 import { computed } from 'vue'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
     line: { type: Object, required: true },
@@ -78,8 +77,8 @@ const props = defineProps({
 
 defineEmits(['remove', 'update'])
 
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 
 const displayUnitPrice = computed(() =>
     formatCurrency(

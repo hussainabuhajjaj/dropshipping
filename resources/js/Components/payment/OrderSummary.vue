@@ -64,6 +64,11 @@
 
 <script setup>
 import {computed} from 'vue'
+import {useTranslations} from '@/i18n'
+import {useUserPreferences} from '@/composables/useUserPreferences.js'
+
+const { t } = useTranslations()
+const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
 
 const props = defineProps({
     // Can be either cart items array or summary object
@@ -166,40 +171,13 @@ const total = computed(() => {
     return props.items?.total || (subtotal.value + props.shipping + props.tax - props.discount)
 })
 
-// Translation function
-const t = (key, params = {}) => {
-    const translations = {
-        'Order Summary': 'Order Summary',
-        'Qty': 'Qty',
-        'each': 'each',
-        'Subtotal': 'Subtotal',
-        'Shipping': 'Shipping',
-        'Tax': 'Tax',
-        'Discount': 'Discount',
-        'Total': 'Total',
-        'All prices are in :currency': `All prices are in ${params.currency || 'JOD'}`,
-        'Tax included in prices': 'Tax included in prices',
-        'Only :stock left in stock': `Only ${params.stock || ''} left in stock`
-    }
-    let text = translations[key] || key
-    if (params) {
-        Object.keys(params).forEach(param => {
-            text = text.replace(`:${param}`, params[param])
-        })
-    }
-    return text
-}
-
-// Format price with currency
+// Format price with proper currency conversion
 const formatPrice = (amount) => {
     if (amount === null || amount === undefined) return ''
-
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: props.currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount)
+    
+    // Convert from USD to user's preferred currency, then format
+    const convertedAmount = convertCurrency(Number(amount || 0), 'USD', currentCurrency.value || 'USD')
+    return formatCurrency(convertedAmount, currentCurrency.value || 'USD')
 }
 
 // Handle image load error

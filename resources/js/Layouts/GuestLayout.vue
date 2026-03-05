@@ -13,7 +13,15 @@ const setLocale = (target) => {
     if (! target || target === locale.value) {
         return
     }
-    router.get(`/locale/${target}`, {}, { preserveScroll: true })
+    router.post('/language', { language: target }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            console.log('Language preference saved successfully')
+        },
+        onError: (errors) => {
+            console.error('Failed to save language preference:', errors)
+        }
+    })
 }
 </script>
 

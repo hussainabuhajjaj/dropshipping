@@ -34,8 +34,9 @@
 </template>
 
 <script setup>
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
+const { formatCurrency, convertCurrency } = useUserPreferences()
 function displayRefundAmount(amount, currency) {
   return formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', currency), currency)
 }

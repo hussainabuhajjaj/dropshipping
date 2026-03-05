@@ -13,7 +13,7 @@
 
       <div class="coming-panel">
         <div v-if="resolvedImage" class="coming-image">
-          <img :src="resolvedImage" alt="Coming soon" />
+          <img :src="resolvedImage" :alt="t('Coming soon')" />
         </div>
         <div class="coming-body">
           <div class="coming-badge">{{ t('Get notified') }}</div>

@@ -44,8 +44,7 @@ import { Link } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
-import { convertCurrency, formatCurrency } from '@/utils/currency.js'
-import { useCurrency } from '@/composables/useCurrency.js'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   promotions: { type: Array, default: () => [] },
@@ -55,8 +54,8 @@ const props = defineProps({
 const { t } = useTranslations()
 const now = usePromoNow()
 const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
-const { selectedCurrency } = useCurrency()
-const displayCurrency = computed(() => selectedCurrency.value || props.currency)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
 const displayPrice = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 </script>

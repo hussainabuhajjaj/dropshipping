@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\CheckStorefrontComingSoon::class,
             \App\Http\Middleware\SetLocale::class,
             \App\Http\Middleware\ResolveAffiliateReferral::class,
+            \App\Http\Middleware\SetUserPreferences::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
