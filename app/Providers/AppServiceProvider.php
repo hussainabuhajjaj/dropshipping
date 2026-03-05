@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Bind translation provider based on config
-        $provider = env('TRANSLATION_PROVIDER', 'libre_translate');
+        $provider = (string) config('services.translation_provider', 'libre_translate');
 
         match ($provider) {
             'deepseek' => $this->app->bind(

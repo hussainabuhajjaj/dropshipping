@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Log;
 class ProductTranslationService
 {
     private const CACHE_TTL = 86400; // 24 hours
-    private const BATCH_SIZE = 8; // Process 8 texts per API call
+    private const BATCH_SIZE = 12; // Fewer requests while staying reliable
+    private const BATCH_CHAR_BUDGET = 12000; // Keep prompts bounded to reduce retries
     private const MAX_TEXT_LENGTH = 6000; // DeepSeek context limit
 
     public function __construct(private TranslationProvider $client)
@@ -30,12 +31,13 @@ class ProductTranslationService
         // Ensure variants are available for translation
         $product->loadMissing('variants');
 
-        $apiKeyConfigured = (bool) (config('services.deepseek.key'));
-        if (! $apiKeyConfigured) {
-            Log::warning('DeepSeek not configured, will only persist source locale', [
+        $providerConfigured = $this->isProviderConfigured();
+        if (! $providerConfigured) {
+            Log::warning('Translation provider not configured, will only persist source locale', [
                 'product_id' => $product->id,
                 'sourceLocale' => $sourceLocale,
                 'locales' => $locales,
+                'provider' => config('services.translation_provider'),
             ]);
         }
 
@@ -58,7 +60,7 @@ class ProductTranslationService
                 ]);
                 
                 // Still translate variants if needed
-                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $providerConfigured, $product);
                 continue;
             }
 
@@ -77,17 +79,17 @@ class ProductTranslationService
                     ]);
                 }
 
-                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $providerConfigured, $product);
                 continue;
             }
 
-            if (! $apiKeyConfigured) {
+            if (! $providerConfigured) {
                 Log::warning('Skipping translation - API not configured', [
                     'product_id' => $product->id,
                     'locale' => $locale,
                 ]);
                 // Skip translating to other locales when provider is not available
-                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $apiKeyConfigured, $product);
+                $this->translateVariants($product->variants ?? [], $locale, $sourceLocale, $force, $providerConfigured, $product);
                 continue;
             }
 
@@ -101,6 +103,21 @@ class ProductTranslationService
             
             $this->batchTranslateProduct($product, $locale, $sourceLocale, $force);
         }
+    }
+
+    private function isProviderConfigured(): bool
+    {
+        $provider = (string) config('services.translation_provider', 'libre_translate');
+
+        if ($provider === 'deepseek') {
+            return ! empty(config('services.deepseek.key'));
+        }
+
+        if ($provider === 'libre_translate') {
+            return ! empty(config('services.libre_translate.base_url'));
+        }
+
+        return true;
     }
 
     /**
@@ -181,31 +198,48 @@ class ProductTranslationService
             return;
         }
 
-        Log::info('Batch translation collected texts', [
-            'product_id' => $product->id,
-            'locale' => $locale,
-            'texts_count' => count($textsToTranslate),
-            'text_types' => array_column($textMetadata, 'type'),
-        ]);
+        $allTranslations = array_fill(0, count($textsToTranslate), '');
 
-        // Process in batches to reduce API calls
-        $batches = array_chunk($textsToTranslate, self::BATCH_SIZE);
-        $allTranslations = [];
+        // De-duplicate repeated texts (very common with variant titles) to cut API usage.
+        $uniqueTexts = [];
+        $uniqueTextMap = [];
+        foreach ($textsToTranslate as $index => $text) {
+            $key = md5($text);
+            if (! isset($uniqueTexts[$key])) {
+                $uniqueTexts[$key] = $text;
+            }
+            $uniqueTextMap[$key][] = $index;
+        }
 
-        foreach ($batches as $batchIndex => $batch) {
-            $batchMetadata = array_slice($textMetadata, $batchIndex * self::BATCH_SIZE, self::BATCH_SIZE);
-            
+        // Cache-first resolution before any API call.
+        $pendingUniqueTexts = [];
+        foreach ($uniqueTexts as $key => $text) {
+            $cached = Cache::get($this->translationCacheKey($text, $sourceLocale, $locale));
+            if (is_string($cached) && $cached !== '') {
+                foreach ($uniqueTextMap[$key] as $index) {
+                    $allTranslations[$index] = $cached;
+                }
+                continue;
+            }
+
+            $pendingUniqueTexts[$key] = $text;
+        }
+
+        // Only unresolved unique texts go to API.
+        $pendingTexts = array_values($pendingUniqueTexts);
+        foreach ($this->buildCharAwareBatches($pendingTexts) as $batchIndex => $batch) {
             try {
                 $batchTranslations = $this->callBatchTranslationAPI($batch, $sourceLocale, $locale, $product->id);
-                $allTranslations = array_merge($allTranslations, $batchTranslations);
-                
-                Log::info('Batch translation completed', [
-                    'product_id' => $product->id,
-                    'batch_index' => $batchIndex,
-                    'texts_count' => count($batch),
-                    'api_calls_saved' => count($batch) - 1,
-                ]);
-                
+
+                foreach ($batch as $i => $sourceText) {
+                    $translated = $batchTranslations[$i] ?? $sourceText;
+                    $key = md5($sourceText);
+                    Cache::put($this->translationCacheKey($sourceText, $sourceLocale, $locale), $translated, self::CACHE_TTL);
+
+                    foreach ($uniqueTextMap[$key] ?? [] as $index) {
+                        $allTranslations[$index] = $translated;
+                    }
+                }
             } catch (\Throwable $e) {
                 Log::warning('Batch translation failed, falling back to individual calls', [
                     'product_id' => $product->id,
@@ -213,20 +247,31 @@ class ProductTranslationService
                     'error' => $e->getMessage(),
                 ]);
 
-                // Fallback to individual translations with caching
-                foreach ($batch as $index => $text) {
+                foreach ($batch as $sourceText) {
+                    $key = md5($sourceText);
+
                     try {
-                        $translation = $this->translateWithCache($text, $sourceLocale, $locale, $product->id);
-                        $allTranslations[] = $translation;
+                        $translated = $this->translateWithCache($sourceText, $sourceLocale, $locale, $product->id);
                     } catch (\Throwable $individualError) {
                         Log::error('Individual translation failed', [
                             'product_id' => $product->id,
-                            'text' => substr($text, 0, 50),
+                            'text' => substr($sourceText, 0, 50),
                             'error' => $individualError->getMessage(),
                         ]);
-                        $allTranslations[] = $text; // Fallback to original
+                        $translated = $sourceText;
+                    }
+
+                    foreach ($uniqueTextMap[$key] ?? [] as $index) {
+                        $allTranslations[$index] = $translated;
                     }
                 }
+            }
+        }
+
+        // Ensure no empty slots remain.
+        foreach ($allTranslations as $index => $value) {
+            if ($value === '') {
+                $allTranslations[$index] = $textsToTranslate[$index];
             }
         }
 
@@ -318,7 +363,7 @@ class ProductTranslationService
      */
     private function translateWithCache(string $text, string $source, string $target, int $productId): string
     {
-        $cacheKey = "translation_{$source}_{$target}_" . md5($text);
+        $cacheKey = $this->translationCacheKey($text, $source, $target);
         
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
@@ -335,6 +380,45 @@ class ProductTranslationService
         Cache::put($cacheKey, $translation, self::CACHE_TTL);
         
         return $translation;
+    }
+
+    private function translationCacheKey(string $text, string $source, string $target): string
+    {
+        $provider = (string) config('services.translation_provider', 'unknown');
+
+        return "translation:{$provider}:{$source}:{$target}:" . md5($text);
+    }
+
+    /**
+     * @param array<int, string> $texts
+     * @return array<int, array<int, string>>
+     */
+    private function buildCharAwareBatches(array $texts): array
+    {
+        $batches = [];
+        $currentBatch = [];
+        $currentChars = 0;
+
+        foreach ($texts as $text) {
+            $length = strlen($text);
+            $wouldExceedCount = count($currentBatch) >= self::BATCH_SIZE;
+            $wouldExceedChars = ($currentChars + $length) > self::BATCH_CHAR_BUDGET;
+
+            if ($currentBatch !== [] && ($wouldExceedCount || $wouldExceedChars)) {
+                $batches[] = $currentBatch;
+                $currentBatch = [];
+                $currentChars = 0;
+            }
+
+            $currentBatch[] = $text;
+            $currentChars += $length;
+        }
+
+        if ($currentBatch !== []) {
+            $batches[] = $currentBatch;
+        }
+
+        return $batches;
     }
 
     /**

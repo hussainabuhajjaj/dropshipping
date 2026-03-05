@@ -350,9 +350,9 @@ class ProductResource extends BaseResource
                     ->checkFileExistence(false)
                     ->action(
                         Action::make('viewImages')
-                            ->modalHeading(fn (Product $record) => $record->name)
-                            ->modalContent(fn (Product $record) => view('filament.modals.product-images', [
-                                'images' => $record->images->sortBy('position')->pluck('url')->filter()->values()->all(),
+                            ->modalHeading(fn (?Product $record) => $record?->name ?? 'Product Images')
+                            ->modalContent(fn (?Product $record) => view('filament.modals.product-images', [
+                                'images' => $record?->images?->sortBy('position')->pluck('url')->filter()->values()->all() ?? [],
                             ]))
                             ->modalWidth('4xl')
                             ->modalSubmitAction(false)
@@ -1075,7 +1075,8 @@ class ProductResource extends BaseResource
                                 return;
                             }
 
-                            TranslateProductJob::dispatch((int) $record->id, ['en', 'fr'], 'en', false);
+                            TranslateProductJob::dispatch((int) $record->id, ['en', 'fr'], 'en', false)
+                                ->onQueue('translations');
 
                             Notification::make()
                                 ->title('Translation queued')
@@ -1867,18 +1868,15 @@ class ProductResource extends BaseResource
                             $source = (string) ($data['source_locale'] ?? 'en');
                             $force = (bool) ($data['force'] ?? false);
 
-                            foreach ($records as $record) {
-                                TranslateProductJob::dispatch((int) $record->id, $locales, $source, $force);
-                            }
-
-                            // ENHANCED: Also offer chunk job option for large batches
                             if ($records->count() > 20) {
                                 $productIds = $records->pluck('id')->toArray();
                                 $chunkSize = 10;
                                 $chunks = array_chunk($productIds, $chunkSize);
                                 
                                 foreach ($chunks as $chunk) {
-                                    TranslateProductsChunkJob::dispatch($chunk, $locales);
+                                    TranslateProductsChunkJob::dispatch($chunk, $locales)
+                                        ->onConnection('redis')
+                                        ->onQueue('translations');
                                 }
                                 
                                 Notification::make()
@@ -1887,6 +1885,12 @@ class ProductResource extends BaseResource
                                     ->success()
                                     ->send();
                             } else {
+                                foreach ($records as $record) {
+                                    TranslateProductJob::dispatch((int) $record->id, $locales, $source, $force)
+                                        ->onConnection('redis')
+                                        ->onQueue('translations');
+                                }
+
                                 Notification::make()
                                     ->title('Translations queued')
                                     ->body("Queued {$records->count()} product(s).")

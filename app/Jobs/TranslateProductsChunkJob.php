@@ -35,11 +35,8 @@ class TranslateProductsChunkJob implements ShouldQueue
     {
         $this->productIds = $productIds;
         $this->locales = $locales;
-    }
-
-    public function middleware(): array
-    {
-        return [new \App\Jobs\Middleware\ReleaseCjClaim()];
+        $this->onConnection('redis');
+        $this->onQueue('translations');
     }
 
     public function handle(ProductTranslationService $service): void
@@ -125,14 +122,6 @@ class TranslateProductsChunkJob implements ShouldQueue
         if ($failureCount === count($this->productIds)) {
             throw new \RuntimeException('All products in chunk failed translation');
         }
-    }
-
-    /**
-     * Get the queue the job should be dispatched to.
-     */
-    public function queue(): string
-    {
-        return 'translations';
     }
 
     /**

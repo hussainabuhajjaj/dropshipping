@@ -33,6 +33,8 @@ class TranslateProductJob implements ShouldQueue
         public string $sourceLocale = 'en',
         public bool $force = false
     ) {
+        $this->onConnection('redis');
+        $this->onQueue('translations');
     }
 
     public function handle(ProductTranslationService $service): void
@@ -91,14 +93,6 @@ class TranslateProductJob implements ShouldQueue
             
             throw $e;
         }
-    }
-
-    /**
-     * Get the queue the job should be dispatched to.
-     */
-    public function queue(): string
-    {
-        return 'translations';
     }
 
     /**
