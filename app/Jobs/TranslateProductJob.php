@@ -98,7 +98,7 @@ class TranslateProductJob implements ShouldQueue
      */
     public function queue(): string
     {
-        return 'translation';
+        return 'translations';
     }
 
     /**
