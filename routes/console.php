@@ -384,30 +384,106 @@ Artisan::command('categories:dedupe {--dry-run}', function () {
     }
 })->purpose('Merge duplicate categories by name and parent');
 
-Artisan::command('categories:fix {--force}', function () {
+Artisan::command('categories:fix
+    {--force : Skip interactive confirmation}
+    {--dry-run : Preview dedupe/repair without persisting category/product updates}
+    {--skip-repair : Skip repairing products with missing category_id}
+    {--repair-limit=500 : Max products to process in repair step}
+    {--repair-sleep-ms=180 : Delay between CJ API calls during repair}
+    {--without-create : Do not create placeholder categories during repair}', function () {
     $force = (bool) $this->option('force');
+    $dryRun = (bool) $this->option('dry-run');
+    $skipRepair = (bool) $this->option('skip-repair');
+    $repairLimit = max(1, (int) $this->option('repair-limit'));
+    $repairSleepMs = max(0, (int) $this->option('repair-sleep-ms'));
+    $withoutCreate = (bool) $this->option('without-create');
+
+    $countDuplicateGroups = static function (): int {
+        return Category::query()
+            ->select('name', 'parent_id', DB::raw('COUNT(*) as dupes'))
+            ->groupBy('name', 'parent_id')
+            ->having('dupes', '>', 1)
+            ->get()
+            ->count();
+    };
+
+    $duplicatesBefore = $countDuplicateGroups();
+    $missingBefore = Product::query()
+        ->whereNotNull('cj_pid')
+        ->whereNull('category_id')
+        ->count();
 
     if (! $force) {
-        $this->warn('⚠️  This will:');
+        $this->warn('⚠️  This will run category maintenance pipeline:');
         $this->warn('  1. Sync CJ category tree');
         $this->warn('  2. Merge duplicate categories');
-        $this->warn('  3. Update all products with correct categories');
+        $this->warn('  3. Repair products with missing category_id' . ($skipRepair ? ' (skipped)' : ''));
+        if ($dryRun) {
+            $this->warn('  Running in DRY-RUN mode for dedupe/repair steps.');
+        }
 
         if (! $this->confirm('Continue?')) {
             $this->info('Cancelled.');
-            return;
+            return 0;
         }
     }
 
-    $this->info('Step 1: Syncing CJ categories...');
-    $this->call('cj:sync-categories');
+    $this->info('Step 1/3: Syncing CJ categories...');
+    $syncExit = $this->call('cj:sync-categories');
+    if ($syncExit !== 0) {
+        $this->error('Step 1 failed: cj:sync-categories');
+        return 1;
+    }
 
-    $this->info('Step 2: Merging duplicate categories...');
-    $this->call('categories:dedupe');
+    $this->info('Step 2/3: Merging duplicate categories...');
+    $dedupeArgs = $dryRun ? ['--dry-run' => true] : [];
+    $dedupeExit = $this->call('categories:dedupe', $dedupeArgs);
+    if ($dedupeExit !== 0) {
+        $this->error('Step 2 failed: categories:dedupe');
+        return 1;
+    }
 
-    $this->info('✅ Category fix complete!');
-    $this->info('Next: Re-import products with: php artisan cj:sync-my-products --force-update');
-})->purpose('Fix all category hierarchy issues (sync, dedupe, repair)');
+    $repairExit = 0;
+    if (! $skipRepair) {
+        $this->info('Step 3/3: Repairing products missing category_id...');
+        $repairArgs = [
+            '--limit' => $repairLimit,
+            '--sleep-ms' => $repairSleepMs,
+        ];
+        if ($dryRun) {
+            $repairArgs['--dry-run'] = true;
+        }
+        if ($withoutCreate) {
+            $repairArgs['--without-create'] = true;
+        }
+        $repairExit = $this->call('cj:repair-missing-categories', $repairArgs);
+        if ($repairExit !== 0) {
+            $this->error('Step 3 failed: cj:repair-missing-categories');
+            return 1;
+        }
+    } else {
+        $this->info('Step 3/3: Skipped repair step (--skip-repair).');
+    }
+
+    $duplicatesAfter = $countDuplicateGroups();
+    $missingAfter = Product::query()
+        ->whereNotNull('cj_pid')
+        ->whereNull('category_id')
+        ->count();
+
+    $this->table(['Metric', 'Before', 'After'], [
+        ['Duplicate category groups', $duplicatesBefore, $duplicatesAfter],
+        ['Products missing category_id (with cj_pid)', $missingBefore, $missingAfter],
+    ]);
+
+    if ($dryRun) {
+        $this->warn('Dry-run completed. Sync step applied real changes, dedupe/repair were preview-only.');
+    } else {
+        $this->info('✅ Category fix complete.');
+    }
+
+    return ($syncExit === 0 && $dedupeExit === 0 && $repairExit === 0) ? 0 : 1;
+})->purpose('Fix category hierarchy: sync, dedupe, and optionally repair missing product categories.');
 
 Artisan::command('cj:import-snapshots {--limit=200}', function () {
     $limit = (int) $this->option('limit');
