@@ -634,8 +634,8 @@ class ProductResource extends BaseResource
                                 ->orWhereNull('translation_status')
                                 ->orWhereNotExists(function ($subquery) {
                                     $subquery->selectRaw('1')
-                                        ->from('product_translations pt')
-                                        ->where('pt.product_id', '=', 'products.id');
+                                        ->from('product_translations as pt')
+                                        ->whereColumn('pt.product_id', 'products.id');
                                 });
                         });
                     })
