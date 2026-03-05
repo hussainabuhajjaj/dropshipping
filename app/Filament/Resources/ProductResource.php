@@ -14,6 +14,7 @@ use App\Filament\Resources\ProductResource\Pages;
 use App\Jobs\ApplyProductMarginChunkJob;
 use App\Models\Product;
 use App\Jobs\TranslateProductJob;
+use App\Jobs\TranslateProductsChunkJob;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
@@ -1870,11 +1871,28 @@ class ProductResource extends BaseResource
                                 TranslateProductJob::dispatch((int) $record->id, $locales, $source, $force);
                             }
 
-                            Notification::make()
-                                ->title('Translations queued')
-                                ->body("Queued {$records->count()} product(s).")
-                                ->success()
-                                ->send();
+                            // ENHANCED: Also offer chunk job option for large batches
+                            if ($records->count() > 20) {
+                                $productIds = $records->pluck('id')->toArray();
+                                $chunkSize = 10;
+                                $chunks = array_chunk($productIds, $chunkSize);
+                                
+                                foreach ($chunks as $chunk) {
+                                    TranslateProductsChunkJob::dispatch($chunk, $locales);
+                                }
+                                
+                                Notification::make()
+                                    ->title('Translations queued')
+                                    ->body("Queued {$records->count()} product(s) using optimized chunk jobs.")
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('Translations queued')
+                                    ->body("Queued {$records->count()} product(s).")
+                                    ->success()
+                                    ->send();
+                            }
                         }),
                     BulkAction::make('generateSeo')
                         ->label('Generate SEO')
