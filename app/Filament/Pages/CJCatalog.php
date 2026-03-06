@@ -1789,7 +1789,7 @@ class CJCatalog extends BasePage implements HasTable
 
         foreach ($pids as $pid) {
             ImportCjProductJob::dispatch($pid, $this->defaultImportOptions(), $trackingKey)
-                ->onQueue('import');
+                ->onQueue('cj-import');
         }
 
         $message = 'Queued ' . count($pids) . " products for {$context}.";

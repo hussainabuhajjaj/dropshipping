@@ -362,7 +362,7 @@ class CjSyncProductsV2 extends Command
             }
         } else {
             Log::info('CJ my-products: dispatching chunk to import queue', ['count' => count($buffer)]);
-            ImportCjProductChunkJob::dispatch($buffer)->onQueue('import');
+            ImportCjProductChunkJob::dispatch($buffer)->onQueue('cj-import');
         }
 
         foreach ($buffer as $_) {

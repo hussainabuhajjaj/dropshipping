@@ -35,6 +35,8 @@ class ImportCjProductPipelineChunkJob implements ShouldQueue
     {
         $this->pids = $pids;
         $this->options = $options;
+        $this->onConnection('redis');
+        $this->onQueue('cj-import');
     }
 
     public function handle(CjProductImportService $importService): void
