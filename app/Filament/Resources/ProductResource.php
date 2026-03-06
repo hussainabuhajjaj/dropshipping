@@ -1237,7 +1237,7 @@ class ProductResource extends BaseResource
                         }
 
                         try {
-                            \App\Jobs\RunCjSyncCommandJob::dispatch($params)->onQueue('import');
+                            \App\Jobs\RunCjSyncCommandJob::dispatch($params)->onQueue('cj-import');
                             Notification::make()->title('Chunked import queued')->success()->send();
                         } catch (\Throwable $e) {
                             Notification::make()->title('Import enqueue failed')->body($e->getMessage())->danger()->send();
@@ -1483,7 +1483,7 @@ class ProductResource extends BaseResource
                                 }
 
                                 if ($payloads !== []) {
-                                    \App\Jobs\ImportCjProductChunkJob::dispatch($payloads)->onQueue('import');
+                                    \App\Jobs\ImportCjProductChunkJob::dispatch($payloads)->onQueue('cj-import');
                                 }
                             }
 

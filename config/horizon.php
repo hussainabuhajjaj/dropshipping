@@ -99,6 +99,7 @@ return [
     'waits' => [
         'redis:default' => 60,
         'redis:translations' => 120,
+        'redis:cj-import' => 120,
         'redis:cj-sync' => 120,
     ],
 
@@ -185,7 +186,7 @@ return [
     |
     */
 
-    'memory_limit' => 64,
+    'memory_limit' => (int) env('HORIZON_MEMORY_LIMIT', 256),
 
     /*
     |--------------------------------------------------------------------------
@@ -238,6 +239,19 @@ return [
             'timeout' => 1200,
             'nice' => 0,
         ],
+        'supervisor-cj-import' => [
+            'connection' => 'redis',
+            'queue' => ['cj-import', 'import'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 1200,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -255,6 +269,10 @@ return [
                 'maxProcesses' => 4,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-cj-import' => [
+                'maxProcesses' => 4,
+                'balanceCooldown' => 3,
+            ],
         ],
 
         'local' => [
@@ -266,6 +284,10 @@ return [
                 'timeout' => 1200,
             ],
             'supervisor-cj-sync' => [
+                'maxProcesses' => 1,
+                'timeout' => 1200,
+            ],
+            'supervisor-cj-import' => [
                 'maxProcesses' => 1,
                 'timeout' => 1200,
             ],

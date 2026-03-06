@@ -29,6 +29,8 @@ class ImportCjProductJob implements ShouldQueue
         $this->pid = $pid;
         $this->options = $options;
         $this->trackingKey = $trackingKey;
+        $this->onConnection('redis');
+        $this->onQueue('cj-import');
     }
 
     /**

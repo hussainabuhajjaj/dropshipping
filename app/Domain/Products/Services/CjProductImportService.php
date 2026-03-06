@@ -1018,7 +1018,7 @@ class CjProductImportService
                     \App\Jobs\ImportCjProductJob::dispatch($pid, [
                         'respectSyncFlag' => !$forceUpdate,
                         'defaultSyncEnabled' => true,
-                    ]);
+                    ])->onQueue('cj-import');
                     $queued++;
                 } catch (\Throwable) {
                     // Optionally log or count errors
@@ -1584,9 +1584,13 @@ class CjProductImportService
             'translations_queued' => 0,
             'seo_queued' => 0,
         ];
+        $processed = 0;
 
         $validator = app(ProductActivationValidator::class);
         $pricing = PricingService::makeFromConfig();
+
+        // Defensive reset: this counter is used in both specific-PID and paginated flows.
+        $processed = (int) $processed;
 
         // If specific PIDs provided, import them directly (catalog import)
         if ($specificPids !== null && !empty($specificPids)) {
@@ -1653,7 +1657,6 @@ class CjProductImportService
 
         // Fetch products from CJ My Products (paginated)
         $page = 1;
-        $processed = 0;
 
         while (true) {
             if ($limit && $processed >= $limit) {

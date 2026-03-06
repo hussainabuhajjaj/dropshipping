@@ -29,6 +29,8 @@ class ImportCjProductChunkJob implements ShouldQueue
     public function __construct(array $products)
     {
         $this->products = $products;
+        $this->onConnection('redis');
+        $this->onQueue('cj-import');
     }
 
     public function middleware(): array
@@ -93,7 +95,7 @@ class ImportCjProductChunkJob implements ShouldQueue
             if (! str_contains($msg, 'removed from shelves') && ! str_contains($msg, 'off shelf')) {
                 ImportCjProductChunkJob::dispatch($this->products)
                     ->delay(now()->addSeconds(30))
-                    ->onQueue('import');
+                    ->onQueue('cj-import');
             }
         }
     }
