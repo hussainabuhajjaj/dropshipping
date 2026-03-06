@@ -82,15 +82,15 @@ const props = defineProps({
     },
     // Individual props (used when items is summary object)
     shipping: {
-        type: Number,
+        type: [Number,String],
         default: 0
     },
     tax: {
-        type: Number,
+        type: [Number,String],
         default: 0
     },
     discount: {
-        type: Number,
+        type: [Number,String],
         default: 0
     },
     discountLabel: {
@@ -165,16 +165,16 @@ const subtotal = computed(() => {
 // Calculate total
 const total = computed(() => {
     if (Array.isArray(props.items)) {
-        return subtotal.value + props.shipping + props.tax - props.discount
+        return subtotal.value + Number(props.shipping) + props.tax - props.discount
     }
     // If items is summary object, use its total
-    return props.items?.total || (subtotal.value + props.shipping + props.tax - props.discount)
+    return props.items?.total || (subtotal.value + Number(props.shipping) + props.tax - props.discount)
 })
 
 // Format price with proper currency conversion
 const formatPrice = (amount) => {
     if (amount === null || amount === undefined) return ''
-    
+
     // Convert from USD to user's preferred currency, then format
     const convertedAmount = convertCurrency(Number(amount || 0), 'USD', currentCurrency.value || 'USD')
     return formatCurrency(convertedAmount, currentCurrency.value || 'USD')

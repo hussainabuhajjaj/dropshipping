@@ -25,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Infrastructure\Payments\Paystack\PaystackService;
@@ -64,7 +65,7 @@ class CheckoutController extends Controller
 
     public function index(): Response|RedirectResponse
     {
-return redirect()->route('pay.index',['cart',0]);
+        return redirect()->route('pay.index', ['cart']);
         $result = $this->getCartWithItems();
 
         if ($result instanceof RedirectResponse) {
@@ -122,7 +123,7 @@ return redirect()->route('pay.index',['cart',0]);
         })->values()->all();
 
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
-        $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
+        $categoryIds = $cart_items->map(fn($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
 
@@ -158,7 +159,7 @@ return redirect()->route('pay.index',['cart',0]);
                 'postal_code' => $defaultAddress->postal_code,
                 'country' => $defaultAddress->country,
             ] : null,
-            'addresses' => $addresses->map(fn ($address) => [
+            'addresses' => $addresses->map(fn($address) => [
                 'id' => $address->id,
                 'name' => $address->name,
                 'phone' => $address->phone,
@@ -222,7 +223,7 @@ return redirect()->route('pay.index',['cart',0]);
         $promotionEngine = app(PromotionEngine::class);
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
-        if (! $minimumRequirement['passes']) {
+        if (!$minimumRequirement['passes']) {
             return back()
                 ->withErrors(['cart' => $minimumRequirement['message']])
                 ->with('minimum_cart_requirement', $minimumRequirement);
@@ -393,11 +394,13 @@ return redirect()->route('pay.index',['cart',0]);
 
     public function confirmation(string $number): Response
     {
+dump(1);
         $order = Order::query()
             ->where('number', $number)
             ->with(['shippingAddress', 'billingAddress', 'orderItems'])
             ->firstOrFail();
 
+        dd($order);
         return Inertia::render('Orders/Confirmation', [
             'order' => [
                 'id' => $order->id,
@@ -523,13 +526,14 @@ return redirect()->route('pay.index',['cart',0]);
      * @param array<int, array<string, mixed>> $promotionDiscounts
      */
     private function buildDiscountSnapshot(
-        float $discountAmount,
+        float   $discountAmount,
         ?string $label,
         ?string $source,
-        ?array $coupon,
-        array $promotionDiscounts,
-        string $currency
-    ): array {
+        ?array  $coupon,
+        array   $promotionDiscounts,
+        string  $currency
+    ): array
+    {
         return [
             'source' => $source,
             'label' => $label,
@@ -596,13 +600,13 @@ return redirect()->route('pay.index',['cart',0]);
 
     private function redeemCoupon(?Coupon $coupon, ?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
     {
-        if (! $coupon || $discountSource !== 'coupon' || $discountAmount <= 0) {
+        if (!$coupon || $discountSource !== 'coupon' || $discountAmount <= 0) {
             return;
         }
 
         $coupon->increment('uses');
 
-        if (! $customer) {
+        if (!$customer) {
             return;
         }
 
@@ -618,11 +622,11 @@ return redirect()->route('pay.index',['cart',0]);
 
     private function calculateTax(float $taxableAmount, ?SiteSetting $settings): float
     {
-        if (! $settings || ! $settings->tax_rate) {
+        if (!$settings || !$settings->tax_rate) {
             return 0.0;
         }
 
-        return round($taxableAmount * ((float) $settings->tax_rate / 100), 2);
+        return round($taxableAmount * ((float)$settings->tax_rate / 100), 2);
     }
 
     /**

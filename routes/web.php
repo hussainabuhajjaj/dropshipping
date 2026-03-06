@@ -58,7 +58,7 @@ Route::get('/locale/{locale}', function (string $locale, Request $request) {
     $locale = strtolower($locale);
     $available = ['en', 'fr'];
 
-    if (! in_array($locale, $available, true)) {
+    if (!in_array($locale, $available, true)) {
         $locale = config('app.locale', 'en');
     }
 
@@ -107,12 +107,12 @@ Route::get('/newsletter/track/open/{token}', [NewsletterTrackingController::clas
 Route::get('/newsletter/track/click/{token}', [NewsletterTrackingController::class, 'click'])->name('newsletter.track.click');
 
 Route::get('/media/proxy', function () {
-    $url = (string) request()->query('url', '');
+    $url = (string)request()->query('url', '');
     if ($url === '') {
         abort(404);
     }
 
-    if (! str_starts_with($url, 'https://cf.cjdropshipping.com/')) {
+    if (!str_starts_with($url, 'https://cf.cjdropshipping.com/')) {
         abort(403);
     }
 
@@ -123,7 +123,7 @@ Route::get('/media/proxy', function () {
         ])
         ->get($url);
 
-    if (! $response->successful()) {
+    if (!$response->successful()) {
         abort(404);
     }
 
@@ -242,13 +242,10 @@ Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'red
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
 
-
-Route::group(['prefix' => 'pay/{type}/{id}' , 'as' => 'pay.'], function () {
-
-    Route::get('index' , [PaymentController::class , 'index'])->name('index');
-    Route::post('checkout' , [PaymentController::class , 'checkout'])->name('checkout');
-    Route::get('test' , [PaymentController::class , 'test'])->name('test');
-    Route::get('redirect' , [PaymentController::class , 'redirect'])->name('redirect');
+Route::group(['prefix' => 'pay/{type}/{id?}', 'as' => 'pay.'], function () {
+    Route::get('/', [PaymentController::class, 'index'])->name('index');
+    Route::post('checkout', [PaymentController::class, 'checkout'])->name('checkout');
+    Route::get('redirect', [PaymentController::class, 'redirect'])->name('redirect');
 });
 
 
@@ -261,8 +258,8 @@ Route::post('/currency', [UserPreferenceController::class, 'updateCurrency'])->n
 Route::post('/language', [UserPreferenceController::class, 'updateLanguage'])->name('language.set');
 Route::post('/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'setPreferences'])->name('preferences.set');
 Route::get('/api/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'getPreferences'])->name('preferences.get');
-Route::get('aa' , function(){
+Route::get('aa', function () {
     return view('payment');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

@@ -376,8 +376,6 @@ class Cart extends Model
 
 
 
-
-
         return [
             'subtotal' => $subtotal,
             'shipping' => $shipping,

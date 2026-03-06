@@ -169,7 +169,7 @@ const freeShippingEligible = computed(() => {
 // Convert amounts to user's preferred currency
 const convertedSummary = computed(() => {
     if (!summary.value?.items) return summary.value
-    
+
     const convertedItems = summary.value.items.map(item => ({
         ...item,
         formatted: formatCurrency(
@@ -177,7 +177,7 @@ const convertedSummary = computed(() => {
             currentCurrency.value || 'USD'
         )
     }))
-    
+    //
     return {
         ...summary.value,
         items: convertedItems,

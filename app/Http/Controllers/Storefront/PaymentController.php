@@ -14,7 +14,9 @@ use App\Models\SiteSetting;
 use App\Services\Payments\KorapayService;
 use App\Services\Payments\PaymentResultService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use function PHPUnit\Framework\isNumeric;
 
 class PaymentController extends Controller
 {
@@ -25,7 +27,7 @@ class PaymentController extends Controller
         $this->korapayService = $korapayService;
     }
 
-    public function index($type, $id)
+    public function index($type, $id = null)
     {
 
         $customer = auth('customer')->user();
@@ -47,7 +49,6 @@ class PaymentController extends Controller
             $items = (CartResource::collection($item->items))->jsonSerialize();
         }
 
-
         $final_total = @$summery['total'] ?? 0;
 
         $defaultAddress = isset($customer) ? $customer?->addresses()
@@ -64,7 +65,7 @@ class PaymentController extends Controller
         return Inertia::render('Payments/Index', [
             'customer' => $customer,
             'defaultAddress' => $defaultAddress,
-            'addresses' => $addresses->map(fn ($address) => [
+            'addresses' => $addresses->map(fn($address) => [
                 'id' => $address->id,
                 'name' => $address->name,
                 'phone' => $address->phone,
@@ -81,7 +82,6 @@ class PaymentController extends Controller
             'summery' => $summery,
             'final_total' => $final_total,
             'items' => $items,
-
             'successMessage' => session('success'),
             'errorMessage' => session('error'),
             'errors' => session('errors') ? session('errors')->toArray() : (object)[]
@@ -89,7 +89,7 @@ class PaymentController extends Controller
 
     }
 
-    public function checkout($type, $id, Request $request)
+    public function checkout(Request $request, $type, $id = null)
     {
         $item = $this->getItem($type, $id);
         if (!$item) {
@@ -137,7 +137,7 @@ class PaymentController extends Controller
 
     }
 
-    public function redirect($type, $id, Request $request, PaymentResultService $paymentResultService)
+    public function redirect(PaymentResultService $paymentResultService, Request $request, $type, $id = null)
     {
         $item = $this->getItem($type, $id);
 
@@ -166,13 +166,16 @@ class PaymentController extends Controller
 
             if ($payment_result == "success") {
                 // do register payment
-                return $paymentResultService->registerCompletePayment($item, $verify_result);
+                $result =  $paymentResultService->registerCompletePayment($item, $verify_result);
+                Log::info('result : ' . json_encode($result));
+                return redirect()->away($result);
+                return redirect($result);
             } else {
-                return $paymentResultService->registerFailedPayment($type , $id , $verify_result);
+                return $paymentResultService->registerFailedPayment($type, $id, $verify_result);
                 // do failed payment
             }
-        }else{
-            return $paymentResultService->registerFailedPayment($type , $id , $verify_result);
+        } else {
+            return $paymentResultService->registerFailedPayment($type, $id, $verify_result);
         }
 
     }
@@ -195,19 +198,27 @@ class PaymentController extends Controller
         if ($type == "order") {
             return [];
         } elseif ($type == "cart") {
-            return [
-                'email' => ['required', 'email'],
-                'phone' => ['required', 'string', 'max:30'],
-                'first_name' => ['required', 'string', 'max:120'],
-                'last_name' => ['nullable', 'string', 'max:120'],
-                'line1' => ['required', 'string', 'max:255'],
-                'line2' => ['nullable', 'string', 'max:255'],
-                'city' => ['required', 'string', 'max:120'],
-                'state' => ['nullable', 'string', 'max:120'],
-                'postal_code' => ['nullable', 'string', 'max:30'],
-                'country' => ['required', 'string', 'max:2'],
-                'delivery_notes' => ['nullable', 'string', 'max:500'],
-            ];
+            $address_id = \request()->get('address_id');
+            if (isset($address_id) && isnumeric($address_id)) {
+                return [
+                    'address_id' => 'required|numeric|exists:addresses,id',
+                ];
+            } else {
+                return [
+                    'email' => ['required', 'email'],
+                    'phone' => ['required', 'string', 'max:30'],
+                    'first_name' => ['required', 'string', 'max:120'],
+                    'last_name' => ['nullable', 'string', 'max:120'],
+                    'line1' => ['required', 'string', 'max:255'],
+                    'line2' => ['nullable', 'string', 'max:255'],
+                    'city' => ['required', 'string', 'max:120'],
+                    'state' => ['nullable', 'string', 'max:120'],
+                    'postal_code' => ['nullable', 'string', 'max:30'],
+                    'country' => ['required', 'string', 'max:2'],
+                    'delivery_notes' => ['nullable', 'string', 'max:500'],
+                ];
+            }
+
         }
     }
 }

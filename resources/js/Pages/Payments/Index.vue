@@ -41,7 +41,6 @@
                              :user="customer"
                              :defaultAddress="defaultAddress"
                              :userAddresses="userAddresses"
-                             :t="t"
                              @change-address="changeAddress"
                     />
                     <!-- Payment Methods Component -->
@@ -104,9 +103,9 @@ import axios from "axios";
 import Address from "@/Components/payment/Address.vue";
 
 const {t} = useTranslations()
-const { 
-  currentCurrency, 
-  formatCurrency, 
+const {
+  currentCurrency,
+  formatCurrency,
   convertCurrency
 } = useUserPreferences()
 
@@ -116,7 +115,7 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 // Extract discount and promotion data from summery
 const discount = computed(() => summery?.discount || 0)
 const discountLabel = computed(() => summery?.discount_label || '')
-const displayPromotions = computed(() => 
+const displayPromotions = computed(() =>
   summery?.appliedPromotions?.length ? summery.appliedPromotions : []
 )
 
@@ -148,7 +147,9 @@ const selectedMethod = ref('card')
 const selectedMethodName = ref('')
 const estimatedDelivery = ref('7-21 business days')
 
-
+onMounted(()=>{
+    // console.log(page.props)
+})
 // Error state
 // const paymentError = ref(true) // Set to true to show error, false to hide
 // const errorMessage = ref('Payment cannot be completed. Please contact support with following information:')

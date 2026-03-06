@@ -3,6 +3,7 @@
 namespace App\Services\Payments;
 
 use App\Models\PaymentMethod;
+use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -25,7 +26,7 @@ class KorapayService
         $auth = auth('customer')->user();
         return [
             "reference" => 'KPY-' . Str::upper(Str::random(12)) . '-' . time(),
-            "amount" => number_format($amount , 2, '.' , ''),
+            "amount" => number_format($amount, 2, '.', ''),
             "currency" => $currency,
             "redirect_url" => route('pay.redirect', ['type' => request()->route('type'), 'id' => request()->route('id')]),
             "customer" => [
@@ -42,14 +43,26 @@ class KorapayService
      */
     public function initializePayment($amount, $method = "card")
     {
+        $currencyConversionService = new CurrencyConversionService();
+
+        $currency = session('user_currency');
+
+
         // for card payload
-        if ($method == "mobile_money"){
+        if ($method == "mobile_money") {
+//            if ($currency != "USD") {
             $currency = "XOF";
-        }else{
-            $currency = "USD";
+            $amount = $currencyConversionService->convertAmount($amount, "USD", $currency);
+//            }
+
+        } else {
+            if ($currency != "USD") {
+                $currency = "USD";
+//                $amount = $currencyConversionService->convertAmount($amount, "USD", $currency);
+            }
         }
 
-        $payload = $this->makeDataPayload($amount, $method , $currency);
+        $payload = $this->makeDataPayload($amount, $method, $currency);
 
 
         $response = Http::withHeaders([
@@ -66,7 +79,6 @@ class KorapayService
     }
 
 
-
     /**
      * Check transaction status
      */
@@ -74,7 +86,7 @@ class KorapayService
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
-        ])->get($this->baseUrl . '/merchant/api/v1/charges/' . $reference );
+        ])->get($this->baseUrl . '/merchant/api/v1/charges/' . $reference);
 
         return $response->json();
     }
