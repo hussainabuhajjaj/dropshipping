@@ -2,13 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Domain\Fulfillment\Models\FulfillmentProvider;
-use App\Infrastructure\Fulfillment\Clients\AliExpressClient;
 use App\Models\AliExpressToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class AliExpressOAuthController extends Controller
 {
@@ -28,13 +25,21 @@ class AliExpressOAuthController extends Controller
     public function createSystemToken(Request $request)
     {
         $code = $request->input('code');
-        if (!$code) {
+        if (! $code) {
             return response()->json(['error' => 'Missing code'], 400);
         }
-        $client = new \App\Infrastructure\Fulfillment\Clients\AliExpressClient(
-            config('ali_express.client_id')
-        );
-        $result = $client->createToken($code);
+
+        $result = $this->exchangeCodeForToken($code);
+
+        if (! isset($result['access_token'])) {
+            Log::error('AliExpress createSystemToken failed', $result);
+
+            return response()->json([
+                'error' => $result['message'] ?? 'Failed to obtain access token',
+                'response' => $result,
+            ], 400);
+        }
+
         return response()->json($result);
     }
 
@@ -42,33 +47,15 @@ class AliExpressOAuthController extends Controller
     {
         try {
             $code = $request->input('code');
-//            $state = $request->input('state');
 
-            if (!$code) {
+            if (! $code) {
                 Log::error('AliExpress OAuth callback missing code');
                 return response('Missing authorization code', 400);
             }
 
-            $appKey = config('ali_express.client_id');
-            $appSecret = config('ali_express.client_secret');
-            $apiPath = '/auth/token/create'; // MANDATORY for signature
+            $body = $this->exchangeCodeForToken($code);
 
-            $params = [
-                'app_key' => $appKey,
-                'code' => $code,
-                'sign_method' => 'sha256',
-                'timestamp' => round(microtime(true) * 1000),
-            ];
-
-            ksort($params);
-            $signature = (new AliExpressClient(FulfillmentProvider::query()->find(2)))->sign($params, $appSecret, $apiPath);
-            $params['sign'] = $signature;
-
-            $response = Http::asForm()->post("https://api-sg.aliexpress.com/rest" . $apiPath, $params);
-
-            $body = $response->json();
-
-            if (!isset($body['access_token'])) {
+            if (! isset($body['access_token'])) {
                 Log::error('AliExpress OAuth failed: no access_token in response', $body);
                 return response('Failed to obtain access token: ' . ($body['message'] ?? 'Unknown error'), 400);
             }
@@ -140,6 +127,29 @@ class AliExpressOAuthController extends Controller
             Log::error('Token refresh error', ['error' => $e->getMessage()]);
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function exchangeCodeForToken(string $code): array
+    {
+        $appKey = config('ali_express.client_id');
+        $appSecret = config('ali_express.client_secret');
+        $apiPath = '/auth/token/create';
+
+        $params = [
+            'app_key' => $appKey,
+            'code' => $code,
+            'sign_method' => 'sha256',
+            'timestamp' => (string) round(microtime(true) * 1000),
+        ];
+
+        $params['sign'] = $this->aliExpressSign($params, (string) $appSecret, $apiPath);
+
+        $response = Http::asForm()->post(rtrim((string) config('ali_express.base_url'), '/') . '/rest' . $apiPath, $params);
+
+        return $response->json() ?? [];
     }
 
 
