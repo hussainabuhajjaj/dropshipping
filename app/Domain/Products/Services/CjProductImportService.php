@@ -1189,24 +1189,34 @@ class CjProductImportService
                 $product->save();
             }
 
+            // Log successful variant import
+            Log::info('Product variants imported successfully', [
+                'cj_pid' => $pid,
+                'product_id' => $product->id,
+                'variants_imported' => $product->variants()->count(),
+                'action' => 'VARIANTS_IMPORTED_SUCCESSFULLY',
+            ]);
+
             return;
         }
 
+        // NEW LOGIC: Handle import failures and products without variants
         if (!$product->variants()->exists()) {
-            try {
-                $product->variants()->create([
-                    'title' => 'Default',
-                    'sku' => 'DEFAULT-' . $product->id, // Generate default SKU
-                    'price' => $product->selling_price ?? 0,
-                    'cost_price' => $product->cost_price ?? 0,
-                    'currency' => $product->currency ?? 'USD',
-                    'supplier_currency' => $product->supplier_currency ?? 'USD',
-                    'metadata' => [
-                        'cj_pid' => $pid,
-                    ],
+            // Check if we had variant data but import failed
+            if (isset($productData['variants']) && !empty($productData['variants'])) {
+                Log::warning('Product import failed - variant data exists but no variants created', [
+                    'cj_pid' => $pid,
+                    'product_id' => $product->id,
+                    'variant_count' => count($productData['variants']),
+                    'action' => 'IMPORT_FAILURE_NO_DEFAULT_VARIANT',
                 ]);
-            } catch (\Throwable $e) {
-                Log::warning('Failed to create default variant', ['product_id' => $product->id, 'error' => $e->getMessage()]);
+            } else {
+                // Product naturally has no variants (no variant data from CJ)
+                Log::info('Product has no variants - keeping product-only', [
+                    'cj_pid' => $pid,
+                    'product_id' => $product->id,
+                    'action' => 'PRODUCT_ONLY_NO_VARIANTS',
+                ]);
             }
         }
     }

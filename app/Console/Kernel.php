@@ -9,6 +9,10 @@ use App\Console\Commands\TranslateProducts;
 use App\Console\Commands\TranslateCategories;
 use App\Console\Commands\SyncCjVariants;
 use App\Console\Commands\CjBatchSyncVariantsCommand;
+use App\Console\Commands\UpdateStockFromMetadata;
+use App\Console\Commands\FixDefaultCategories;
+use App\Console\Commands\FixDefaultVariants;
+use App\Console\Commands\ResyncCheckVariants;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
@@ -44,6 +48,10 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\CjSyncStockByVid::class,
         \App\Console\Commands\ServerFixStockZero::class,
         \App\Console\Commands\CjSyncMedia::class,
+        UpdateStockFromMetadata::class,
+        FixDefaultCategories::class,
+        FixDefaultVariants::class,
+        ResyncCheckVariants::class,
     ];
 
     protected function schedule(Schedule $schedule): void
