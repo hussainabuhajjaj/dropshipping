@@ -56,7 +56,7 @@ class ValidateCjDataIntegrity extends Command
         // Summary
         $this->displaySummary($results);
 
-        return $results['metrics']['total_issues'] > 0 ? self::FAILURE : self::SUCCESS;
+        return ($results['metrics']['total_issues'] ?? 0) > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     private function validateBasicMetrics(array &$results): void
@@ -268,7 +268,13 @@ class ValidateCjDataIntegrity extends Command
 
     private function generateReport(array $results, bool $export): void
     {
-        $totalIssues = collect($results['issues'])->sum('count');
+        // Calculate total issues from all issue types
+        $totalIssues = 0;
+        foreach ($results['issues'] as $issueType => $issues) {
+            $count = is_array($issues) ? count($issues) : 0;
+            $totalIssues += $count;
+        }
+        
         $results['metrics']['total_issues'] = $totalIssues;
 
         if ($export) {
@@ -295,15 +301,16 @@ class ValidateCjDataIntegrity extends Command
             ['Orphaned variants', $metrics['orphaned_variants'] ?? 0],
             ['Stale products', $metrics['stale_products'] ?? 0],
             ['Stale variants', $metrics['stale_variants'] ?? 0],
-            ['Total issues', $metrics['total_issues']],
+            ['Total issues', $metrics['total_issues'] ?? 0],
         ]);
 
         // Issues found
-        if ($results['metrics']['total_issues'] > 0) {
+        $totalIssues = $metrics['total_issues'] ?? 0;
+        if ($totalIssues > 0) {
             $this->error("\n⚠️  ISSUES FOUND:");
             
             foreach ($results['issues'] as $issueType => $issues) {
-                $count = is_array($issues) ? count($issues) : $issues;
+                $count = is_array($issues) ? count($issues) : 0;
                 if ($count > 0) {
                     $this->line("  • {$issueType}: {$count}");
                 }
@@ -332,7 +339,7 @@ class ValidateCjDataIntegrity extends Command
 
         // Next steps
         $this->info("\n🎯 NEXT STEPS:");
-        if ($results['metrics']['total_issues'] > 0) {
+        if ($totalIssues > 0) {
             $this->line("  1. Run the recommended repair commands above");
             $this->line("  2. Re-run validation: php artisan cj:validate-data-integrity");
             $this->line("  3. Use the live repair script: ./cj-repair-live-server.sh");
