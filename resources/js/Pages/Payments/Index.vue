@@ -168,7 +168,10 @@ const handleMethodChange = (method) => {
 const payWithKorapay = async (method) => {
     is_processing.value = true;
     try {
-        axios.post(`/pay/${type}/${id}/checkout`, {
+        const hasId = id !== null && id !== undefined && id !== '' && id !== 'null'
+        const checkoutUrl = hasId ? `/pay/${type}/${id}/checkout` : `/pay/${type}/checkout`
+
+        axios.post(checkoutUrl, {
             "method": method,
             ...address.value
         }).then(({data}) => {

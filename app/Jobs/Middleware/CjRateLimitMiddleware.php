@@ -29,7 +29,7 @@ class CjRateLimitMiddleware
         $key = $this->getRateLimitKey($job);
         
         // Try to acquire rate limit slot
-        if (!$this->limiter->attempt($key, 6, function () {
+        if (!$this->limiter->attempt($key, 1, function () {
             return true;
         }, 1)) {
             // Calculate delay based on current rate limit status

@@ -98,11 +98,51 @@ class HomePageSettingResource extends BaseResource
                                 ->label('Category')
                                 ->options(fn () => Category::query()->orderBy('name')->pluck('name', 'id'))
                                 ->searchable()
-                                ->required(),
+                                ->required()
+                                ->reactive()
+                                ->afterStateUpdated(fn ($state, callable $set) => $set('category_name', optional(Category::find($state))->name)),
+                            Forms\Components\TextInput::make('category_name')
+                                ->label('Category Name')
+                                ->disabled()
+                                ->default(fn (callable $get) => optional(Category::find($get('category_id')))->name),
+                            Forms\Components\TextInput::make('title')
+                                ->label('Custom Title')
+                                ->placeholder('Leave empty to use category name')
+                                ->helperText('Override the category name with a custom title'),
+                            Forms\Components\Textarea::make('description')
+                                ->label('Description')
+                                ->rows(2)
+                                ->placeholder('Brief description of this category highlight'),
+                            Forms\Components\FileUpload::make('image')
+                                ->label('Custom Image')
+                                ->disk('public')
+                                ->directory('home/categories')
+                                ->image()
+                                ->placeholder('Leave empty to use category hero image')
+                                ->helperText('Override the category hero image with a custom one'),
+                            Forms\Components\TextInput::make('cta_label')
+                                ->label('CTA Button Text')
+                                ->default('Shop Now')
+                                ->placeholder('Button text'),
+                            Forms\Components\TextInput::make('cta_link')
+                                ->label('CTA Button Link')
+                                ->placeholder('/products?category=slug')
+                                ->helperText('Leave empty to auto-generate from category slug'),
+                            Forms\Components\ColorPicker::make('accent_color')
+                                ->label('Accent Color')
+                                ->placeholder('Theme color for this highlight'),
+                            Forms\Components\Toggle::make('featured')
+                                ->label('Featured')
+                                ->default(false)
+                                ->helperText('Mark this as a featured category highlight'),
                         ])
-                        ->columns(1)
+                        ->columns(2)
+                        ->minItems(1)
+                        ->maxItems(6)
                         ->reorderable(),
-                ]),
+                ])
+                ->collapsible()
+                ->collapsed(),
             Section::make('Banner strip')
                 ->schema([
                     Forms\Components\TextInput::make('banner_strip.kicker')->required(),

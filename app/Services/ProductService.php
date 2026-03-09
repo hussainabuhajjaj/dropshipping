@@ -32,7 +32,7 @@ class ProductService
         }
 
         if ($request->boolean('in_stock')) {
-            $query->where('stock', '>', 0);
+            $query->where('stock_on_hand', '>', 0);
         }
 
         if ($request->has('is_active')) {
@@ -40,19 +40,19 @@ class ProductService
         }
 
         if ($request->has('featured')) {
-            $query->where('featured', $request->boolean('featured'));
+            $query->where('is_featured', $request->boolean('featured'));
         }
 
         if ($minPrice = $request->input('min_price')) {
-            $query->where('price', '>=', $minPrice);
+            $query->where('selling_price', '>=', $minPrice);
         }
         if ($maxPrice = $request->input('max_price')) {
-            $query->where('price', '<=', $maxPrice);
+            $query->where('selling_price', '<=', $maxPrice);
         }
 
         $sortBy = $request->input('sort_by', 'created_at');
         $sortDirection = $request->input('sort_direction', 'desc');
-        if (in_array($sortBy, ['name', 'price', 'stock', 'created_at', 'views_count', 'sales_count'])) {
+        if (in_array($sortBy, ['name', 'selling_price', 'stock_on_hand', 'created_at', 'views_count', 'sales_count'])) {
             $query->orderBy($sortBy, $sortDirection);
         }
 
@@ -72,13 +72,12 @@ class ProductService
                 'description' => $data['description'] ?? null,
                 'short_description' => $data['short_description'] ?? null,
                 'sku' => $data['sku'] ?? null,
-                'price' => $data['price'] ?? null,
+                'selling_price' => $data['selling_price'] ?? null,
                 'cost_price' => $data['cost_price'] ?? null,
-                'compare_at_price' => $data['compare_at_price'] ?? null,
-                'stock' => $data['stock'] ?? 0,
+                'stock_on_hand' => $data['stock_on_hand'] ?? 0,
                 'category_id' => $data['category_id'] ?? null,
                 'is_active' => $data['is_active'] ?? true,
-                'featured' => $data['featured'] ?? false,
+                'is_featured' => $data['is_featured'] ?? false,
             ]);
 
             if ($images) {
@@ -106,13 +105,12 @@ class ProductService
                 'description' => $data['description'] ?? $product->description,
                 'short_description' => $data['short_description'] ?? $product->short_description,
                 'sku' => $data['sku'] ?? $product->sku,
-                'price' => $data['price'] ?? $product->price,
+                'selling_price' => $data['selling_price'] ?? $product->selling_price,
                 'cost_price' => $data['cost_price'] ?? $product->cost_price,
-                'compare_at_price' => $data['compare_at_price'] ?? $product->compare_at_price,
-                'stock' => $data['stock'] ?? $product->stock,
+                'stock_on_hand' => $data['stock_on_hand'] ?? $product->stock_on_hand,
                 'category_id' => $data['category_id'] ?? $product->category_id,
                 'is_active' => $data['is_active'] ?? $product->is_active,
-                'featured' => $data['featured'] ?? $product->featured,
+                'is_featured' => $data['is_featured'] ?? $product->is_featured,
             ]);
 
             if ($images !== null) {

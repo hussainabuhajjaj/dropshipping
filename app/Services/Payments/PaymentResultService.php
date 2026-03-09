@@ -11,6 +11,8 @@ use App\Models\OrderShipping;
 use App\Models\Payment;
 use App\Models\SiteSetting;
 use App\Services\AbandonedCartService;
+use App\Services\Currency\CurrencyConversionService;
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -53,7 +55,29 @@ class PaymentResultService
                 $customer->update(['locale' => app()->getLocale()]);
             }
 
-            $request_body = session()->get('request_body');
+            $request_body = session()->get('request_body', []);
+            if (!is_array($request_body)) {
+                $request_body = [];
+            }
+
+            $fallbackAddress = $customer?->addresses()
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->first();
+
+            $firstName = (string)($request_body['first_name'] ?? $customer?->first_name ?? $customer?->name ?? 'Guest');
+            $lastName = (string)($request_body['last_name'] ?? $customer?->last_name ?? '');
+            $phone = (string)($request_body['phone'] ?? $customer?->phone ?? $fallbackAddress?->phone ?? 'N/A');
+            $line1 = (string)($request_body['line1'] ?? $fallbackAddress?->line1 ?? 'N/A');
+            $line2 = (string)($request_body['line2'] ?? $fallbackAddress?->line2 ?? '');
+            $city = (string)($request_body['city'] ?? $fallbackAddress?->city ?? 'N/A');
+            $state = (string)($request_body['state'] ?? $fallbackAddress?->state ?? '');
+            $postalCode = (string)($request_body['postal_code'] ?? $fallbackAddress?->postal_code ?? '');
+            $country = strtoupper((string)($request_body['country'] ?? $fallbackAddress?->country ?? 'US'));
+            $email = (string)($request_body['email'] ?? $customer?->email ?? '');
+            if ($email === '') {
+                $email = 'guest+' . now()->timestamp . '@example.local';
+            }
 
             $summery = $cart->getSummery();
 
@@ -65,14 +89,14 @@ class PaymentResultService
                 $shippingAddress = Address::query()->create([
                     'user_id' => null,
                     'customer_id' => $customer?->id,
-                    'name' => trim($request_body['first_name'] . ' ' . ($request_body['last_name'] ?? '')),
-                    'phone' => $request_body['phone'],
-                    'line1' => $request_body['line1'],
-                    'line2' => $request_body['line2'] ?? null,
-                    'city' => $request_body['city'],
-                    'state' => $request_body['state'] ?? null,
-                    'postal_code' => $request_body['postal_code'] ?? null,
-                    'country' => strtoupper($request_body['country']),
+                    'name' => trim($firstName . ' ' . $lastName),
+                    'phone' => $phone,
+                    'line1' => $line1,
+                    'line2' => $line2 !== '' ? $line2 : null,
+                    'city' => $city,
+                    'state' => $state !== '' ? $state : null,
+                    'postal_code' => $postalCode !== '' ? $postalCode : null,
+                    'country' => $country,
                     'type' => 'shipping',
                 ]);
             }
@@ -92,13 +116,13 @@ class PaymentResultService
                 'number' => Order::generateOrderNumber(),
                 'user_id' => null,
                 'customer_id' => $customer?->id,
-                'guest_name' => $isGuest ? trim($request_body['first_name'] . ' ' . ($request_body['last_name'] ?? '')) : null,
-                'guest_phone' => $isGuest ? $request_body['phone'] : null,
+                'guest_name' => $isGuest ? trim($firstName . ' ' . $lastName) : null,
+                'guest_phone' => $isGuest ? $phone : null,
                 'is_guest' => $isGuest,
-                'email' => $request_body['email'],
+                'email' => $email,
                 'locale' => app()->getLocale(),
                 'status' => 'pending',
-                'payment_status' => 'success',
+                'payment_status' => 'paid',
                 'currency' => $cart[0]['currency'] ?? 'USD',
                 'subtotal' => @$summery['subtotal'],
                 'shipping_total' => @$summery['shippingTotal'],
@@ -154,19 +178,22 @@ class PaymentResultService
                 $coupon->redeemCoupon($customer, $order, @$summery['discount_source'], @$summery['discount']);
             }
 
+            $paymentPayload = $this->resolvePaymentPayload($payment_result, (float) ($order->grand_total ?? 0), (string) ($order->currency ?? 'USD'));
+
             // Create payment
             $payment = Payment::query()->create([
                 'order_id' => $order->id,
                 'provider' => 'korapay',
-                'status' => @$payment_result['data']['status'],
+                'status' => $paymentPayload['status'],
                 'provider_reference' => @$payment_result['data']['reference'],
-                'amount' => @$payment_result['data']['amount_paid'],
-                'currency' => $payment_result['data']['currency'],
+                'amount' => $paymentPayload['amount'],
+                'currency' => $paymentPayload['currency'],
                 'paid_at' => now(),
                 'meta' => $payment_result['data'],
             ]);
 
             event(new OrderPlaced($order));
+            app(FulfillmentDispatchService::class)->dispatchForOrder($order);
 
             $cart->emptyCart();
             app(AbandonedCartService::class)->markRecovered();
@@ -307,6 +334,64 @@ class PaymentResultService
 //
 //            return [$order, $payment];
 //        });
+    }
+
+    private function resolvePaymentPayload(array $paymentResult, float $orderGrandTotal, string $orderCurrency): array
+    {
+        $statusRaw = strtolower((string) data_get($paymentResult, 'data.status', 'pending'));
+        $normalizedStatus = in_array($statusRaw, ['success', 'succeeded', 'captured', 'paid'], true)
+            ? 'paid'
+            : ($statusRaw ?: 'pending');
+
+        $providerCurrency = strtoupper((string) (data_get($paymentResult, 'data.currency') ?: $orderCurrency ?: 'USD'));
+        $rawAmount = data_get($paymentResult, 'data.amount_paid', data_get($paymentResult, 'data.amount'));
+        $providerAmount = is_numeric($rawAmount) ? (float) $rawAmount : null;
+
+        // Fallback to order total when provider amount is missing/invalid.
+        if ($providerAmount === null || $providerAmount <= 0) {
+            $providerAmount = $this->convertFromOrderCurrency($orderGrandTotal, $orderCurrency, $providerCurrency);
+        }
+
+        // If provider currency differs and payload amount is suspiciously far from converted total, correct it.
+        if ($providerCurrency !== strtoupper($orderCurrency)) {
+            $expected = $this->convertFromOrderCurrency($orderGrandTotal, $orderCurrency, $providerCurrency);
+            if ($expected > 0 && abs($providerAmount - $expected) > max(5.0, $expected * 0.05)) {
+                Log::warning('Provider amount deviates from converted order total, using converted fallback', [
+                    'provider_amount' => $providerAmount,
+                    'expected' => $expected,
+                    'provider_currency' => $providerCurrency,
+                    'order_total' => $orderGrandTotal,
+                    'order_currency' => $orderCurrency,
+                ]);
+                $providerAmount = $expected;
+            }
+        }
+
+        return [
+            'status' => $normalizedStatus,
+            'amount' => $providerAmount,
+            'currency' => $providerCurrency,
+        ];
+    }
+
+    private function convertFromOrderCurrency(float $amount, string $fromCurrency, string $toCurrency): float
+    {
+        if (strtoupper($fromCurrency) === strtoupper($toCurrency)) {
+            return round($amount, 2);
+        }
+
+        try {
+            return (float) app(CurrencyConversionService::class)->convertAmount($amount, strtoupper($fromCurrency), strtoupper($toCurrency));
+        } catch (\Throwable $e) {
+            Log::warning('Currency conversion fallback failed, using order total as-is', [
+                'from' => $fromCurrency,
+                'to' => $toCurrency,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+            ]);
+
+            return round($amount, 2);
+        }
     }
 
     public function getRedirectAfterSuccess($item)

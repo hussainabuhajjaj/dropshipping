@@ -8,6 +8,7 @@ use App\Domain\Orders\Models\OrderItem;
 use Filament\Tables;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use App\Filament\Resources\OrderResource;
 
@@ -15,6 +16,15 @@ class FulfillmentIssuesTable extends BaseWidget
 {
     protected static ?string $heading = 'Fulfillment Issues';
     protected int|string|array $columnSpan = 'full';
+
+    public function getTableRecordKey(Model|array $record): string
+    {
+        if (is_array($record)) {
+            return 'fulfillment-issue:' . ($record['id'] ?? md5(json_encode($record)));
+        }
+
+        return 'fulfillment-issue:' . ($record->getKey() ?? spl_object_id($record));
+    }
 
     protected function getTableQuery(): Builder|Relation|null
     {

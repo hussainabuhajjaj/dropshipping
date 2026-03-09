@@ -6,6 +6,7 @@ namespace App\Http\Resources\Storefront;
 
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
+use App\Domain\Payments\Models\Payment;
 use Illuminate\Http\Request;
 
 class OrderDetailResource extends JsonResource
@@ -25,17 +26,38 @@ class OrderDetailResource extends JsonResource
                 default => 'processing',
             }
             : ($rawStatus ?? 'processing');
+        $payment = $this->resolveLatestPayment($order);
 
         return [
             'number' => $order->number,
             'status' => $order->getCustomerStatusLabel(),
             'statusKey' => $statusKey,
             'statusExplanation' => $order->getCustomerStatusExplanation(),
+            'currency' => (string) ($order->currency ?? 'USD'),
+            'subtotal' => (float) ($order->subtotal ?? 0),
+            'shippingTotal' => (float) ($order->shipping_total ?? 0),
+            'taxTotal' => (float) ($order->tax_total ?? 0),
+            'discountTotal' => (float) ($order->discount_total ?? 0),
             'total' => (float) $order->grand_total,
+            'paidAmount' => $payment?->amount !== null ? (float) $payment->amount : null,
+            'paidCurrency' => $payment?->currency,
             'placedAt' => $order->placed_at?->toDateString(),
             'items' => OrderItemResource::collection($order->orderItems),
             'tracking' => TrackingEventResource::collection($this->buildTrackingEvents($order)),
         ];
+    }
+
+    private function resolveLatestPayment(Order $order): ?Payment
+    {
+        $payments = $order->relationLoaded('payments')
+            ? collect($order->payments)
+            : $order->payments()->latest('paid_at')->latest('id')->get();
+
+        $preferred = $payments->first(
+            fn ($payment) => in_array((string) $payment->status, ['paid', 'success'], true)
+        );
+
+        return $preferred ?: $payments->first();
     }
 
     private function buildTrackingEvents(Order $order): array

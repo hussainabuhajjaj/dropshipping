@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
+import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
 
 const { t, locale, availableLocales } = useTranslations()
 const localeOptions = computed(() => {
@@ -69,6 +70,7 @@ const setLocale = (target) => {
                 <slot />
             </div>
         </div>
+        <CookieConsentBanner />
     </div>
 </template>
 

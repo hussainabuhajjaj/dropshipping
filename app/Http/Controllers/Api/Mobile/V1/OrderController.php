@@ -27,6 +27,7 @@ class OrderController extends ApiController
 
         $orders = Order::query()
             ->where('customer_id', $customer->id)
+            ->with(['payments' => fn ($query) => $query->latest('paid_at')->latest('id')])
             ->latest('placed_at')
             ->paginate($perPage);
 
@@ -54,6 +55,7 @@ class OrderController extends ApiController
             'orderItems.productVariant.product.images',
             'orderItems.shipments.trackingEvents',
             'events',
+            'payments',
         ]);
 
         return $this->success(new OrderDetailResource($order));
@@ -66,7 +68,7 @@ class OrderController extends ApiController
         $order = Order::query()
             ->where('number', $validated['number'])
             ->where('email', $validated['email'])
-            ->with(['orderItems.shipments.trackingEvents', 'events'])
+            ->with(['orderItems.shipments.trackingEvents', 'events', 'payments'])
             ->first();
 
         if (! $order) {

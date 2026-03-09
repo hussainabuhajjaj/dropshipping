@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Http\Resources\User\CartResource;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\Api\ApiException;
 use App\Services\CartMinimumService;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
@@ -65,6 +66,7 @@ class Cart extends Model
 
     public function calculateShippingFees()
     {
+        $this->removeInvalidCjItems();
 
         $items = $this->items;
         $providers = $items->groupBy('fulfillment_provider_id');
@@ -95,52 +97,89 @@ class Cart extends Model
                 //  cj check shipping cost
                 $client = app(CJDropshippingClient::class);
 
+                $productsForQuote = $items->map(function ($item) {
+                    $vid = null;
+                    if (isset($item['variant_id'])) {
+                        $variant = ProductVariant::query()->find($item['variant_id']);
+                        $meta = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+                        $vid = $meta['cj_vid'] ?? null;
+                    }
+
+                    if (! $vid) {
+                        return null;
+                    }
+
+                    return [
+                        'quantity' => (int) (@$item['quantity'] ?? 1),
+                        'vid' => (string) $vid,
+                    ];
+                })->filter()->values()->all();
+
+                if (empty($productsForQuote)) {
+                    Log::warning('Skipping CJ freight quote because no valid cj_vid lines were found', [
+                        'cart_id' => $this->id,
+                        'provider_id' => $provider_id,
+                    ]);
+                    continue;
+                }
+
                 $payload = [
                     'startCountryCode' => 'CN',
                     'endCountryCode' => @$default_warehouse->country ?? "CN",
-                    "products" => $items->map(function ($item) {
-                        $vid = null;
-                        if (isset($item['variant_id'])) {
-                            $variant = ProductVariant::query()->find($item['variant_id']);
-                            $vid = $variant->cj_vid;
-                        } else {
-                            $product = Product::query()->find($item['product_id']);
-                            $vid = $product->cj_pid;
-                        }
-                        return [
-                            "quantity" => @$item['quantity'] ?? 1,
-                            "vid" => $vid
-                        ];
-                    })->toArray(),
+                    "products" => $productsForQuote,
                 ];
-                $result = $client->freightCalculate($payload);
-//dd($result);
-                if (isset($result->data)) {
-                    $data = collect($result->data);
-                    $company = $data->sortBy('logisticPrice')->first();
+                try {
+                    $result = $client->freightCalculate($payload);
 
-                    if (isset($company)) {
-                        CartShipping::query()->create([
-                            'cart_id' => $this['id'],
-                            'fulfillment_provider_id' => $provider_id,
-                            'logistic_name' => @$company['logisticName'],
-                            'logistic_price' => @$company['logisticPrice'],
-                            'total_postage_fee' => @$company['totalPostageFee'],
-                            'aging' => @$company['logisticAging'],
-                        ]);
-                        Log::info('CJ shipping quote stored', [
-                            'cart_id' => $this->id,
-                            'provider_id' => $provider_id,
-                            'company' => [
-                                'name' => @$company['logisticName'],
-                                'price' => @$company['logisticPrice'],
-                                'postage_fee' => @$company['totalPostageFee'],
+                    if (isset($result->data)) {
+                        $data = collect($result->data);
+                        $company = $data->sortBy('logisticPrice')->first();
+
+                        if (isset($company)) {
+                            CartShipping::query()->create([
+                                'cart_id' => $this['id'],
+                                'fulfillment_provider_id' => $provider_id,
+                                'logistic_name' => @$company['logisticName'],
+                                'logistic_price' => @$company['logisticPrice'],
+                                'total_postage_fee' => @$company['totalPostageFee'],
                                 'aging' => @$company['logisticAging'],
-                            ],
-                        ]);
+                            ]);
+                            Log::info('CJ shipping quote stored', [
+                                'cart_id' => $this->id,
+                                'provider_id' => $provider_id,
+                                'company' => [
+                                    'name' => @$company['logisticName'],
+                                    'price' => @$company['logisticPrice'],
+                                    'postage_fee' => @$company['totalPostageFee'],
+                                    'aging' => @$company['logisticAging'],
+                                ],
+                            ]);
+                        }
+                    }
+                } catch (ApiException $e) {
+                    $message = strtolower($e->getMessage());
+                    if (str_contains($message, 'variant not found') && preg_match('/vid:\s*([0-9]+)/i', $e->getMessage(), $matches)) {
+                        $missingVid = $matches[1] ?? null;
+                        if ($missingVid) {
+                            $this->removeItemsByCjVid((string) $missingVid);
+                            Log::warning('Removed cart items with missing CJ variant during shipping calculation', [
+                                'cart_id' => $this->id,
+                                'missing_vid' => $missingVid,
+                            ]);
+                        }
                     }
 
-
+                    Log::warning('CJ freight calculation failed; skipping provider shipping quote', [
+                        'cart_id' => $this->id,
+                        'provider_id' => $provider_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('Unexpected freight calculation failure; skipping provider shipping quote', [
+                        'cart_id' => $this->id,
+                        'provider_id' => $provider_id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
         }
@@ -266,8 +305,27 @@ class Cart extends Model
 
     public static function GetCustomerOrGuestCart()
     {
-        return self::query()->where('user_id', auth('customer')->id())
-            ->orWhere('session_id', session()->id())
+        $customerId = auth('customer')->id();
+        $sessionId = session()->id();
+
+        return self::query()
+            ->when(
+                $customerId,
+                function ($query) use ($customerId, $sessionId) {
+                    $query->where(function ($scoped) use ($customerId, $sessionId) {
+                        $scoped->where('user_id', $customerId)
+                            ->orWhere(function ($guest) use ($sessionId) {
+                                $guest->whereNull('user_id')
+                                    ->where('session_id', $sessionId);
+                            });
+                    });
+                },
+                function ($query) use ($sessionId) {
+                    $query->whereNull('user_id')
+                        ->where('session_id', $sessionId);
+                }
+            )
+            ->orderByDesc('updated_at')
             ->with('items')
             ->first();
     }
@@ -275,7 +333,9 @@ class Cart extends Model
     public static function GetGuestCart()
     {
         return self::query()
-            ->orWhere('session_id', session()->id())
+            ->whereNull('user_id')
+            ->where('session_id', session()->id())
+            ->orderByDesc('updated_at')
             ->with('items')
             ->first();
     }
@@ -330,6 +390,8 @@ class Cart extends Model
 
     public function getSummery()
     {
+        $this->removeInvalidCjItems();
+
         $cart_items = $this->items;
         $customer = auth('customer')->user();
 
@@ -347,7 +409,7 @@ class Cart extends Model
         $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings);
         $taxTotal = calculateTaxFromSettings(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
-        $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
+        $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
         $cartContext = $this->buildCartContext($cart_items, $subtotal);
 
         $promotionEngine = app(PromotionEngine::class);
@@ -374,11 +436,14 @@ class Cart extends Model
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
         $selectedMethod = 'standard';
 
-
+        $firstItem = $cart_items->first();
+        $currency = $firstItem?->variant?->currency
+            ?? $firstItem?->product?->currency
+            ?? 'USD';
 
         return [
             'subtotal' => $subtotal,
-            'shipping' => $shipping,
+            'shipping' => $shippingTotal,
             'shippingTotal' => $shippingTotal,
             'discount' => $discount,
             'coupon' => $coupon,
@@ -392,7 +457,7 @@ class Cart extends Model
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
             'total' => $total,
-            'currency' => $cart[0]['currency'] ?? 'USD',
+            'currency' => $currency,
             'shipping_method' => $selectedMethod,
         ];
     }
@@ -404,5 +469,42 @@ class Cart extends Model
             'subtotal' => $subtotal,
             'user_id' => auth('customer')->id(),
         ];
+    }
+
+    private function removeItemsByCjVid(string $cjVid): void
+    {
+        $this->items()
+            ->whereHas('variant', function ($query) use ($cjVid) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.cj_vid')) = ?", [$cjVid]);
+            })
+            ->delete();
+    }
+
+    private function removeInvalidCjItems(): void
+    {
+        $invalid = $this->items()
+            ->whereHas('product', function ($query) {
+                $query->where('default_fulfillment_provider_id', 1);
+            })
+            ->where(function ($query) {
+                $query->whereNull('variant_id')
+                    ->orWhereDoesntHave('variant')
+                    ->orWhereHas('variant', function ($variantQuery) {
+                        $variantQuery->whereRaw("JSON_EXTRACT(metadata, '$.cj_vid') is null");
+                    });
+            })
+            ->pluck('id');
+
+        if ($invalid->isEmpty()) {
+            return;
+        }
+
+        $this->items()->whereIn('id', $invalid)->delete();
+        $this->unsetRelation('items');
+
+        Log::warning('Removed invalid CJ cart items before pricing/shipping', [
+            'cart_id' => $this->id,
+            'item_ids' => $invalid->values()->all(),
+        ]);
     }
 }

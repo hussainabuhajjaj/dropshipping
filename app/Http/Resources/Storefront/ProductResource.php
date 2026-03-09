@@ -7,10 +7,13 @@ namespace App\Http\Resources\Storefront;
 use App\Domain\Products\Models\Product;
 use App\Services\Currency\CurrencyConversionService;
 use App\Services\Storefront\HomeBuilderService;
+use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\Request;
 
 class ProductResource extends JsonResource
 {
+    use ResolvesStorefrontVariantLabels;
+
     protected bool $includeMeta = false;
 
     public function toArray(Request $request): array
@@ -30,10 +33,15 @@ class ProductResource extends JsonResource
             $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
             $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
             $localizedTitle = $translations[$locale]['title'] ?? null;
+            $fullTitle = $localizedTitle ?: $variant->title;
+            $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
 
             return [
                 'id' => $variant->id,
-                'title' => $localizedTitle ?: $variant->title,
+                'title' => $displayTitle,
+                'full_title' => $fullTitle,
+                'display_title' => $displayTitle,
+                'options' => is_array($variant->options ?? null) ? $variant->options : null,
                 'price' => (float) ($variant->price ?? 0),
                 'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
                 'sku' => $variant->sku,
@@ -72,6 +80,13 @@ class ProductResource extends JsonResource
             $categoryName = $product->category->translatedValue('name', $locale);
         }
 
+        $rating = $product->reviews_avg_rating !== null
+            ? (float) $product->reviews_avg_rating
+            : (float) ($product->rating ?? 0);
+        $ratingCount = $product->reviews_count !== null
+            ? (int) $product->reviews_count
+            : 0;
+
         $data = [
             'id' => $product->id,
             'slug' => $product->slug,
@@ -82,8 +97,8 @@ class ProductResource extends JsonResource
             'media' => $media,
             'videos' => $product->cj_video_urls ?? [],
             'is_active' => (bool) $product->is_active,
-            'rating' => round((float) ($product->reviews_avg_rating ?? 0), 1),
-            'rating_count' => (int) ($product->reviews_count ?? 0),
+            'rating' => round($rating, 1),
+            'rating_count' => $ratingCount,
             'variants' => $variantPayload,
             'default_variant_id' => $variantForDisplay['id'] ?? null,
             'primary_variant_title' => $variantForDisplay['title'] ?? null,

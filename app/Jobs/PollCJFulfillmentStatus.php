@@ -21,11 +21,11 @@ class PollCJFulfillmentStatus implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public function __construct(private readonly CJDropshippingClient $client, public int $fulfillmentJobId)
+    public function __construct(public int $fulfillmentJobId)
     {
     }
 
-    public function handle(): void
+    public function handle(CJDropshippingClient $client): void
     {
         $job = FulfillmentJob::with(['orderItem.order', 'order', 'provider'])
             ->find($this->fulfillmentJobId);
@@ -39,7 +39,7 @@ class PollCJFulfillmentStatus implements ShouldQueue
             return;
         }
 
-        $response = $this->client->orderStatus(['orderIds' => [$job->external_reference]]);
+        $response = $client->orderStatus(['orderIds' => [$job->external_reference]]);
 //        dd($response);
         $body = is_array($response) ? $response : (isset($response->data) ? $response->data : []);
         $data = Arr::get($body, '0');

@@ -111,6 +111,7 @@ if (app()->environment('local')) {
 
 use App\Http\Controllers\Api\Mobile\V1\OrderController as MobileOrderController;
 use App\Http\Controllers\Api\Mobile\V1\PaymentController as MobilePaymentController;
+use App\Http\Controllers\Api\Mobile\V1\PaymentCallbackController as MobilePaymentCallbackController;
 use App\Http\Controllers\Api\Mobile\V1\AddressController as MobileAddressController;
 use App\Http\Controllers\Api\Mobile\V1\PaymentMethodController as MobilePaymentMethodController;
 use App\Http\Controllers\Api\Mobile\V1\WishlistController as MobileWishlistController;
@@ -127,6 +128,7 @@ use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
 use App\Http\Controllers\Api\Mobile\V1\CollectionController as MobileCollectionController;
 use App\Http\Controllers\Api\Mobile\V1\LegalController as MobileLegalController;
 use App\Http\Controllers\Api\Mobile\V1\StoryController as MobileStoryController;
+use App\Http\Controllers\Api\Mobile\V1\VisitAnalyticsController as MobileVisitAnalyticsController;
 use App\Http\Controllers\Webhooks\KorapayWebhookController;
 use App\Http\Middleware\VerifyKorapayWebhookSignature;
 use App\Http\Middleware\IdempotencyMiddleware;
@@ -232,6 +234,15 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('legal/{slug}', [MobileLegalController::class, 'show']);
     Route::get('stories', [MobileStoryController::class, 'index']);
     Route::get('stories/{id}', [MobileStoryController::class, 'show']);
+    Route::post('analytics/visit', [MobileVisitAnalyticsController::class, 'store']);
+
+    // Cart routes - accessible for both guests and authenticated users
+    Route::get('cart', [MobileCartController::class, 'show']);
+    Route::post('cart/items', [MobileCartController::class, 'store']);
+    Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
+    Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
+    Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
+    Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('account')->group(function () {
@@ -261,13 +272,6 @@ Route::prefix('mobile/v1')->group(function () {
         Route::get('orders', [MobileOrderController::class, 'index']);
         Route::get('orders/{order:number}', [MobileOrderController::class, 'show']);
 
-        Route::get('cart', [MobileCartController::class, 'show']);
-        Route::post('cart/items', [MobileCartController::class, 'store']);
-        Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
-        Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
-        Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
-        Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
-
         Route::get('wishlist', [MobileWishlistController::class, 'index']);
         Route::post('wishlist/{productId}', [MobileWishlistController::class, 'store']);
         Route::delete('wishlist/{productId}', [MobileWishlistController::class, 'destroy']);
@@ -289,8 +293,20 @@ Route::prefix('mobile/v1')->group(function () {
         Route::get('rewards/vouchers', [MobileRewardsController::class, 'vouchers']);
         Route::get('wallet', [MobileWalletController::class, 'show']);
 
+        // Legacy Korapay routes (for backward compatibility)
         Route::post('payments/korapay/init', [MobilePaymentController::class, 'init']);
         Route::get('payments/korapay/verify', [MobilePaymentController::class, 'verify']);
+
+        // Unified payment routes (matching storefront exactly)
+        Route::post('payments/initialize', [MobilePaymentController::class, 'init']);
+        Route::post('payments/checkout', [MobilePaymentController::class, 'initialize']); // Alias for storefront compatibility
+        Route::get('payments/redirect', [MobilePaymentController::class, 'redirect']);
+        Route::post('payments/verify', [MobilePaymentController::class, 'verifyPayment']);
+        Route::get('payments/methods', [MobilePaymentController::class, 'methods']);
+
+        // Mobile payment callback routes (matching storefront pattern)
+        Route::post('payments/callback', [MobilePaymentCallbackController::class, 'handle']);
+        Route::post('payments/cancel', [MobilePaymentCallbackController::class, 'cancel']);
 
         Route::post('chat/start', [MobileChatController::class, 'start']);
         Route::post('chat/respond', [MobileChatController::class, 'respond']);

@@ -36,6 +36,7 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:' . Customer::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'accept_terms' => ['accepted'],
         ]);
 
         $nameParts = preg_split('/\s+/', trim($request->name)) ?: [];

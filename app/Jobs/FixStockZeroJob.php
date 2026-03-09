@@ -32,7 +32,7 @@ class FixStockZeroJob implements ShouldQueue
     public function __construct(
         private int $batchSize = 500,
         private int $hours = 24,
-        private int $apiDelay = 150 // 150ms between API calls
+        private int $apiDelay = 1100 // Keep below CJ's effective 1 request/second throttle
     ) {
         $this->onQueue('cj-sync');
     }

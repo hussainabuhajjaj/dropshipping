@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Domain\Products\Models\ProductVariant;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Http\Requests\Api\Mobile\V1\Cart\AddItemRequest;
 use App\Http\Requests\Api\Mobile\V1\Cart\ApplyCouponRequest;
 use App\Http\Requests\Api\Mobile\V1\Cart\UpdateItemRequest;
@@ -19,9 +20,11 @@ use App\Services\CampaignManager;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
+use App\Services\Api\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CartController extends ApiController
 {
@@ -44,6 +47,25 @@ class CartController extends ApiController
         $variant = null;
         if (! empty($data['variant_id'])) {
             $variant = $product->variants->firstWhere('id', (int) $data['variant_id']);
+            if (! $variant) {
+                return $this->error('Selected variant is invalid for this product.', 422);
+            }
+        }
+
+        $selectedVariant = $variant ?? $product->variants->first();
+        $providerId = (int) ($product->default_fulfillment_provider_id ?? 0);
+        if ($providerId === 1) {
+            if (! $selectedVariant) {
+                return $this->error('Selected variant is no longer available. Please choose another variant.', 422);
+            }
+
+            $meta = is_array($selectedVariant->metadata ?? null) ? $selectedVariant->metadata : [];
+            if (empty($meta['cj_vid'])) {
+                return $this->error('Selected variant is invalid for fulfillment. Please choose another variant.', 422);
+            }
+        }
+        if ($selectedVariant && ! $this->isVariantAvailableForCart($selectedVariant, $providerId)) {
+            return $this->error('Selected variant is no longer available. Please choose another variant.', 422);
         }
 
         $cart = $this->resolveCart($request);
@@ -64,7 +86,7 @@ class CartController extends ApiController
 
             $existing->update(['quantity' => $newQty]);
         } else {
-            $line = $this->buildLine($cart, $product, $variant, $incomingQty);
+            $line = $this->buildLine($cart, $product, $selectedVariant, $incomingQty);
             if (! $this->hasStock($line, $incomingQty, $variant)) {
                 return $this->error('Insufficient stock for this item.', 422);
             }
@@ -164,14 +186,41 @@ class CartController extends ApiController
     private function resolveCart(Request $request): Cart
     {
         $customer = $request->user();
-        $cart = Cart::query()
-            ->when($customer, fn ($query) => $query->where('user_id', $customer->id))
-            ->first();
+        $sessionId = (string) $request->session()->getId();
+
+        $cart = null;
+
+        if ($customer) {
+            $userCart = Cart::query()
+                ->where('user_id', $customer->id)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            $guestCart = Cart::query()
+                ->whereNull('user_id')
+                ->where('session_id', $sessionId)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            if ($userCart?->items()->exists()) {
+                $cart = $userCart;
+            } elseif ($guestCart?->items()->exists()) {
+                $cart = $guestCart;
+            } else {
+                $cart = $userCart ?? $guestCart;
+            }
+        } else {
+            $cart = Cart::query()
+                ->whereNull('user_id')
+                ->where('session_id', $sessionId)
+                ->orderByDesc('updated_at')
+                ->first();
+        }
 
         if (! $cart) {
             $cart = Cart::query()->create([
                 'user_id' => $customer?->id,
-                'session_id' => session()->id(),
+                'session_id' => $sessionId,
             ]);
         }
 
@@ -195,61 +244,20 @@ class CartController extends ApiController
     private function buildCartPayload(Cart $cart, Request $request): array
     {
         $cartItems = $cart->items;
-        $coupon = session('cart_coupon');
-        $subtotal = $cart->subTotal();
-        $customer = $request->user();
-
-        $discounts = $this->calculateDiscounts($cartItems, $coupon, $customer, $subtotal);
-        $discount = $discounts['amount'] ?? 0.0;
-        $couponModel = $discounts['coupon_model'] ?? null;
-
-        $shipping = $cart->calculateShippingFees();
-        $settings = SiteSetting::query()->first();
-        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
-        $total = $subtotal + $shipping - $discount + $taxTotal;
-
-        $promotionEngine = app(PromotionEngine::class);
-        $cartPayload = \App\Http\Resources\User\CartResource::collection($cartItems)->jsonSerialize();
-        $cartContext = [
-            'lines' => $cartPayload,
-            'subtotal' => $subtotal,
-            'user_id' => $customer?->id,
-        ];
-        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $locale = app()->getLocale();
-        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
-            return [
-                'id' => $promo->id,
-                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
-                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
-                'type' => $promo->type,
-                'value_type' => $promo->value_type,
-                'value' => $promo->value,
-                'start_at' => $promo->start_at,
-                'end_at' => $promo->end_at,
-                'targets' => $promo->targets,
-                'conditions' => $promo->conditions,
-            ];
-        })->values()->all();
-
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $couponModel);
-        $firstItem = $cartItems->first();
-        $currency = $firstItem?->variant?->currency
-            ?? $firstItem?->product?->currency
-            ?? 'USD';
+        $summary = $cart->getSummery();
 
         return [
             'lines' => $cartItems,
-            'currency' => $currency,
-            'subtotal' => $subtotal,
-            'shipping' => $shipping,
-            'discount' => $discount,
-            'tax' => $taxTotal,
-            'total' => $total,
-            'coupon' => $discounts['coupon'] ?? null,
-            'discount_label' => $discounts['label'] ?? null,
-            'applied_promotions' => $appliedPromotions,
-            'minimum_cart_requirement' => $minimumRequirement,
+            'currency' => $summary['currency'] ?? 'USD',
+            'subtotal' => (float)($summary['subtotal'] ?? 0),
+            'shipping' => (float)($summary['shipping'] ?? 0),
+            'discount' => (float)($summary['discount'] ?? 0),
+            'tax' => (float)($summary['tax_total'] ?? 0),
+            'total' => (float)($summary['total'] ?? 0),
+            'coupon' => $summary['coupon'] ?? null,
+            'discount_label' => $summary['discount_label'] ?? null,
+            'applied_promotions' => $summary['appliedPromotions'] ?? [],
+            'minimum_cart_requirement' => $summary['minimum_cart_requirement'] ?? null,
         ];
     }
 
@@ -325,5 +333,45 @@ class CartController extends ApiController
 
         // No live CJ check from mobile; allow if no stock data.
         return true;
+    }
+
+    private function isVariantAvailableForCart(ProductVariant $variant, int $providerId): bool
+    {
+        // Only validate against CJ for CJ provider.
+        if ($providerId !== 1) {
+            return true;
+        }
+
+        $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+        $cjVid = $meta['cj_vid'] ?? null;
+
+        if (! $cjVid) {
+            return true;
+        }
+
+        try {
+            app(CJDropshippingClient::class)->getVariantByVid((string) $cjVid);
+            return true;
+        } catch (ApiException $e) {
+            $message = strtolower($e->getMessage());
+            if (str_contains($message, 'variant not found') || str_contains($message, 'vid')) {
+                Log::warning('Rejected add-to-cart for unavailable CJ variant', [
+                    'variant_id' => $variant->id,
+                    'cj_vid' => $cjVid,
+                    'message' => $e->getMessage(),
+                ]);
+                return false;
+            }
+
+            // Do not block cart on transient CJ API errors.
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Skipping CJ variant availability check due to runtime error', [
+                'variant_id' => $variant->id,
+                'cj_vid' => $cjVid,
+                'error' => $e->getMessage(),
+            ]);
+            return true;
+        }
     }
 }

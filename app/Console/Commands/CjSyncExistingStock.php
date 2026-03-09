@@ -14,7 +14,7 @@ class CjSyncExistingStock extends Command
 {
     protected $signature = 'cj:sync-existing-stock 
                             {--page-size=20 : Number of products per page}
-                            {--delay=500 : Delay between API calls in milliseconds (rate limiting)}
+                            {--delay=1100 : Delay between API calls in milliseconds (rate limiting)}
                             {--max-errors=10 : Stop if errors exceed this threshold}
                             {--resume : Resume from last checkpoint}
                             {--fast : Fast mode - reduced delays and larger batches}
@@ -39,13 +39,13 @@ class CjSyncExistingStock extends Command
 
         // Apply speed optimizations
         if ($turbo) {
-            $pageSize = 100;
-            $delayMs = 50;
+            $pageSize = 25;
+            $delayMs = 1100;
             $maxErrors = 20;
             $mode = '🚀 TURBO MODE';
         } elseif ($fast) {
-            $pageSize = 50;
-            $delayMs = 200;
+            $pageSize = 20;
+            $delayMs = 1100;
             $maxErrors = 15;
             $mode = '⚡ FAST MODE';
         } else {

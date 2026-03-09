@@ -172,6 +172,7 @@ Route::middleware('auth:admin')
 Route::get('/legal/shipping-policy', [PageController::class, 'shippingPolicy'])->name('legal.shipping');
 Route::get('/legal/refund-policy', [PageController::class, 'refundPolicy'])->name('legal.refund');
 Route::get('/legal/privacy-policy', [PageController::class, 'privacyPolicy'])->name('legal.privacy');
+Route::get('/legal/cookie-policy', [PageController::class, 'cookiePolicy'])->name('legal.cookies');
 Route::get('/legal/terms-of-service', [PageController::class, 'termsOfService'])->name('legal.terms');
 Route::get('/legal/customs-disclaimer', [PageController::class, 'customsDisclaimer'])->name('legal.customs');
 Route::get('/about', [PageController::class, 'about'])->name('about');
@@ -196,6 +197,7 @@ Route::redirect('/policies/shipping', '/legal/shipping-policy', 301);
 Route::redirect('/policies/refund', '/legal/refund-policy', 301);
 Route::redirect('/policies/terms', '/legal/terms-of-service', 301);
 Route::redirect('/policies/privacy', '/legal/privacy-policy', 301);
+Route::redirect('/policies/cookies', '/legal/cookie-policy', 301);
 Route::redirect('/policies/about', '/about', 301);
 
 Route::middleware(['auth:customer', 'verified'])->group(function () {
@@ -242,10 +244,13 @@ Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'red
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
 
-Route::group(['prefix' => 'pay/{type}/{id?}', 'as' => 'pay.'], function () {
+Route::prefix('pay/{type}')->name('pay.')->group(function () {
     Route::get('/', [PaymentController::class, 'index'])->name('index');
-    Route::post('checkout', [PaymentController::class, 'checkout'])->name('checkout');
-    Route::get('redirect', [PaymentController::class, 'redirect'])->name('redirect');
+    Route::post('/checkout', [PaymentController::class, 'checkout'])->name('checkout');
+    Route::get('/redirect', [PaymentController::class, 'redirect'])->name('redirect');
+    Route::get('/{id}', [PaymentController::class, 'index'])->whereNumber('id')->name('index.with-id');
+    Route::post('/{id}/checkout', [PaymentController::class, 'checkout'])->whereNumber('id')->name('checkout.with-id');
+    Route::get('/{id}/redirect', [PaymentController::class, 'redirect'])->whereNumber('id')->name('redirect.with-id');
 });
 
 

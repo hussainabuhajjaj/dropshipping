@@ -990,6 +990,7 @@
 
         <PopupBannerModal v-if="showStorefrontPopups" :banners="popupBanners" />
         <NewsletterPopup v-if="showStorefrontPopups" :settings="newsletterPopupSettings" />
+        <CookieConsentBanner />
     </div>
 </template>
 
@@ -1004,6 +1005,7 @@ import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
+import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
 
 import { toastAlert } from "@/utils/toast";
@@ -1178,6 +1180,7 @@ const fallbackFooterColumns = [
             {label: t('Refund policy'), href: '/legal/refund-policy'},
             {label: t('Terms of service'), href: '/legal/terms-of-service'},
             {label: t('Privacy policy'), href: '/legal/privacy-policy'},
+            {label: t('Cookie policy'), href: '/legal/cookie-policy'},
         ],
     },
 ]

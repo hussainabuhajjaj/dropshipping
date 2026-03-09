@@ -15,7 +15,7 @@ class ServerFixStockZero extends Command
     protected $signature = 'cj:server-fix-stock-zero
         {--batch=500 : Number of variants to process in this run}
         {--hours=48 : Only fix variants synced in the last X hours}
-        {--delay=150 : Delay between API calls in milliseconds}
+        {--delay=1100 : Delay between API calls in milliseconds}
         {--force : Force fix all stock=0 variants regardless of sync time}
         {--dry-run : Show what would be fixed without actually updating}
         {--queue : Dispatch to queue instead of processing synchronously}

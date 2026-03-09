@@ -799,15 +799,15 @@ const valueProps = computed(() => {
 
 .hero-dots {
     display: flex;
-    gap: 10px;
-    padding: 0 10px;
+    gap: 6px;
+    padding: 0 8px;
     flex-wrap: wrap;
     justify-content: center;
 }
 
 .hero-dot {
-    width: 12px;
-    height: 12px;
+    width: 7px;
+    height: 7px;
     border-radius: 999px;
     background: #d1d5db;
     border: 1px solid #cbd5e1;
@@ -816,7 +816,7 @@ const valueProps = computed(() => {
 
 .hero-dot.is-active {
     background: var(--Simbazu-ink);
-    width: 26px;
+    width: 16px;
     border-color: var(--Simbazu-ink);
 }
 
@@ -1359,8 +1359,8 @@ const valueProps = computed(() => {
     }
 
     .hero-dot {
-        width: 10px;
-        height: 10px;
+        width: 6px;
+        height: 6px;
     }
 }
 </style>

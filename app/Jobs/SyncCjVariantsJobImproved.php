@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
-class SyncCjVariantsJob implements ShouldQueue
+class SyncCjVariantsJobImproved implements ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -30,9 +30,9 @@ class SyncCjVariantsJob implements ShouldQueue
     public int $tries = 5;
     public int $maxExceptions = 3;
 
-    // Rate limiting: 6 QPS with burst capacity
-    public int $rateLimit = 6;
-    public int $burstCapacity = 12;
+    // CJ is currently enforcing 1 request/second on the endpoints we use.
+    public int $rateLimit = 1;
+    public int $burstCapacity = 1;
 
     public function __construct(
         public string $cjPid,
@@ -105,7 +105,7 @@ class SyncCjVariantsJob implements ShouldQueue
     {
         $key = "cj:rate_limit:variants";
         $now = now()->timestamp;
-        $window = 1; // 1 second window for 6 QPS
+        $window = 1; // 1 second window for 1 QPS
         
         // Use Redis atomic operations for rate limiting
         $requests = Cache::store('redis')->add($key . ':count', 1, $window) ? 1 : 

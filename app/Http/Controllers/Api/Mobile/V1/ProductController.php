@@ -48,6 +48,7 @@ class ProductController extends ApiController
     public function index(ProductIndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        $locale = app()->getLocale();
         $category = $validated['category'] ?? null;
         $minPrice = $validated['min_price'] ?? null;
         $maxPrice = $validated['max_price'] ?? null;
@@ -61,7 +62,6 @@ class ProductController extends ApiController
             ->withCount('reviews');
 
         if ($category) {
-            $locale = app()->getLocale();
             $categoryModel = Category::query()
                 ->where('is_active', true)
                 ->where(function ($builder) use ($category, $locale) {
@@ -86,8 +86,13 @@ class ProductController extends ApiController
 
                 $productQuery->whereIn('category_id', $categoryIds);
             } else {
-                $productQuery->whereHas('category', function ($builder) use ($category) {
-                    $builder->where('name', $category)->orWhere('slug', $category);
+                $productQuery->whereHas('category', function ($builder) use ($category, $locale) {
+                    $builder
+                        ->where('name', $category)
+                        ->orWhere('slug', $category)
+                        ->orWhereHas('translations', function ($translationBuilder) use ($category, $locale) {
+                            $translationBuilder->where('locale', $locale)->where('name', $category);
+                        });
                 });
             }
         }
@@ -97,14 +102,27 @@ class ProductController extends ApiController
         $productQuery->priceRange($minValue, $maxValue);
 
         if ($query) {
-            $productQuery->where(function ($builder) use ($query) {
+            $productQuery->where(function ($builder) use ($query, $locale) {
                 $builder
                     ->where('name', 'like', '%' . $query . '%')
                     ->orWhere('description', 'like', '%' . $query . '%');
-                $builder->orWhereHas('category', function ($categoryBuilder) use ($query) {
+
+                $builder->orWhereHas('translations', function ($translationBuilder) use ($query, $locale) {
+                    $translationBuilder
+                        ->where('locale', $locale)
+                        ->where(function ($translated) use ($query) {
+                            $translated
+                                ->where('name', 'like', '%' . $query . '%')
+                                ->orWhere('description', 'like', '%' . $query . '%');
+                        });
+                });
+
+                $builder->orWhereHas('category', function ($categoryBuilder) use ($query, $locale) {
                     $categoryBuilder->where('name', 'like', '%' . $query . '%')
-                        ->orWhereHas('translations', function ($translationBuilder) use ($query) {
-                            $translationBuilder->where('name', 'like', '%' . $query . '%');
+                        ->orWhereHas('translations', function ($translationBuilder) use ($query, $locale) {
+                            $translationBuilder
+                                ->where('locale', $locale)
+                                ->where('name', 'like', '%' . $query . '%');
                         });
                 });
             });
@@ -142,7 +160,13 @@ class ProductController extends ApiController
     {
         abort_if(! $product->is_active, 404);
 
-        $product->load(['images', 'variants', 'category', 'translations']);
+        $product->load(['images', 'variants', 'category', 'translations'])
+            ->loadAvg([
+                'reviews as reviews_avg_rating' => fn ($query) => $query->where('status', 'approved'),
+            ], 'rating')
+            ->loadCount([
+                'reviews as reviews_count' => fn ($query) => $query->where('status', 'approved'),
+            ]);
 
         return $this->success(new ProductDetailResource($product));
     }

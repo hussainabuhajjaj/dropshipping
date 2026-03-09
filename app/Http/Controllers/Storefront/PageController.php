@@ -112,6 +112,21 @@ class PageController extends Controller
         ]);
     }
 
+    public function cookiePolicy(): Response
+    {
+        $locale = app()->getLocale();
+        $settings = SiteSetting::first();
+        $content = $settings?->localizedValue('cookie_policy', $locale)
+            ?? $settings?->cookie_policy
+            ?? '<p>Cookie policy coming soon...</p>';
+
+        return Inertia::render('Legal/Policy', [
+            'content' => $content,
+            'pageTitle' => __('Cookie Policy'),
+            'pageDescription' => __('Understand which cookies we use and how consent choices affect your storefront experience.'),
+        ]);
+    }
+
     public function termsOfService(): Response
     {
         $locale = app()->getLocale();

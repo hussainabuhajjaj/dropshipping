@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\Redis;
 
 class CjApiRateLimiterService
 {
-    private const RATE_LIMIT = 6; // requests per second
-    private const BURST_CAPACITY = 12; // allow short bursts
+    private const RATE_LIMIT = 1; // requests per second
+    private const BURST_CAPACITY = 1; // CJ is currently enforcing 1 request/second
     private const WINDOW_SIZE = 1; // 1 second windows
     private const MAX_DELAY = 300; // 5 minutes max delay
     private const CIRCUIT_BREAKER_THRESHOLD = 10; // failures before opening circuit

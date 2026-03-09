@@ -20,6 +20,8 @@ class PreferencesLookupsResource extends \App\Http\Resources\Storefront\JsonReso
             'currencies' => $data['currencies'] ?? [],
             'sizes' => $data['sizes'] ?? [],
             'languages' => $data['languages'] ?? [],
+            'currency_rates' => $data['currency_rates'] ?? [],
+            'currency_decimals' => $data['currency_decimals'] ?? [],
         ];
     }
 }

@@ -33,9 +33,9 @@ class ProductResource extends JsonResource
                     'currency' => 'USD',
                 ]
             ),
-            'stock_quantity' => $this->stock_quantity,
+            'stock_quantity' => $this->stock_on_hand,
             'is_active' => (bool) $this->is_active,
-            'featured' => (bool) $this->featured,
+            'featured' => (bool) $this->is_featured,
             'category' => new CategoryResource($this->whenLoaded('category')),
             'images' => $this->whenLoaded('images', function () {
                 return $this->images->map(function ($image) {

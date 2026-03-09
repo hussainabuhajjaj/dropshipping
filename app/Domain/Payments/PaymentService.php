@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Payments;
 
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Payments\Models\Payment;
 use App\Domain\Payments\Models\PaymentWebhook;
 use App\Domain\Observability\EventLogger;
 use App\Events\Orders\OrderPaid;
 use App\Infrastructure\Payments\Clients\KorapayClient;
-use App\Jobs\DispatchFulfillmentJob;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -19,7 +19,10 @@ use InvalidArgumentException;
 
 class PaymentService
 {
-    public function __construct(private readonly EventLogger $logger)
+    public function __construct(
+        private readonly EventLogger $logger,
+        private readonly FulfillmentDispatchService $fulfillmentDispatchService,
+    )
     {
     }
 
@@ -184,46 +187,10 @@ class PaymentService
 
     private function dispatchFulfillmentForOrder(Order $order): void
     {
-        $order->loadMissing([
-            'orderItems.fulfillmentProvider',
-            'orderItems.supplierProduct.fulfillmentProvider',
-            'orderItems.productVariant.product.defaultFulfillmentProvider',
-        ]);
-
-        $dispatched = false;
-
-        foreach ($order->orderItems as $item) {
-            if (in_array($item->fulfillment_status, ['fulfilled', 'failed', 'cancelled'], true)) {
-                continue;
-            }
-
-            if ($item->fulfillmentJob()->exists()) {
-                continue;
-            }
-
-            $hasProvider = $item->fulfillmentProvider
-                || $item->supplierProduct?->fulfillmentProvider
-                || $item->productVariant?->product?->defaultFulfillmentProvider;
-
-            if (! $hasProvider) {
-                Log::warning('Skipping fulfillment dispatch; no provider resolved.', [
-                    'order_id' => $order->id,
-                    'order_item_id' => $item->id,
-                ]);
-                continue;
-            }
-
-            DispatchFulfillmentJob::dispatch($item->id);
-            $item->update(['fulfillment_status' => 'fulfilling']);
-            $dispatched = true;
-        }
-
-        if ($dispatched && ! in_array($order->status, ['fulfilled', 'cancelled', 'refunded'], true)) {
-            $order->update(['status' => 'fulfilling']);
-        }
+        $this->fulfillmentDispatchService->dispatchForOrder($order);
     }
 
-    public function initializeKorapay(Order $order, Payment $payment, array $customer = []): array
+    public function initializeKorapay(Order $order, Payment $payment, array $customer = [], string $method = 'card'): array
     {
         $client = app(KorapayClient::class);
 
@@ -231,18 +198,30 @@ class PaymentService
             $payment->update(['provider_reference' => $this->buildKorapayReference($order)]);
         }
 
+        // Handle currency conversion for mobile money (same as storefront)
+        $currency = $order->currency ?? 'USD';
+        $amount = (float) $order->grand_total;
+        
+        if ($method === 'mobile_money') {
+            $currency = 'XOF'; // Convert to West African CFA for mobile money
+            // Note: You might need to implement currency conversion here if needed
+        }
+
         $payload = [
-            'amount' => (float) $order->grand_total,
-            'currency' => $order->currency ?? 'USD',
+            'amount' => $amount,
+            'currency' => $currency,
             'reference' => $payment->provider_reference,
             'customer' => [
                 'email' => $customer['email'] ?? $order->email,
                 'name' => $customer['name'] ?? $order->guest_name ?? $order->customer?->name,
             ],
+            'channels' => [$method],
+            'default_channel' => $method,
             'metadata' => [
                 'order_number' => $order->number,
                 'payment_id' => $payment->id,
                 'customer_id' => $order->customer_id,
+                'payment_method' => $method,
             ],
         ];
 
@@ -268,6 +247,27 @@ class PaymentService
         $payload = $this->normalizeKorapayPayload($data, $reference);
         $eventId = $payload['event_id'] ?? ('verify:' . $reference);
 
+        // Korapay verify payload can omit order_number metadata.
+        // In that case, resolve by provider reference and update status directly.
+        if (empty($payload['order_number'])) {
+            $payment = Payment::query()
+                ->where('provider', 'korapay')
+                ->where('provider_reference', $reference)
+                ->latest('id')
+                ->first();
+
+            if ($payment) {
+                $existingMeta = is_array($payment->meta) ? $payment->meta : [];
+                $payment->update([
+                    'meta' => array_merge($existingMeta, ['korapay_verify' => $data]),
+                ]);
+
+                $this->applyStatusFromPayload($payment, $payload);
+
+                return $payment->refresh();
+            }
+        }
+
         return $this->handleWebhook('korapay', $eventId, $payload);
     }
 
@@ -277,7 +277,10 @@ class PaymentService
             'event_id' => $data['id'] ?? $data['event_id'] ?? $reference,
             'provider_reference' => $data['reference'] ?? $reference,
             'transaction_id' => $data['id'] ?? null,
-            'order_number' => $data['metadata']['order_number'] ?? $data['order_number'] ?? null,
+            'order_number' => $data['metadata']['order_number']
+                ?? $data['meta']['order_number']
+                ?? $data['order_number']
+                ?? null,
             'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
             'currency' => $data['currency'] ?? null,
             'status' => $data['status'] ?? null,

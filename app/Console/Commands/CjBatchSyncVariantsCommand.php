@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Products\Models\Product;
-use App\Jobs\SyncCjVariantsJob;
+use App\Jobs\SyncCjVariantsJobImproved;
 use App\Services\CjPidClaimService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -60,7 +60,7 @@ class CjBatchSyncVariantsCommand extends Command
                         }
 
                         // Dispatch job with claim token
-                        $job = new SyncCjVariantsJob($product->cj_pid, $claimToken);
+                        $job = new SyncCjVariantsJobImproved($product->cj_pid, $claimToken);
                         
                         // Set queue based on priority
                         match ($priority) {

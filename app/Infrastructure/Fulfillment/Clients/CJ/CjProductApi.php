@@ -216,7 +216,7 @@ class CjProductApi extends CjBaseApi
 
     public function getVariantsByPid(string $pid): ApiResponse
     {
-
+//dd($pid);
         return $this->client()->get('/v1/product/variant/query', ['pid' => $pid]);
     }
 

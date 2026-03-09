@@ -23,19 +23,40 @@ class KorapayService
 
     public function makeDataPayload($amount, $chanel = 'card', $currency = "USD")
     {
-        $auth = auth('customer')->user();
+        $auth = auth('customer')->user() ?? auth()->user();
+        $routeId = request()->route('id');
+        $routeType = request()->route('type');
+        $hasNumericId = is_numeric($routeId);
+        $redirectUrl = $this->resolveRedirectUrl($routeType, $hasNumericId ? (int) $routeId : null);
+
         return [
             "reference" => 'KPY-' . Str::upper(Str::random(12)) . '-' . time(),
             "amount" => number_format($amount, 2, '.', ''),
             "currency" => $currency,
-            "redirect_url" => route('pay.redirect', ['type' => request()->route('type'), 'id' => request()->route('id')]),
+            "redirect_url" => $redirectUrl,
             "customer" => [
-                "name" => $auth->name,
-                "email" => $auth->email,
+                "name" => $auth?->name ?? 'Customer',
+                "email" => $auth?->email ?? 'no-reply@simbazu.com',
             ],
             'channels' => [$chanel],
             'default_channel' => $chanel,
         ];
+    }
+
+    private function resolveRedirectUrl(?string $routeType, ?int $routeId = null): string
+    {
+        // Mobile API flow does not have pay/{type} route params.
+        if (request()->is('api/mobile/*')) {
+            return url('/api/mobile/v1/payments/redirect');
+        }
+
+        $type = $routeType ?: 'cart';
+
+        if ($routeId !== null) {
+            return route('pay.redirect.with-id', ['type' => $type, 'id' => $routeId]);
+        }
+
+        return route('pay.redirect', ['type' => $type]);
     }
 
     /**

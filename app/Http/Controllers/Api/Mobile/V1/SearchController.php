@@ -17,6 +17,7 @@ class SearchController extends ApiController
     public function index(SearchIndexRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        $locale = app()->getLocale();
         $query = $validated['q'] ?? null;
         $category = $validated['category'] ?? null;
         $minPrice = $validated['min_price'] ?? null;
@@ -27,7 +28,7 @@ class SearchController extends ApiController
         $isMySql = in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
         $booleanQuery = $this->toBooleanFullTextQuery((string) ($query ?? ''));
 
-        $productQuery = $this->buildProductQuery($query, $category, $minPrice, $maxPrice, $isMySql, $booleanQuery);
+        $productQuery = $this->buildProductQuery($query, $category, $minPrice, $maxPrice, $isMySql, $booleanQuery, $locale);
         $productQuery = $this->applyProductSort($productQuery, $sort);
         $products = $productQuery->paginate($perPage);
 
@@ -38,18 +39,28 @@ class SearchController extends ApiController
         if ($query) {
             if ($isMySql && $booleanQuery !== null) {
                 $categoriesQuery
-                    ->where(function (Builder $builder) use ($booleanQuery, $query) {
+                    ->where(function (Builder $builder) use ($booleanQuery, $query, $locale) {
                         $builder
                             ->whereRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
                             ->orWhere('name', 'like', '%' . $query . '%')
-                            ->orWhere('slug', 'like', '%' . $query . '%');
+                            ->orWhere('slug', 'like', '%' . $query . '%')
+                            ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                                $translationBuilder
+                                    ->where('locale', $locale)
+                                    ->where('name', 'like', '%' . $query . '%');
+                            });
                     })
                     ->orderByRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE) desc', [$booleanQuery]);
             } else {
-                $categoriesQuery->where(function (Builder $builder) use ($query) {
+                $categoriesQuery->where(function (Builder $builder) use ($query, $locale) {
                     $builder
                         ->where('name', 'like', '%' . $query . '%')
-                        ->orWhere('slug', 'like', '%' . $query . '%');
+                        ->orWhere('slug', 'like', '%' . $query . '%')
+                        ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                            $translationBuilder
+                                ->where('locale', $locale)
+                                ->where('name', 'like', '%' . $query . '%');
+                        });
                 });
             }
         }
@@ -87,7 +98,8 @@ class SearchController extends ApiController
         mixed $minPrice,
         mixed $maxPrice,
         bool $isMySql,
-        ?string $booleanQuery
+        ?string $booleanQuery,
+        string $locale
     ): Builder {
         $productQuery = Product::query()
             ->where('is_active', true)
@@ -96,8 +108,15 @@ class SearchController extends ApiController
             ->withCount('reviews');
 
         if ($category) {
-            $productQuery->whereHas('category', function ($builder) use ($category) {
-                $builder->where('name', $category)->orWhere('slug', $category);
+            $productQuery->whereHas('category', function ($builder) use ($category, $locale) {
+                $builder
+                    ->where('name', $category)
+                    ->orWhere('slug', $category)
+                    ->orWhereHas('translations', function (Builder $translationBuilder) use ($category, $locale) {
+                        $translationBuilder
+                            ->where('locale', $locale)
+                            ->where('name', $category);
+                    });
             });
         }
 
@@ -110,22 +129,51 @@ class SearchController extends ApiController
                 $productQuery
                     ->select('products.*')
                     ->selectRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
-                    ->where(function (Builder $builder) use ($booleanQuery, $query) {
+                    ->where(function (Builder $builder) use ($booleanQuery, $query, $locale) {
                         $builder
                             ->whereRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
-                            ->orWhereHas('category', function (Builder $categoryBuilder) use ($booleanQuery, $query) {
+                            ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                                $translationBuilder
+                                    ->where('locale', $locale)
+                                    ->where(function (Builder $translated) use ($query) {
+                                        $translated
+                                            ->where('name', 'like', '%' . $query . '%')
+                                            ->orWhere('description', 'like', '%' . $query . '%');
+                                    });
+                            })
+                            ->orWhereHas('category', function (Builder $categoryBuilder) use ($booleanQuery, $query, $locale) {
                                 $categoryBuilder
                                     ->whereRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
-                                    ->orWhere('name', 'like', '%' . $query . '%');
+                                    ->orWhere('name', 'like', '%' . $query . '%')
+                                    ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                                        $translationBuilder
+                                            ->where('locale', $locale)
+                                            ->where('name', 'like', '%' . $query . '%');
+                                    });
                             });
                     });
             } else {
-                $productQuery->where(function (Builder $builder) use ($query) {
+                $productQuery->where(function (Builder $builder) use ($query, $locale) {
                     $builder
                         ->where('name', 'like', '%' . $query . '%')
                         ->orWhere('description', 'like', '%' . $query . '%');
-                    $builder->orWhereHas('category', function (Builder $categoryBuilder) use ($query) {
-                        $categoryBuilder->where('name', 'like', '%' . $query . '%');
+                    $builder->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                        $translationBuilder
+                            ->where('locale', $locale)
+                            ->where(function (Builder $translated) use ($query) {
+                                $translated
+                                    ->where('name', 'like', '%' . $query . '%')
+                                    ->orWhere('description', 'like', '%' . $query . '%');
+                            });
+                    });
+                    $builder->orWhereHas('category', function (Builder $categoryBuilder) use ($query, $locale) {
+                        $categoryBuilder
+                            ->where('name', 'like', '%' . $query . '%')
+                            ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
+                                $translationBuilder
+                                    ->where('locale', $locale)
+                                    ->where('name', 'like', '%' . $query . '%');
+                            });
                     });
                 });
             }

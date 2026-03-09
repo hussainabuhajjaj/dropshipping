@@ -49,6 +49,8 @@ class StoreProductRequest extends FormRequest
             'sku' => strtoupper(trim($this->sku ?? '')),
             'is_active' => $this->boolean('is_active', true),
             'featured' => $this->boolean('featured', false),
+            'is_featured' => $this->boolean('featured', false),
+            'stock_on_hand' => $this->stock_quantity ?? null,
         ]);
     }
 }

@@ -366,12 +366,12 @@ onBeforeUnmount(() => {
 
 .carousel-indicators {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.35rem;
 }
 
 .carousel-indicator {
-    width: 0.75rem;
-    height: 0.75rem;
+    width: 0.4rem;
+    height: 0.4rem;
     border-radius: 9999px;
     background: rgba(255, 255, 255, 0.5);
     border: none;
@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
 }
 
 .carousel-indicator.active {
-    width: 2rem;
+    width: 1rem;
     background: white;
 }
 
@@ -458,12 +458,12 @@ onBeforeUnmount(() => {
     }
 
     .carousel-indicator {
-        width: 0.6rem;
-        height: 0.6rem;
+        width: 0.35rem;
+        height: 0.35rem;
     }
 
     .carousel-indicator.active {
-        width: 1.5rem;
+        width: 0.9rem;
     }
 }
 </style>

@@ -25,21 +25,35 @@ class CJDropshippingFulfillmentStrategy implements FulfillmentStrategy
 
     public function dispatch(FulfillmentRequestData $data): FulfillmentResult
     {
+        $orderId = $data->order_id ?? $data->orderItem?->order_id;
+        if (! $orderId) {
+            $fallbackOrderItemId = (int) (collect($data->order_items ?? [])->pluck('id')->first() ?? 0);
+            if ($fallbackOrderItemId > 0) {
+                $orderId = (int) OrderItem::query()
+                    ->whereKey($fallbackOrderItemId)
+                    ->value('order_id');
+            }
+        }
+
         $order = Order::query()
             ->with(['orderShippings', 'shippingAddress'])
-            ->find($data->order_id);
+            ->find($orderId);
 
         if (! $order) {
-            throw new FulfillmentException("Order {$data->order_id} not found");
+            throw new FulfillmentException("Order {$orderId} not found");
         }
 
         $providerSettings = $data->provider->settings ?? [];
 
         $order_items = collect($data->order_items ?? [])->pluck('id')->toArray();
+        if (empty($order_items) && $data->orderItem?->id) {
+            $order_items = [$data->orderItem->id];
+        }
+
         $new_order_items = OrderItem::query()
             ->whereIn('id', $order_items)
             ->with(['productVariant'])
-            ->where('order_id', $data->order_id)
+            ->where('order_id', $orderId)
             ->get();
 
         if ($new_order_items->isEmpty()) {

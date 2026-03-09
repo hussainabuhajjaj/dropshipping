@@ -120,6 +120,18 @@ class CartController extends Controller
         if (!empty($data['variant_id'])) {
             $variant = $product->variants->firstWhere('id', (int)$data['variant_id']);
         }
+        $selectedVariant = $variant ?? $product->variants->first();
+        $providerId = (int) ($product->default_fulfillment_provider_id ?? 0);
+        if ($providerId === 1) {
+            if (! $selectedVariant) {
+                return back()->withErrors(['cart' => 'Selected variant is no longer available. Please choose another variant.']);
+            }
+
+            $meta = is_array($selectedVariant->metadata ?? null) ? $selectedVariant->metadata : [];
+            if (empty($meta['cj_vid'])) {
+                return back()->withErrors(['cart' => 'Selected variant is invalid for fulfillment. Please choose another variant.']);
+            }
+        }
 
 
         $cart = $this->cart();
@@ -140,7 +152,7 @@ class CartController extends Controller
 
             $existing->update(['quantity' => $newQty]);
         } else {
-            $line = $this->buildLine($product, $variant, $incomingQty);
+            $line = $this->buildLine($product, $selectedVariant, $incomingQty);
             if (!$this->hasStock($line, $incomingQty, $variant)) {
                 return back()->withErrors(['cart' => 'Insufficient stock for this item.']);
             }
@@ -187,8 +199,27 @@ class CartController extends Controller
 
     public function getCart()
     {
-        $cart = Cart::query()->where('user_id', auth('customer')->id())
-            ->orWhere('session_id', session()->id())
+        $customerId = auth('customer')->id();
+        $sessionId = session()->id();
+
+        $cart = Cart::query()
+            ->when(
+                $customerId,
+                function ($query) use ($customerId, $sessionId) {
+                    $query->where(function ($scoped) use ($customerId, $sessionId) {
+                        $scoped->where('user_id', $customerId)
+                            ->orWhere(function ($guest) use ($sessionId) {
+                                $guest->whereNull('user_id')
+                                    ->where('session_id', $sessionId);
+                            });
+                    });
+                },
+                function ($query) use ($sessionId) {
+                    $query->whereNull('user_id')
+                        ->where('session_id', $sessionId);
+                }
+            )
+            ->orderByDesc('updated_at')
             ->first();
         if (!$cart) {
             return Cart::createCart();
@@ -319,17 +350,37 @@ class CartController extends Controller
             return (int)$line['stock_on_hand'] >= $desiredQty;
         }
 
+        // Get the CJ IDs from metadata if not present in the line array
+        $cj_vid = $line['cj_vid'] ?? null;
+        $cj_pid = $line['cj_pid'] ?? null;
+        $sku = $line['sku'] ?? null;
+
+        if (!$cj_vid && !$cj_pid && !$sku) {
+            // Try to fetch from database relationships
+            if (isset($line['variant_id'])) {
+                $variant = ProductVariant::query()->find($line['variant_id']);
+                $cj_vid = $variant->metadata['cj_vid'] ?? null;
+                $sku = $variant->sku ?? null;
+            }
+            
+            if (!$cj_vid && !$cj_pid && !$sku && isset($line['product_id'])) {
+                $product = Product::query()->find($line['product_id']);
+                $attributes = is_array($product->attributes ?? null) ? $product->attributes : [];
+                $cj_pid = $attributes['cj_pid'] ?? null;
+            }
+        }
+
         $client = app(CJDropshippingClient::class);
 
         try {
-            if ($line['cj_vid'] ?? false) {
-                $resp = $client->getStockByVid((string)$line['cj_vid']);
-            } elseif ($line['sku'] ?? false) {
-                $resp = $client->getStockBySku((string)$line['sku']);
-            } elseif ($line['cj_pid'] ?? false) {
-                $resp = $client->getStockByPid((string)$line['cj_pid']);
+            if ($cj_vid) {
+                $resp = $client->getStockByVid((string)$cj_vid);
+            } elseif ($sku) {
+                $resp = $client->getStockBySku((string)$sku);
+            } elseif ($cj_pid) {
+                $resp = $client->getStockByPid((string)$cj_pid);
             } else {
-                return true;
+                return true; // No CJ identifiers found, allow by default
             }
 
             return $this->sumStorage($resp->data ?? null) >= $desiredQty;

@@ -29,6 +29,11 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/cj',
+            'webhooks/cj/order-status',
+        ]);
+
         $middleware->web(append: [
             \App\Http\Middleware\CheckStorefrontComingSoon::class,
             \App\Http\Middleware\SetLocale::class,
@@ -36,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SetUserPreferences::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\TrackStorefrontVisit::class,
         ]);
 
         $middleware->group('admin', [
@@ -43,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->api(append: [
+            \Illuminate\Session\Middleware\StartSession::class,
             \App\Http\Middleware\ApiSetLocale::class,
         ]);
     })

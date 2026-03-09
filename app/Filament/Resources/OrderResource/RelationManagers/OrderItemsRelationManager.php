@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use App\Domain\Orders\Services\TrackingService;
 use App\Domain\Orders\Models\OrderAuditLog;
-use App\Jobs\DispatchFulfillmentJob;
 use App\Events\Orders\OrderDelivered;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -63,8 +63,15 @@ class OrderItemsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->visible(fn ($record) => $record->fulfillmentProvider && $record->fulfillmentProvider->code === 'cj' && $record->fulfillment_status === 'pending')
                     ->action(function ($record): void {
-                        \App\Jobs\DispatchFulfillmentJob::dispatch($record->id);
-                        $record->update(['fulfillment_status' => 'fulfilling']);
+                        $dispatched = app(FulfillmentDispatchService::class)->dispatchForOrderItem($record);
+                        if (! $dispatched) {
+                            Notification::make()
+                                ->title('Item is not eligible for dispatch')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
                         \App\Domain\Orders\Models\OrderAuditLog::create([
                             'order_id' => $record->order_id,
                             'user_id' => auth()->id(),
@@ -79,9 +86,14 @@ class OrderItemsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->visible(fn ($record) => $record->fulfillmentProvider !== null)
                     ->action(function ($record): void {
-                        DispatchFulfillmentJob::dispatch($record->id);
-
-                        $record->update(['fulfillment_status' => 'fulfilling']);
+                        $dispatched = app(FulfillmentDispatchService::class)->dispatchForOrderItem($record);
+                        if (! $dispatched) {
+                            Notification::make()
+                                ->title('Item is not eligible for dispatch')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
 
                         OrderAuditLog::create([
                             'order_id' => $record->order_id,

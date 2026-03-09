@@ -54,7 +54,14 @@ class UpdateProductRequest extends FormRequest
         }
 
         if ($this->has('featured')) {
-            $this->merge(['featured' => $this->boolean('featured')]);
+            $this->merge([
+                'featured' => $this->boolean('featured'),
+                'is_featured' => $this->boolean('featured')
+            ]);
+        }
+
+        if ($this->has('stock_quantity')) {
+            $this->merge(['stock_on_hand' => $this->stock_quantity]);
         }
     }
 }

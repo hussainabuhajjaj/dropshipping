@@ -17,6 +17,9 @@ class PaymentStatusResource extends JsonResource
         return [
             'payment_status' => $this->resource['payment_status'] ?? null,
             'order_status' => $this->resource['order_status'] ?? null,
+            'order_number' => $this->resource['order_number'] ?? null,
+            'reference' => $this->resource['reference'] ?? null,
+            'is_paid' => (bool) ($this->resource['is_paid'] ?? false),
         ];
     }
 }

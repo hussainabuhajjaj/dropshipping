@@ -20,6 +20,10 @@ use App\Filament\Widgets\CJSyncHealthWidget;
 use App\Filament\Widgets\CJWebhookHealthWidget;
 use App\Filament\Widgets\LowStockProductsTable;
 use App\Filament\Widgets\AnalyticsKPIWidget;
+use App\Filament\Widgets\VisitorStatsOverview;
+use App\Filament\Widgets\MostViewedProductsTable;
+use App\Filament\Widgets\MostViewedCategoriesTable;
+use App\Filament\Widgets\MostViewedPagesTable;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
@@ -29,6 +33,7 @@ class Dashboard extends BaseDashboard
         return [
             AdminStatsOverview::class,
             AnalyticsKPIWidget::class,
+            VisitorStatsOverview::class,
             OperationsOverview::class,
             SalesTrendChart::class,
             OrderStatusChart::class,
@@ -42,6 +47,9 @@ class Dashboard extends BaseDashboard
             QueueHealthWidget::class,
             CJSyncHealthWidget::class,
             CJWebhookHealthWidget::class,
+            MostViewedProductsTable::class,
+            MostViewedCategoriesTable::class,
+            MostViewedPagesTable::class,
             LowStockProductsTable::class,
         ];
     }

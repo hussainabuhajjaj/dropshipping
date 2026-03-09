@@ -9,7 +9,6 @@ use App\Domain\Fulfillment\Strategies\CJDropshippingFulfillmentStrategy;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\Shipment;
 use App\Domain\Products\Services\CjProductImportService;
-use App\Enums\RefundReasonEnum;
 use App\Http\Controllers\Controller;
 use App\Models\CJWebhookLog;
 use Illuminate\Http\JsonResponse;
@@ -24,11 +23,7 @@ class CJWebhookController extends Controller
     {
         $this->verifySignature($request);
 
-        // Read JSON body (or fallback to form data)
-        $payload = $request->json()->all();
-        if ($payload === []) {
-            $payload = $request->all();
-        }
+        $payload = $this->readPayload($request);
 
         $messageId = $payload['messageId'] ?? null;
         $requestId = $payload['requestId'] ?? null;
@@ -95,28 +90,78 @@ class CJWebhookController extends Controller
 
     private function handleOrderStatus(array $payload): void
     {
-        $externalId = Arr::get($payload, 'orderId') ?? Arr::get($payload, 'data.orderId');
+        $externalId = $this->extractValue($payload, [
+            'params.cjOrderId',
+            'params.orderId',
+            'orderId',
+            'data.orderId',
+        ]);
+        $orderNumber = $this->extractValue($payload, [
+            'params.orderNumber',
+            'orderNumber',
+            'data.orderNumber',
+        ]);
 
-        if (! $externalId) {
+        if (! $externalId && ! $orderNumber) {
             return;
         }
 
-        $job = FulfillmentJob::with('provider')->where('external_reference', $externalId)->first();
+        $job = $this->resolveFulfillmentJob($externalId, $orderNumber);
         if (! $job || $job->provider?->driver_class !== CJDropshippingFulfillmentStrategy::class) {
             return;
         }
 
-        $status = strtolower((string) (Arr::get($payload, 'status') ?? ''));
-        $trackingNumber = Arr::get($payload, 'trackingNumber');
-        $trackingUrl = Arr::get($payload, 'trackingUrl');
+        $status = $this->normalizeFulfillmentStatus(
+            $this->extractValue($payload, [
+                'params.orderStatus',
+                'status',
+                'data.status',
+            ])
+        );
+        $trackingNumber = $this->extractValue($payload, [
+            'params.trackNumber',
+            'params.trackingNumber',
+            'trackingNumber',
+            'data.trackingNumber',
+        ]);
+        $trackingUrl = $this->extractValue($payload, [
+            'params.trackingUrl',
+            'trackingUrl',
+            'data.trackingUrl',
+        ]);
+        $carrier = $this->extractValue($payload, [
+            'params.carrier',
+            'params.logisticName',
+            'carrier',
+        ]);
+        $logisticName = $this->extractValue($payload, [
+            'params.logisticName',
+            'logisticName',
+        ]);
+        $shipmentOrderId = $this->extractValue($payload, [
+            'params.shipmentOrderId',
+            'shipmentOrderId',
+        ]);
+        $currency = $this->extractValue($payload, [
+            'params.currency',
+            'params.currencyCode',
+            'currency',
+            'currencyCode',
+        ]);
+        $postageAmount = $this->extractNumericValue($payload, [
+            'params.postageAmount',
+            'postageAmount',
+        ]);
+        $rawEvents = Arr::get($payload, 'params.logisticsTrackEvents')
+            ?? Arr::get($payload, 'events');
 
-        $job->status = match ($status) {
-            'completed', 'success', 'fulfilled' => 'succeeded',
-            'failed', 'cancelled' => 'failed',
-            default => $job->status,
-        };
+        $job->status = $status ?? $job->status;
         $job->fulfilled_at = $job->status === 'succeeded' ? now() : $job->fulfilled_at;
-        $job->last_error = Arr::get($payload, 'errorMsg', $job->last_error);
+        $job->last_error = $this->extractValue($payload, [
+            'params.errorMsg',
+            'errorMsg',
+            'message',
+        ]) ?? $job->last_error;
         $job->save();
 
         // Update Order customer_status based on fulfillment job status
@@ -137,15 +182,15 @@ class CJWebhookController extends Controller
             Shipment::updateOrCreate(
                 ['order_item_id' => $job->order_item_id, 'tracking_number' => $trackingNumber],
                 [
-                    'carrier' => Arr::get($payload, 'carrier'),
+                    'carrier' => $carrier,
                     'tracking_url' => $trackingUrl,
-                    'logistic_name' => Arr::get($payload, 'logisticName'),
-                    'cj_order_id' => $externalId,
-                    'shipment_order_id' => Arr::get($payload, 'shipmentOrderId'),
-                    'postage_amount' => Arr::get($payload, 'postageAmount'),
-                    'currency' => Arr::get($payload, 'currency') ?? Arr::get($payload, 'currencyCode'),
-                    'shipped_at' => Arr::get($payload, 'shippedAt') ?? now(),
-                    'raw_events' => Arr::get($payload, 'events'),
+                    'logistic_name' => $logisticName,
+                    'cj_order_id' => $externalId ?: $order?->cj_order_id,
+                    'shipment_order_id' => $shipmentOrderId,
+                    'postage_amount' => $postageAmount,
+                    'currency' => $currency,
+                    'shipped_at' => $this->extractValue($payload, ['params.shippedAt', 'shippedAt']) ?? now(),
+                    'raw_events' => $rawEvents,
                 ]
             );
 
@@ -167,14 +212,19 @@ class CJWebhookController extends Controller
 
     private function handleProductSync(array $payload): void
     {
-        $orderId = $this->extractValue($payload, ['orderId', 'data.orderId']);
+        $orderId = $this->extractValue($payload, [
+            'params.cjOrderId',
+            'params.orderId',
+            'orderId',
+            'data.orderId',
+        ]);
         if ($orderId) {
             return;
         }
 
-        $pid = $this->extractValue($payload, ['pid', 'productId', 'product_id', 'data.pid', 'data.productId']);
-        $productSku = $this->extractValue($payload, ['productSku', 'productSKU', 'data.productSku', 'data.productSKU']);
-        $variantSku = $this->extractValue($payload, ['variantSku', 'variantSKU', 'data.variantSku', 'data.variantSKU', 'sku', 'data.sku']);
+        $pid = $this->extractValue($payload, ['params.pid', 'params.productId', 'pid', 'productId', 'product_id', 'data.pid', 'data.productId']);
+        $productSku = $this->extractValue($payload, ['params.productSku', 'params.productSKU', 'productSku', 'productSKU', 'data.productSku', 'data.productSKU']);
+        $variantSku = $this->extractValue($payload, ['params.variantSku', 'params.variantSKU', 'variantSku', 'variantSKU', 'params.sku', 'sku', 'data.variantSku', 'data.variantSKU', 'data.sku']);
 
         if (! $pid && ! $productSku && ! $variantSku) {
             return;
@@ -209,12 +259,82 @@ class CJWebhookController extends Controller
     {
         foreach ($keys as $key) {
             $value = Arr::get($payload, $key);
-            if (is_string($value) && $value !== '') {
-                return $value;
+            if (is_scalar($value)) {
+                $normalized = trim((string) $value);
+                if ($normalized !== '') {
+                    return $normalized;
+                }
             }
         }
 
         return null;
+    }
+
+    private function extractNumericValue(array $payload, array $keys): ?float
+    {
+        foreach ($keys as $key) {
+            $value = Arr::get($payload, $key);
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveFulfillmentJob(?string $externalId, ?string $orderNumber): ?FulfillmentJob
+    {
+        if ($externalId) {
+            $job = FulfillmentJob::with('provider')
+                ->where('external_reference', $externalId)
+                ->first();
+
+            if ($job) {
+                return $job;
+            }
+        }
+
+        $query = FulfillmentJob::with('provider');
+
+        if ($externalId || $orderNumber) {
+            $query->whereHas('order', function ($orderQuery) use ($externalId, $orderNumber): void {
+                if ($externalId) {
+                    $orderQuery->where('cj_order_id', $externalId)
+                        ->orWhere('cj_shipment_order_id', $externalId);
+                }
+
+                if ($orderNumber) {
+                    $orderQuery->orWhere('number', $orderNumber);
+                }
+            });
+        }
+
+        return $query->first();
+    }
+
+    private function normalizeFulfillmentStatus(?string $status): ?string
+    {
+        if (! $status) {
+            return null;
+        }
+
+        return match (Str::lower($status)) {
+            'completed', 'success', 'fulfilled', 'shipped', 'delivered' => 'succeeded',
+            'failed', 'cancelled', 'canceled' => 'failed',
+            'created', 'confirmed', 'processing', 'in_progress', 'paid', 'wait_print', 'printed', 'ready', 'sent' => 'in_progress',
+            default => null,
+        };
+    }
+
+    private function readPayload(Request $request): array
+    {
+        $payload = $request->json()->all();
+
+        if ($payload === []) {
+            $payload = $request->all();
+        }
+
+        return is_array($payload) ? $payload : [];
     }
 
     private function verifySignature(Request $request): void

@@ -26,7 +26,41 @@ class CartItem extends Model
 
     public function getSinglePrice(): float
     {
-        $price = (float)($this?->variant?->price ?? ($this?->product?->selling_price ?? 0));
+        // Try variant price first
+        $price = (float)($this?->variant?->price ?? 0);
+        
+        // If no variant price, try product selling price
+        if ($price <= 0) {
+            $price = (float)($this?->product?->selling_price ?? 0);
+        }
+        
+        // If still no price, try to calculate from cost price with minimum margin
+        if ($price <= 0) {
+            $costPrice = (float)($this?->variant?->cost_price ?? $this?->product?->cost_price ?? 0);
+            if ($costPrice > 0) {
+                // Apply minimum margin (same logic as CJ import)
+                $pricingService = app(\App\Domain\Pricing\Services\PricingService::class);
+                $price = $pricingService->minSellingPrice($costPrice, $this?->product?->currency ?? 'USD');
+            }
+        }
+        
+        // Final fallback to prevent $0 pricing
+        if ($price <= 0) {
+            $price = 9.99; // Default minimum price
+            
+            // Log this issue for debugging
+            \Log::warning('Cart item with $0 price - using fallback', [
+                'cart_item_id' => $this->id,
+                'product_id' => $this->product_id,
+                'variant_id' => $this->variant_id,
+                'variant_price' => $this?->variant?->price,
+                'product_selling_price' => $this?->product?->selling_price,
+                'variant_cost_price' => $this?->variant?->cost_price,
+                'product_cost_price' => $this?->product?->cost_price,
+                'fallback_price' => $price,
+            ]);
+        }
+        
         return $price;
     }
 

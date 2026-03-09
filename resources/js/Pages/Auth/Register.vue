@@ -14,6 +14,7 @@ const form = useForm({
     email: '',
     password: '',
     password_confirmation: '',
+    accept_terms: false,
 });
 
 const submit = () => {
@@ -93,6 +94,25 @@ const submit = () => {
                     class="mt-2"
                     :message="form.errors.password_confirmation"
                 />
+            </div>
+
+            <div class="mt-4">
+                <label class="flex items-start gap-3 text-sm text-slate-600">
+                    <input
+                        v-model="form.accept_terms"
+                        type="checkbox"
+                        class="mt-1 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                        required
+                    />
+                    <span>
+                        {{ t('I agree to the') }}
+                        <Link :href="route('legal.terms')" class="font-semibold text-slate-900 underline hover:text-slate-700">
+                            {{ t('Terms and Conditions') }}
+                        </Link>
+                    </span>
+                </label>
+
+                <InputError class="mt-2" :message="form.errors.accept_terms" />
             </div>
 
             <div class="mt-4 flex items-center justify-end">

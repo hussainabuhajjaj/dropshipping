@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources;
 
 use App\Domain\Fulfillment\Models\FulfillmentJob;
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderAuditLog;
 use App\Domain\Orders\Models\Shipment;
@@ -21,8 +22,6 @@ use App\Filament\Resources\OrderResource\RelationManagers\PaymentsRelationManage
 use App\Filament\Resources\OrderResource\RelationManagers\TrackingEventsRelationManager;
 use App\Filament\Resources\OrderResource\RelationManagers\OrderAuditLogsRelationManager;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
-use App\Jobs\DispatchFulfillmentJob;
-use App\Jobs\DispatchOrderJob;
 use BackedEnum;
 use Filament\Actions\Action as ActionsAction;
 use Filament\Actions\BulkAction as ActionsBulkAction;
@@ -231,7 +230,9 @@ class OrderResource extends Resource
                     )
                     ->visible(fn(Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
                     ->action(function (Order $record) {
-                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
+                        $items = $record->orderItems()
+                            ->whereNotIn('fulfillment_status', ['fulfilling', 'fulfilled', 'failed', 'cancelled'])
+                            ->get();
 
                         if (!$items->count()) {
                             Notification::make()
@@ -241,8 +242,15 @@ class OrderResource extends Resource
                             return;
                         }
 
-                        dispatch(new DispatchOrderJob($record));//->onConnection('sync');
-                        foreach ($items as $item) {
+                        $candidateIds = $items->pluck('id')->all();
+                        $dispatched = app(FulfillmentDispatchService::class)->dispatchForOrder($record);
+
+                        $dispatchedItems = $record->orderItems()
+                            ->whereIn('id', $candidateIds)
+                            ->where('fulfillment_status', 'fulfilling')
+                            ->get();
+
+                        foreach ($dispatchedItems as $item) {
                             \App\Domain\Orders\Models\OrderAuditLog::create([
                                 'order_id' => $record->id,
                                 'user_id' => auth()->id(),
@@ -252,10 +260,17 @@ class OrderResource extends Resource
                             ]);
                         }
 
-                        Notification::make()
-                            ->title('All items dispatched')
-                            ->success()
-                            ->send();
+                        if ($dispatched > 0) {
+                            Notification::make()
+                                ->title("Dispatched {$dispatched} item(s)")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('No eligible items were dispatched')
+                                ->warning()
+                                ->send();
+                        }
                     }),
 
                 ActionsAction::make('pay_cj')

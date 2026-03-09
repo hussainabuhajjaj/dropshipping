@@ -36,11 +36,14 @@ use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
+use App\Support\ResolvesStorefrontVariantLabels;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CheckoutController extends Controller
 {
+    use ResolvesStorefrontVariantLabels;
+
     public function getCartWithItems()
     {
         $data['cart'] = Cart::query()->where('user_id', \auth('customer')->id())
@@ -305,7 +308,9 @@ class CheckoutController extends Controller
                     'source_sku' => null,
                     'snapshot' => [
                         'name' => @$line?->product['name'],
-                        'variant' => @$line?->variant['title'],
+                        'variant' => $line->variant
+                            ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
+                            : null,
                     ],
                     'meta' => [
                         'media' => $line['media'] ?? null,
@@ -394,13 +399,13 @@ class CheckoutController extends Controller
 
     public function confirmation(string $number): Response
     {
-dump(1);
+// dump(1);
         $order = Order::query()
             ->where('number', $number)
             ->with(['shippingAddress', 'billingAddress', 'orderItems'])
             ->firstOrFail();
 
-        dd($order);
+        // dd($order);
         return Inertia::render('Orders/Confirmation', [
             'order' => [
                 'id' => $order->id,
@@ -724,18 +729,27 @@ dump(1);
         }
 
         $total = 0;
+        $stockKeys = ['storageNum', 'totalInventoryNum', 'inventory', 'totalInventory'];
 
-        // Check for direct storageNum
-        if (isset($payload['storageNum']) && is_numeric($payload['storageNum'])) {
-            $total += (int)$payload['storageNum'];
-        }
-
-        // Recursively search for storageNum in nested arrays
-        array_walk_recursive($payload, function ($value) use (&$total) {
-            if (is_numeric($value)) {
-                $total += (int)$value;
+        $collect = function (mixed $node) use (&$collect, &$total, $stockKeys): void {
+            if (!is_array($node)) {
+                return;
             }
-        });
+
+            foreach ($stockKeys as $key) {
+                if (array_key_exists($key, $node) && is_numeric($node[$key])) {
+                    $total += (int) $node[$key];
+                }
+            }
+
+            foreach ($node as $value) {
+                if (is_array($value)) {
+                    $collect($value);
+                }
+            }
+        };
+
+        $collect($payload);
 
         return $total;
     }

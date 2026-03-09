@@ -76,6 +76,7 @@ class HomeController extends ApiController
             'currency' => $currency,
             'hero' => $hero,
             'categories' => $categories,
+            'categoryHighlights' => $this->mapCategoryHighlights($homeContent, $homeBuilder),
             'flashDeals' => $featured,
             'trending' => $bestSellers,
             'recommended' => $recommended,
@@ -496,6 +497,80 @@ class HomeController extends ApiController
             return $homeBuilder->normalizeImage($logo);
         }
         return null;
+    }
+
+    private function mapCategoryHighlights(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder): array
+    {
+        $highlights = $homeContent ? $homeContent->category_highlights : [];
+        if (!is_array($highlights) || empty($highlights)) {
+            return [];
+        }
+
+        $locale = app()->getLocale();
+        
+        return collect($highlights)->map(function (array $highlight, int $index) use ($homeBuilder, $locale) {
+            $categoryId = $highlight['category_id'] ?? null;
+            if (!$categoryId) {
+                return null;
+            }
+            
+            $category = Category::find($categoryId);
+            if (!$category) {
+                return null;
+            }
+
+            $image = $highlight['image'] ?? null;
+            if (is_string($image) && $image !== '') {
+                $image = $homeBuilder->normalizeImage($image);
+            }
+            if (!$image && $category->hero_image) {
+                $image = $homeBuilder->normalizeImage($category->hero_image);
+            }
+            if (!$image) {
+                // Get a product image from this category as fallback
+                $productImage = Product::query()
+                    ->where('category_id', $category->id)
+                    ->where('is_active', true)
+                    ->join('product_images', 'products.id', '=', 'product_images.product_id')
+                    ->orderBy('product_images.position')
+                    ->value('product_images.url');
+                $image = $productImage ? $homeBuilder->normalizeImage($productImage) : null;
+            }
+
+            $categoryName = $category->name ?? 'Category';
+            $title = $highlight['title'] ?? $categoryName;
+            $ctaLink = $highlight['cta_link'] ?? '/products?category=' . urlencode($category->slug);
+
+            return [
+                'id' => 'highlight-' . $categoryId,
+                'categoryId' => $category->id,
+                'categorySlug' => $category->slug,
+                'title' => $title,
+                'description' => $highlight['description'] ?? null,
+                'image' => $image,
+                'ctaLabel' => $highlight['cta_label'] ?? 'Shop Now',
+                'ctaLink' => $ctaLink,
+                'accentColor' => $highlight['accent_color'] ?? $this->accentForIndex($index),
+                'featured' => (bool) ($highlight['featured'] ?? false),
+                'productCount' => (int) ($category->products_count ?? $this->getCategoryProductCount($category)),
+            ];
+        })->filter()->values()->all();
+    }
+
+    private function getCategoryProductCount(Category $category): int
+    {
+        $childIds = Category::query()
+            ->where('parent_id', $category->id)
+            ->pluck('id')
+            ->toArray();
+
+        return Product::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($category, $childIds) {
+                $query->where('category_id', $category->id)
+                    ->orWhereIn('category_id', $childIds);
+            })
+            ->count();
     }
 
     private function defaultValueProps(): array

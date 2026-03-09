@@ -131,7 +131,13 @@ class StorefrontBanner extends Model
             return route('categories.show', $this->category, false);
         }
 
-        return $this->external_url;
+        if ($this->external_url) {
+            return $this->external_url;
+        }
+
+        // Generic hero/carousel/strip banners should still render even if no
+        // explicit CTA target was configured in admin.
+        return '/products';
     }
 
     /**

@@ -79,7 +79,7 @@ class Kernel extends ConsoleKernel
 
         // OPTIMIZED: Use new smart stock sync instead of hourly heavy job
         // Old: $schedule->job(new SyncCjInventoryHourly())->hourly();
-        $schedule->command('cj:sync-existing-stock --fast --skip-recent=6')
+        $schedule->command('cj:sync-existing-stock --skip-recent=6 --delay=1100')
             ->everySixHours()
             ->name('cj-smart-stock-sync')
             ->withoutOverlapping();
@@ -92,7 +92,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('cj:refresh-token')->dailyAt('03:30');
 
         // OPTIMIZED: Reduced from 10k to 1k products, use smart skip
-        $schedule->command('cj:sync-existing-stock --turbo --skip-recent=24')
+        $schedule->command('cj:sync-existing-stock --skip-recent=24 --delay=1100')
             ->dailyAt('23:59')
             ->name('cj-daily-stock-refresh')
             ->withoutOverlapping();

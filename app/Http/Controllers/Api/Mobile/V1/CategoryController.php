@@ -162,6 +162,11 @@ class CategoryController extends ApiController
     public function show(CategoryShowRequest $request, Category $category): JsonResponse
     {
         $validated = $request->validated();
+        $locale = app()->getLocale();
+        $query = $validated['q'] ?? null;
+        $minPrice = $validated['min_price'] ?? null;
+        $maxPrice = $validated['max_price'] ?? null;
+        $sort = $validated['sort'] ?? 'newest';
         $perPage = min((int) ($validated['per_page'] ?? 18), 50);
         $categoryIds = $this->descendantCategoryIds($category);
 
@@ -172,7 +177,40 @@ class CategoryController extends ApiController
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
-        $products = $productQuery->latest()->paginate($perPage);
+        $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
+        $maxValue = $maxPrice !== null && is_numeric($maxPrice) ? (float) $maxPrice : null;
+        $productQuery->priceRange($minValue, $maxValue);
+
+        if ($query) {
+            $productQuery->where(function ($builder) use ($query, $locale) {
+                $builder
+                    ->where('name', 'like', '%' . $query . '%')
+                    ->orWhere('description', 'like', '%' . $query . '%')
+                    ->orWhereHas('translations', function ($translationBuilder) use ($query, $locale) {
+                        $translationBuilder
+                            ->where('locale', $locale)
+                            ->where(function ($translated) use ($query) {
+                                $translated
+                                    ->where('name', 'like', '%' . $query . '%')
+                                    ->orWhere('description', 'like', '%' . $query . '%');
+                            });
+                    });
+            });
+        }
+
+        $productQuery = match ($sort) {
+            'price_asc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
+            'price_desc' => $productQuery
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
+            'rating' => $productQuery->orderByDesc('reviews_avg_rating'),
+            'popular' => $productQuery->orderByDesc('reviews_count'),
+            default => $productQuery->latest(),
+        };
+
+        $products = $productQuery->paginate($perPage);
 
         return $this->success(new CategoryShowResource([
             'category' => $category,

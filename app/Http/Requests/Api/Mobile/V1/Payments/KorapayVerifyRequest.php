@@ -11,7 +11,8 @@ class KorapayVerifyRequest extends BaseRequest
     public function rules(): array
     {
         return [
-            'reference' => ['required', 'string', 'max:255'],
+            'reference' => ['nullable', 'string', 'max:255', 'required_without:order_number'],
+            'order_number' => ['nullable', 'string', 'max:255', 'required_without:reference'],
         ];
     }
 }

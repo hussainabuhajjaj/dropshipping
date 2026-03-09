@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\OrderResource\Pages;
 
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use App\Filament\Resources\OrderResource;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderAuditLog;
@@ -76,10 +77,27 @@ class ViewOrder extends ViewRecord
                     )
                     ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
                     ->action(function (Order $record) {
-                        $items = $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->get();
-                        foreach ($items as $item) {
-                            \App\Jobs\DispatchFulfillmentJob::dispatch($item->id);
-                            $item->update(['fulfillment_status' => 'fulfilling']);
+                        $items = $record->orderItems()
+                            ->whereNotIn('fulfillment_status', ['fulfilling', 'fulfilled', 'failed', 'cancelled'])
+                            ->get();
+
+                        if ($items->isEmpty()) {
+                            Notification::make()
+                                ->title('No eligible items were dispatched')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
+                        $candidateIds = $items->pluck('id')->all();
+                        $dispatched = app(FulfillmentDispatchService::class)->dispatchForOrder($record);
+
+                        $dispatchedItems = $record->orderItems()
+                            ->whereIn('id', $candidateIds)
+                            ->where('fulfillment_status', 'fulfilling')
+                            ->get();
+
+                        foreach ($dispatchedItems as $item) {
                             \App\Domain\Orders\Models\OrderAuditLog::create([
                                 'order_id' => $record->id,
                                 'user_id' => auth()->id(),
@@ -88,10 +106,18 @@ class ViewOrder extends ViewRecord
                                 'payload' => ['order_item_id' => $item->id],
                             ]);
                         }
-                        Notification::make()
-                            ->title('All items dispatched')
-                            ->success()
-                            ->send();
+
+                        if ($dispatched > 0) {
+                            Notification::make()
+                                ->title("Dispatched {$dispatched} item(s)")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('No eligible items were dispatched')
+                                ->warning()
+                                ->send();
+                        }
                     }),
                 Actions\Action::make('copyShipping')
                     ->label('Copy Shipping Info')

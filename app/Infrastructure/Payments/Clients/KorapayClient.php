@@ -19,17 +19,19 @@ class KorapayClient
 
     public function __construct()
     {
-        $config = config('services.korapay', []);
-        $secret = (string) ($config['secret_key'] ?? '');
+        $servicesConfig = config('services.korapay', []);
+        $legacyConfig = config('korapay', []);
+
+        $secret = (string) ($servicesConfig['secret_key'] ?? $legacyConfig['secret_key'] ?? '');
 
         if ($secret === '') {
             throw new RuntimeException('Korapay secret key is not configured.');
         }
 
-        $this->publicKey = (string) ($config['public_key'] ?? '');
-        $this->baseUrl = rtrim((string) ($config['base_url'] ?? ''), '/');
-        $this->initializeEndpoint = (string) ($config['initialize_endpoint'] ?? '');
-        $this->verifyEndpoint = (string) ($config['verify_endpoint'] ?? '');
+        $this->publicKey = (string) ($servicesConfig['public_key'] ?? $legacyConfig['public_key'] ?? '');
+        $this->baseUrl = rtrim((string) ($servicesConfig['base_url'] ?? $legacyConfig['baseUrl'] ?? 'https://api.korapay.com'), '/');
+        $this->initializeEndpoint = (string) ($servicesConfig['initialize_endpoint'] ?? '/merchant/api/v1/charges/initialize');
+        $this->verifyEndpoint = (string) ($servicesConfig['verify_endpoint'] ?? '/merchant/api/v1/charges/{reference}');
 
         if ($this->baseUrl === '' || $this->initializeEndpoint === '' || $this->verifyEndpoint === '') {
             throw new RuntimeException('Korapay endpoints are not configured.');

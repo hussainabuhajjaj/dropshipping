@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Products\Models\Product;
-use App\Jobs\SyncCjVariantsJob;
+use App\Jobs\SyncCjVariantsJobImproved;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -29,7 +29,7 @@ class SyncCjVariants extends Command
             }
 
             $this->info("Syncing variants for product: {$product->name} (CJ PID: {$product->cj_pid})");
-            SyncCjVariantsJob::dispatch($product->cj_pid);
+            SyncCjVariantsJobImproved::dispatch($product->cj_pid);
             $this->info('Dispatch queued successfully.');
 
             return self::SUCCESS;
@@ -49,7 +49,7 @@ class SyncCjVariants extends Command
 
         $products->each(function (Product $product) {
             $this->line("  → {$product->name} (CJ PID: {$product->cj_pid})");
-            SyncCjVariantsJob::dispatch($product->cj_pid);
+            SyncCjVariantsJobImproved::dispatch($product->cj_pid);
         });
 
         $this->info('All sync jobs queued.');

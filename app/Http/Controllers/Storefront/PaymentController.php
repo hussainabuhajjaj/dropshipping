@@ -9,6 +9,7 @@ use App\Http\Resources\Storefront\Payment\CardResource;
 use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SiteSetting;
 use App\Services\Payments\KorapayService;
@@ -141,19 +142,11 @@ class PaymentController extends Controller
     {
         $item = $this->getItem($type, $id);
 
-        if (!$item) {
-            if ($type == "cart") {
-                if (!$item || !$item || !$item->count()) {
-                    return redirect()->route('products.index');
-                }
-            } else {
-                return redirect('/')->withErrors([
-                    "Item not found"
-                ]);
-            }
-        }
-
-        $reference = $request->input('reference');
+        $reference = (string)($request->input('reference')
+            ?? $request->input('payment_reference')
+            ?? $request->input('transaction_reference')
+            ?? $request->query('trxref')
+            ?? '');
 
         if (!$reference) {
             abort(404);
@@ -162,9 +155,30 @@ class PaymentController extends Controller
 
         if (isset($verify_result) && $verify_result['status']) {
 
-            $payment_result = $verify_result['data']['status'];
+            $payment_result = strtolower((string)($verify_result['data']['status'] ?? ''));
 
             if ($payment_result == "success") {
+                $existingPayment = Payment::query()
+                    ->where('provider', 'korapay')
+                    ->where('provider_reference', $reference)
+                    ->with('order')
+                    ->latest('id')
+                    ->first();
+
+                if ($existingPayment?->order) {
+                    return redirect()->route('orders.confirmation', ['number' => $existingPayment->order->number]);
+                }
+
+                if (!$item) {
+                    if ($type === "cart") {
+                        return redirect()->route('products.index');
+                    }
+
+                    return redirect('/')->withErrors([
+                        "Item not found"
+                    ]);
+                }
+
                 // do register payment
                 $result =  $paymentResultService->registerCompletePayment($item, $verify_result);
                 Log::info('result : ' . json_encode($result));

@@ -71,7 +71,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function registerProductionCommandGuard(): void
     {
-        if (! app()->runningInConsole() || ! app()->isProduction()) {
+        if (! app()->runningInConsole() || ! app()->environment(['production', 'local'])) {
             return;
         }
 

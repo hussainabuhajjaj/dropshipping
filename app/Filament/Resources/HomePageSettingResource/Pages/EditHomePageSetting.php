@@ -59,7 +59,7 @@ class EditHomePageSetting extends EditRecord
                         'top_strip' => $translated['top_strip'] ?? [],
                         'hero_slides' => $translated['hero_slides'] ?? [],
                         'rail_cards' => $translated['rail_cards'] ?? [],
-                        'category_highlights' => $state['category_highlights'] ?? [],
+                        'category_highlights' => $translated['category_highlights'] ?? [],
                         'banner_strip' => $translated['banner_strip'] ?? [],
                     ];
 

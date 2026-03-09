@@ -25,6 +25,7 @@ use App\Services\CampaignManager;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
+use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,8 @@ use Illuminate\Support\Str;
 
 class CheckoutController extends ApiController
 {
+    use ResolvesStorefrontVariantLabels;
+
     public function preview(PreviewRequest $request): JsonResponse
     {
         $cart = $this->resolveCart($request);
@@ -163,7 +166,9 @@ class CheckoutController extends ApiController
                     'source_sku' => null,
                     'snapshot' => [
                         'name' => $line?->product['name'],
-                        'variant' => $line?->variant['title'],
+                        'variant' => $line->variant
+                            ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
+                            : null,
                     ],
                     'meta' => [
                         'media' => $line['media'] ?? null,
@@ -215,15 +220,41 @@ class CheckoutController extends ApiController
     private function resolveCart(Request $request): Cart
     {
         $customer = $request->user();
-        $cart = Cart::query()
-            ->when($customer, fn ($query) => $query->where('user_id', $customer->id))
-            ->with(['items', 'shippings'])
-            ->first();
+        $sessionId = (string) $request->session()->getId();
+
+        $cart = null;
+
+        if ($customer) {
+            $userCart = Cart::query()
+                ->where('user_id', $customer->id)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            $guestCart = Cart::query()
+                ->whereNull('user_id')
+                ->where('session_id', $sessionId)
+                ->orderByDesc('updated_at')
+                ->first();
+
+            if ($userCart?->items()->exists()) {
+                $cart = $userCart;
+            } elseif ($guestCart?->items()->exists()) {
+                $cart = $guestCart;
+            } else {
+                $cart = $userCart ?? $guestCart;
+            }
+        } else {
+            $cart = Cart::query()
+                ->whereNull('user_id')
+                ->where('session_id', $sessionId)
+                ->orderByDesc('updated_at')
+                ->first();
+        }
 
         if (! $cart) {
             $cart = Cart::query()->create([
                 'user_id' => $customer?->id,
-                'session_id' => session()->id(),
+                'session_id' => $sessionId,
             ]);
         }
 
@@ -233,62 +264,26 @@ class CheckoutController extends ApiController
     private function buildPricingPayload(Cart $cart, ?Customer $customer): array
     {
         $cartItems = $cart->items;
-        $subtotal = $cart->subTotal();
-        $shipping = $cart->calculateShippingFees();
-        $settings = SiteSetting::query()->first();
-
+        $summary = $cart->getSummery();
+        $subtotal = (float) ($summary['subtotal'] ?? 0.0);
         $coupon = session('cart_coupon');
-        $discounts = $this->calculateDiscounts($cartItems, $coupon, $customer, $subtotal);
-        $discount = $discounts['amount'] ?? 0.0;
-        $couponModel = $discounts['coupon_model'] ?? null;
-
-        $shippingTotal = $this->applyShippingRules($shipping, $subtotal, $discount, $settings);
-        $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
-        $taxIncluded = (bool) ($settings?->tax_included ?? false);
-        $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
-
-        $promotionEngine = app(PromotionEngine::class);
-        $cartPayload = \App\Http\Resources\User\CartResource::collection($cartItems)->jsonSerialize();
-        $cartContext = [
-            'lines' => $cartPayload,
-            'subtotal' => $subtotal,
-            'user_id' => $customer?->id,
-        ];
-        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-
-        $locale = app()->getLocale();
-        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
-            return [
-                'id' => $promo->id,
-                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
-                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
-                'type' => $promo->type,
-                'value_type' => $promo->value_type,
-                'value' => $promo->value,
-                'start_at' => $promo->start_at,
-                'end_at' => $promo->end_at,
-                'targets' => $promo->targets,
-                'conditions' => $promo->conditions,
-            ];
-        })->values()->all();
-
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $couponModel);
+        $couponValidator = app(CouponValidator::class);
+        $couponModel = $couponValidator->resolveFromSession($coupon);
 
         return [
-            'subtotal' => $subtotal,
-            'shipping' => $shippingTotal,
-            'discount' => $discount,
-            'tax' => $taxTotal,
-            'total' => $total,
-            'currency' => $cartItems->first()?->variant?->currency
-                ?? $cartItems->first()?->product?->currency
-                ?? 'USD',
-            'applied_promotions' => $appliedPromotions,
-            'minimum_cart_requirement' => $minimumRequirement,
-            'coupon' => $discounts['coupon'] ?? null,
+            'subtotal' => (float) ($summary['subtotal'] ?? 0),
+            'shipping' => (float) ($summary['shipping'] ?? 0),
+            'discount' => (float) ($summary['discount'] ?? 0),
+            'tax' => (float) ($summary['tax_total'] ?? 0),
+            'total' => (float) ($summary['total'] ?? 0),
+            'currency' => $summary['currency'] ?? 'USD',
+            'applied_promotions' => $summary['appliedPromotions'] ?? [],
+            'minimum_cart_requirement' => $summary['minimum_cart_requirement'] ?? null,
+            'coupon' => $summary['coupon'] ?? null,
             'coupon_model' => $couponModel,
-            'promotion_discounts' => $discounts['promotion_discounts'] ?? [],
-            'discount_source' => $discounts['source'] ?? null,
+            'promotion_discounts' => $summary['promotionDiscounts'] ?? [],
+            'discount_source' => $summary['discount_source'] ?? null,
+            'label' => $summary['discount_label'] ?? null,
         ];
     }
 

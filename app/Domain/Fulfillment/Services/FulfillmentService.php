@@ -37,7 +37,8 @@ class FulfillmentService
         $strategy = $this->selector->resolveForOrderItem($orderItem);
         $requestData = new FulfillmentRequestData(
 
-            order_id: null,
+            order_id: $orderItem->order_id,
+            order_items: [['id' => $orderItem->id]],
             orderItem: $orderItem,
             provider: $provider,
             supplierProduct: $orderItem->supplierProduct,
