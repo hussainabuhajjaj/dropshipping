@@ -102,6 +102,11 @@ return [
         'import_chunk_size' => env('CJ_IMPORT_CHUNK_SIZE', 25),
         'stock_queue' => env('CJ_STOCK_QUEUE', 'cj-sync'),
         'stock_percentage' => env('CJ_STOCK_PERCENTAGE', 75.0), // Use 75% instead of 50%
+
+        // CRITICAL FIX: Price validation and corruption prevention settings
+        'max_markup_multiplier' => env('CJ_MAX_MARKUP_MULTIPLIER', 15.0), // Maximum allowed markup (15x = corruption)
+        'reasonable_markup_multiplier' => env('CJ_REASONABLE_MARKUP_MULTIPLIER', 10.0), // Maximum reasonable markup (10x)
+        'default_fulfillment_provider_id' => env('CJ_DEFAULT_FULFILLMENT_PROVIDER_ID', 1),
     ],
 
     'queue_reporting' => [

@@ -225,33 +225,8 @@ class CjProductImportService
         $minSell = $pricing->minSellingPrice((float) $rawCost, $currency); // Use product currency
         $sellingPrice = $lockPrice && $product ? ($product->selling_price ?? 0) : 0;
 
-        // Strict validation for selling price
-        if (!is_numeric($sellingPrice) || $sellingPrice < 0 || $sellingPrice < $minSell) {
-            $sellingPrice = $minSell;
-        }
-
-        // Additional validation to prevent corruption
-        if ($sellingPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
-            Log::warning('Excessive selling price detected, using minimum price', [
-                'cj_pid' => $pid,
-                'raw_cost' => $rawCost,
-                'calculated_selling_price' => $sellingPrice,
-                'min_sell' => $minSell
-            ]);
-            $sellingPrice = $minSell;
-        }
-
-        // Final sanity check for reasonable price ranges
-        $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
-        if ($sellingPrice > $maxReasonablePrice) {
-            Log::warning('Unreasonable selling price detected, applying maximum reasonable price', [
-                'cj_pid' => $pid,
-                'raw_cost' => $rawCost,
-                'selling_price' => $sellingPrice,
-                'max_reasonable' => $maxReasonablePrice
-            ]);
-            $sellingPrice = $maxReasonablePrice;
-        }
+        // CRITICAL FIX: Enhanced product price validation with corruption prevention
+        $sellingPrice = $this->validateAndCalculateProductPrice($priceValue, $rawCost, $product, $pid);
 
         // Extract stock information from CJ API data with configurable percentage
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
@@ -1039,8 +1014,21 @@ class CjProductImportService
 
     private function syncVariants(Product $product, mixed $variants, string $pid): void
     {
+        // CRITICAL FIX: Validate product relationship before processing variants
+        if (!$product->exists || !$product->cj_pid || $product->cj_pid !== $pid) {
+            Log::error('Product-Variant relationship validation failed', [
+                'cj_pid' => $pid,
+                'product_id' => $product->id,
+                'product_cj_pid' => $product->cj_pid,
+                'product_exists' => $product->exists,
+                'error' => 'Product relationship mismatch detected'
+            ]);
+            throw new \RuntimeException('Product relationship validation failed');
+        }
+
         if (is_array($variants) && $variants !== []) {
             $productOptionMap = [];
+            $processedVids = []; // Track processed VIDs to prevent duplicates
 
             foreach ($variants as $variant) {
                 try {
@@ -1050,6 +1038,17 @@ class CjProductImportService
 
                     $vid = (string)($variant['vid'] ?? '');
                     $sku = $variant['variantSku'] ?? $variant['sku'] ?? null;
+
+                    // CRITICAL FIX: Skip duplicate variants within same batch
+                    if ($vid && isset($processedVids[$vid])) {
+                        Log::warning('Duplicate variant detected in batch, skipping', [
+                            'cj_pid' => $pid,
+                            'cj_vid' => $vid,
+                            'sku' => $sku
+                        ]);
+                        continue;
+                    }
+                    $processedVids[$vid] = true;
 
                     if (!$sku && !$vid) {
                         continue;
@@ -1068,25 +1067,8 @@ class CjProductImportService
                         $rawCost = $product->cost_price ?? 0;
                     }
 
-                    // Strict validation for variant selling price
-                    $sellPrice = is_numeric($rawSell) ? (float) $rawSell : ($product->selling_price ?? 0);
-                    if (!is_numeric($sellPrice) || $sellPrice < 0) {
-                        $pricing = PricingService::makeFromConfig();
-                        $minSell = $pricing->minSellingPrice((float) $rawCost, $product->currency ?? 'USD'); // Use product currency
-                        $sellPrice = $minSell;
-                    }
-
-                    // Additional validation to prevent variant price corruption
-                    if ($sellPrice > ($rawCost * 100)) { // More than 100x markup is likely corruption
-                        Log::warning('Excessive variant price detected, using minimum price', [
-                            'cj_pid' => $pid,
-                            'cj_vid' => $vid,
-                            'raw_cost' => $rawCost,
-                            'variant_sell_price' => $sellPrice
-                        ]);
-                        $pricing = PricingService::makeFromConfig();
-                        $sellPrice = $pricing->minSellingPrice((float) $rawCost);
-                    }
+                    // CRITICAL FIX: Enhanced price validation with stricter corruption prevention
+                    $sellPrice = $this->validateAndCalculateVariantPrice($rawSell, $rawCost, $product, $pid, $vid);
 
                     // Final sanity check for reasonable variant price ranges
                     $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
@@ -1118,67 +1100,13 @@ class CjProductImportService
                     $variantHeight = $this->parsePositiveInt($variant['variantHeight'] ?? null);
                     $variantWeight = $this->parsePositiveInt($variant['variantWeight'] ?? null);
 
-                    // Extract stock information from CJ variant data with new inventories structure
-                    $variantStock = 0;
-                    $variantStockOnHand = 0;
+                    // CRITICAL FIX: Standardized inventory data extraction with priority validation
+                    $stockData = $this->extractVariantStockWithValidation($variant, $vid, $pid);
+                    $variantStock = $stockData['cj_stock'];
+                    $variantStockOnHand = $stockData['stock_on_hand'];
 
-                    // Handle new inventories structure
-                    if (isset($variant['inventories']) && is_array($variant['inventories'])) {
-                        foreach ($variant['inventories'] as $inventory) {
-                            if (isset($inventory['countryCode']) && $inventory['countryCode'] === env('CJ_DEFAULT_WAREHOUSE', 'CN')) {
-                                $variantStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
-                                $variantStockOnHand = $this->calculateStockOnHand($variantStock);
-
-                                Log::info('Variant stock extracted from inventories', [
-                                    'cj_vid' => $vid,
-                                    'country' => $inventory['countryCode'],
-                                    'total_inventory' => $inventory['totalInventory'] ?? null,
-                                    'cj_inventory' => $inventory['cjInventory'] ?? null,
-                                    'factory_inventory' => $inventory['factoryInventory'] ?? null,
-                                    'extracted_stock' => $variantStock,
-                                    'stock_on_hand' => $variantStockOnHand
-                                ]);
-
-                                break;
-                            }
-                        }
-                    }
-
-                    // Fallback to old structure if inventories not found
-                    if ($variantStock === 0) {
-                        $variantStock = (int) ($variant['stock'] ?? $variant['variantStock'] ?? $variant['inventoryNum'] ?? 0);
-                        $variantStockOnHand = $this->calculateStockOnHand($variantStock);
-                    }
-
-                    ProductVariant::updateOrCreate(
-                        [
-                            'product_id' => $product->id,
-                            'cj_vid' => $vid ?: null,
-                            'sku' => $sku,
-                        ],
-                        [
-                            'title' => $title,
-                            'price' => $this->applyMinMarginToPrice($sellPrice, $rawCost),
-                            'cost_price' => $rawCost,
-                            'currency' => $product->currency ?? 'USD',
-                            'variant_image'=> $variant['variantImage'] ?? null,
-                            'options' => $options === [] ? null : $options,
-                            'weight_grams' => $variantWeight,
-                            'package_length_mm' => $variantLength,
-                            'package_width_mm' => $variantWidth,
-                            'package_height_mm' => $variantHeight,
-                            'stock_on_hand' => $variantStockOnHand,
-                            'cj_stock' => $variantStock, // Store original CJ stock
-                            'cj_stock_synced_at' => now(),
-                            'metadata' => [
-                                'cj_vid' => $vid,
-                                'cj_variant' => $variant,
-                                'inventory_data' => $variant['inventories'] ?? null,
-                                'selected_country' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
-                                'extracted_stock' => $variantStock,
-                            ],
-                        ]
-                    );
+                    // CRITICAL FIX: Atomic variant creation with enhanced validation
+                    $this->createVariantWithValidation($product, $vid, $sku, $title, $sellPrice, $rawCost, $options, $variant, $variantStock, $variantStockOnHand, $pid);
                 } catch (\Throwable $e) {
                     Log::warning('Failed to sync single variant', ['product_id' => $product->id, 'variant' => $variant, 'error' => $e->getMessage()]);
                 }
@@ -2262,6 +2190,399 @@ class CjProductImportService
                 'product_id' => $product->id,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * CRITICAL FIX: Enhanced product-level price validation with corruption prevention
+     */
+    private function validateAndCalculateProductPrice(?float $priceValue, float $rawCost, ?Product $product, string $pid): float
+    {
+        $pricing = PricingService::makeFromConfig();
+        $currency = $product->currency ?? 'USD';
+        
+        // Initialize with safe defaults
+        $sellingPrice = $priceValue ?? $product->selling_price ?? 0;
+        
+        // Validate basic numeric constraints
+        if (!is_numeric($sellingPrice) || $sellingPrice < 0) {
+            $minSell = $pricing->minSellingPrice($rawCost, $currency);
+            $sellingPrice = $minSell;
+            
+            Log::warning('Invalid product price, using minimum', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'price_value' => $priceValue,
+                'corrected_price' => $sellingPrice
+            ]);
+        }
+
+        // CRITICAL FIX: Enhanced corruption detection with multiple validation layers
+        $maxAllowedMarkup = (float) config('services.cj.max_markup_multiplier', 15.0);
+        $corruptionThreshold = $rawCost * $maxAllowedMarkup;
+        
+        if ($sellingPrice > $corruptionThreshold) {
+            Log::error('CRITICAL: Extreme product price corruption detected', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'corrupted_price' => $sellingPrice,
+                'corruption_threshold' => $corruptionThreshold,
+                'markup_multiplier' => $sellingPrice / max($rawCost, 0.01)
+            ]);
+            
+            // Force minimum price for corruption
+            $minSell = $pricing->minSellingPrice($rawCost, $currency);
+            return $minSell;
+        }
+
+        // Additional sanity check for reasonable price ranges
+        $reasonableMarkup = (float) config('services.cj.reasonable_markup_multiplier', 10.0);
+        $maxReasonablePrice = $rawCost * $reasonableMarkup;
+        
+        if ($sellingPrice > $maxReasonablePrice) {
+            Log::warning('Unreasonable product price detected, applying maximum reasonable price', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'selling_price' => $sellingPrice,
+                'max_reasonable' => $maxReasonablePrice,
+                'markup_multiplier' => $sellingPrice / max($rawCost, 0.01)
+            ]);
+            $sellingPrice = $maxReasonablePrice;
+        }
+
+        // Final validation: ensure price covers costs with minimum margin
+        $minSell = $pricing->minSellingPrice($rawCost, $currency);
+        if ($sellingPrice < $minSell) {
+            Log::info('Product price below minimum, adjusting', [
+                'cj_pid' => $pid,
+                'raw_cost' => $rawCost,
+                'current_price' => $sellingPrice,
+                'minimum_price' => $minSell
+            ]);
+            $sellingPrice = $minSell;
+        }
+
+        return (float) $sellingPrice;
+    }
+
+    /**
+     * CRITICAL FIX: Enhanced price validation with stricter corruption prevention
+     */
+    private function validateAndCalculateVariantPrice(mixed $rawSell, float $rawCost, Product $product, string $pid, string $vid): float
+    {
+        $pricing = PricingService::makeFromConfig();
+        
+        // Initialize with safe defaults
+        $sellPrice = is_numeric($rawSell) ? (float) $rawSell : ($product->selling_price ?? 0);
+        
+        // Validate basic numeric constraints
+        if (!is_numeric($sellPrice) || $sellPrice < 0) {
+            $minSell = $pricing->minSellingPrice($rawCost, $product->currency ?? 'USD');
+            $sellPrice = $minSell;
+            
+            Log::warning('Invalid variant price, using minimum', [
+                'cj_pid' => $pid,
+                'cj_vid' => $vid,
+                'raw_sell' => $rawSell,
+                'corrected_price' => $sellPrice
+            ]);
+        }
+
+        // CRITICAL FIX: Enhanced corruption detection with multiple validation layers
+        $maxAllowedMarkup = (float) config('services.cj.max_markup_multiplier', 15.0);
+        $corruptionThreshold = $rawCost * $maxAllowedMarkup;
+        
+        if ($sellPrice > $corruptionThreshold) {
+            Log::error('CRITICAL: Extreme price corruption detected', [
+                'cj_pid' => $pid,
+                'cj_vid' => $vid,
+                'raw_cost' => $rawCost,
+                'corrupted_price' => $sellPrice,
+                'corruption_threshold' => $corruptionThreshold,
+                'markup_multiplier' => $sellPrice / max($rawCost, 0.01)
+            ]);
+            
+            // Force minimum price for corruption
+            $minSell = $pricing->minSellingPrice($rawCost, $product->currency ?? 'USD');
+            return $minSell;
+        }
+
+        // Additional sanity check for reasonable price ranges
+        $reasonableMarkup = (float) config('services.cj.reasonable_markup_multiplier', 10.0);
+        $maxReasonablePrice = $rawCost * $reasonableMarkup;
+        
+        if ($sellPrice > $maxReasonablePrice) {
+            Log::warning('Unreasonable variant price detected, applying maximum reasonable price', [
+                'cj_pid' => $pid,
+                'cj_vid' => $vid,
+                'raw_cost' => $rawCost,
+                'variant_sell_price' => $sellPrice,
+                'max_reasonable' => $maxReasonablePrice,
+                'markup_multiplier' => $sellPrice / max($rawCost, 0.01)
+            ]);
+            $sellPrice = $maxReasonablePrice;
+        }
+
+        // Final validation: ensure price covers costs with minimum margin
+        $minSell = $pricing->minSellingPrice($rawCost, $product->currency ?? 'USD');
+        if ($sellPrice < $minSell) {
+            Log::info('Price below minimum, adjusting', [
+                'cj_pid' => $pid,
+                'cj_vid' => $vid,
+                'raw_cost' => $rawCost,
+                'current_price' => $sellPrice,
+                'minimum_price' => $minSell
+            ]);
+            $sellPrice = $minSell;
+        }
+
+        return (float) $sellPrice;
+    }
+
+    /**
+     * CRITICAL FIX: Standardized inventory data extraction with priority validation
+     * Made public for use by SyncCjVariantsJob
+     */
+    public function extractVariantStockWithValidation(array $variant, string $vid, string $pid): array
+    {
+        $defaultWarehouse = env('CJ_DEFAULT_WAREHOUSE', 'CN');
+        $cjStock = 0;
+        $stockDataSource = 'none';
+        $stockDebugInfo = [
+            'cj_pid' => $pid,
+            'cj_vid' => $vid,
+            'default_warehouse' => $defaultWarehouse,
+            'variant_keys' => array_keys($variant)
+        ];
+
+        // PRIORITY 1: New inventories structure with CN warehouse validation
+        if (isset($variant['inventories']) && is_array($variant['inventories'])) {
+            $stockDebugInfo['inventories_count'] = count($variant['inventories']);
+            
+            // First try: Find exact warehouse match
+            foreach ($variant['inventories'] as $index => $inventory) {
+                if (!is_array($inventory)) continue;
+                
+                $countryCode = $inventory['countryCode'] ?? null;
+                if ($countryCode === $defaultWarehouse) {
+                    $cjStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? $inventory['factoryInventory'] ?? 0);
+                    $stockDataSource = "inventories_{$defaultWarehouse}_index_{$index}";
+                    $stockDebugInfo['primary_source'] = [
+                        'type' => 'warehouse_match',
+                        'index' => $index,
+                        'country' => $countryCode,
+                        'total_inventory' => $inventory['totalInventory'] ?? null,
+                        'cj_inventory' => $inventory['cjInventory'] ?? null,
+                        'factory_inventory' => $inventory['factoryInventory'] ?? null,
+                        'extracted_stock' => $cjStock
+                    ];
+                    break;
+                }
+            }
+            
+            // Fallback: Use any available warehouse if no CN match found
+            if ($cjStock === 0 && !empty($variant['inventories'])) {
+                foreach ($variant['inventories'] as $index => $inventory) {
+                    if (!is_array($inventory)) continue;
+                    
+                    $stockValue = $inventory['totalInventory'] ?? $inventory['cjInventory'] ?? $inventory['factoryInventory'] ?? 0;
+                    if ((int) $stockValue > 0) {
+                        $cjStock = (int) $stockValue;
+                        $stockDataSource = "inventories_fallback_index_{$index}";
+                        $stockDebugInfo['fallback_source'] = [
+                            'type' => 'any_warehouse',
+                            'index' => $index,
+                            'country' => $inventory['countryCode'] ?? 'unknown',
+                            'stock_value' => $stockValue,
+                            'extracted_stock' => $cjStock
+                        ];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // PRIORITY 2: Legacy direct fields with strict validation
+        if ($cjStock === 0) {
+            $legacyFields = [
+                'totalInventoryNum' => 10, // highest priority
+                'totalInventory' => 9,
+                'inventoryNum' => 8,
+                'cjInventory' => 7,
+                'variantStock' => 6,
+                'stock' => 5,
+                'variantInventory' => 4,
+                'factoryInventory' => 3,
+                'availableStock' => 2,
+                'quantity' => 1  // lowest priority
+            ];
+            
+            $stockDebugInfo['legacy_fields_checked'] = [];
+            
+            foreach ($legacyFields as $field => $priority) {
+                if (isset($variant[$field])) {
+                    $value = $variant[$field];
+                    $stockDebugInfo['legacy_fields_checked'][] = [
+                        'field' => $field,
+                        'priority' => $priority,
+                        'value' => $value,
+                        'is_numeric' => is_numeric($value)
+                    ];
+                    
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $cjStock = (int) $value;
+                        $stockDataSource = "legacy_field_{$field}_priority_{$priority}";
+                        $stockDebugInfo['legacy_source'] = [
+                            'field' => $field,
+                            'priority' => $priority,
+                            'value' => $value,
+                            'extracted_stock' => $cjStock
+                        ];
+                        break;
+                    }
+                } else {
+                    $stockDebugInfo['legacy_fields_checked'][] = [
+                        'field' => $field,
+                        'priority' => $priority,
+                        'value' => 'missing'
+                    ];
+                }
+            }
+        }
+
+        // Final validation and logging
+        $stockOnHand = $this->calculateStockOnHand($cjStock);
+        
+        if ($cjStock === 0) {
+            Log::warning('Zero stock extracted - full investigation', $stockDebugInfo);
+        } else {
+            Log::info('Stock extracted successfully', array_merge($stockDebugInfo, [
+                'cj_stock' => $cjStock,
+                'stock_on_hand' => $stockOnHand,
+                'data_source' => $stockDataSource
+            ]));
+        }
+
+        return [
+            'cj_stock' => $cjStock,
+            'stock_on_hand' => $stockOnHand,
+            'data_source' => $stockDataSource,
+            'debug_info' => $stockDebugInfo
+        ];
+    }
+
+    /**
+     * CRITICAL FIX: Atomic variant creation with enhanced validation
+     */
+    private function createVariantWithValidation(
+        Product $product, 
+        string $vid, 
+        ?string $sku, 
+        string $title, 
+        float $sellPrice, 
+        float $rawCost, 
+        array $options, 
+        array $variant, 
+        int $variantStock, 
+        int $variantStockOnHand, 
+        string $pid
+    ): void {
+        // CRITICAL FIX: Validate SKU uniqueness within product scope
+        if ($sku) {
+            $existingSku = ProductVariant::where('product_id', $product->id)
+                ->where('sku', $sku)
+                ->where('cj_vid', '!=', $vid) // Exclude current variant if updating
+                ->first();
+                
+            if ($existingSku) {
+                Log::error('SKU conflict detected within product', [
+                    'cj_pid' => $pid,
+                    'cj_vid' => $vid,
+                    'conflicting_sku' => $sku,
+                    'existing_vid' => $existingSku->cj_vid,
+                    'product_id' => $product->id
+                ]);
+                
+                // Generate unique SKU to prevent conflicts
+                $sku = 'CJ-' . $vid . '-' . $product->id;
+                Log::info('Generated unique SKU to resolve conflict', [
+                    'cj_pid' => $pid,
+                    'cj_vid' => $vid,
+                    'new_sku' => $sku
+                ]);
+            }
+        }
+
+        // Parse variant dimensions
+        $variantLength = $this->parsePositiveInt($variant['variantLength'] ?? null);
+        $variantWidth = $this->parsePositiveInt($variant['variantWidth'] ?? null);
+        $variantHeight = $this->parsePositiveInt($variant['variantHeight'] ?? null);
+        $variantWeight = $this->parsePositiveInt($variant['variantWeight'] ?? null);
+
+        // Prepare variant data with validation
+        $variantData = [
+            'product_id' => $product->id,
+            'cj_vid' => $vid ?: null,
+            'sku' => $sku ?: 'CJ-' . $vid,
+            'title' => $title,
+            'price' => $this->applyMinMarginToPrice($sellPrice, $rawCost),
+            'cost_price' => $rawCost,
+            'currency' => $product->currency ?? 'USD',
+            'variant_image' => $variant['variantImage'] ?? null,
+            'options' => $options === [] ? null : $options,
+            'weight_grams' => $variantWeight,
+            'package_length_mm' => $variantLength,
+            'package_width_mm' => $variantWidth,
+            'package_height_mm' => $variantHeight,
+            'stock_on_hand' => $variantStockOnHand,
+            'cj_stock' => $variantStock,
+            'cj_stock_synced_at' => now(),
+            'metadata' => [
+                'cj_vid' => $vid,
+                'cj_variant' => $variant,
+                'inventory_data' => $variant['inventories'] ?? null,
+                'selected_country' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
+                'extracted_stock' => $variantStock,
+                'validation_version' => '2.0',
+                'sync_timestamp' => now()->toISOString()
+            ],
+        ];
+
+        // CRITICAL FIX: Use transaction to ensure atomic variant creation
+        try {
+            DB::transaction(function () use ($variantData, $product, $pid, $vid) {
+                $createdVariant = ProductVariant::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'cj_vid' => $variantData['cj_vid'],
+                    ],
+                    $variantData
+                );
+
+                // Validate the created variant
+                if (!$createdVariant->exists || $createdVariant->product_id !== $product->id) {
+                    throw new \RuntimeException('Variant creation validation failed');
+                }
+
+                Log::info('Variant created/updated successfully', [
+                    'cj_pid' => $pid,
+                    'cj_vid' => $vid,
+                    'variant_id' => $createdVariant->id,
+                    'sku' => $createdVariant->sku,
+                    'price' => $createdVariant->price,
+                    'cj_stock' => $createdVariant->cj_stock,
+                    'stock_on_hand' => $createdVariant->stock_on_hand
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Atomic variant creation failed', [
+                'cj_pid' => $pid,
+                'cj_vid' => $vid,
+                'sku' => $sku,
+                'error' => $e->getMessage(),
+                'variant_data_keys' => array_keys($variantData)
+            ]);
+            throw $e;
         }
     }
 }

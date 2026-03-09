@@ -24,7 +24,7 @@ class ApplyProductMarginChunkJob implements ShouldQueue
 
     public int $timeout = 1200;
 
-    public int $tries = 1;
+    public int $tries = 3;
 
     /**
      * @param array<int, int> $productIds
