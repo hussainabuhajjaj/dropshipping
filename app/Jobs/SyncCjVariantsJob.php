@@ -83,7 +83,7 @@ class SyncCjVariantsJob implements ShouldQueue
                     ->first();
 
                 $variantSku = trim((string) ($variantData['variantSku'] ?? $existingVariant?->sku ?? ''));
-                $sku = $variantSku !== '' ? $variantSku : 'CJ-' . $vid;
+                $sku = $variantSku !== '' ? $variantSku : null; // ONLY use CJ API SKU - no local generation
 
                 // CRITICAL FIX: Use standardized inventory data extraction with priority validation
                 $importService = app(\App\Domain\Products\Services\CjProductImportService::class);

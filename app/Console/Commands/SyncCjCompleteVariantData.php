@@ -4,29 +4,27 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class SyncCjRealTimeInventory extends Command
+class SyncCjCompleteVariantData extends Command
 {
-    protected $signature = 'cj:sync-realtime-inventory
-        {--batch-size=50 : Process variants in batches}
+    protected $signature = 'cj:sync-complete-variant-data
+        {--batch-size=25 : Process variants in batches}
         {--dry-run : Show what would be updated without making changes}
         {--force : Skip confirmation prompts}
         {--pid= : Specific CJ PID to process}
         {--vid= : Specific CJ VID to process}
-        {--skip-recent=6 : Skip variants synced within last N hours}';
+        {--skip-recent=24 : Skip variants synced within last N hours}';
 
-    protected $description = 'Sync real-time inventory from CJ API for existing products and variants';
+    protected $description = 'Sync ALL variant data from CJ API - no local generation';
 
     public function handle(): int
     {
-        $this->info('🔄 CJ Real-Time Inventory Sync');
-        $this->info('==============================');
+        $this->info('🔄 CJ Complete Variant Data Sync');
+        $this->info('=================================');
 
         $batchSize = (int) $this->option('batch-size');
         $dryRun = $this->option('dry-run');
@@ -40,10 +38,7 @@ class SyncCjRealTimeInventory extends Command
         }
 
         // Build query
-        $query = ProductVariant::whereNotNull('cj_vid')
-            ->whereHas('product', function ($q) {
-                $q->whereNotNull('cj_pid');
-            });
+        $query = ProductVariant::whereNotNull('cj_vid');
 
         // Apply filters
         if ($specificPid) {
@@ -72,7 +67,7 @@ class SyncCjRealTimeInventory extends Command
         }
 
         if (!$force && !$dryRun) {
-            if (!$this->confirm("Process {$total} variants? This may take a while.")) {
+            if (!$this->confirm("Process {$total} variants? This will sync ALL data from CJ API.")) {
                 $this->info('Operation cancelled.');
                 return self::SUCCESS;
             }
@@ -82,16 +77,17 @@ class SyncCjRealTimeInventory extends Command
         $processed = 0;
         $updated = 0;
         $errors = 0;
+        $fieldsUpdated = 0;
 
         $progress = $this->output->createProgressBar($total);
         $progress->start();
 
-        $query->chunk($batchSize, function ($variants) use ($client, $dryRun, &$processed, &$updated, &$errors, $progress) {
+        $query->chunk($batchSize, function ($variants) use ($client, $dryRun, &$processed, &$updated, &$errors, &$fieldsUpdated, $progress) {
             foreach ($variants as $variant) {
                 try {
                     $processed++;
                     
-                    // Get complete variant data from CJ API (all fields, no local generation)
+                    // Get complete variant data from CJ API
                     $response = $client->getVariantByVid($variant->cj_vid);
                     
                     if (!$response->ok) {
@@ -122,9 +118,6 @@ class SyncCjRealTimeInventory extends Command
                                 'cj_stock_synced_at' => now(),
                             ]));
 
-                            // Update product stock if needed
-                            $this->updateProductStock($variant->product);
-
                             Log::info('Complete variant data synced from CJ API', [
                                 'cj_pid' => $variant->product->cj_pid,
                                 'cj_vid' => $variant->cj_vid,
@@ -133,6 +126,7 @@ class SyncCjRealTimeInventory extends Command
                             ]);
                         }
                         $updated++;
+                        $fieldsUpdated += count($changes);
                     }
 
                 } catch (\Exception $e) {
@@ -146,17 +140,18 @@ class SyncCjRealTimeInventory extends Command
 
         $progress->finish();
 
-        $this->info("\n\n📊 Sync Summary:");
+        $this->info("\n\n📊 Complete Variant Sync Summary:");
         $this->table(['Metric', 'Count'], [
             ['Processed', $processed],
-            ['Updated', $updated],
+            ['Updated Variants', $updated],
+            ['Total Field Updates', $fieldsUpdated],
             ['Errors', $errors],
         ]);
 
         if ($dryRun) {
             $this->info("\nRun without --dry-run to apply these updates.");
         } else {
-            $this->info("\n✅ Real-time inventory sync completed!");
+            $this->info("\n✅ Complete variant data sync finished!");
         }
 
         return $errors > 0 ? self::FAILURE : self::SUCCESS;
@@ -177,36 +172,57 @@ class SyncCjRealTimeInventory extends Command
 
         $updateData = [];
 
-        // SKU from CJ API (no local generation)
-        $updateData['sku'] = $this->extractSkuFromResponse($data);
+        // SKU fields from CJ API
+        $updateData['sku'] = $this->extractSku($data);
 
         // Stock data from CJ API
-        $stockData = $this->extractStockDataFromResponse($data);
+        $stockData = $this->extractStockData($data);
         $updateData = array_merge($updateData, $stockData);
 
-        // Dimension data from CJ API
-        $dimensionData = $this->extractDimensionDataFromResponse($data);
+        // Dimensions data from CJ API
+        $dimensionData = $this->extractDimensionData($data);
         $updateData = array_merge($updateData, $dimensionData);
 
-        // Title from CJ API
-        if (isset($data['variantName']) && !empty($data['variantName'])) {
-            $updateData['title'] = (string) $data['variantName'];
-        }
+        // Title and description from CJ API
+        $textData = $this->extractTextData($data);
+        $updateData = array_merge($updateData, $textData);
 
-        // Image from CJ API
-        if (isset($data['variantImage']) && !empty($data['variantImage'])) {
-            $updateData['variant_image'] = (string) $data['variantImage'];
-        }
+        // Image data from CJ API
+        $imageData = $this->extractImageData($data);
+        $updateData = array_merge($updateData, $imageData);
+
+        // Options/attributes from CJ API
+        $optionsData = $this->extractOptionsData($data);
+        $updateData = array_merge($updateData, $optionsData);
 
         // NOTE: Price data NOT extracted from CJ API - using local margin-based pricing
 
-        // Store raw CJ API response
+        // Store raw CJ API response for reference
         $updateData['cj_variant_data'] = $data;
+        $updateData['metadata'] = [
+            'cj_vid' => $data['vid'] ?? null,
+            'cj_variant' => $data,
+            'last_api_sync' => now()->toISOString(),
+            'sync_source' => 'cj_api_complete',
+        ];
 
         return $updateData;
     }
 
-    private function extractStockDataFromResponse(array $data): array
+    private function extractSku(array $data): ?string
+    {
+        $skuFields = ['variantSku', 'sku', 'vSku', 'variantCode', 'itemSku'];
+        
+        foreach ($skuFields as $field) {
+            if (isset($data[$field]) && !empty($data[$field])) {
+                return (string) trim($data[$field]);
+            }
+        }
+        
+        return null; // Don't generate fallback - let it be null if not in API
+    }
+
+    private function extractStockData(array $data): array
     {
         $stockData = [];
         
@@ -220,6 +236,18 @@ class SyncCjRealTimeInventory extends Command
                 if (($inventory['countryCode'] ?? null) === $defaultWarehouse) {
                     $stockData['cj_stock'] = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0);
                     break;
+                }
+            }
+            
+            // Fallback to any warehouse if CN not found
+            if (!isset($stockData['cj_stock'])) {
+                foreach ($data['inventories'] as $inventory) {
+                    if (!is_array($inventory)) continue;
+                    $stockValue = $inventory['totalInventory'] ?? $inventory['cjInventory'] ?? 0;
+                    if ((int) $stockValue > 0) {
+                        $stockData['cj_stock'] = (int) $stockValue;
+                        break;
+                    }
                 }
             }
         }
@@ -246,7 +274,7 @@ class SyncCjRealTimeInventory extends Command
         return $stockData;
     }
 
-    private function extractDimensionDataFromResponse(array $data): array
+    private function extractDimensionData(array $data): array
     {
         $dimensionData = [];
         
@@ -271,13 +299,59 @@ class SyncCjRealTimeInventory extends Command
         return $dimensionData;
     }
 
+    private function extractTextData(array $data): array
+    {
+        $textData = [];
+        
+        // Title from CJ API
+        $titleFields = ['variantName', 'variantNameEn', 'variantTitle', 'title'];
+        foreach ($titleFields as $field) {
+            if (isset($data[$field]) && !empty($data[$field])) {
+                $textData['title'] = (string) $data[$field];
+                break;
+            }
+        }
+        
+        return $textData;
+    }
+
+    private function extractImageData(array $data): array
+    {
+        $imageData = [];
+        
+        // Variant image from CJ API
+        $imageFields = ['variantImage', 'image', 'variantImageUrl', 'imageUrl'];
+        foreach ($imageFields as $field) {
+            if (isset($data[$field]) && !empty($data[$field])) {
+                $imageData['variant_image'] = (string) $data[$field];
+                break;
+            }
+        }
+        
+        return $imageData;
+    }
+
+    private function extractOptionsData(array $data): array
+    {
+        $optionsData = [];
+        
+        // Options/attributes from CJ API
+        if (isset($data['variantAttributes']) && is_array($data['variantAttributes'])) {
+            $optionsData['options'] = $data['variantAttributes'];
+        } elseif (isset($data['attributes']) && is_array($data['attributes'])) {
+            $optionsData['options'] = $data['attributes'];
+        }
+        
+        return $optionsData;
+    }
+
     private function compareVariantData(ProductVariant $variant, array $cjApiData): array
     {
         $changes = [];
         
         foreach ($cjApiData as $field => $newValue) {
-            if ($field === 'cj_variant_data') {
-                continue; // Skip raw data field
+            if ($field === 'cj_variant_data' || $field === 'metadata') {
+                continue; // Skip metadata fields
             }
             
             $oldValue = $variant->{$field};
@@ -291,99 +365,5 @@ class SyncCjRealTimeInventory extends Command
         }
         
         return $changes;
-    }
-
-    private function extractSkuFromResponse(mixed $variantData): ?string
-    {
-        if (!is_array($variantData)) {
-            return null;
-        }
-
-        // Handle different response structures
-        if (isset($variantData[0]) && is_array($variantData[0])) {
-            $data = $variantData[0];
-        } else {
-            $data = $variantData;
-        }
-
-        // Priority order for SKU fields from CJ API
-        $skuFields = [
-            'variantSku',      // Primary CJ SKU field
-            'sku',             // Generic SKU field
-            'vSku',            // Alternative CJ SKU field
-            'variantCode',     // Variant code field
-            'itemSku',         // Item SKU field
-        ];
-
-        foreach ($skuFields as $field) {
-            if (isset($data[$field]) && !empty($data[$field])) {
-                return (string) trim($data[$field]);
-            }
-        }
-
-        return null;
-    }
-
-    private function extractStockFromResponse(mixed $stockData): int
-    {
-        if (!is_array($stockData)) {
-            return 0;
-        }
-
-        // Handle different response structures
-        if (isset($stockData[0]) && is_array($stockData[0])) {
-            $data = $stockData[0];
-        } else {
-            $data = $stockData;
-        }
-
-        // Priority order for stock fields
-        $stockFields = [
-            'totalInventoryNum',
-            'totalInventory',
-            'inventoryNum',
-            'cjInventory',
-            'stock',
-            'variantStock',
-            'quantity'
-        ];
-
-        foreach ($stockFields as $field) {
-            if (isset($data[$field]) && is_numeric($data[$field])) {
-                return (int) $data[$field];
-            }
-        }
-
-        return 0;
-    }
-
-    private function calculateStockOnHand(int $totalStock): int
-    {
-        if ($totalStock <= 0) {
-            return 0;
-        }
-
-        $percentage = (float) config('services.cj.stock_percentage', 75.0);
-        $percentage = max(10.0, min(100.0, $percentage));
-        
-        return (int) ($totalStock * ($percentage / 100.0));
-    }
-
-    private function updateProductStock(Product $product): void
-    {
-        $variantsStock = $product->variants()
-            ->whereNotNull('cj_vid')
-            ->pluck('stock_on_hand');
-
-        if ($variantsStock->isNotEmpty()) {
-            $totalStock = $variantsStock->sum();
-            $avgStock = (int) ($variantsStock->avg());
-
-            $product->update([
-                'stock_on_hand' => $avgStock,
-                'cj_total_stock' => $totalStock,
-                'cj_synced_at' => now(),
-            ]);
-        }
     }
 }

@@ -142,35 +142,10 @@ class CjProductImportService
         $rawName = $productData['productNameEn'] ?? $productData['productName'] ?? ($productData['name'] ?? null);
         $name = $this->cleanProductName($rawName) ?: 'CJ Product ' . $pid;
         $slug = Str::slug($name . '-' . $pid);
-        // Use first variant price if available, else fallback to productSellPrice
-        $firstVariantPrice = null;
-        if (is_array($variants) && count($variants) > 0) {
-            $first = $variants[0];
-            if (isset($first['variantSellPrice']) && is_numeric($first['variantSellPrice'])) {
-                $firstVariantPrice = (float)$first['variantSellPrice'];
-            }
-        }
-        $price = $productData['productSellPrice'] ?? null;
+        // NOTE: Selling price NOT extracted from CJ API - using margin-based pricing only
+        $priceValue = null; // No CJ API selling price
+        $rawCost = $productData['productCost'] ?? 0; // Only extract cost price
 
-        // Handle range format prices like "4.28-7.09"
-        $priceValue = null;
-        if (is_numeric($firstVariantPrice)) {
-            $priceValue = $firstVariantPrice;
-        } elseif (is_string($price) && strpos($price, '-') !== false) {
-            // Handle range format "min-max"
-            $rangeParts = explode('-', $price);
-            if (count($rangeParts) === 2 && is_numeric($rangeParts[0]) && is_numeric($rangeParts[1])) {
-                // Use the lower bound of the range
-                $priceValue = (float) $rangeParts[0];
-            }
-        } elseif (is_numeric($price)) {
-            $priceValue = (float)$price;
-        }
-
-        // Final fallback if still null
-        if ($priceValue === null) {
-            $priceValue = $product?->cost_price ?? 0;
-        }
         $incomingDescription = $this->cleanDescription(
             $productData['descriptionEn']
             ?? $productData['productDescriptionEn']
@@ -208,27 +183,19 @@ class CjProductImportService
             $currency = 'USD';
         }
 
-        // Set cost price as imported, preserve selling price if price lock is enabled
-        $rawCost = $lockPrice ? ($product?->cost_price ?? 0) : ($priceValue ?? ($product?->cost_price ?? 0));
+        // NOTE: ONLY extract cost price from CJ API - everything else from margin pricing
+        $rawCost = $productData['productCost'] ?? 0; // Only cost price from CJ API
 
-        // Strict validation for cost price
+        // Validate cost price
         if (!is_numeric($rawCost) || $rawCost < 0) {
             Log::warning('Invalid cost price detected, using default', [
                 'cj_pid' => $pid,
-                'raw_cost' => $rawCost,
-                'price_value' => $priceValue
+                'raw_cost' => $rawCost
             ]);
             $rawCost = 0;
         }
 
-        $pricing = PricingService::makeFromConfig();
-        $minSell = $pricing->minSellingPrice((float) $rawCost, $currency); // Use product currency
-        $sellingPrice = $lockPrice && $product ? ($product->selling_price ?? 0) : 0;
-
-        // CRITICAL FIX: Enhanced product price validation with corruption prevention
-        $sellingPrice = $this->validateAndCalculateProductPrice($priceValue, $rawCost, $product, $pid);
-
-        // Extract stock information from CJ API data with configurable percentage
+        // Extract stock information from CJ API data
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
         $stockOnHand = $this->calculateStockOnHand($totalStock);
 
@@ -236,8 +203,8 @@ class CjProductImportService
             'name' => $name,
             'category_id' => $category?->id,
             'description' => $description,
-            'selling_price' => $sellingPrice,
-            'cost_price' => $rawCost,
+            'selling_price' => $product?->selling_price ?? null, // Keep existing, don't update
+            'cost_price' => $rawCost, // ONLY cost price from CJ API
             'currency' => $productData['currency'] ?? 'USD',
             'attributes' => $attributes,
             'source_url' => $productData['productUrl'] ?? $productData['sourceUrl'] ?? null,
@@ -1054,10 +1021,10 @@ class CjProductImportService
                         continue;
                     }
 
-                    $rawSell = $variant['variantSellPrice'] ?? $variant['variantSugSellPrice'] ?? null;
-
-                    // Strict validation for variant cost price
-                    $rawCost = is_numeric($rawSell) ? (float) $rawSell : ($product->cost_price ?? 0);
+                    // NOTE: ONLY extract cost price from CJ API - everything else from margin pricing
+                    $rawCost = $variant['variantCost'] ?? $product->cost_price ?? 0; // Only cost price from CJ API
+                    
+                    // Validate cost price
                     if (!is_numeric($rawCost) || $rawCost < 0) {
                         Log::warning('Invalid variant cost price detected, using product cost', [
                             'cj_pid' => $pid,
@@ -1067,21 +1034,8 @@ class CjProductImportService
                         $rawCost = $product->cost_price ?? 0;
                     }
 
-                    // CRITICAL FIX: Enhanced price validation with stricter corruption prevention
-                    $sellPrice = $this->validateAndCalculateVariantPrice($rawSell, $rawCost, $product, $pid, $vid);
-
-                    // Final sanity check for reasonable variant price ranges
-                    $maxReasonablePrice = $rawCost * 10; // Maximum 10x markup
-                    if ($sellPrice > $maxReasonablePrice) {
-                        Log::warning('Unreasonable variant price detected, applying maximum reasonable price', [
-                            'cj_pid' => $pid,
-                            'cj_vid' => $vid,
-                            'raw_cost' => $rawCost,
-                            'variant_sell_price' => $sellPrice,
-                            'max_reasonable' => $maxReasonablePrice
-                        ]);
-                        $sellPrice = $maxReasonablePrice;
-                    }
+                    // NOTE: No selling price - will be set by margin pricing commands
+                    $sellPrice = null;
 
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
@@ -2495,21 +2449,17 @@ class CjProductImportService
                 ->first();
                 
             if ($existingSku) {
-                Log::error('SKU conflict detected within product', [
+                Log::error('SKU conflict detected - CJ API SKU already exists in product', [
                     'cj_pid' => $pid,
                     'cj_vid' => $vid,
                     'conflicting_sku' => $sku,
                     'existing_vid' => $existingSku->cj_vid,
-                    'product_id' => $product->id
+                    'product_id' => $product->id,
+                    'action' => 'SKIPPING - CJ API SKU conflict must be resolved at source'
                 ]);
                 
-                // Generate unique SKU to prevent conflicts
-                $sku = 'CJ-' . $vid . '-' . $product->id;
-                Log::info('Generated unique SKU to resolve conflict', [
-                    'cj_pid' => $pid,
-                    'cj_vid' => $vid,
-                    'new_sku' => $sku
-                ]);
+                // DO NOT generate local SKU - skip this variant or use null
+                $sku = null; // Force null to avoid local generation
             }
         }
 
@@ -2523,10 +2473,10 @@ class CjProductImportService
         $variantData = [
             'product_id' => $product->id,
             'cj_vid' => $vid ?: null,
-            'sku' => $sku ?: 'CJ-' . $vid,
+            'sku' => $sku, // ONLY use CJ API SKU - no local generation
             'title' => $title,
-            'price' => $this->applyMinMarginToPrice($sellPrice, $rawCost),
-            'cost_price' => $rawCost,
+            'price' => null, // Will be set by margin pricing commands
+            'cost_price' => $rawCost, // From CJ API
             'currency' => $product->currency ?? 'USD',
             'variant_image' => $variant['variantImage'] ?? null,
             'options' => $options === [] ? null : $options,
