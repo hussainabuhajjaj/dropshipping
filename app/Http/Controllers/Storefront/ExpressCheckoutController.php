@@ -156,7 +156,7 @@ class ExpressCheckoutController extends Controller
 
                 // Create shipping address
                 $shippingAddress = Address::create([
-                    'user_id' => null,
+                    'user_id' => $customer?->id,
                     'customer_id' => $customer?->id,
                     'name' => $data['shipping_address']['name'],
                     'phone' => $data['phone'],
@@ -176,11 +176,11 @@ class ExpressCheckoutController extends Controller
 
                 $order = Order::create([
                     'number' => $this->generateNumber(),
-                    'user_id' => null,
+                    'user_id' => $customer?->id,
                     'customer_id' => $customer?->id,
-                    'guest_name' => $customer ? null : $data['shipping_address']['name'],
-                    'guest_phone' => $customer ? null : $data['phone'],
-                    'is_guest' => ! $customer,
+                    'guest_name' => null,
+                    'guest_phone' => null,
+                    'is_guest' => false,
                     'email' => $data['email'],
                     'locale' => $locale,
                     'status' => 'pending',

@@ -73,6 +73,7 @@ trait TransformsProducts
             'category_id' => $product->category_id,
             'description' => $translation?->description ?: $product->description,
             'media' => $media,
+            'image' => $media[0] ?? null,
             'videos' => $product->cj_video_urls ?? [],
             'is_active' => (bool) $product->is_active,
             'rating' => round($rating, 1),
@@ -84,6 +85,8 @@ trait TransformsProducts
             'compare_at_price' => $defaultVariant['compare_at_price'] ?? null,
             'currency' => $currency,
             'is_in_wishlist' => $wishlist->contains($product->id),
+            'href' => route('products.show', $product, false),
+            'url' => route('products.show', $product, false),
         ];
 
         if ($includeMeta) {

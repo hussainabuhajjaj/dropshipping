@@ -197,8 +197,7 @@ class SyncCjCompleteVariantData extends Command
 
         // NOTE: Price data NOT extracted from CJ API - using local margin-based pricing
 
-        // Store raw CJ API response for reference
-        $updateData['cj_variant_data'] = $data;
+        // Store raw CJ API response in metadata only
         $updateData['metadata'] = [
             'cj_vid' => $data['vid'] ?? null,
             'cj_variant' => $data,
@@ -350,8 +349,8 @@ class SyncCjCompleteVariantData extends Command
         $changes = [];
         
         foreach ($cjApiData as $field => $newValue) {
-            if ($field === 'cj_variant_data' || $field === 'metadata') {
-                continue; // Skip metadata fields
+            if ($field === 'metadata') {
+                continue; // Skip metadata field
             }
             
             $oldValue = $variant->{$field};

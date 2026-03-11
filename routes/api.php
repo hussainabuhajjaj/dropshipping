@@ -236,15 +236,15 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('stories/{id}', [MobileStoryController::class, 'show']);
     Route::post('analytics/visit', [MobileVisitAnalyticsController::class, 'store']);
 
-    // Cart routes - accessible for both guests and authenticated users
-    Route::get('cart', [MobileCartController::class, 'show']);
-    Route::post('cart/items', [MobileCartController::class, 'store']);
-    Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
-    Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
-    Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
-    Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
-
     Route::middleware('auth:sanctum')->group(function () {
+        // Cart routes - now auth-only
+        Route::get('cart', [MobileCartController::class, 'show']);
+        Route::post('cart/items', [MobileCartController::class, 'store']);
+        Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
+        Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
+        Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
+        Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
+
         Route::prefix('account')->group(function () {
             Route::get('addresses', [MobileAddressController::class, 'index']);
             Route::post('addresses', [MobileAddressController::class, 'store']);

@@ -32,6 +32,9 @@ class CartController extends Controller
 {
     public function index(): Response
     {
+        if (! auth('customer')->check()) {
+            return redirect()->route('login');
+        }
         $cart = $this->getCart();
         $cart_items = $this->cart();
         $coupon = session('cart_coupon');
@@ -105,6 +108,9 @@ class CartController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (! auth('customer')->check()) {
+            return redirect()->route('login')->withErrors(['cart' => 'Please log in to add items to your cart.']);
+        }
         $data = $request->validate([
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'variant_id' => ['nullable', 'integer'],
@@ -166,6 +172,9 @@ class CartController extends Controller
 
     public function destroy(string $lineId): RedirectResponse
     {
+        if (! auth('customer')->check()) {
+            return redirect()->route('login');
+        }
         $cart = $this->cart()->where('id', $lineId)->first();
         if (isset($cart)) {
             $cart->delete();
@@ -176,6 +185,9 @@ class CartController extends Controller
 
     public function update(string $lineId, Request $request): RedirectResponse
     {
+        if (! auth('customer')->check()) {
+            return redirect()->route('login');
+        }
         $request->validate([
             'quantity' => ['required', 'integer', 'min:1'],
         ]);
@@ -200,29 +212,16 @@ class CartController extends Controller
     public function getCart()
     {
         $customerId = auth('customer')->id();
-        $sessionId = session()->id();
+        if (! $customerId) {
+            return null;
+        }
 
         $cart = Cart::query()
-            ->when(
-                $customerId,
-                function ($query) use ($customerId, $sessionId) {
-                    $query->where(function ($scoped) use ($customerId, $sessionId) {
-                        $scoped->where('user_id', $customerId)
-                            ->orWhere(function ($guest) use ($sessionId) {
-                                $guest->whereNull('user_id')
-                                    ->where('session_id', $sessionId);
-                            });
-                    });
-                },
-                function ($query) use ($sessionId) {
-                    $query->whereNull('user_id')
-                        ->where('session_id', $sessionId);
-                }
-            )
+            ->where('user_id', $customerId)
             ->orderByDesc('updated_at')
             ->first();
         if (!$cart) {
-            return Cart::createCart();
+            return Cart::createCart(['user_id' => $customerId]);
         }
         return $cart;
     }
@@ -234,26 +233,6 @@ class CartController extends Controller
         return CartItem::query()->where('cart_id', @$cart?->id)
             ->with(['product', 'variant'])
             ->get();
-    }
-
-
-    /**
-     * Capture abandoned cart from guest checkout (AJAX).
-     */
-    public function abandon(Request $request)
-    {
-        $data = $request->validate([
-            'cart' => 'required|array',
-            'email' => 'nullable|email',
-        ]);
-
-        app(\App\Services\AbandonedCartService::class)->capture(
-            $data['cart'],
-            $data['email'] ?? null,
-            null
-        );
-
-        return response()->json(['status' => 'ok']);
     }
 
 

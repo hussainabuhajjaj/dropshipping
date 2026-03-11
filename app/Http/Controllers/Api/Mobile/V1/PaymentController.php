@@ -35,7 +35,7 @@ class PaymentController extends ApiController
         // Use exact storefront logic - getItem and getSummery
         $item = $this->getItem($request);
         if (!$item) {
-            return $this->error('Cart not found', 422);
+            return $this->error('You must log in first to continue shopping.', 401);
         }
         if ($item->items->isEmpty()) {
             return $this->error('Cart is empty', 422);
@@ -422,40 +422,14 @@ class PaymentController extends ApiController
     private function getItem(Request $request): ?Cart
     {
         $customer = $request->user();
-        $sessionId = (string) $request->session()->getId();
-
-        $cart = null;
-
-        if ($customer) {
-            $userCart = Cart::query()
-                ->where('user_id', $customer->id)
-                ->orderByDesc('updated_at')
-                ->with('items')
-                ->first();
-
-            $guestCart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->with('items')
-                ->first();
-
-            if ($userCart?->items->count()) {
-                $cart = $userCart;
-            } elseif ($guestCart?->items->count()) {
-                $cart = $guestCart;
-            } else {
-                $cart = $userCart ?? $guestCart;
-            }
-        } else {
-            $cart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->with('items')
-                ->first();
+        if (! $customer) {
+            return null;
         }
 
-        return $cart;
+        return Cart::query()
+            ->where('user_id', $customer->id)
+            ->orderByDesc('updated_at')
+            ->with('items')
+            ->first();
     }
 }

@@ -32,6 +32,9 @@ class PaymentController extends Controller
     {
 
         $customer = auth('customer')->user();
+        if (! $customer) {
+            return redirect()->route('login');
+        }
         $item = $this->getItem($type, $id);
         if (!$item) {
             if ($type == "cart") {
@@ -200,8 +203,8 @@ class PaymentController extends Controller
         if ($type == "order") {
             return Order::query()->findOrFail($id);
         } elseif ($type == "cart") {
-            return Cart::query()->where('user_id', \auth('customer')->id())
-                ->orWhere('session_id', session()->id())
+            return Cart::query()
+                ->where('user_id', auth('customer')->id())
                 ->with('items')
                 ->first();
         }

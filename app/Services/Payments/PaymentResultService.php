@@ -50,7 +50,10 @@ class PaymentResultService
         try {
             $cart_items = $cart->items;
             $customer = auth('customer')->user();
-            $isGuest = !$customer;
+            if (! $customer) {
+                throw new \RuntimeException('Authenticated customer required for checkout.');
+            }
+            $isGuest = false;
             if ($customer && $customer->locale !== app()->getLocale()) {
                 $customer->update(['locale' => app()->getLocale()]);
             }
@@ -65,30 +68,30 @@ class PaymentResultService
                 ->orderBy('id')
                 ->first();
 
-            $firstName = (string)($request_body['first_name'] ?? $customer?->first_name ?? $customer?->name ?? 'Guest');
+            $firstName = (string)($request_body['first_name'] ?? $customer?->first_name ?? $customer?->name ?? '');
             $lastName = (string)($request_body['last_name'] ?? $customer?->last_name ?? '');
-            $phone = (string)($request_body['phone'] ?? $customer?->phone ?? $fallbackAddress?->phone ?? 'N/A');
-            $line1 = (string)($request_body['line1'] ?? $fallbackAddress?->line1 ?? 'N/A');
+            $phone = (string)($request_body['phone'] ?? $customer?->phone ?? $fallbackAddress?->phone ?? '');
+            $line1 = (string)($request_body['line1'] ?? $fallbackAddress?->line1 ?? '');
             $line2 = (string)($request_body['line2'] ?? $fallbackAddress?->line2 ?? '');
-            $city = (string)($request_body['city'] ?? $fallbackAddress?->city ?? 'N/A');
+            $city = (string)($request_body['city'] ?? $fallbackAddress?->city ?? '');
             $state = (string)($request_body['state'] ?? $fallbackAddress?->state ?? '');
             $postalCode = (string)($request_body['postal_code'] ?? $fallbackAddress?->postal_code ?? '');
             $country = strtoupper((string)($request_body['country'] ?? $fallbackAddress?->country ?? 'US'));
             $email = (string)($request_body['email'] ?? $customer?->email ?? '');
             if ($email === '') {
-                $email = 'guest+' . now()->timestamp . '@example.local';
+                throw new \RuntimeException('Customer email missing for order creation.');
             }
 
             $summery = $cart->getSummery();
 
-            $shippingAddress = Address::query()->where('customer_id', auth('customer')->id())
+            $shippingAddress = Address::query()->where('customer_id', $customer->id)
                 ->find(@$request_body['address_id']);
 
 
             if (!isset($shippingAddress)) {
                 $shippingAddress = Address::query()->create([
                     'user_id' => null,
-                    'customer_id' => $customer?->id,
+                    'customer_id' => $customer->id,
                     'name' => trim($firstName . ' ' . $lastName),
                     'phone' => $phone,
                     'line1' => $line1,
@@ -114,11 +117,11 @@ class PaymentResultService
             // Create order
             $order = Order::query()->create([
                 'number' => Order::generateOrderNumber(),
-                'user_id' => null,
-                'customer_id' => $customer?->id,
-                'guest_name' => $isGuest ? trim($firstName . ' ' . $lastName) : null,
-                'guest_phone' => $isGuest ? $phone : null,
-                'is_guest' => $isGuest,
+                'user_id' => $customer->id,
+                'customer_id' => $customer->id,
+                'guest_name' => null,
+                'guest_phone' => null,
+                'is_guest' => false,
                 'email' => $email,
                 'locale' => app()->getLocale(),
                 'status' => 'pending',

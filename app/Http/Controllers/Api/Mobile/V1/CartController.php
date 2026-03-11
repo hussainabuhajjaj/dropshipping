@@ -37,6 +37,11 @@ class CartController extends ApiController
 
     public function store(AddItemRequest $request): JsonResponse
     {
+        $customer = $request->user();
+        if (! $customer) {
+            return $this->error('You must log in first to continue shopping.', 401);
+        }
+
         $data = $request->validated();
 
         $product = Product::query()
@@ -100,6 +105,11 @@ class CartController extends ApiController
 
     public function update(UpdateItemRequest $request, string $itemId): JsonResponse
     {
+        $customer = $request->user();
+        if (! $customer) {
+            return $this->error('You must log in first to continue shopping.', 401);
+        }
+
         $cart = $this->resolveCart($request);
         $cartItem = $cart->items()->with(['product', 'variant'])->find($itemId);
 
@@ -122,6 +132,11 @@ class CartController extends ApiController
 
     public function destroy(Request $request, string $itemId): JsonResponse
     {
+        $customer = $request->user();
+        if (! $customer) {
+            return $this->error('You must log in first to continue shopping.', 401);
+        }
+
         $cart = $this->resolveCart($request);
         $cartItem = $cart->items()->find($itemId);
 
@@ -137,6 +152,11 @@ class CartController extends ApiController
 
     public function applyCoupon(ApplyCouponRequest $request): JsonResponse
     {
+        $customer = $request->user();
+        if (! $customer) {
+            return $this->error('You must log in first to continue shopping.', 401);
+        }
+
         $data = $request->validated();
 
         $now = Carbon::now();
@@ -176,6 +196,11 @@ class CartController extends ApiController
 
     public function removeCoupon(Request $request): JsonResponse
     {
+        $customer = $request->user();
+        if (! $customer) {
+            return $this->error('You must log in first to continue shopping.', 401);
+        }
+
         session()->forget('cart_coupon');
 
         $cart = $this->resolveCart($request);
@@ -186,41 +211,18 @@ class CartController extends ApiController
     private function resolveCart(Request $request): Cart
     {
         $customer = $request->user();
-        $sessionId = (string) $request->session()->getId();
-
-        $cart = null;
-
-        if ($customer) {
-            $userCart = Cart::query()
-                ->where('user_id', $customer->id)
-                ->orderByDesc('updated_at')
-                ->first();
-
-            $guestCart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->first();
-
-            if ($userCart?->items()->exists()) {
-                $cart = $userCart;
-            } elseif ($guestCart?->items()->exists()) {
-                $cart = $guestCart;
-            } else {
-                $cart = $userCart ?? $guestCart;
-            }
-        } else {
-            $cart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->first();
+        if (! $customer) {
+            abort(response()->json(['message' => 'You must log in first to continue shopping.'], 401));
         }
+
+        $cart = Cart::query()
+            ->where('user_id', $customer->id)
+            ->orderByDesc('updated_at')
+            ->first();
 
         if (! $cart) {
             $cart = Cart::query()->create([
-                'user_id' => $customer?->id,
-                'session_id' => $sessionId,
+                'user_id' => $customer->id,
             ]);
         }
 

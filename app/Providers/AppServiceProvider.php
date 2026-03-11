@@ -6,6 +6,7 @@ use App\Support\Filament\AdminPanelNotification;
 use App\Filament\Livewire\AdminDatabaseNotifications;
 use Filament\Notifications\Notification as FilamentNotification;
 use App\Models\Product;
+use App\Observers\ProductSearchObserver;
 use App\Models\User;
 use App\Observers\ProductSeoObserver;
 use Illuminate\Console\Events\CommandStarting;
@@ -66,6 +67,9 @@ class AppServiceProvider extends ServiceProvider
             });
         Vite::prefetch(concurrency: 3);
         Product::observe(ProductSeoObserver::class);
+        if (config('typesense.enabled')) {
+            Product::observe(ProductSearchObserver::class);
+        }
         $this->registerFilamentWidgetAliases();
     }
 

@@ -396,6 +396,14 @@
         {{ t('Explore more products with predictable delivery and upfront customs details.') }}
       </div>
     </section>
+
+    <LoginRequiredModal
+      :show="showLoginPrompt"
+      :title="t('You must log in first to continue shopping.')"
+      :message="t('Log in to add this item to your cart and continue checkout.')"
+      @close="showLoginPrompt = false"
+      @login="router.visit('/login')"
+    />
   </StorefrontLayout>
 </template>
 
@@ -417,10 +425,12 @@ function productPromotionForDetails(product, promotions) {
 }
 
 import { computed, ref } from 'vue'
-import { Head, Link, useForm } from '@inertiajs/vue3'
+import { Head, Link, useForm, router } from '@inertiajs/vue3'
 import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import LoginRequiredModal from '@/Components/LoginRequiredModal.vue'
 import ProductCard from '@/Components/ProductCard.vue'
+import Modal from '@/Components/Modal.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
@@ -455,7 +465,12 @@ const form = useForm({
   variant_id: props.product.variants?.[0]?.id ?? null,
   quantity: 1,
 })
+const showLoginPrompt = ref(false)
 const submit = () => {
+  if (!page.props.auth?.user) {
+    showLoginPrompt.value = true
+    return
+  }
   form.product_id = props.product.id
   form.variant_id = selectedVariantId.value
   form.post('/cart', {

@@ -124,11 +124,11 @@ class CheckoutController extends ApiController
 
             $order = Order::query()->create([
                 'number' => Order::generateOrderNumber(),
-                'user_id' => null,
+                'user_id' => $customer?->id,
                 'customer_id' => $customer?->id,
-                'guest_name' => $customer ? null : trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? '')),
-                'guest_phone' => $customer ? null : $validated['phone'],
-                'is_guest' => ! $customer,
+                'guest_name' => null,
+                'guest_phone' => null,
+                'is_guest' => false,
                 'email' => $validated['email'],
                 'locale' => $locale,
                 'status' => 'pending',
@@ -220,41 +220,18 @@ class CheckoutController extends ApiController
     private function resolveCart(Request $request): Cart
     {
         $customer = $request->user();
-        $sessionId = (string) $request->session()->getId();
-
-        $cart = null;
-
-        if ($customer) {
-            $userCart = Cart::query()
-                ->where('user_id', $customer->id)
-                ->orderByDesc('updated_at')
-                ->first();
-
-            $guestCart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->first();
-
-            if ($userCart?->items()->exists()) {
-                $cart = $userCart;
-            } elseif ($guestCart?->items()->exists()) {
-                $cart = $guestCart;
-            } else {
-                $cart = $userCart ?? $guestCart;
-            }
-        } else {
-            $cart = Cart::query()
-                ->whereNull('user_id')
-                ->where('session_id', $sessionId)
-                ->orderByDesc('updated_at')
-                ->first();
+        if (! $customer) {
+            abort(response()->json(['message' => 'You must log in first to continue shopping.'], 401));
         }
+
+        $cart = Cart::query()
+            ->where('user_id', $customer->id)
+            ->orderByDesc('updated_at')
+            ->first();
 
         if (! $cart) {
             $cart = Cart::query()->create([
-                'user_id' => $customer?->id,
-                'session_id' => $sessionId,
+                'user_id' => $customer->id,
             ]);
         }
 

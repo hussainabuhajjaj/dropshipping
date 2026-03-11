@@ -78,23 +78,25 @@ Route::get('/collections/{collection:slug}', [\App\Http\Controllers\Storefront\C
 Route::get('/campaigns/{campaign:slug}', [\App\Http\Controllers\Storefront\CampaignController::class, 'show'])->name('campaigns.show');
 Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');
 Route::get('/search', SearchController::class)->name('search');
+Route::get('/search/popular', [SearchController::class, 'getPopularSearches'])->name('search.popular');
 
-Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
-Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
-Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
-Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
-Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
-Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
+Route::middleware('auth:customer')->group(function () {
+    Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+    Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
+    Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
+    Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
+    Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
+    Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 
-// Abandoned cart capture for guests
-Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
+    Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
 
-Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
-Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
-Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
-Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
-Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
-Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
+    Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
+    Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+    Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
+    Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
+    Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
+    Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
+});
 Route::get('/orders/track', TrackingPageController::class)->name('orders.track');
 Route::get('/promotions', [PromotionController::class, 'index'])->name('promotions.index');
 Route::get('/promotions/flash-sales', [PromotionController::class, 'flashSales'])->name('promotions.flash-sales');

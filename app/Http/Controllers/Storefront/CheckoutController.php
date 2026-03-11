@@ -46,10 +46,16 @@ class CheckoutController extends Controller
 
     public function getCartWithItems()
     {
-        $data['cart'] = Cart::query()->where('user_id', \auth('customer')->id())
-            ->orWhere('session_id', session()->id())
+        $customerId = auth('customer')->id();
+        if (! $customerId) {
+            return redirect()->route('login');
+        }
+
+        $data['cart'] = Cart::query()
+            ->where('user_id', $customerId)
             ->with('items')
             ->first();
+
         $data['cart_items'] = $data['cart']?->items;
         if (!$data['cart'] || !$data['cart_items'] || !$data['cart_items']->count()) {
             return redirect()->route('products.index');
@@ -250,7 +256,7 @@ class CheckoutController extends Controller
 
             // Create shipping address
             $shippingAddress = Address::create([
-                'user_id' => null,
+                'user_id' => $customer?->id,
                 'customer_id' => $customer?->id,
                 'name' => trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')),
                 'phone' => $validatedData['phone'],
@@ -266,11 +272,11 @@ class CheckoutController extends Controller
             // Create order
             $order = Order::query()->create([
                 'number' => Order::generateOrderNumber(),
-                'user_id' => null,
+                'user_id' => $customer?->id,
                 'customer_id' => $customer?->id,
-                'guest_name' => $isGuest ? trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')) : null,
-                'guest_phone' => $isGuest ? $validatedData['phone'] : null,
-                'is_guest' => $isGuest,
+                'guest_name' => null,
+                'guest_phone' => null,
+                'is_guest' => false,
                 'email' => $validatedData['email'],
                 'locale' => $locale,
                 'status' => 'pending',

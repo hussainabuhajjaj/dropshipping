@@ -218,12 +218,27 @@ class SearchController extends ApiController
             return null;
         }
 
+        // Enhanced token processing with better precision
         $terms = preg_split('/\s+/', $query) ?: [];
         $tokens = collect($terms)
-            ->map(fn (string $term) => trim(preg_replace('/[^\pL\pN]+/u', '', $term) ?? ''))
+            ->map(fn (string $term) => trim(preg_replace('/[^\pL\pN\-\+]/u', '', $term) ?? ''))
             ->filter(fn (string $term) => mb_strlen($term) >= 2)
             ->unique()
-            ->map(fn (string $term) => $term . '*')
+            ->map(function (string $term) {
+                // Handle exact phrases with quotes
+                if (str_starts_with($term, '"') && str_ends_with($term, '"')) {
+                    return trim($term, '"');
+                }
+                // Handle exclusion with minus
+                if (str_starts_with($term, '-')) {
+                    return '-' . trim(ltrim($term, '-')) . '*';
+                }
+                // Handle inclusion with plus
+                if (str_starts_with($term, '+')) {
+                    return '+' . trim(ltrim($term, '+')) . '*';
+                }
+                return $term . '*';
+            })
             ->values()
             ->all();
 

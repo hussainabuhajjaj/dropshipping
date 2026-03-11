@@ -52,6 +52,8 @@ class SiteSetting extends Model
         'min_cart_total',
         'min_cart_total_enabled',
         'locale_overrides',
+        'typesense_search_key',
+        'typesense_admin_key',
     ];
 
     protected $casts = [
@@ -68,6 +70,8 @@ class SiteSetting extends Model
         'about_page_html' => 'string',
         'logo_path' => 'array',
         'locale_overrides' => 'array',
+        'typesense_search_key' => 'string',
+        'typesense_admin_key' => 'string',
     ];
 
     // Accessor/mutator for CJ auto-approve delay (hours)
