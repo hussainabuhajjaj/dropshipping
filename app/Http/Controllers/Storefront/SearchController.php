@@ -26,31 +26,6 @@ class SearchController extends Controller
     public function suggest(Request $request): JsonResponse
     {
         $query = trim((string) $request->query('q', ''));
-        $startTime = microtime(true);
-        
-        // Advanced search analytics
-        if ($query && mb_strlen($query) >= 2) {
-            // Track search performance
-            $this->trackSearchAnalytics($request, $query, 'suggest');
-            
-            // Cache popular searches
-            $cacheKey = "search_suggest:" . md5($query);
-            $cached = Cache::remember($cacheKey, 300, function () use ($query) {
-                return $this->performSearchSuggestion($query);
-            });
-            
-            $executionTime = (microtime(true) - $startTime) * 1000;
-            
-            Log::info('Search suggestion completed', [
-                'query' => $query,
-                'execution_time_ms' => round($executionTime, 2),
-                'results_count' => count($cached['products']) + count($cached['categories']),
-                'cached' => false,
-            ]);
-            
-            return response()->json($cached);
-        }
-        
         if (mb_strlen($query) < 2) {
             return response()->json([
                 'query' => $query,
@@ -61,165 +36,11 @@ class SearchController extends Controller
 
         $productsLimit = max(1, min((int) $request->query('products_limit', 5), 10));
         $categoriesLimit = max(1, min((int) $request->query('categories_limit', 4), 10));
-        $isMySql = in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
-        $booleanQuery = $this->toBooleanFullTextQuery($query);
-        
-        // Check if FULLTEXT index exists and what type
-        $hasFulltextIndex = false;
-        $hasCombinedFulltext = false;
-        if ($isMySql) {
-            try {
-                $indexes = DB::select("SHOW INDEX FROM products WHERE Index_type = 'FULLTEXT'");
-                $hasFulltextIndex = count($indexes) > 0;
-                
-                // Check if we have a combined index (both columns in same index)
-                $indexColumns = [];
-                foreach ($indexes as $index) {
-                    $indexColumns[$index->Key_name][] = $index->Column_name;
-                }
-                
-                foreach ($indexColumns as $keyName => $columns) {
-                    if (count($columns) >= 2 && in_array('name', $columns) && in_array('description', $columns)) {
-                        $hasCombinedFulltext = true;
-                        break;
-                    }
-                }
-                // Require a combined FULLTEXT on (name, description) to use MATCH; otherwise fall back to LIKE to avoid 1191 errors.
-                if ($hasFulltextIndex && ! $hasCombinedFulltext) {
-                    $hasFulltextIndex = false;
-                }
-            } catch (\Exception $e) {
-                $hasFulltextIndex = false;
-            }
-        }
 
-        $productsQuery = Product::query()
-            ->where('is_active', true)
-            ->with(['images', 'category']);
+        // No caching or keyword logging; compute fresh each time
+        $results = $this->performSearchSuggestion($query, $productsLimit, $categoriesLimit);
 
-        if ($isMySql && $booleanQuery !== null && $hasFulltextIndex) {
-            // Build search relevance based on available indexes
-            $relevanceSelect = 'CASE ';
-            if ($hasNameFulltext) {
-                $relevanceSelect .= 'WHEN MATCH(products.name) AGAINST(?, BOOLEAN MODE) THEN 4 ';
-            }
-            if ($hasDescriptionFulltext) {
-                $relevanceSelect .= 'WHEN MATCH(products.description) AGAINST(?, BOOLEAN MODE) THEN 2 ';
-            }
-            $relevanceSelect .= 'ELSE 0 END';
-            
-            $productsQuery
-                ->select('products.*')
-                ->selectRaw($relevanceSelect . ' as search_relevance', 
-                    $hasNameFulltext && $hasDescriptionFulltext ? [$booleanQuery, $booleanQuery] : 
-                    ($hasNameFulltext ? [$booleanQuery] : [$booleanQuery])
-                )
-                ->selectRaw('CASE 
-                    WHEN products.name LIKE ? THEN 5
-                    WHEN MATCH(products.name) AGAINST (? IN BOOLEAN MODE) THEN 4
-                    WHEN products.name LIKE ? THEN 3
-                    WHEN MATCH(products.description) AGAINST (? IN BOOLEAN MODE) THEN 2
-                    WHEN products.description LIKE ? THEN 1
-                    ELSE 0
-                END as title_boost', [$query . '%', $booleanQuery, '%' . $query . '%', $booleanQuery, '%' . $query . '%'])
-                ->where(function (Builder $builder) use ($booleanQuery, $query, $hasNameFulltext, $hasDescriptionFulltext) {
-                    $builder
-                        // Exact name matches get highest priority
-                        ->where('name', 'like', $query . '%')
-                        ->orWhere('name', 'like', '%' . $query . '%')
-                        ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
-                            $variantBuilder
-                                ->where('sku', 'like', '%' . $query . '%')
-                                ->orWhere('title', 'like', '%' . $query . '%');
-                        });
-                    
-                    // Add FULLTEXT searches only if indexes exist
-                    if ($hasNameFulltext) {
-                        $builder->orWhereRaw('MATCH(products.name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery]);
-                    }
-                    if ($hasDescriptionFulltext) {
-                        $builder->orWhereRaw('MATCH(products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery]);
-                    }
-                })
-                ->havingRaw('(search_relevance + title_boost) > 0')
-                ->orderByRaw('(search_relevance + title_boost) desc')
-                ->latest();
-        } else {
-            $productsQuery
-                ->where(function (Builder $builder) use ($query) {
-                    $builder
-                        ->where('name', 'like', $query . '%')  // Exact prefix match
-                        ->orWhere('name', 'like', '%' . $query . '%')
-                        ->orWhere('description', 'like', '%' . $query . '%')
-                        ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
-                            $variantBuilder
-                                ->where('sku', 'like', '%' . $query . '%')
-                                ->orWhere('title', 'like', '%' . $query . '%');
-                        });
-                })
-                ->orderByRaw('CASE 
-                    WHEN name LIKE ? THEN 5
-                    WHEN name LIKE ? THEN 3
-                    WHEN description LIKE ? THEN 1
-                    ELSE 0
-                END desc', [$query . '%', '%' . $query . '%', '%' . $query . '%'])
-                ->latest();
-        }
-
-        $categoriesQuery = Category::query()->active();
-        if ($isMySql && $booleanQuery !== null && $hasFulltextIndex) {
-            $categoriesQuery
-                ->where(function (Builder $builder) use ($booleanQuery, $query) {
-                    $builder
-                        ->whereRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
-                        ->orWhere('name', 'like', '%' . $query . '%')
-                        ->orWhere('slug', 'like', '%' . $query . '%');
-                })
-                ->orderByRaw('MATCH(name) AGAINST (? IN BOOLEAN MODE) desc', [$booleanQuery]);
-        } else {
-            $categoriesQuery->where(function (Builder $builder) use ($query) {
-                $builder
-                    ->where('name', 'like', '%' . $query . '%')
-                    ->orWhere('slug', 'like', '%' . $query . '%');
-            });
-        }
-
-        $products = $productsQuery
-            ->limit($productsLimit)
-            ->get()
-            ->map(function (Product $product) {
-                $image = $product->images?->first()?->url;
-                $category = $product->category;
-
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'image' => $image,
-                    'category' => $category?->name,
-                    'href' => route('products.show', $product, false),
-                ];
-            })
-            ->values();
-
-        $categories = $categoriesQuery
-            ->limit($categoriesLimit)
-            ->get()
-            ->map(function (Category $category) {
-                return [
-                    'id' => $category->id,
-                    'name' => $category->name,
-                    'href' => $category->slug
-                        ? '/categories/' . urlencode((string) $category->slug)
-                        : '/products?category=' . urlencode((string) $category->name),
-                ];
-            })
-            ->values();
-
-        return response()->json([
-            'query' => $query,
-            'products' => $products,
-            'categories' => $categories,
-        ]);
+        return response()->json($results);
     }
 
     public function __invoke(Request $request): Response
@@ -378,22 +199,21 @@ class SearchController extends Controller
         // Track popular searches in cache
         $popularKey = 'popular_searches';
         $popular = Cache::get($popularKey, collect());
-        
-        if ($popular->has($query)) {
-            $popular[$query]++;
-        } else {
-            $popular[$query] = 1;
-        }
-        
+
+        // Work on plain array to avoid indirect modification on Collection
+        $popularArray = $popular instanceof \Illuminate\Support\Collection
+            ? $popular->toArray()
+            : (array) $popular;
+
+        $popularArray[$query] = ($popularArray[$query] ?? 0) + 1;
+
         // Keep only top 100 popular searches
-        Cache::put($popularKey, $popular->take(100)->sortDesc(), 3600);
+        $sorted = collect($popularArray)->sortDesc()->take(100);
+        Cache::put($popularKey, $sorted, 3600);
     }
     
-    private function performSearchSuggestion(string $query): array
+    private function performSearchSuggestion(string $query, int $productsLimit = 5, int $categoriesLimit = 4): array
     {
-        $productsLimit = 5;
-        $categoriesLimit = 4;
-
         if (config('typesense.enabled')) {
             try {
                 $results = app(\App\Services\Search\TypesenseSearchService::class)

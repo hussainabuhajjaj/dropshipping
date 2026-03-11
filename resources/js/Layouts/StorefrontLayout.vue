@@ -1462,7 +1462,18 @@ const clearRecentSearches = () => {
 }
 
 const fetchSearchSuggestions = async (query) => {
+    console.log('fetchSearchSuggestions called for:', query)
+    
+    // Simple failure tracking to prevent spam
+    const failureKey = `search_failure_${query}`
+    const recentFailure = localStorage.getItem(failureKey)
+    if (recentFailure && (Date.now() - parseInt(recentFailure)) < 5000) {
+        console.log('Recent failure detected, skipping request for:', query)
+        return
+    }
+    
     if (searchSuggestionsAbortController) {
+        console.log('Aborting previous request')
         searchSuggestionsAbortController.abort()
     }
 
@@ -1471,6 +1482,7 @@ const fetchSearchSuggestions = async (query) => {
     isFetchingSuggestions.value = true
 
     try {
+        console.log('Making fetch request for:', query)
         const response = await fetch(`/search/suggest?q=${encodeURIComponent(query)}&products_limit=5&categories_limit=4`, {
             headers: {
                 Accept: 'application/json',
@@ -1478,12 +1490,38 @@ const fetchSearchSuggestions = async (query) => {
             signal: controller.signal,
         })
 
+        console.log('Fetch response received:', {
+            status: response.status,
+            ok: response.ok,
+            query: query
+        })
+
         if (!response.ok) {
-            throw new Error('suggestions_request_failed')
+            if (response.status === 500) {
+                console.error('Server error during search suggestions for:', query)
+                // Mark failure time to prevent spam
+                localStorage.setItem(failureKey, Date.now().toString())
+                searchSuggestions.value = {
+                    products: [],
+                    categories: [],
+                    error: 'Server error - please try again'
+                }
+                return
+            }
+            throw new Error(`suggestions_request_failed: ${response.status}`)
         }
 
+        // Clear failure on success
+        localStorage.removeItem(failureKey)
+
         const payload = await response.json()
+        console.log('Response payload received for:', query, {
+            productsCount: payload?.products?.length || 0,
+            categoriesCount: payload?.categories?.length || 0
+        })
+        
         if (controller !== searchSuggestionsAbortController) {
+            console.log('Request aborted due to newer request, ignoring response for:', query)
             return
         }
 
@@ -1491,12 +1529,30 @@ const fetchSearchSuggestions = async (query) => {
             products: Array.isArray(payload?.products) ? payload.products : [],
             categories: Array.isArray(payload?.categories) ? payload.categories : [],
         }
+        
+        console.log('Search suggestions updated successfully:', {
+            query,
+            products: searchSuggestions.value.products.length,
+            categories: searchSuggestions.value.categories.length
+        })
     } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('Search request aborted for:', query)
+            return // Don't treat abort as error
+        }
+        
+        console.error('Search suggestions error for:', query, {
+            name: error.name,
+            message: error.message,
+            aborted: error.name === 'AbortError'
+        })
+        
         if (error?.name !== 'AbortError') {
             searchSuggestions.value = {products: [], categories: []}
         }
     } finally {
         if (controller === searchSuggestionsAbortController) {
+            console.log('Request completed for:', query)
             isFetchingSuggestions.value = false
         }
     }
@@ -1557,18 +1613,34 @@ watch(search, (value) => {
     const query = String(value || '').trim()
     selectedSuggestionIndex.value = -1
 
+    console.log('Search input changed:', {
+        value,
+        query,
+        queryLength: query.length,
+        currentSuggestions: {
+            products: searchSuggestions.value.products.length,
+            categories: searchSuggestions.value.categories.length
+        },
+        isFetching: isFetchingSuggestions.value,
+        hasTimer: !!searchSuggestionsTimer
+    })
+
     if (searchSuggestionsTimer) {
+        console.log('Clearing previous timer')
         clearTimeout(searchSuggestionsTimer)
         searchSuggestionsTimer = null
     }
 
     if (query.length < 2) {
+        console.log('Query too short, clearing suggestions')
         searchSuggestions.value = {products: [], categories: []}
         isFetchingSuggestions.value = false
         return
     }
 
+    console.log('Setting timer for fetchSearchSuggestions')
     searchSuggestionsTimer = setTimeout(() => {
+        console.log('Timer fired, fetching suggestions for:', query)
         fetchSearchSuggestions(query)
     }, 220)
 })
