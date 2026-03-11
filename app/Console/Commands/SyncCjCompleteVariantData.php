@@ -356,7 +356,11 @@ class SyncCjCompleteVariantData extends Command
             
             $oldValue = $variant->{$field};
             
-            if ($oldValue != $newValue) {
+            // Handle NULL vs empty string comparison properly
+            $oldValueNormalized = ($oldValue === '' || $oldValue === null) ? null : $oldValue;
+            $newValueNormalized = ($newValue === '' || $newValue === null) ? null : $newValue;
+            
+            if ($oldValueNormalized !== $newValueNormalized) {
                 $changes[$field] = [
                     'old' => $oldValue,
                     'new' => $newValue,
