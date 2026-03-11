@@ -67,11 +67,13 @@ class TypesenseSyncSynonyms extends Command
             ->timeout($config['connection_timeout_seconds'] ?? 2)
             ->acceptJson();
 
-        // Delete existing synonyms to avoid duplicates
-        $client->delete("/collections/{$collection}/synonyms");
-
         foreach ($synonyms as $set) {
-            $resp = $client->post("/collections/{$collection}/synonyms", $set);
+            $payload = ['synonyms' => $set['synonyms']];
+            if (isset($set['root'])) {
+                $payload['root'] = $set['root'];
+            }
+
+            $resp = $client->put("/collections/{$collection}/synonyms/{$set['id']}", $payload);
             if (! $resp->successful()) {
                 $this->error('Failed to push synonym ' . $set['id'] . ': ' . $resp->body());
                 return self::FAILURE;
