@@ -28,6 +28,9 @@ class TypesenseSyncSynonyms extends Command
         $synonyms[] = ['id' => 'sneaker', 'synonyms' => ['sneaker','sneakers','trainer','trainers','running shoes','sport shoes']];
         $synonyms[] = ['id' => 'pant', 'synonyms' => ['pant','pants','trouser','trousers']];
         $synonyms[] = ['id' => 'shoe', 'synonyms' => ['shoe','shoes','footwear']];
+        $synonyms[] = ['id' => 'mens', 'synonyms' => ["men's", 'mens', 'men', 'man']];
+        $synonyms[] = ['id' => 'womens', 'synonyms' => ["women's", 'womens', 'women', 'woman']];
+        $synonyms[] = ['id' => 'kids', 'synonyms' => ['kids', 'kid', 'child', 'children', 'boys', 'girls']];
 
         // Category-derived synonyms (name + slug variants)
         Category::query()->where('is_active', true)->chunk(500, function ($cats) use (&$synonyms) {
