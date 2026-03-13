@@ -20,6 +20,8 @@ class SetProductMargin extends Command
         {--product-id=* : Optional one or more product IDs}
         {--without-variants : Do not update variants}
         {--without-compare-at : Do not queue compare-at regeneration}
+        {--only-zero-selling : Only update products with NULL/0 selling_price}
+        {--min-cost=0 : Minimum cost_price required to update}
         {--dry-run : Preview only, do not update records}';
 
     protected $description = 'Set selling price margin for products (and variants) in chunks for large datasets.';
@@ -42,11 +44,19 @@ class SetProductMargin extends Command
         $applyVariants = ! (bool) $this->option('without-variants');
         $queueCompareAt = ! (bool) $this->option('without-compare-at');
         $dryRun = (bool) $this->option('dry-run');
+        $onlyZeroSelling = (bool) $this->option('only-zero-selling');
+        $minCost = max(0, (float) $this->option('min-cost'));
 
         $factor = 1 + ($marginPercent / 100);
         $factorSql = number_format($factor, 6, '.', '');
 
         $query = Product::query()->orderBy('id');
+
+        if ($onlyZeroSelling) {
+            $query->where(function ($q) {
+                $q->whereNull('selling_price')->orWhere('selling_price', 0);
+            });
+        }
 
         $categoryId = $this->option('category-id');
         if (is_numeric($categoryId)) {
@@ -79,6 +89,7 @@ class SetProductMargin extends Command
         $activatedProducts = 0;
         $activationSkipped = 0;
         $productUpdateSkipped = 0;
+        $skippedMissingCost = 0;
         $productUpdateErrorSamples = [];
         $activationValidator = app(ProductActivationValidator::class);
 
@@ -111,9 +122,11 @@ class SetProductMargin extends Command
 
             $productUpdateQuery = Product::query()
                 ->whereIn('id', $ids)
-                ->whereNotNull('cost_price');
+                ->whereNotNull('cost_price')
+                ->where('cost_price', '>=', $minCost);
 
             $affectedIds = $productUpdateQuery->pluck('id')->all();
+            $skippedMissingCost += (count($ids) - count($affectedIds));
             if ($affectedIds !== []) {
                 try {
                     $updatedProducts += Product::query()
@@ -146,7 +159,8 @@ class SetProductMargin extends Command
             if ($applyVariants && $affectedIds !== []) {
                 $variantTable = DB::table('product_variants')
                     ->whereIn('product_id', $affectedIds)
-                    ->whereNotNull('cost_price');
+                    ->whereNotNull('cost_price')
+                    ->where('cost_price', '>=', $minCost);
 
                 $updatedVariants += $variantTable->update([
                     'price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
@@ -203,6 +217,7 @@ class SetProductMargin extends Command
             ['Activated products', $activatedProducts],
             ['Activation skipped', $activationSkipped],
             ['Product updates skipped (constraint/errors)', $productUpdateSkipped],
+            ['Skipped missing/low cost', $skippedMissingCost],
         ]);
 
         if ($productUpdateErrorSamples !== []) {
