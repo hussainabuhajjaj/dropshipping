@@ -145,6 +145,9 @@ class CjProductImportService
         // NOTE: Selling price NOT extracted from CJ API - using margin-based pricing only
         $priceValue = null; // No CJ API selling price
         $rawCost = $productData['productCost'] ?? 0; // Only extract cost price
+        if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && isset($productData['productSellPrice']) && is_numeric($productData['productSellPrice'])) {
+            $rawCost = (float) $productData['productSellPrice'];
+        }
 
         $incomingDescription = $this->cleanDescription(
             $productData['descriptionEn']
@@ -185,6 +188,9 @@ class CjProductImportService
 
         // NOTE: ONLY extract cost price from CJ API - everything else from margin pricing
         $rawCost = $productData['productCost'] ?? 0; // Only cost price from CJ API
+        if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && isset($productData['productSellPrice']) && is_numeric($productData['productSellPrice'])) {
+            $rawCost = (float) $productData['productSellPrice'];
+        }
 
         // Validate cost price
         if (!is_numeric($rawCost) || $rawCost < 0) {
@@ -249,11 +255,11 @@ class CjProductImportService
             $payload['is_active'] = false;
             $payload['is_featured'] = false;
             $payload['cj_sync_enabled'] = $defaultSyncEnabled;
-            
+
             // Set import tracking for new products
             $payload['cj_imported_at'] = now();
             $payload['cj_import_batch_id'] = $options['import_batch_id'] ?? null;
-            
+
             $product = Product::create($payload);
         } else {
             // Only set import tracking if it's not already set (first time import)
@@ -261,10 +267,10 @@ class CjProductImportService
                 $payload['cj_imported_at'] = now();
                 $payload['cj_import_batch_id'] = $options['import_batch_id'] ?? null;
             }
-            
+
             // Preserve original created_at timestamp for existing products
             unset($payload['created_at']);
-            
+
             $product->fill($payload);
             if (!$product->slug) {
                 $product->slug = $slug;
@@ -710,6 +716,7 @@ class CjProductImportService
             }
 
             $price = $productData['productSellPrice'] ?? null;
+            dd($price);
             $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float)$price : null);
 
             $incomingDescription = $this->cleanDescription(
@@ -1023,7 +1030,10 @@ class CjProductImportService
 
                     // NOTE: ONLY extract cost price from CJ API - everything else from margin pricing
                     $rawCost = $variant['variantCost'] ?? $product->cost_price ?? 0; // Only cost price from CJ API
-                    
+                    if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && isset($variant['variantSellPrice']) && is_numeric($variant['variantSellPrice'])) {
+                        $rawCost = (float) $variant['variantSellPrice'];
+                    }
+
                     // Validate cost price
                     if (!is_numeric($rawCost) || $rawCost < 0) {
                         Log::warning('Invalid variant cost price detected, using product cost', [
@@ -1034,8 +1044,15 @@ class CjProductImportService
                         $rawCost = $product->cost_price ?? 0;
                     }
 
-                    // NOTE: No selling price - will be set by margin pricing commands
+                    // Derive sell price from CJ data when available; fallback to cost
                     $sellPrice = null;
+                    if (isset($variant['variantSellPrice']) && is_numeric($variant['variantSellPrice'])) {
+                        $sellPrice = (float) $variant['variantSellPrice'];
+                    } elseif (isset($variant['variantSugSellPrice']) && is_numeric($variant['variantSugSellPrice'])) {
+                        $sellPrice = (float) $variant['variantSugSellPrice'];
+                    } elseif (is_numeric($rawCost) && (float) $rawCost > 0) {
+                        $sellPrice = (float) $rawCost;
+                    }
 
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
@@ -1979,7 +1996,7 @@ class CjProductImportService
     {
         try {
             $variant = ProductVariant::where('cj_vid', $vid)->first();
-            
+
             if (!$variant) {
                 Log::warning('Variant not found for stock update', ['vid' => $vid]);
                 return false;
@@ -2055,12 +2072,12 @@ class CjProductImportService
 
         // Get configurable stock percentage (default 75% instead of 50%)
         $percentage = (float) config('services.cj.stock_percentage', 75.0);
-        
+
         // Ensure percentage is between 10% and 100%
         $percentage = max(10.0, min(100.0, $percentage));
-        
+
         $stockOnHand = (int) ($totalStock * ($percentage / 100.0));
-        
+
         Log::debug('Stock calculation', [
             'total_stock' => $totalStock,
             'percentage' => $percentage,
@@ -2154,15 +2171,15 @@ class CjProductImportService
     {
         $pricing = PricingService::makeFromConfig();
         $currency = $product->currency ?? 'USD';
-        
+
         // Initialize with safe defaults
         $sellingPrice = $priceValue ?? $product->selling_price ?? 0;
-        
+
         // Validate basic numeric constraints
         if (!is_numeric($sellingPrice) || $sellingPrice < 0) {
             $minSell = $pricing->minSellingPrice($rawCost, $currency);
             $sellingPrice = $minSell;
-            
+
             Log::warning('Invalid product price, using minimum', [
                 'cj_pid' => $pid,
                 'raw_cost' => $rawCost,
@@ -2174,7 +2191,7 @@ class CjProductImportService
         // CRITICAL FIX: Enhanced corruption detection with multiple validation layers
         $maxAllowedMarkup = (float) config('services.cj.max_markup_multiplier', 15.0);
         $corruptionThreshold = $rawCost * $maxAllowedMarkup;
-        
+
         if ($sellingPrice > $corruptionThreshold) {
             Log::error('CRITICAL: Extreme product price corruption detected', [
                 'cj_pid' => $pid,
@@ -2183,7 +2200,7 @@ class CjProductImportService
                 'corruption_threshold' => $corruptionThreshold,
                 'markup_multiplier' => $sellingPrice / max($rawCost, 0.01)
             ]);
-            
+
             // Force minimum price for corruption
             $minSell = $pricing->minSellingPrice($rawCost, $currency);
             return $minSell;
@@ -2192,7 +2209,7 @@ class CjProductImportService
         // Additional sanity check for reasonable price ranges
         $reasonableMarkup = (float) config('services.cj.reasonable_markup_multiplier', 10.0);
         $maxReasonablePrice = $rawCost * $reasonableMarkup;
-        
+
         if ($sellingPrice > $maxReasonablePrice) {
             Log::warning('Unreasonable product price detected, applying maximum reasonable price', [
                 'cj_pid' => $pid,
@@ -2225,15 +2242,15 @@ class CjProductImportService
     private function validateAndCalculateVariantPrice(mixed $rawSell, float $rawCost, Product $product, string $pid, string $vid): float
     {
         $pricing = PricingService::makeFromConfig();
-        
+
         // Initialize with safe defaults
         $sellPrice = is_numeric($rawSell) ? (float) $rawSell : ($product->selling_price ?? 0);
-        
+
         // Validate basic numeric constraints
         if (!is_numeric($sellPrice) || $sellPrice < 0) {
             $minSell = $pricing->minSellingPrice($rawCost, $product->currency ?? 'USD');
             $sellPrice = $minSell;
-            
+
             Log::warning('Invalid variant price, using minimum', [
                 'cj_pid' => $pid,
                 'cj_vid' => $vid,
@@ -2245,7 +2262,7 @@ class CjProductImportService
         // CRITICAL FIX: Enhanced corruption detection with multiple validation layers
         $maxAllowedMarkup = (float) config('services.cj.max_markup_multiplier', 15.0);
         $corruptionThreshold = $rawCost * $maxAllowedMarkup;
-        
+
         if ($sellPrice > $corruptionThreshold) {
             Log::error('CRITICAL: Extreme price corruption detected', [
                 'cj_pid' => $pid,
@@ -2255,7 +2272,7 @@ class CjProductImportService
                 'corruption_threshold' => $corruptionThreshold,
                 'markup_multiplier' => $sellPrice / max($rawCost, 0.01)
             ]);
-            
+
             // Force minimum price for corruption
             $minSell = $pricing->minSellingPrice($rawCost, $product->currency ?? 'USD');
             return $minSell;
@@ -2264,7 +2281,7 @@ class CjProductImportService
         // Additional sanity check for reasonable price ranges
         $reasonableMarkup = (float) config('services.cj.reasonable_markup_multiplier', 10.0);
         $maxReasonablePrice = $rawCost * $reasonableMarkup;
-        
+
         if ($sellPrice > $maxReasonablePrice) {
             Log::warning('Unreasonable variant price detected, applying maximum reasonable price', [
                 'cj_pid' => $pid,
@@ -2312,11 +2329,11 @@ class CjProductImportService
         // PRIORITY 1: New inventories structure with CN warehouse validation
         if (isset($variant['inventories']) && is_array($variant['inventories'])) {
             $stockDebugInfo['inventories_count'] = count($variant['inventories']);
-            
+
             // First try: Find exact warehouse match
             foreach ($variant['inventories'] as $index => $inventory) {
                 if (!is_array($inventory)) continue;
-                
+
                 $countryCode = $inventory['countryCode'] ?? null;
                 if ($countryCode === $defaultWarehouse) {
                     $cjStock = (int) ($inventory['totalInventory'] ?? $inventory['cjInventory'] ?? $inventory['factoryInventory'] ?? 0);
@@ -2333,12 +2350,12 @@ class CjProductImportService
                     break;
                 }
             }
-            
+
             // Fallback: Use any available warehouse if no CN match found
             if ($cjStock === 0 && !empty($variant['inventories'])) {
                 foreach ($variant['inventories'] as $index => $inventory) {
                     if (!is_array($inventory)) continue;
-                    
+
                     $stockValue = $inventory['totalInventory'] ?? $inventory['cjInventory'] ?? $inventory['factoryInventory'] ?? 0;
                     if ((int) $stockValue > 0) {
                         $cjStock = (int) $stockValue;
@@ -2370,9 +2387,9 @@ class CjProductImportService
                 'availableStock' => 2,
                 'quantity' => 1  // lowest priority
             ];
-            
+
             $stockDebugInfo['legacy_fields_checked'] = [];
-            
+
             foreach ($legacyFields as $field => $priority) {
                 if (isset($variant[$field])) {
                     $value = $variant[$field];
@@ -2382,7 +2399,7 @@ class CjProductImportService
                         'value' => $value,
                         'is_numeric' => is_numeric($value)
                     ];
-                    
+
                     if (is_numeric($value) && (int) $value > 0) {
                         $cjStock = (int) $value;
                         $stockDataSource = "legacy_field_{$field}_priority_{$priority}";
@@ -2406,7 +2423,7 @@ class CjProductImportService
 
         // Final validation and logging
         $stockOnHand = $this->calculateStockOnHand($cjStock);
-        
+
         if ($cjStock === 0) {
             Log::warning('Zero stock extracted - full investigation', $stockDebugInfo);
         } else {
@@ -2429,16 +2446,16 @@ class CjProductImportService
      * CRITICAL FIX: Atomic variant creation with enhanced validation
      */
     private function createVariantWithValidation(
-        Product $product, 
-        string $vid, 
-        ?string $sku, 
-        string $title, 
-        float $sellPrice, 
-        float $rawCost, 
-        array $options, 
-        array $variant, 
-        int $variantStock, 
-        int $variantStockOnHand, 
+        Product $product,
+        string $vid,
+        ?string $sku,
+        string $title,
+        float $sellPrice,
+        float $rawCost,
+        array $options,
+        array $variant,
+        int $variantStock,
+        int $variantStockOnHand,
         string $pid
     ): void {
         // CRITICAL FIX: Validate SKU uniqueness within product scope
@@ -2447,7 +2464,7 @@ class CjProductImportService
                 ->where('sku', $sku)
                 ->where('cj_vid', '!=', $vid) // Exclude current variant if updating
                 ->first();
-                
+
             if ($existingSku) {
                 Log::error('SKU conflict detected - CJ API SKU already exists in product', [
                     'cj_pid' => $pid,
@@ -2457,7 +2474,7 @@ class CjProductImportService
                     'product_id' => $product->id,
                     'action' => 'SKIPPING - CJ API SKU conflict must be resolved at source'
                 ]);
-                
+
                 // DO NOT generate local SKU - skip this variant or use null
                 $sku = null; // Force null to avoid local generation
             }
@@ -2470,12 +2487,17 @@ class CjProductImportService
         $variantWeight = $this->parsePositiveInt($variant['variantWeight'] ?? null);
 
         // Prepare variant data with validation
+        $price = $sellPrice;
+        if (!is_numeric($price) || $price <= 0) {
+            $price = $rawCost > 0 ? $rawCost : 0.01;
+        }
+
         $variantData = [
             'product_id' => $product->id,
             'cj_vid' => $vid ?: null,
             'sku' => $sku, // ONLY use CJ API SKU - no local generation
             'title' => $title,
-            'price' => null, // Will be set by margin pricing commands
+            'price' => $price,
             'cost_price' => $rawCost, // From CJ API
             'currency' => $product->currency ?? 'USD',
             'variant_image' => $variant['variantImage'] ?? null,

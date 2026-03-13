@@ -43,6 +43,8 @@ class ProductVariantsRelationManager extends RelationManager
     {
         return $table
             ->columns([
+                Tables\Columns\ImageColumn::make('variant_image'),
+
                 Tables\Columns\TextColumn::make('sku')->label('SKU')->searchable()->copyable(),
                 Tables\Columns\TextColumn::make('cj_vid')
                     ->label('CJ VID')

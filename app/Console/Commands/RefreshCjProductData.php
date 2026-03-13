@@ -159,11 +159,13 @@ class RefreshCjProductData extends Command
     private function fixProductPrices(Product $product): void
     {
         // Fix product price if corrupted
-        if ($product->selling_price > ($product->cost_price * 10)) {
+        $cost = (float) ($product->cost_price ?? 0);
+
+        if ($product->selling_price > ($cost * 10)) {
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-            $minPrice = $pricing->minSellingPrice($product->cost_price, $product->currency ?? 'USD');
-            $reasonablePrice = $product->cost_price * 10;
-            $newPrice = min($reasonablePrice, max($minPrice, $product->cost_price * 1.5));
+            $minPrice = $pricing->minSellingPrice($cost, $product->currency ?? 'USD');
+            $reasonablePrice = $cost * 10;
+            $newPrice = min($reasonablePrice, max($minPrice, $cost * 1.5));
 
             $product->update(['selling_price' => $newPrice]);
             
@@ -176,10 +178,11 @@ class RefreshCjProductData extends Command
 
         // Fix variant prices
         $product->variants()->whereRaw('price > cost_price * 10')->each(function ($variant) {
+            $cost = (float) ($variant->cost_price ?? 0);
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-            $minPrice = $pricing->minSellingPrice($variant->cost_price, $variant->currency ?? 'USD');
-            $reasonablePrice = $variant->cost_price * 10;
-            $newPrice = min($reasonablePrice, max($minPrice, $variant->cost_price * 1.5));
+            $minPrice = $pricing->minSellingPrice($cost, $variant->currency ?? 'USD');
+            $reasonablePrice = $cost * 10;
+            $newPrice = min($reasonablePrice, max($minPrice, $cost * 1.5));
 
             $variant->update(['price' => $newPrice]);
             
