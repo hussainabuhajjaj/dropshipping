@@ -101,6 +101,8 @@ class SetProductMargin extends Command
             $applyVariants,
             $queueCompareAt,
             $factorSql,
+            $minCost,
+            &$skippedMissingCost,
             &$processed,
             &$updatedProducts,
             &$updatedVariants,
