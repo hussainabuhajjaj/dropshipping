@@ -182,7 +182,19 @@ class SyncCjVariantsJobImproved implements ShouldQueue
                 $variant->cj_stock = (int) ($variantData['stock'] ?? 0);
                 $variant->stock_on_hand = $variant->cj_stock;
                 $variant->cj_stock_synced_at = now();
-                $variant->price = $this->resolveVariantPrice($variantData, $variant, $product);
+
+                // Refresh COST from CJ sell price (preferred) or suggested sell price; do NOT override price for existing variants
+                $cjCost = $this->resolveVariantCost($variantData, $variant);
+                if ($cjCost !== null) {
+                    $variant->cost_price = $cjCost;
+                }
+
+                // Only set price for new variants or when price is missing to avoid overwriting merchant pricing
+                if (!$variant->exists || $variant->price === null || $variant->price <= 0) {
+                    $computedPrice = $this->resolveVariantPrice($variantData, $variant, $product, $cjCost);
+                    $variant->price = $computedPrice;
+                }
+
                 $variant->title = $this->resolveVariantTitle($variantData, $variant, $vid);
                 
                 if ($variant->exists) {
@@ -421,16 +433,30 @@ class SyncCjVariantsJobImproved implements ShouldQueue
         return 'Variant';
     }
 
-    private function resolveVariantPrice(array $variantData, ProductVariant $variant, Product $product): float
+    private function resolveVariantCost(array $variantData, ProductVariant $variant): ?float
+    {
+        $candidate = $variantData['variantSellPrice']
+            ?? $variantData['variantSugSellPrice']
+            ?? $variantData['variantPrice']
+            ?? $variant->cost_price;
+
+        if (!is_numeric($candidate) || (float) $candidate <= 0) {
+            return null;
+        }
+
+        return (float) $candidate;
+    }
+
+    private function resolveVariantPrice(array $variantData, ProductVariant $variant, Product $product, ?float $cjCost = null): float
     {
         // Try variant-specific prices first
         $candidate = $variantData['variantSellPrice']
             ?? $variantData['variantSugSellPrice']
             ?? $variantData['variantPrice'];
-        
+
         // If variant price is not available, calculate from variant cost
         if (!is_numeric($candidate)) {
-            $variantCost = $variantData['variantSellPrice'] ?? $variant->cost_price ?? 0;
+            $variantCost = $cjCost ?? ($variantData['variantSellPrice'] ?? $variant->cost_price ?? 0);
             if (is_numeric($variantCost) && $variantCost > 0) {
                 // Calculate variant price based on its own cost, not the potentially corrupted product price
                 $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
