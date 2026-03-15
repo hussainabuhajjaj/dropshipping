@@ -137,6 +137,11 @@ class CjProductImportService
             }
         }
 
+        // Ensure variants carry inventory information (adds inventories[] via stock API when missing)
+        if (is_array($variants) && $variants !== []) {
+            $variants = $this->attachInventoriesToVariants($variants);
+        }
+
         $category = $this->resolveCategoryFromPayload($productData);
 
         $rawName = $productData['productNameEn'] ?? $productData['productName'] ?? ($productData['name'] ?? null);
@@ -1190,6 +1195,11 @@ class CjProductImportService
                 $data['productSellPrice'] = $price;
             }
 
+            // Map product cost from sellPrice when explicit cost is missing
+            if (!isset($data['productCost']) && $price !== null && is_numeric($price)) {
+                $data['productCost'] = (float) $price;
+            }
+
             if (!isset($data['currency'])) {
                 $data['currency'] = 'USD';
             }
@@ -1197,6 +1207,14 @@ class CjProductImportService
             // Map primary image
             if (isset($data['bigImage']) && !isset($data['productImage'])) {
                 $data['productImage'] = $data['bigImage'];
+            }
+        }
+
+        // Generic mapping: if productCost missing but sellPrice/productSellPrice present, set productCost
+        if (!isset($data['productCost'])) {
+            $possibleCost = $data['productSellPrice'] ?? $data['sellPrice'] ?? null;
+            if (is_numeric($possibleCost)) {
+                $data['productCost'] = (float) $possibleCost;
             }
         }
 
@@ -2556,5 +2574,61 @@ class CjProductImportService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Attach inventory payloads to variants by calling the stock-by-vid endpoint
+     * when inventories are missing. Follows CJ doc shape.
+     *
+     * @param array<int,array<string,mixed>> $variants
+     * @return array<int,array<string,mixed>>
+     */
+    private function attachInventoriesToVariants(array $variants): array
+    {
+        return collect($variants)
+            ->map(function ($variant) {
+                if (!is_array($variant)) {
+                    return $variant;
+                }
+
+                $hasInventories = isset($variant['inventories']) && is_array($variant['inventories']) && $variant['inventories'] !== [];
+                $vid = (string)($variant['vid'] ?? '');
+
+                if ($hasInventories || $vid === '') {
+                    return $variant;
+                }
+
+                try {
+                    $stockResp = $this->client->getStockByVid($vid);
+                    $stockData = $stockResp->data ?? null;
+
+                    if (is_array($stockData) && $stockData !== []) {
+                        $inventories = [];
+                        foreach ($stockData as $warehouse) {
+                            if (!is_array($warehouse)) {
+                                continue;
+                            }
+                            $inventories[] = [
+                                'countryCode' => $warehouse['countryCode'] ?? null,
+                                'totalInventory' => $warehouse['totalInventoryNum'] ?? $warehouse['storageNum'] ?? 0,
+                                'cjInventory' => $warehouse['cjInventoryNum'] ?? $warehouse['inventory'] ?? 0,
+                                'factoryInventory' => $warehouse['factoryInventoryNum'] ?? $warehouse['factoryInventory'] ?? 0,
+                                'verifiedWarehouse' => $warehouse['verifiedWarehouse'] ?? null,
+                                'stock' => $warehouse['stock'] ?? [],
+                            ];
+                        }
+
+                        if ($inventories !== []) {
+                            $variant['inventories'] = $inventories;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to hydrate inventories for variant', ['vid' => $vid, 'error' => $e->getMessage()]);
+                }
+
+                return $variant;
+            })
+            ->values()
+            ->all();
     }
 }

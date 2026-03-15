@@ -39,6 +39,7 @@ class Kernel extends ConsoleKernel
         SyncCjVariants::class,
         \App\Console\Commands\CjFixProductDetails::class,
         CjBatchSyncVariantsCommand::class,
+        \App\Console\Commands\ReimportProductsAndVariants::class,
         \App\Console\Commands\FixCorruptedMargins::class,
         \App\Console\Commands\MonitorPriceCorruption::class,
         \App\Console\Commands\CreateAffiliateCommand::class,
