@@ -56,6 +56,7 @@ class CategoryDetailResource extends JsonResource
             'heroCtaLink' => data_get($this->resource, 'hero_cta_link'),
             'metaTitle' => $metaTitle,
             'metaDescription' => $metaDescription,
+            'isFeatured' => (bool) data_get($this->resource, 'is_featured', false),
         ];
     }
 }

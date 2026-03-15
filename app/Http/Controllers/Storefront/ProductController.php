@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\OrderItem;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Models\Promotion;
@@ -17,6 +18,7 @@ use App\Services\ProductRecommendationService;
 use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -59,16 +61,28 @@ class ProductController extends Controller
         $filterContext = [];
 
         if ($category) {
-            $productQuery->whereHas('category', function ($builder) use ($category, $locale) {
-                $builder
-                    ->where('name', $category)
-                    ->orWhere('slug', $category)
-                    ->orWhereHas('translations', function ($translations) use ($category, $locale) {
-                        $translations
-                            ->where('locale', $locale)
-                            ->where('name', $category);
-                    });
-            });
+            $matchedCategory = $this->findCategoryByIdentifier($category, $locale);
+            if ($matchedCategory) {
+                $categoryIds = $this->collectDescendantCategoryIds($matchedCategory);
+                $productQuery->whereIn('category_id', $categoryIds);
+                $filterContext['category'] = [
+                    'id' => $matchedCategory->id,
+                    'name' => $matchedCategory->translatedValue('name', $locale),
+                    'slug' => $matchedCategory->slug,
+                ];
+            } else {
+                // Fallback to maintain behavior if category not found
+                $productQuery->whereHas('category', function ($builder) use ($category, $locale) {
+                    $builder
+                        ->where('name', $category)
+                        ->orWhere('slug', $category)
+                        ->orWhereHas('translations', function ($translations) use ($category, $locale) {
+                            $translations
+                                ->where('locale', $locale)
+                                ->where('name', $category);
+                        });
+                });
+            }
         }
 
         if ($minPrice !== null && is_numeric($minPrice)) {
@@ -180,6 +194,44 @@ class ProductController extends Controller
                 'page' => $products->currentPage(),
             ],
         ]);
+    }
+
+    /**
+     * Resolve a category by slug, name, or translated name.
+     */
+    private function findCategoryByIdentifier(string $identifier, string $locale): ?Category
+    {
+        return Category::query()
+            ->where('slug', $identifier)
+            ->orWhere('name', $identifier)
+            ->orWhereHas('translations', function ($translations) use ($identifier, $locale) {
+                $translations
+                    ->where('locale', $locale)
+                    ->where('name', $identifier);
+            })
+            ->first();
+    }
+
+    /**
+     * Collect the selected category id plus all descendant ids.
+     *
+     * @return \Illuminate\Support\Collection<int,int>
+     */
+    private function collectDescendantCategoryIds(Category $root): Collection
+    {
+        $ids = collect([$root->id]);
+        $queue = collect([$root->id]);
+
+        while ($queue->isNotEmpty()) {
+            $children = Category::query()
+                ->whereIn('parent_id', $queue->all())
+                ->pluck('id');
+
+            $queue = $children;
+            $ids = $ids->merge($children);
+        }
+
+        return $ids->unique()->values();
     }
 
     public function show(Product $product): Response

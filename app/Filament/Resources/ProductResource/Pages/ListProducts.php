@@ -304,8 +304,7 @@ class ListProducts extends ListRecords
 
                         $query = Product::query()
                             ->select('id')
-                            ->whereNotNull('cost_price')
-                            ->where('cost_price', '>', 0);
+                            ->where('is_active', true);
 
                         if ($scope === 'unpriced') {
                             $query->where(function ($q): void {

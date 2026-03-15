@@ -17,6 +17,8 @@ use App\Services\Promotions\PromotionHomepageService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -36,6 +38,7 @@ class HomeController extends Controller
         $bestValue = $sections['bestValue'] ?? collect();
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
+        $featuredCategories = $this->featuredCategoriesForHome($locale);
 
         $homeContent = HomePageSetting::latestForLocale($locale);
         $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
@@ -57,6 +60,7 @@ class HomeController extends Controller
             'flashDeals' => $flashDealsPayload['items'],
             'flashDealsViewAllHref' => $flashDealsPayload['viewAllHref'],
             'categories' => $categoryList,
+            'featuredCategories' => $featuredCategories,
             'categoryHighlights' => $categoryHighlights,
             'featuredCategorySections' => $featuredCategorySections,
             'currency' => 'USD',
@@ -155,6 +159,63 @@ class HomeController extends Controller
             ->map(fn (StorefrontBanner $banner) => $this->transformBanner($banner))
             ->values()
             ->all();
+    }
+
+    /**
+     * Featured categories list for homepage rails.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function featuredCategoriesForHome(string $locale): array
+    {
+        $flagColumn = Schema::hasColumn('categories', 'is_featured')
+            ? 'is_featured'
+            : (Schema::hasColumn('categories', 'is_feature') ? 'is_feature' : null);
+
+        if (! $flagColumn) {
+            return [];
+        }
+
+        $idSignature = Category::query()
+            ->where($flagColumn, true)
+            ->orderBy('id')
+            ->pluck('id')
+            ->implode(',');
+
+        $cacheKey = 'home:featured-categories:' . $locale . ':' . md5($idSignature);
+
+        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($locale) {
+            $flagColumn = Schema::hasColumn('categories', 'is_featured')
+                ? 'is_featured'
+                : (Schema::hasColumn('categories', 'is_feature') ? 'is_feature' : null);
+
+            $query = Category::query()
+                ->where('is_active', true)
+                ->where($flagColumn, true)
+                ->select(['id', 'name', 'slug', 'hero_image', 'parent_id', 'created_at', $flagColumn . ' as is_featured'])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+
+            if (Schema::hasColumn('categories', 'featured_order')) {
+                $query->orderByRaw('featured_order is null')->orderBy('featured_order');
+            }
+
+            $query->orderBy('created_at')->orderBy('name');
+
+            return $query->get()->map(function (Category $category) use ($locale) {
+                $name = method_exists($category, 'translatedValue')
+                    ? $category->translatedValue('name', $locale)
+                    : $category->name;
+
+                return [
+                    'id' => $category->id,
+                    'name' => $name,
+                    'slug' => $category->slug,
+                    'image' => $category->hero_image,
+                    'parent_id' => $category->parent_id,
+                    'is_featured' => (bool) $category->is_featured,
+                ];
+            })->values()->all();
+        });
     }
 
     /**

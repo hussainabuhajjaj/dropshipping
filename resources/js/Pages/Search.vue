@@ -20,28 +20,51 @@
         :currency="currency"
       />
     </div>
-    <div class="flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-      <div class="flex items-center gap-2">
+    <div class="pager-bar">
+      <div class="pager-meta">
+        <p class="pager-strong">
+          {{ t('Showing :from–:to of :total', {
+            from: resultsPager.from ?? 1,
+            to: resultsPager.to ?? results.length,
+            total: resultsPager.total ?? results.length,
+          }) }}
+        </p>
+        <p class="pager-muted">
+          {{ t('Page :page of :pages', { page: resultsPager.current_page ?? 1, pages: resultsPager.last_page ?? 1 }) }}
+        </p>
+      </div>
+      <div class="pager-actions">
         <button
           type="button"
-          class="btn-ghost px-3 py-2 text-xs"
+          class="pager-button"
           :disabled="resultsPager.current_page <= 1"
           @click="goToPage((resultsPager.current_page ?? 1) - 1)"
         >
-          {{ t('Previous slide') }}
+          ‹ {{ t('Prev') }}
         </button>
+
+        <div class="pager-pill">
+          <label class="sr-only" :for="`search-page-select`">{{ t('Go to page') }}</label>
+          <select
+            :id="`search-page-select`"
+            :value="resultsPager.current_page ?? 1"
+            @change="goToPage(Number($event.target.value))"
+          >
+            <option v-for="pageNumber in resultsPager.last_page ?? 1" :key="`page-${pageNumber}`" :value="pageNumber">
+              {{ t('Page :page', { page: pageNumber }) }}
+            </option>
+          </select>
+        </div>
+
         <button
           type="button"
-          class="btn-ghost px-3 py-2 text-xs"
+          class="pager-button"
           :disabled="! hasMore"
           @click="goToPage((resultsPager.current_page ?? 1) + 1)"
         >
-          {{ t('Next slide') }}
+          {{ t('Next') }} ›
         </button>
       </div>
-      <span>
-        {{ t('Page') }} {{ resultsPager.current_page ?? 1 }} / {{ resultsPager.last_page ?? 1 }}
-      </span>
     </div>
   </div>
       <EmptyState

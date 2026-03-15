@@ -19,7 +19,6 @@
                 :banner="banners.hero[0]"
             />
 
-            <!-- Database Banners - Carousel (highlight promotions) -->
             <BannerCarousel
                 v-if="banners?.carousel?.length"
                 :banners="banners.carousel"
@@ -90,32 +89,47 @@
                     </div>
                 </div>
 
-                <div v-if="railCards.length" class="hero-rails">
-                    <div
-                        v-for="(card, index) in railCards"
-                        :key="card.title"
-                        class="rail-card"
-                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"
-                    >
-                        <p class="rail-kicker">{{ card.kicker }}</p>
-                        <h3>{{ card.title }}</h3>
-                        <p>{{ card.subtitle }}</p>
-                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>
-                    </div>
-                </div>
+<!--                <div v-if="railCards.length" class="hero-rails">-->
+<!--                    <div-->
+<!--                        v-for="(card, index) in railCards"-->
+<!--                        :key="card.title"-->
+<!--                        class="rail-card"-->
+<!--                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"-->
+<!--                    >-->
+<!--                        <p class="rail-kicker">{{ card.kicker }}</p>-->
+<!--                        <h3>{{ card.title }}</h3>-->
+<!--                        <p>{{ card.subtitle }}</p>-->
+<!--                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>-->
+<!--                    </div>-->
+<!--                </div>-->
             </section>
 
-            <section class="section-block">
+<!--            <section class="section-block">-->
+<!--                <div class="section-head">-->
+<!--                    <div>-->
+<!--                        <p class="section-kicker">{{ t('Trust & delivery') }}</p>-->
+<!--                        <h2 class="section-title">{{ t('Confidence at every step') }}</h2>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--                <div class="grid gap-6 lg:grid-cols-[1.1fr,1fr]">-->
+<!--                    <TrustBadges />-->
+<!--                    <DeliveryTimeline />-->
+<!--                </div>-->
+<!--            </section>-->
+
+            <section v-if="featuredCategories.length" class="section-block category-stack">
                 <div class="section-head">
                     <div>
-                        <p class="section-kicker">{{ t('Trust & delivery') }}</p>
-                        <h2 class="section-title">{{ t('Confidence at every step') }}</h2>
+                        <h2 class="section-title">{{ t('Curated picks across the store') }}</h2>
                     </div>
                 </div>
-                <div class="grid gap-6 lg:grid-cols-[1.1fr,1fr]">
-                    <TrustBadges />
-                    <DeliveryTimeline />
-                </div>
+                <CategoryProductRail
+                    v-for="category in featuredCategories"
+                    :key="`category-rail-${category.slug || category.id || category.name}`"
+                    :category="category"
+                    :currency="currency"
+                    :promotions="homepagePromotions"
+                />
             </section>
 
             <section v-if="seasonalDrops.length" class="section-block">
@@ -192,6 +206,7 @@
                             :product="product"
                             :currency="currency"
                             :promotions="homepagePromotions"
+                            dense
                             class="featured-category-product"
                         />
                     </div>
@@ -214,7 +229,7 @@
               {{ t('Ends in :time', { time: dealCountdown(deal) }) }}
             </span>
                         </div>
-                        <ProductCard :product="deal" :currency="currency" :promotions="homepagePromotions" />
+                        <ProductCard :product="deal" :currency="currency" :promotions="homepagePromotions" dense />
                     </div>
                 </div>
             </section>
@@ -228,14 +243,15 @@
                     <Link href="/products" class="section-link">{{ t('Browse all') }}</Link>
                 </div>
                 <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <ProductCard
-                        v-for="product in bestSellers"
-                        :key="product.id"
-                        :product="product"
-                        :currency="currency"
-                        :promotions="homepagePromotions"
-                        class="reveal"
-                    />
+                        <ProductCard
+                            v-for="product in bestSellers"
+                            :key="product.id"
+                            :product="product"
+                            :currency="currency"
+                            :promotions="homepagePromotions"
+                            dense
+                            class="reveal"
+                        />
                 </div>
             </section>
 
@@ -251,14 +267,15 @@
                     <Link href="/products" class="section-link">{{ t('See more') }}</Link>
                 </div>
                 <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <ProductCard
-                        v-for="product in recommended"
-                        :key="product.id"
-                        :product="product"
-                        :currency="currency"
-                        :promotions="homepagePromotions"
-                        class="reveal"
-                    />
+                        <ProductCard
+                            v-for="product in recommended"
+                            :key="product.id"
+                            :product="product"
+                            :currency="currency"
+                            :promotions="homepagePromotions"
+                            dense
+                            class="reveal"
+                        />
                 </div>
             </section>
 
@@ -271,14 +288,15 @@
                     <Link href="/products?sort=rating" class="section-link">{{ t('View all') }}</Link>
                 </div>
                 <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <ProductCard
-                        v-for="product in bestValue"
-                        :key="product.id"
-                        :product="product"
-                        :currency="currency"
-                        :promotions="homepagePromotions"
-                        class="reveal"
-                    />
+                        <ProductCard
+                            v-for="product in bestValue"
+                            :key="product.id"
+                            :product="product"
+                            :currency="currency"
+                            :promotions="homepagePromotions"
+                            dense
+                            class="reveal"
+                        />
                 </div>
             </section>
 
@@ -342,6 +360,7 @@ import BannerCarousel from '@/Components/BannerCarousel.vue'
 import BannerStrip from '@/Components/BannerStrip.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
+import CategoryProductRail from '@/Components/CategoryProductRail.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
@@ -368,6 +387,8 @@ const props = defineProps({
     flashDealsViewAllHref: { type: String, default: '/promotions/flash-sales' },
     categoryHighlights: { type: Array, default: () => [] },
     featuredCategorySections: { type: Array, default: () => [] },
+    categories: { type: Array, default: () => [] },
+    featuredCategories: { type: Array, default: () => [] },
     currency: { type: String, default: 'USD' },
     homeContent: { type: Object, default: null },
     banners: { type: Object, default: () => ({}) },
@@ -595,6 +616,23 @@ const railCards = computed(() => {
     return []
 })
 
+const featuredCategories = computed(() => {
+    const explicit = Array.isArray(props.featuredCategories) ? props.featuredCategories : []
+    const fallback = Array.isArray(props.categories) ? props.categories : []
+    const source = explicit.length ? explicit : fallback
+
+    return source
+        .filter((category) => {
+            if (!category?.name) return false
+            const flag = category.is_featured ?? category.isFeatured ?? category.featured
+            return flag === true || flag === 1 || flag === '1' || flag === 'true'
+        })
+        .map((category) => ({
+            ...category,
+            viewAllHref: `/products?category=${encodeURIComponent(category.slug || category.name)}`,
+        }))
+})
+
 const bannerStrip = computed(() => {
     if (props.homeContent?.banner_strip && typeof props.homeContent.banner_strip === 'object') {
         return props.homeContent.banner_strip
@@ -671,7 +709,7 @@ const valueProps = computed(() => {
 }
 
 .hero-block {
-    display: grid;
+    display: block;
     gap: 18px;
 }
 
@@ -1155,6 +1193,11 @@ const valueProps = computed(() => {
     display: flex;
     flex-direction: column;
     gap: 16px;
+}
+
+.category-stack {
+    gap: 26px;
+    padding: 6px 0;
 }
 
 .featured-category-sections {

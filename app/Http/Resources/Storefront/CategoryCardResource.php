@@ -84,6 +84,7 @@ class CategoryCardResource extends JsonResource
             'image' => $image,
             'heroImage' => $heroImage,
             'accent' => data_get($this->resource, 'accent'),
+            'is_featured' => (bool) data_get($this->resource, 'is_featured', false),
             'subcategory_previews' => $previews,
             'children' => $children,
         ];

@@ -54,7 +54,7 @@
             :class="mobileHeaderCompact ? 'mobile-header-compact' : ''"
         >
             <!-- Top row -->
-            <div class="container mx-auto px-4">
+            <div class="container-base">
                 <div class="flex items-center gap-3 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
                     <!-- Mobile Menu Toggle -->
                     <button
@@ -501,7 +501,7 @@
             <!-- Categories Navigation Row (scrollbar hidden + arrows) -->
             <div class="relative"
                  style="background:linear-gradient(90deg,rgba(240,236,214,1) 0%,rgba(246,225,109,1) 50%,rgba(245,149,15,1) 100%);">
-                <div class="container mx-auto px-4">
+                <div class="container-base">
                     <div class="relative py-3">
                         <!-- Left arrow -->
                         <button
@@ -572,7 +572,7 @@
                             <div class="absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-[var(--brand-primary)] opacity-10 blur-3xl"/>
                         </div>
 
-                        <div class="container mx-auto px-4 py-8 relative z-10">
+                        <div class="container-base py-8 relative z-10">
                             <div class="grid grid-cols-1 gap-8 lg:grid-cols-5">
                                 <!-- 4 Columns of Links -->
                                 <div v-for="(section, idx) in selectedCategory.sections" :key="'section-' + idx"

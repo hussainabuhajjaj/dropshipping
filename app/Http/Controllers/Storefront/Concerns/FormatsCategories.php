@@ -21,7 +21,10 @@ trait FormatsCategories
 
         $hasProducts = (int) ($category->active_products_count ?? 0) > 0;
 
-        if (! $hasProducts && empty($children)) {
+        // Keep featured categories even if they don't yet have direct products/children
+        $isFeatured = (bool) ($category->is_featured ?? false);
+
+        if (! $hasProducts && empty($children) && ! $isFeatured) {
             return [];
         }
 
@@ -29,6 +32,7 @@ trait FormatsCategories
             'id' => $category->id,
             'name' => $category->translatedValue('name', $locale),
             'slug' => $category->slug,
+            'is_featured' => (bool) $category->is_featured,
             'children' => $children,
         ];
     }
@@ -36,7 +40,8 @@ trait FormatsCategories
     protected function rootCategoriesTree(array $load = ['children']): array
     {
         $locale = app()->getLocale();
-        $cacheKey = 'categories-tree:active-products:' . md5(json_encode([$load, $locale]));
+        $version = \App\Domain\Products\Models\Category::max('updated_at');
+        $cacheKey = 'categories-tree:active-products:' . md5(json_encode([$load, $locale, $version]));
 
         return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($load, $locale) {
             $query = Category::query()

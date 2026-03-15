@@ -39,6 +39,10 @@ class CategoryResource extends BaseResource
                         ->searchable()
                         ->nullable()
                         ->helperText('Nest under another category to build the hierarchy.'),
+                    Forms\Components\Toggle::make('is_featured')
+                        ->label('Featured')
+                        ->helperText('Surface this category on the storefront home rails and promos.')
+                        ->default(false),
                     Forms\Components\TextInput::make('slug')
                         ->required()
                         ->maxLength(255)
@@ -81,10 +85,28 @@ class CategoryResource extends BaseResource
                 Tables\Columns\TextColumn::make('ali_category_id')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('cj_id')->searchable()->sortable(),
 
-                Tables\Columns\ToggleColumn::make('is_active')->label('Active')->sortable(),
+                Tables\Columns\ToggleColumn::make('is_active')
+                    ->label('Active')
+                    ->sortable(),
+                Tables\Columns\ToggleColumn::make('is_featured')
+                    ->label('Featured')
+                    ->sortable()
+                    ->onIcon('heroicon-o-star')
+                    ->offIcon('heroicon-o-star')
+                    ->onColor('warning')
+                    ->offColor('gray')
+                    ->inline(), 
                 Tables\Columns\TextColumn::make('parent.name')->label('Parent')->toggleable()->searchable(),
                 Tables\Columns\TextColumn::make('meta_title')->toggleable(),
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_featured')
+                    ->label('Featured')
+                    ->boolean(),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Active')
+                    ->boolean(),
             ])
             ->recordActions([
                 ActionsEditAction::make(),

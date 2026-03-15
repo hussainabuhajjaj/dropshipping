@@ -32,12 +32,14 @@ class Category extends Model
         'meta_title',
         'meta_description',
         'parent_id',
+        'is_featured',
     ];
 
     protected $casts = [
         'cj_payload' => 'array',
         'ali_payload' => 'array',
         'is_active' => 'boolean',
+        'is_featured' => 'boolean',
         'view_count' => 'int',
     ];
 
@@ -92,5 +94,10 @@ class Category extends Model
        public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
     }
 }

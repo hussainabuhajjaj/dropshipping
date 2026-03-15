@@ -1,7 +1,13 @@
 <template>
   <Link :href="`/products/${product.slug}`" class="block group">
-    <article class="card flex h-full flex-col justify-between p-4 transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer">
-      <div class="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10">
+    <article
+      class="card flex h-full flex-col justify-between transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer"
+      :class="dense ? 'p-3 gap-3' : 'p-4'"
+    >
+      <div
+        class="relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10"
+        :class="dense ? 'aspect-[1/1]' : 'aspect-[4/4]'"
+      >
         <img
           v-if="product.media?.[0]"
           :src="product.media[0]"
@@ -36,17 +42,17 @@
         </button>
       </div>
 
-    <div class="mt-4 flex flex-1 flex-col justify-between gap-4">
+    <div :class="dense ? 'mt-3 flex flex-1 flex-col justify-between gap-3' : 'mt-4 flex flex-1 flex-col justify-between gap-4'">
       <div class="space-y-2">
-        <p v-if="product.category" class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        <p v-if="product.category" class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
           {{ product.category }}
         </p>
-        <h3 class="text-base font-semibold leading-snug text-slate-900 line-clamp-2">
+        <h3 :class="dense ? 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2' : 'text-base font-semibold leading-snug text-slate-900 line-clamp-2'">
           <Link :href="`/products/${product.slug}`" class="hover:text-[#29ab87]">
             {{ product.name }}
           </Link>
         </h3>
-        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
           <span v-if="rating" class="inline-flex items-center gap-1">
             <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-slate-500" fill="currentColor">
               <path d="M12 3.5l2.6 5.4 6 .9-4.3 4.1 1 5.8L12 16.9 6.7 19.7l1-5.8-4.3-4.1 6-.9L12 3.5z" />
@@ -59,10 +65,10 @@
 
       <div class="flex flex-col gap-2">
       <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <div class="text-lg font-semibold text-slate-900">
+        <div :class="dense ? 'text-base font-semibold text-slate-900' : 'text-lg font-semibold text-slate-900'">
           {{ displayPriceFormatted }}
         </div>
-        <div v-if="hasDiscount" class="text-sm text-slate-400 line-through">
+        <div v-if="hasDiscount" :class="dense ? 'text-xs text-slate-400 line-through' : 'text-sm text-slate-400 line-through'">
           {{ compareAtFormatted }}
         </div>
       </div>
@@ -76,7 +82,7 @@
         <div class="flex items-center gap-2">
           <Link
             :href="`/products/${product.slug}`"
-            class="btn-secondary px-3 py-2 text-xs bg-[#29ab87] text-white hover:bg-[#2aaa8a]"
+            :class="dense ? 'btn-secondary px-3 py-1.5 text-[11px] bg-[#29ab87] text-white hover:bg-[#2aaa8a]' : 'btn-secondary px-3 py-2 text-xs bg-[#29ab87] text-white hover:bg-[#2aaa8a]'"
           >
             {{ t('View product') }}
           </Link>
@@ -110,6 +116,7 @@ const props = defineProps({
   product: { type: Object, required: true },
   currency: { type: String, default: 'USD' },
   promotions: { type: Array, default: () => [] },
+  dense: { type: Boolean, default: true },
 })
 
 const { t } = useTranslations()

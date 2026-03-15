@@ -122,28 +122,51 @@
             <Link href="/products" class="btn-ghost">{{ t('View all products') }}</Link>
           </template>
         </EmptyState>
-        <div v-if="products.length" class="flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-          <div class="flex items-center gap-2">
+        <div v-if="products.length" class="pager-bar">
+          <div class="pager-meta">
+            <p class="pager-strong">
+              {{ t('Showing :from–:to of :total', {
+                from: productsPaginator.from ?? 1,
+                to: productsPaginator.to ?? products.length,
+                total: productsPaginator.total ?? products.length,
+              }) }}
+            </p>
+            <p class="pager-muted">
+              {{ t('Page :page of :pages', { page: productsPaginator.current_page ?? 1, pages: productsPaginator.last_page ?? 1 }) }}
+            </p>
+          </div>
+          <div class="pager-actions">
             <button
               type="button"
-              class="btn-ghost px-3 py-2 text-xs"
+              class="pager-button"
               :disabled="productsPaginator.current_page <= 1"
               @click="goToPage((productsPaginator.current_page ?? 1) - 1)"
             >
-              {{ t('Previous slide') }}
+              ‹ {{ t('Prev') }}
             </button>
+
+            <div class="pager-pill">
+              <label class="sr-only" :for="`page-select`">{{ t('Go to page') }}</label>
+              <select
+                :id="`page-select`"
+                :value="productsPaginator.current_page ?? 1"
+                @change="goToPage(Number($event.target.value))"
+              >
+                <option v-for="pageNumber in productsPaginator.last_page ?? 1" :key="`page-${pageNumber}`" :value="pageNumber">
+                  {{ t('Page :page', { page: pageNumber }) }}
+                </option>
+              </select>
+            </div>
+
             <button
               type="button"
-              class="btn-ghost px-3 py-2 text-xs"
+              class="pager-button"
               :disabled="! hasMore"
               @click="goToPage((productsPaginator.current_page ?? 1) + 1)"
             >
-              {{ t('Next slide') }}
+              {{ t('Next') }} ›
             </button>
           </div>
-          <span>
-            {{ t('Page') }} {{ productsPaginator.current_page ?? 1 }} / {{ productsPaginator.last_page ?? 1 }}
-          </span>
         </div>
       </div>
     </section>

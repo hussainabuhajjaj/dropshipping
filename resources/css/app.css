@@ -53,8 +53,15 @@
 }
 
 @layer components {
+    :root {
+        --page-gutter: clamp(14px, 3vw, 56px);
+    }
+
     .container-base {
-        @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+        @apply mx-auto w-full;
+        max-width: 100%;
+        padding-left: var(--page-gutter);
+        padding-right: var(--page-gutter);
     }
 
     .card {
@@ -108,5 +115,91 @@
         @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
         background-color: var(--accent);
         color: #111827;
+    }
+
+    .pager-bar {
+        position: sticky;
+        bottom: 12px;
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+    }
+
+    .pager-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 180px;
+    }
+
+    .pager-strong {
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 0.95rem;
+    }
+
+    .pager-muted {
+        font-size: 0.85rem;
+        color: #475569;
+    }
+
+    .pager-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .pager-button {
+        border: 1px solid #e2e8f0;
+        background: #0f172a;
+        color: #f8fafc;
+        border-radius: 999px;
+        padding: 9px 14px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+    }
+
+    .pager-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        box-shadow: none;
+        background: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .pager-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .pager-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .pager-pill select {
+        background: transparent;
+        border: none;
+        font-weight: 600;
+        color: inherit;
+        padding: 2px 4px;
+        outline: none;
     }
 }
