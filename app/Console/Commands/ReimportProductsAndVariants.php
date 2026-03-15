@@ -13,7 +13,8 @@ class ReimportProductsAndVariants extends Command
     protected $signature = 'products:reimport-cj 
                             {--limit=0 : Max number of products to process (0 = all)} 
                             {--chunk=200 : Chunk size for DB reads} 
-                            {--delay=0 : Seconds to sleep after each chunk}';
+                            {--delay=0 : Seconds to sleep after each chunk}
+                            {--stale-hours=0 : Only process products with cj_synced_at older than this many hours (0 = no filter)}';
 
     protected $description = 'Re-import CJ products and variants (forces fresh pull for each PID, respects no locks).';
 
@@ -22,11 +23,20 @@ class ReimportProductsAndVariants extends Command
         $limit = (int) $this->option('limit');
         $chunk = max(10, (int) $this->option('chunk'));
         $delay = max(0, (int) $this->option('delay'));
+        $staleHours = max(0, (int) $this->option('stale-hours'));
 
         $query = Product::query()
             ->whereNotNull('cj_pid')
             ->where('cj_pid', '!=', '')
             ->orderBy('id');
+
+        if ($staleHours > 0) {
+            $cutoff = now()->subHours($staleHours);
+            $query->where(function ($q) use ($cutoff) {
+                $q->whereNull('cj_synced_at')
+                    ->orWhere('cj_synced_at', '<', $cutoff);
+            });
+        }
 
         if ($limit > 0) {
             $query->limit($limit);
