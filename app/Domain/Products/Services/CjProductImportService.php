@@ -1059,6 +1059,10 @@ class CjProductImportService
                         $sellPrice = (float) $rawCost;
                     }
 
+                    // Ensure numeric types for typed variant creation
+                    $rawCost = (float) $rawCost;
+                    $sellPrice = is_numeric($sellPrice) ? (float) $sellPrice : (float) $rawCost;
+
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
                         ?? $variant['variantNameEn']
