@@ -1060,8 +1060,8 @@ class CjProductImportService
                     }
 
                     // Ensure numeric types for typed variant creation
-                    $rawCost = (float) $rawCost;
-                    $sellPrice = is_numeric($sellPrice) ? (float) $sellPrice : (float) $rawCost;
+                    $rawCost = $this->parseFloat($rawCost) ?? 0.0;
+                    $sellPrice = $this->parseFloat($sellPrice) ?? $rawCost;
 
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
@@ -1265,6 +1265,33 @@ class CjProductImportService
         }
 
         return mb_substr($text, 0, 190);
+    }
+
+    /**
+     * Lenient float parser that accepts numeric strings and trims commas/spaces.
+     */
+    private function parseFloat(mixed $value): ?float
+    {
+        if (is_float($value) || is_int($value)) {
+            return (float) $value;
+        }
+        if (is_string($value)) {
+            $normalized = str_replace([',', ' '], '', $value);
+
+            // Handle ranges like "11.70-13.00" -> take the upper bound
+            if (str_contains($normalized, '-')) {
+                $parts = explode('-', $normalized, 2);
+                $candidate = $parts[1] ?? $parts[0];
+                if (is_numeric($candidate)) {
+                    return (float) $candidate;
+                }
+            }
+
+            if (is_numeric($normalized)) {
+                return (float) $normalized;
+            }
+        }
+        return null;
     }
 
     private function applyMinMarginToPrice(float $price, float $cost, string $currency = 'USD'): float
