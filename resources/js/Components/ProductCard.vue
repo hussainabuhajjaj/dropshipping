@@ -2,11 +2,11 @@
   <Link :href="`/products/${product.slug}`" class="block group">
     <article
       class="card flex h-full flex-col justify-between transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer"
-      :class="dense ? 'p-3 gap-3' : 'p-4'"
+      :class="dense ? 'p-2 gap-2' : 'p-3'"
     >
       <div
-        class="relative w-full overflow-hidden rounded-xl bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10"
-        :class="dense ? 'aspect-[1/1]' : 'aspect-[4/4]'"
+        class="relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10"
+        :class="dense ? 'aspect-[1/1]' : 'aspect-[4/5]'"
       >
         <img
           v-if="product.media?.[0]"
@@ -15,17 +15,17 @@
           class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
           loading="lazy"
         />
-        <span v-if="productPromotion" class="badge-accent absolute right-3 top-3">
+        <span v-if="productPromotion" class="badge-accent absolute right-2 top-2 text-xs">
           {{ productPromotion.badge_text || productPromotion.name }}
           <span v-if="productPromotion.value_type === 'percentage'">-{{ productPromotion.value }}%</span>
           <span v-else-if="productPromotion.value_type === 'fixed'">-{{ promotionFixedDisplay }}</span>
         </span>
-        <span v-else-if="hasDiscount" class="badge-accent absolute right-3 top-3">
+        <span v-else-if="hasDiscount" class="badge-accent absolute right-2 top-2 text-xs">
           {{ t('Save :percent%', { percent: discountPercent }) }}
         </span>
         <button
           type="button"
-          class="absolute left-3 top-3 rounded-full bg-white/70 p-2 text-xs transition hover:bg-white"
+          class="absolute left-2 top-2 rounded-full bg-white/70 p-1.5 text-xs transition hover:bg-white"
           :class="{
             'text-[#e0245e]': wishlisted.value,
             'text-slate-400': !wishlisted.value,
@@ -33,28 +33,28 @@
           :disabled="wishlistProcessing.value"
           @click.stop="addToWishlist"
         >
-          <svg v-if="wishlisted.value" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 fill-current">
+          <svg v-if="wishlisted.value" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
           </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 stroke-current fill-none" stroke-width="1.5">
+          <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 stroke-current fill-none" stroke-width="1.5">
             <path d="M12.1 20.55l-.1.1-.11-.1C7.14 16.24 4 13.39 4 9.5 4 6.42 6.42 4 9.5 4c1.74 0 3.41.81 4.6 2.1C15.09 4.81 16.76 4 18.5 4 21.58 4 24 6.42 24 9.5c0 3.89-3.14 6.74-7.9 11.05z"/>
           </svg>
         </button>
       </div>
 
-    <div :class="dense ? 'mt-3 flex flex-1 flex-col justify-between gap-3' : 'mt-4 flex flex-1 flex-col justify-between gap-4'">
-      <div class="space-y-2">
-        <p v-if="product.category" class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <div :class="dense ? 'mt-2 flex flex-1 flex-col justify-between gap-2' : 'mt-3 flex flex-1 flex-col justify-between gap-3'">
+      <div class="space-y-1">
+        <p v-if="product.category" class="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
           {{ product.category }}
         </p>
-        <h3 :class="dense ? 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2' : 'text-base font-semibold leading-snug text-slate-900 line-clamp-2'">
+        <h3 :class="dense ? 'text-xs font-semibold leading-tight text-slate-900 line-clamp-2' : 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2'">
           <Link :href="`/products/${product.slug}`" class="hover:text-[#29ab87]">
             {{ product.name }}
           </Link>
         </h3>
-        <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-          <span v-if="rating" class="inline-flex items-center gap-1">
-            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-slate-500" fill="currentColor">
+        <div class="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+          <span v-if="rating" class="inline-flex items-center gap-0.5">
+            <svg viewBox="0 0 24 24" class="h-3 w-3 text-slate-500" fill="currentColor">
               <path d="M12 3.5l2.6 5.4 6 .9-4.3 4.1 1 5.8L12 16.9 6.7 19.7l1-5.8-4.3-4.1 6-.9L12 3.5z" />
             </svg>
             {{ rating }}<span v-if="ratingCount"> ({{ ratingCount }})</span>
@@ -63,9 +63,9 @@
         </div>
       </div>
 
-      <div class="flex flex-col gap-2">
-      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <div :class="dense ? 'text-base font-semibold text-slate-900' : 'text-lg font-semibold text-slate-900'">
+      <div class="flex flex-col gap-1">
+      <div class="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
+        <div :class="dense ? 'text-sm font-semibold text-slate-900' : 'text-base font-semibold text-slate-900'">
           {{ displayPriceFormatted }}
         </div>
         <div v-if="hasDiscount" :class="dense ? 'text-xs text-slate-400 line-through' : 'text-sm text-slate-400 line-through'">

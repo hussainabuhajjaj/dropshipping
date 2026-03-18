@@ -242,7 +242,7 @@
                     </div>
                     <Link href="/products" class="section-link">{{ t('Browse all') }}</Link>
                 </div>
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         <ProductCard
                             v-for="product in bestSellers"
                             :key="product.id"
@@ -266,7 +266,7 @@
                     </div>
                     <Link href="/products" class="section-link">{{ t('See more') }}</Link>
                 </div>
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         <ProductCard
                             v-for="product in recommended"
                             :key="product.id"
@@ -287,7 +287,7 @@
                     </div>
                     <Link href="/products?sort=rating" class="section-link">{{ t('View all') }}</Link>
                 </div>
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         <ProductCard
                             v-for="product in bestValue"
                             :key="product.id"
@@ -860,9 +860,9 @@ const valueProps = computed(() => {
 
 .rail-track {
     display: grid;
-    gap: 12px;
+    gap: 10px;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(220px, 1fr);
+    grid-auto-columns: minmax(180px, 1fr);
     overflow-x: auto;
     padding-bottom: 6px;
 }
@@ -956,8 +956,8 @@ const valueProps = computed(() => {
 
 .rail-track {
     display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .rail-item {
@@ -1217,9 +1217,9 @@ const valueProps = computed(() => {
 
 .featured-category-slider {
     display: grid;
-    gap: 14px;
+    gap: 12px;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(220px, 1fr);
+    grid-auto-columns: minmax(180px, 1fr);
     overflow-x: auto;
     padding: 4px 2px 8px;
     scroll-snap-type: x proximity;
@@ -1231,8 +1231,8 @@ const valueProps = computed(() => {
 
 .deal-grid {
     display: grid;
-    gap: 16px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     align-items: stretch;
     align-content: start;
 }
@@ -1353,6 +1353,34 @@ const valueProps = computed(() => {
 
     .value-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Responsive adjustments for product grids */
+@media (max-width: 640px) {
+    .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+    }
+    
+    .featured-category-slider {
+        grid-auto-columns: minmax(140px, 1fr);
+    }
+    
+    .deal-grid {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (min-width: 1280px) {
+    .grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
     }
 }
 
