@@ -21,6 +21,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class HomeController extends ApiController
 {
@@ -76,6 +77,7 @@ class HomeController extends ApiController
             'currency' => $currency,
             'hero' => $hero,
             'categories' => $categories,
+            'featuredCategories' => $this->featuredCategoriesForHome($locale),
             'categoryHighlights' => $this->mapCategoryHighlights($homeContent, $homeBuilder),
             'flashDeals' => $featured,
             'trending' => $bestSellers,
@@ -184,6 +186,51 @@ class HomeController extends ApiController
                 ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder, $previewLookup->get($category->id, [])))
                 ->values()
                 ->all();
+        });
+    }
+
+    private function featuredCategoriesForHome(string $locale): array
+    {
+        $flagColumn = Schema::hasColumn('categories', 'is_featured')
+            ? 'is_featured'
+            : (Schema::hasColumn('categories', 'is_feature') ? 'is_feature' : null);
+
+        if (! $flagColumn) {
+            return [];
+        }
+
+        $idSignature = Category::query()
+            ->where($flagColumn, true)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->pluck('id')
+            ->implode(',');
+
+        $cacheKey = "mobile:featured-categories:{$locale}:" . md5($idSignature);
+
+        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($flagColumn, $locale) {
+            $query = Category::query()
+                ->where('is_active', true)
+                ->where($flagColumn, true)
+                ->select(['id', 'name', 'slug', 'hero_image', 'parent_id', 'created_at', "{$flagColumn} as is_featured"])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+
+            if (Schema::hasColumn('categories', 'featured_order')) {
+                $query->orderByRaw('featured_order is null')->orderBy('featured_order');
+            }
+
+            $query->orderBy('created_at')->orderBy('name');
+
+            return $query->get()->map(function (Category $category) use ($locale) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->translatedValue('name', $locale),
+                    'slug' => $category->slug,
+                    'image' => $category->hero_image,
+                    'parent_id' => $category->parent_id,
+                    'is_featured' => (bool) $category->is_featured,
+                ];
+            })->values()->all();
         });
     }
 

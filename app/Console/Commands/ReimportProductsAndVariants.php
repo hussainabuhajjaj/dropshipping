@@ -66,14 +66,15 @@ class ReimportProductsAndVariants extends Command
                 }
 
                 try {
-                    $result = $importer->importByPid($product->cj_pid, [
-                        'respectSyncFlag' => false,
-                        'defaultSyncEnabled' => true,
-                        'respectLocks' => false,
-                        'syncVariants' => true,
-                        'syncReviews' => false,
-                        'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
-                    ]);
+                        $result = $importer->importByPid($product->cj_pid, [
+                            'respectSyncFlag' => false,
+                            'defaultSyncEnabled' => true,
+                            'respectLocks' => false,
+                            'syncVariants' => true,
+                            'syncReviews' => false,
+                            'shipToCountry' => (string) (config('services.cj.ship_to_default') ?? ''),
+                            'skipWhenFresh' => false, // force reimport for the targeted set
+                        ]);
 
                     $result ? $synced++ : $skipped++;
                 } catch (\Throwable $e) {

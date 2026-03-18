@@ -1063,6 +1063,9 @@ class CjProductImportService
                     $rawCost = $this->parseFloat($rawCost) ?? 0.0;
                     $sellPrice = $this->parseFloat($sellPrice) ?? $rawCost;
 
+                    // Enforce minimum margin: sell price >= cost * 1.5 (50% over cost)
+                    $sellPrice = $this->enforceMinMargin($sellPrice, $rawCost, 1.5);
+
                     $title = $this->cleanVariantTitle(
                         $variant['variantName']
                         ?? $variant['variantNameEn']
@@ -2661,5 +2664,19 @@ class CjProductImportService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Ensure selling price respects a minimum multiple of cost.
+     */
+    private function enforceMinMargin(float $sellPrice, float $costPrice, float $multiple = 1.5): float
+    {
+        if ($costPrice > 0) {
+            $minPrice = $costPrice * $multiple;
+            if ($sellPrice < $minPrice) {
+                return round($minPrice, 2);
+            }
+        }
+        return round($sellPrice, 2);
     }
 }

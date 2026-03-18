@@ -18,6 +18,7 @@ class HomeResource extends JsonResource
             'currency' => $this->resource['currency'] ?? 'USD',
             'hero' => $this->resource['hero'] ?? [],
             'categories' => CategoryCardResource::collection($this->resource['categories'] ?? []),
+            'featuredCategories' => CategoryCardResource::collection($this->resource['featuredCategories'] ?? []),
             'categoryHighlights' => $this->resource['categoryHighlights'] ?? [],
             'flashDeals' => ProductResource::collection($this->resource['flashDeals'] ?? []),
             'trending' => ProductResource::collection($this->resource['trending'] ?? []),
