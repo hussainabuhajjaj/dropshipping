@@ -15,9 +15,11 @@ use App\Http\Resources\Mobile\V1\StatusResource;
 use App\Models\Customer;
 use App\Notifications\EmailVerificationOtpNotification;
 use App\Notifications\PhoneVerificationOtpNotification;
+use App\Notifications\PasswordResetOtpNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends ApiController
@@ -282,5 +284,72 @@ class AuthController extends ApiController
         ])->save();
 
         $customer->notify(new PhoneVerificationOtpNotification($code, $customer->phone));
+    }
+
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'exists:customers,email'],
+        ]);
+
+        $customer = Customer::where('email', $data['email'])->first();
+
+        if ($customer) {
+            $this->dispatchPasswordResetOtp($customer);
+        }
+
+        return $this->success(new StatusResource(['ok' => true]));
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'exists:customers,email'],
+            'token' => ['required', 'string', 'size:4'],
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        $customer = Customer::where('email', $data['email'])->first();
+
+        if (!$customer || !$customer->password_reset_code || !$customer->password_reset_expires_at) {
+            throw ValidationException::withMessages([
+                'token' => ['No active reset code. Please request a new one.'],
+            ]);
+        }
+
+        if (now()->greaterThan($customer->password_reset_expires_at)) {
+            throw ValidationException::withMessages([
+                'token' => ['Reset code expired. Please request a new one.'],
+            ]);
+        }
+
+        if (!Hash::check($data['token'], $customer->password_reset_code)) {
+            throw ValidationException::withMessages([
+                'token' => ['Invalid reset code.'],
+            ]);
+        }
+
+        $customer->forceFill([
+            'password' => Hash::make($data['password']),
+            'password_reset_code' => null,
+            'password_reset_expires_at' => null,
+        ])->save();
+
+        // Revoke all existing tokens to force re-login
+        $customer->tokens()->delete();
+
+        return $this->success(new StatusResource(['ok' => true]));
+    }
+
+    private function dispatchPasswordResetOtp(Customer $customer): void
+    {
+        $code = (string) random_int(1000, 9999);
+
+        $customer->forceFill([
+            'password_reset_code' => Hash::make($code),
+            'password_reset_expires_at' => now()->addMinutes(10),
+        ])->save();
+
+        $customer->notify(new PasswordResetOtpNotification($code));
     }
 }
