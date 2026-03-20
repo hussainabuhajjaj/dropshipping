@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Services\Storefront\HomeBuilderService;
 use App\Jobs\ApplyProductMarginChunkJob;
 use App\Models\Product;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachBulkAction;
 use Filament\Actions\BulkAction;
@@ -222,7 +223,7 @@ class ProductsRelationManager extends RelationManager
                         if (!$supplier) {
                             return $query;
                         }
-                        
+
                         return match ($supplier) {
                             'cj' => $query->whereNotNull('cj_pid'),
                             'ali' => $query->whereNotNull('attributes->ali_item_id'),
@@ -242,12 +243,12 @@ class ProductsRelationManager extends RelationManager
             ->headerActions([])
             ->recordActions([])
             ->toolbarActions([
-                Tables\Actions\Action::make('add_products')
+                Action::make('add_products')
                     ->label('Add Products')
                     ->icon('heroicon-o-plus')
                     ->url(fn () => '/admin/storefront-collections/' . $this->ownerRecord->id . '/products/pick')
                     ->color('success'),
-                    
+
                 BulkActionGroup::make([
                     BulkAction::make('activate')
                         ->label('Activate')
@@ -262,7 +263,7 @@ class ProductsRelationManager extends RelationManager
                                 'is_active' => true,
                                 'status' => 'active',
                             ]);
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Products Activated')
@@ -283,7 +284,7 @@ class ProductsRelationManager extends RelationManager
                                 'is_active' => false,
                                 'status' => 'draft',
                             ]);
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Products Deactivated')
@@ -302,7 +303,7 @@ class ProductsRelationManager extends RelationManager
                             Product::query()->whereIn('id', $ids)->update([
                                 'is_featured' => true,
                             ]);
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Products Featured')
@@ -322,7 +323,7 @@ class ProductsRelationManager extends RelationManager
                             Product::query()->whereIn('id', $ids)->update([
                                 'is_featured' => false,
                             ]);
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Featured Status Removed')
@@ -359,7 +360,7 @@ class ProductsRelationManager extends RelationManager
                                     applyVariants: $applyVariants,
                                 );
                             }
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Margin Job Queued')
@@ -387,7 +388,7 @@ class ProductsRelationManager extends RelationManager
                         ->action(function ($records, array $data): void {
                             $orderType = $data['order_type'] ?? 'name_asc';
                             $collectionId = $this->ownerRecord->id;
-                            
+
                             $products = $records->sortBy(function ($product) use ($orderType) {
                                 return match ($orderType) {
                                     'name_asc' => $product->name,
@@ -400,14 +401,14 @@ class ProductsRelationManager extends RelationManager
                                     default => $product->name,
                                 };
                             }, SORT_REGULAR, $orderType === 'name_desc' || $orderType === 'price_desc' || $orderType === 'rating_desc' || $orderType === 'created_desc' ? SORT_DESC : SORT_ASC);
-                            
+
                             foreach ($products as $index => $product) {
                                 DB::table('storefront_collection_products')
                                     ->where('storefront_collection_id', $collectionId)
                                     ->where('product_id', $product->id)
                                     ->update(['position' => $index + 1]);
                             }
-                            
+
                             Notification::make()
                                 ->success()
                                 ->title('Products Reordered')
