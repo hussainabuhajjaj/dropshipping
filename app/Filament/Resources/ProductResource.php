@@ -521,6 +521,15 @@ class ProductResource extends BaseResource
                         ->getStateUsing(fn (Product $record) => is_array($record->cj_last_changed_fields) ? $record->cj_last_changed_fields : [])
                         ->toggleable(isToggledHiddenByDefault: true)
                         ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
+                    Tables\Columns\TextColumn::make('cj_last_payload')
+                        ->label('CJ Payload')
+                        ->getStateUsing(fn (Product $record): ?string => 
+                            $record->cj_last_payload ? 
+                            self::extractCjPayloadSummary($record->cj_last_payload) : ''
+                        )
+                        ->limit(50)
+                        ->tooltip(fn (Product $record) => 'Click to view full CJ payload data')
+                        ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('media_status')
                         ->label('Media status')
                         ->getStateUsing(fn (Product $record) => self::mediaStatus($record))
@@ -820,6 +829,31 @@ class ProductResource extends BaseResource
                             TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
                             Toggle::make('is_active')->label('Active'),
                             Toggle::make('is_featured')->label('Featured'),
+                            
+                            // CJ Payload Section
+                            Section::make('CJ API Payload')
+                                ->description('Raw data from the last CJ Dropshipping API sync')
+                                ->schema([
+                                    Placeholder::make('cj_payload_summary')
+                                        ->label('Payload Summary')
+                                        ->content(fn (Product $record): string => 
+                                            $record->cj_last_payload ? 
+                                            self::extractCjPayloadSummary($record->cj_last_payload) : 
+                                            'No CJ payload data available'
+                                        ),
+                                    Textarea::make('cj_payload_raw')
+                                        ->label('Full CJ Payload (JSON)')
+                                        ->formatStateUsing(fn (Product $record): string => 
+                                            $record->cj_last_payload ? 
+                                            json_encode($record->cj_last_payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : 
+                                            ''
+                                        )
+                                        ->rows(8)
+                                        ->disabled()
+                                        ->helperText('Complete raw payload data from CJ API for debugging purposes'),
+                                ])
+                                ->collapsible()
+                                ->collapsed(fn (Product $record) => !$record->cj_last_payload),
                         ])
                         ->fillForm(fn (Product $record) => [
                             'selling_price' => $record->selling_price,
@@ -2465,5 +2499,45 @@ class ProductResource extends BaseResource
         }
 
         return (string) $value;
+    }
+
+    /**
+     * Extract CJ payload summary with focus on selling price
+     */
+    private static function extractCjPayloadSummary(mixed $payload): string
+    {
+        if (!$payload) {
+            return '';
+        }
+
+        $payloadArray = is_array($payload) ? $payload : [];
+        $summary = [];
+
+        // Extract key information for display - prioritize selling price
+        $keyFields = [
+            'selling_price' => '💰 Selling Price',
+            'pid' => 'PID', 
+            'productCost' => 'Cost',
+            'productTitle' => 'Title',
+            'categoryName' => 'Category',
+            'totalInventoryNum' => 'Stock'
+        ];
+
+        foreach ($keyFields as $field => $label) {
+            if (isset($payloadArray[$field])) {
+                $value = $payloadArray[$field];
+                
+                // Special formatting for selling price
+                if ($field === 'selling_price') {
+                    $price = is_numeric($value) ? '$' . number_format((float) $value, 2) : json_encode($value);
+                    $summary[] = $label . ': ' . $price;
+                } else {
+                    $displayValue = is_string($value) ? substr($value, 0, 30) . (strlen($value) > 30 ? '...' : '') : json_encode($value);
+                    $summary[] = $label . ': ' . $displayValue;
+                }
+            }
+        }
+
+        return implode(', ', $summary);
     }
 }
