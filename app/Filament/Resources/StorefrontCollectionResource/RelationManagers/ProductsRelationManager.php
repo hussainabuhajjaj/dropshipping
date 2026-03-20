@@ -141,6 +141,32 @@ class ProductsRelationManager extends RelationManager
                         }
                         $category = Category::find($value);
                         return $category?->name ?? $value;
+                    })
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+                        
+                        // Handle empty/null values - show all products
+                        if (blank($value)) {
+                            return $query;
+                        }
+                        
+                        // Debug: Log the filter value
+                        \Log::info('Category filter applied', [
+                            'category_id' => $value,
+                            'table' => $query->getModel()->getTable(),
+                            'sql_before' => $query->toSql()
+                        ]);
+                        
+                        // Explicitly filter by category_id
+                        $query = $query->where('products.category_id', $value);
+                        
+                        // Debug: Log the final query
+                        \Log::info('Category filter query', [
+                            'sql_after' => $query->toSql(),
+                            'bindings' => $query->getBindings()
+                        ]);
+                        
+                        return $query;
                     }),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active'),
