@@ -192,7 +192,7 @@ class CheckoutController extends ApiController
                 'order_id' => $order->id,
                 'provider' => 'korapay',
                 'status' => 'pending',
-                'provider_reference' => $this->buildPaymentReference($order),
+                'provider_reference' => null,
                 'amount' => $order->grand_total,
                 'currency' => $order->currency,
                 'paid_at' => null,
@@ -434,8 +434,4 @@ class CheckoutController extends ApiController
         );
     }
 
-    private function buildPaymentReference(Order $order): string
-    {
-        return 'krp_' . strtolower($order->number) . '_' . strtolower(Str::random(6));
-    }
 }

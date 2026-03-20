@@ -300,7 +300,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::get('payments/korapay/verify', [MobilePaymentController::class, 'verify']);
 
         // Unified payment routes (matching storefront exactly)
-        Route::post('payments/initialize', [MobilePaymentController::class, 'init']);
+        Route::post('payments/initialize', [MobilePaymentController::class, 'initialize']);
         Route::post('payments/checkout', [MobilePaymentController::class, 'initialize']); // Alias for storefront compatibility
         Route::get('payments/redirect', [MobilePaymentController::class, 'redirect']);
         Route::post('payments/verify', [MobilePaymentController::class, 'verifyPayment']);

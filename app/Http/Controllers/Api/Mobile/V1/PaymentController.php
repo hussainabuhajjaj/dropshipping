@@ -31,6 +31,7 @@ class PaymentController extends ApiController
         ]);
         
         $data = $request->validated();
+        session()->put('request_body', $data);
 
         // Use exact storefront logic - getItem and getSummery
         $item = $this->getItem($request);
@@ -163,7 +164,7 @@ class PaymentController extends ApiController
     /**
      * Unified payment initialization for mobile (matching storefront exactly)
      */
-    public function initialize(Request $request, KorapayService $korapayService): JsonResponse
+    public function initialize(Request $request, PaymentService $paymentService): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'order_number' => 'required|string|max:64',
@@ -172,7 +173,7 @@ class PaymentController extends ApiController
             'customer.email' => 'nullable|email',
             'customer.name' => 'nullable|string|max:255',
             'customer.phone' => 'nullable|string|max:20',
-            'return_url' => 'nullable|url',
+            'return_url' => 'nullable|string|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -196,23 +197,51 @@ class PaymentController extends ApiController
             return $this->error('Order is already paid', 400);
         }
 
-        try {
-            // Use the exact storefront KorapayService flow
-            $checkout = $korapayService->initializePayment($order->grand_total, $method);
+        $payment = Payment::query()
+            ->where('order_id', $order->id)
+            ->where('provider', 'korapay')
+            ->latest('id')
+            ->first();
 
-            if (!isset($checkout['data'])) {
+        if (! $payment) {
+            $payment = Payment::query()->create([
+                'order_id' => $order->id,
+                'provider' => 'korapay',
+                'status' => 'pending',
+                'provider_reference' => null,
+                'amount' => $order->grand_total,
+                'currency' => $order->currency,
+                'paid_at' => null,
+                'meta' => [
+                    'type' => 'checkout_pending',
+                    'payment_method' => $method,
+                    'created_by' => 'mobile_initialize',
+                ],
+            ]);
+        }
+
+        try {
+            $checkout = $paymentService->initializeKorapay(
+                $order,
+                $payment,
+                [
+                    'email' => $data['customer']['email'] ?? $order->email,
+                    'name' => $data['customer']['name'] ?? $customer?->name ?? 'Customer',
+                    'phone' => $data['customer']['phone'] ?? null,
+                ],
+                $method
+            );
+
+            if (! isset($checkout['checkout_url'])) {
                 return $this->error('Payment provider did not return valid response', 500);
             }
 
-            // Store reference in session (like storefront)
-            session(['reference' => $checkout['data']['reference']]);
+            session(['reference' => $checkout['reference']]);
 
             return $this->success([
-                'status' => true,
-                'data' => [
-                    'redirect' => $checkout['data']['checkout_url']
-                ],
-                'reference' => $checkout['data']['reference'],
+                'reference' => $checkout['reference'],
+                'redirect' => $checkout['checkout_url'],
+                'checkout_url' => $checkout['checkout_url'],
                 'amount' => $order->grand_total,
                 'currency' => $order->currency,
                 'order_number' => $order->number,

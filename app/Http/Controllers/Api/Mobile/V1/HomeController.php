@@ -25,6 +25,48 @@ use Illuminate\Support\Facades\Schema;
 
 class HomeController extends ApiController
 {
+    /**
+     * @return list<string>
+     */
+    private function pinnedCategoryKeys(): array
+    {
+        return [
+            'womens clothing',
+            'womens-clothing',
+            'women clothing',
+            'mens clothing',
+            'mens-clothing',
+            'men clothing',
+        ];
+    }
+
+    private function normalizePinnedCategoryValue(?string $value): string
+    {
+        $value = strtolower((string) $value);
+        $value = str_replace(["'", '’'], '', $value);
+
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $value));
+    }
+
+    private function pinnedCategoryPriority(Category $category, string $locale): int
+    {
+        $name = $this->normalizePinnedCategoryValue($category->translatedValue('name', $locale));
+        $slug = $this->normalizePinnedCategoryValue($category->slug);
+
+        $women = ['womens clothing', 'womens clothing', 'women clothing'];
+        $men = ['mens clothing', 'mens clothing', 'men clothing'];
+
+        if (in_array($name, $women, true) || in_array($slug, $women, true)) {
+            return 0;
+        }
+
+        if (in_array($name, $men, true) || in_array($slug, $men, true)) {
+            return 1;
+        }
+
+        return 2;
+    }
+
     public function index(HomeBuilderService $homeBuilder, Request $request): JsonResponse
     {
         $converter = app(CurrencyConversionService::class);
@@ -126,6 +168,14 @@ class HomeController extends ApiController
                 ->take(10)
                 ->get();
 
+            $parents = $parents
+                ->sortBy(fn (Category $category) => [
+                    $this->pinnedCategoryPriority($category, $locale),
+                    -1 * (int) ($category->products_count ?? 0),
+                    -1 * (int) optional($category->updated_at)?->getTimestamp(),
+                ])
+                ->values();
+
             if ($parents->isEmpty()) {
                 return [];
             }
@@ -221,16 +271,24 @@ class HomeController extends ApiController
 
             $query->orderBy('created_at')->orderBy('name');
 
-            return $query->get()->map(function (Category $category) use ($locale) {
-                return [
+            return $query->get()
+                ->sortBy(fn (Category $category) => [
+                    $this->pinnedCategoryPriority($category, $locale),
+                    (int) ($category->featured_order ?? PHP_INT_MAX),
+                    optional($category->created_at)?->getTimestamp() ?? 0,
+                    $category->translatedValue('name', $locale),
+                ])
+                ->values()
+                ->map(function (Category $category) use ($locale) {
+                    return [
                     'id' => $category->id,
                     'name' => $category->translatedValue('name', $locale),
                     'slug' => $category->slug,
                     'image' => $category->hero_image,
                     'parent_id' => $category->parent_id,
                     'is_featured' => (bool) $category->is_featured,
-                ];
-            })->values()->all();
+                    ];
+                })->all();
         });
     }
 

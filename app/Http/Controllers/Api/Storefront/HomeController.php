@@ -20,6 +20,29 @@ use Illuminate\Support\Collection;
 
 class HomeController extends Controller
 {
+    private function pinnedCategoryPriority(Category $category, string $locale): int
+    {
+        $normalize = static function (?string $value): string {
+            $value = strtolower((string) $value);
+            $value = str_replace(["'", '’'], '', $value);
+
+            return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $value));
+        };
+
+        $name = $normalize($category->translatedValue('name', $locale));
+        $slug = $normalize($category->slug);
+
+        if (in_array($name, ['womens clothing', 'women clothing'], true) || in_array($slug, ['womens clothing', 'women clothing'], true)) {
+            return 0;
+        }
+
+        if (in_array($name, ['mens clothing', 'men clothing'], true) || in_array($slug, ['mens clothing', 'men clothing'], true)) {
+            return 1;
+        }
+
+        return 2;
+    }
+
     public function __invoke(HomeBuilderService $homeBuilder): JsonResponse
     {
         // NOTE: Home page data assembly is duplicated in Storefront\\HomeController.
@@ -40,6 +63,12 @@ class HomeController extends Controller
             ->orderByDesc('products_count')
             ->take(8)
             ->get()
+            ->sortBy(fn (Category $category) => [
+                $this->pinnedCategoryPriority($category, $locale),
+                -1 * (int) ($category->view_count ?? 0),
+                -1 * (int) ($category->products_count ?? 0),
+            ])
+            ->values()
             ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder))
             ->values()
             ->all();

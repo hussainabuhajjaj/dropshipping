@@ -27,6 +27,29 @@ class HomeController extends Controller
     use TransformsProducts;
     use FormatsCategories;
 
+    private function pinnedCategoryPriority(Category $category, string $locale): int
+    {
+        $normalize = static function (?string $value): string {
+            $value = strtolower((string) $value);
+            $value = str_replace(["'", '’'], '', $value);
+
+            return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $value));
+        };
+
+        $name = $normalize(method_exists($category, 'translatedValue') ? $category->translatedValue('name', $locale) : $category->name);
+        $slug = $normalize($category->slug);
+
+        if (in_array($name, ['womens clothing', 'women clothing'], true) || in_array($slug, ['womens clothing', 'women clothing'], true)) {
+            return 0;
+        }
+
+        if (in_array($name, ['mens clothing', 'men clothing'], true) || in_array($slug, ['mens clothing', 'men clothing'], true)) {
+            return 1;
+        }
+
+        return 2;
+    }
+
     public function index(PromotionHomepageService $promotionHomepageService, HomeBuilderService $homeBuilder): Response
     {
         $locale = app()->getLocale();
@@ -201,20 +224,30 @@ class HomeController extends Controller
 
             $query->orderBy('created_at')->orderBy('name');
 
-            return $query->get()->map(function (Category $category) use ($locale) {
-                $name = method_exists($category, 'translatedValue')
-                    ? $category->translatedValue('name', $locale)
-                    : $category->name;
+            return $query->get()
+                ->sortBy(fn (Category $category) => [
+                    $this->pinnedCategoryPriority($category, $locale),
+                    (int) ($category->featured_order ?? PHP_INT_MAX),
+                    optional($category->created_at)?->getTimestamp() ?? 0,
+                    method_exists($category, 'translatedValue')
+                        ? $category->translatedValue('name', $locale)
+                        : $category->name,
+                ])
+                ->values()
+                ->map(function (Category $category) use ($locale) {
+                    $name = method_exists($category, 'translatedValue')
+                        ? $category->translatedValue('name', $locale)
+                        : $category->name;
 
-                return [
+                    return [
                     'id' => $category->id,
                     'name' => $name,
                     'slug' => $category->slug,
                     'image' => $category->hero_image,
                     'parent_id' => $category->parent_id,
                     'is_featured' => (bool) $category->is_featured,
-                ];
-            })->values()->all();
+                    ];
+                })->all();
         });
     }
 
