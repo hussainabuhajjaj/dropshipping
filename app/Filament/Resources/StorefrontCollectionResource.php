@@ -260,6 +260,7 @@ class StorefrontCollectionResource extends BaseResource
             'index' => Pages\ListStorefrontCollections::route('/'),
             'create' => Pages\CreateStorefrontCollection::route('/create'),
             'edit' => Pages\EditStorefrontCollection::route('/{record}/edit'),
+            'pick-products' => Pages\PickProducts::route('/{record}/products/pick'),
         ];
     }
 
