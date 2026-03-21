@@ -190,7 +190,13 @@ class PaymentService
         $this->fulfillmentDispatchService->dispatchForOrder($order);
     }
 
-    public function initializeKorapay(Order $order, Payment $payment, array $customer = [], string $method = 'card'): array
+    public function initializeKorapay(
+        Order $order,
+        Payment $payment,
+        array $customer = [],
+        string $method = 'card',
+        ?string $returnUrl = null
+    ): array
     {
         $client = app(KorapayClient::class);
 
@@ -211,6 +217,7 @@ class PaymentService
             'amount' => $amount,
             'currency' => $currency,
             'reference' => $payment->provider_reference,
+            'redirect_url' => $returnUrl ?: url('/api/mobile/v1/payments/redirect'),
             'customer' => [
                 'email' => $customer['email'] ?? $order->email,
                 'name' => $customer['name'] ?? $order->guest_name ?? $order->customer?->name,

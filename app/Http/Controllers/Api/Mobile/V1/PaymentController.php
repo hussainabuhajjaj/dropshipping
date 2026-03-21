@@ -229,7 +229,8 @@ class PaymentController extends ApiController
                     'name' => $data['customer']['name'] ?? $customer?->name ?? 'Customer',
                     'phone' => $data['customer']['phone'] ?? null,
                 ],
-                $method
+                $method,
+                $data['return_url'] ?? null
             );
 
             if (! isset($checkout['checkout_url'])) {
@@ -261,7 +262,11 @@ class PaymentController extends ApiController
     /**
      * Payment redirect handler (matching storefront exactly)
      */
-    public function redirect(Request $request, PaymentResultService $paymentResultService): JsonResponse
+    public function redirect(
+        Request $request,
+        PaymentResultService $paymentResultService,
+        PaymentService $paymentService
+    ): JsonResponse
     {
         $reference = (string) ($request->input('reference')
             ?? $request->input('payment_reference')
@@ -284,19 +289,15 @@ class PaymentController extends ApiController
             $paymentResult = strtolower((string) ($verifyResult['data']['status'] ?? ''));
 
             if ($paymentResult === 'success') {
-                // Find existing payment
-                $existingPayment = Payment::query()
-                    ->where('provider', 'korapay')
-                    ->where('provider_reference', $reference)
-                    ->with('order')
-                    ->latest('id')
-                    ->first();
+                $existingPayment = $paymentService->verifyKorapay($reference)->load('order');
 
                 if ($existingPayment?->order) {
                     return $this->success([
                         'status' => 'success',
                         'redirect' => '/orders/confirmation/' . $existingPayment->order->number,
                         'order_number' => $existingPayment->order->number,
+                        'payment_status' => $existingPayment->status,
+                        'order_status' => $existingPayment->order->status,
                         'message' => 'Payment confirmed successfully',
                     ]);
                 }
