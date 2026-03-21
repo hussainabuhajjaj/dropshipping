@@ -355,7 +355,7 @@ class PaymentController extends ApiController
                 ->latest('id')
                 ->first();
 
-            if ($existingPayment) {
+            if ($existingPayment && in_array(strtolower((string) $existingPayment->status), ['paid', 'success', 'succeeded', 'captured'], true)) {
                 $payment = $existingPayment;
             } else {
                 try {
