@@ -135,7 +135,11 @@ class HomeBuilderService
             return $image;
         }
 
-        // Check storage path first (where images actually exist based on diagnosis)
+        // Extract the base filename without path
+        $filename = basename($image);
+        $directory = dirname($image);
+
+        // Check storage path first (where images actually exist)
         $storagePath = storage_path('app/public/' . $image);
         if (file_exists($storagePath)) {
             return url('storage/' . $image);
@@ -147,14 +151,62 @@ class HomeBuilderService
             return url('storage/' . $image);
         }
 
+        // If exact file doesn't exist, try to find the closest match
+        $storageDir = storage_path('app/public/' . $directory);
+        if (is_dir($storageDir)) {
+            $files = scandir($storageDir);
+            $closestMatch = $this->findClosestFile($filename, $files);
+
+            if ($closestMatch) {
+                $correctedImage = $directory . '/' . $closestMatch;
+                return url('storage/' . $correctedImage);
+            }
+        }
+
         // Check direct public path (original logic)
         $publicPath = public_path($image);
         if (file_exists($publicPath)) {
             return url($image);
         }
 
-        // If no file exists, return the path anyway (let browser handle 404)
-        // This is better than returning default image for valid paths
+        // Final fallback - return the path anyway (let browser handle 404)
         return url('storage/' . $image);
     }
-}
+
+    /**
+     * Find the closest matching file by filename similarity
+     */
+    private function findClosestFile(string $targetFile, array $files): ?string
+    {
+        $closestMatch = null;
+        $closestScore = 0;
+
+        // Extract numeric prefix from target file
+        preg_match('/(\d+)/', $targetFile, $matches);
+        $targetNumbers = $matches[1] ?? '';
+        $targetPrefix = substr($targetNumbers, 0, 8); // First 8 digits
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') continue;
+
+            preg_match('/(\d+)/', $file, $fileMatches);
+            $fileNumbers = $fileMatches[1] ?? '';
+            $filePrefix = substr($fileNumbers, 0, 8);
+
+            // Calculate similarity score
+            $score = 0;
+            if ($targetPrefix === $filePrefix) {
+                $score = 100; // Perfect match for prefix
+            } else {
+                // Calculate character similarity for prefix
+                $score = similar_text($targetPrefix, $filePrefix) * 2;
+            }
+
+            if ($score > $closestScore) {
+                $closestScore = $score;
+                $closestMatch = $file;
+            }
+        }
+
+        return $closestMatch;
+    }}
