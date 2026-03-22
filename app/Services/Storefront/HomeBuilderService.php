@@ -123,16 +123,38 @@ class HomeBuilderService
         });
     }
 
-    public function normalizeImage(?string $path): ?string
+    public function normalizeImage(?string $image): ?string
     {
-        if (! $path) {
+        // Return null/empty as null
+        if ($image === null || $image === '') {
             return null;
         }
 
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
+        // If it's already a full URL, return as-is
+        if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
+            return $image;
         }
 
-        return url(Storage::url($path));
+        // Check storage path first (where images actually exist based on diagnosis)
+        $storagePath = storage_path('app/public/' . $image);
+        if (file_exists($storagePath)) {
+            return url('storage/' . $image);
+        }
+
+        // Check public storage path (alternative location)
+        $publicStoragePath = public_path('storage/' . $image);
+        if (file_exists($publicStoragePath)) {
+            return url('storage/' . $image);
+        }
+
+        // Check direct public path (original logic)
+        $publicPath = public_path($image);
+        if (file_exists($publicPath)) {
+            return url($image);
+        }
+
+        // If no file exists, return the path anyway (let browser handle 404)
+        // This is better than returning default image for valid paths
+        return url('storage/' . $image);
     }
 }
