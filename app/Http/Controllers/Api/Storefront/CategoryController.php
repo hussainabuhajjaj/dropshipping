@@ -100,7 +100,7 @@ class CategoryController extends Controller
             ->withCount('reviews');
 
         $products = $productQuery
-            ->latest()
+            ->orderByRaw('MD5(CONCAT(products.id, ?))', [now()->toDateString()])
             ->paginate($perPage);
 
         return response()->json([

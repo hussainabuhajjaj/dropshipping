@@ -521,7 +521,7 @@ class HomeController extends Controller
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews')
-            ->latest()
+            ->orderByRaw('MD5(CONCAT(products.id, ?))', [now()->toDateString()])
             ->get()
             ->groupBy('category_id');
 

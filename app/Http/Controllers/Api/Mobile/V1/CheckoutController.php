@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Domain\Common\Models\Address;
 use App\Domain\Orders\Models\OrderAuditLog;
-use App\Events\Orders\OrderPlaced;
 use App\Http\Requests\Api\Mobile\V1\Checkout\ConfirmRequest;
 use App\Http\Requests\Api\Mobile\V1\Checkout\PreviewRequest;
 use App\Http\Resources\Mobile\V1\CheckoutConfirmResource;
@@ -203,8 +202,6 @@ class CheckoutController extends ApiController
                     'tax_included' => $taxIncluded,
                 ],
             ]);
-
-            event(new OrderPlaced($order));
 
             return [$order, $payment];
         });
