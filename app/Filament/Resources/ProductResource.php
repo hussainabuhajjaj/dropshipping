@@ -731,18 +731,7 @@ class ProductResource extends BaseResource
                                     ->whereNotNull('selling_price')
                                     ->where('cost_price', '>', 0)
                                     ->where('selling_price', '>', 0)
-                                    ->whereRaw('selling_price < (
-                                        CASE 
-                                            WHEN cost_price <= 5 THEN cost_price * 2.5
-                                            WHEN cost_price <= 10 THEN cost_price * 2.0
-                                            WHEN cost_price <= 20 THEN cost_price * 1.8
-                                            WHEN cost_price <= 50 THEN cost_price * 1.6
-                                            WHEN cost_price <= 100 THEN cost_price * 1.5
-                                            WHEN cost_price <= 200 THEN cost_price * 1.4
-                                            WHEN cost_price <= 500 THEN cost_price * 1.3
-                                            ELSE cost_price * 1.25
-                                        END
-                                    )');
+                                    ->whereRaw('selling_price < (cost_price * 1.50)');
                             });
                         });
                     })
@@ -891,7 +880,7 @@ class ProductResource extends BaseResource
                             TextInput::make('margin_percent')
                                 ->label('Margin %')
                                 ->numeric()
-                                ->default(35)
+                                ->default(50)
                                 ->minValue(0)
                                 ->maxValue(500)
                                 ->required(),
@@ -2604,18 +2593,7 @@ class ProductResource extends BaseResource
 
     private static function isBelowRequiredMargin(float $cost, float $selling): bool
     {
-        return $selling < (
-            match (true) {
-                $cost <= 5 => $cost * 2.5,
-                $cost <= 10 => $cost * 2.0,
-                $cost <= 20 => $cost * 1.8,
-                $cost <= 50 => $cost * 1.6,
-                $cost <= 100 => $cost * 1.5,
-                $cost <= 200 => $cost * 1.4,
-                $cost <= 500 => $cost * 1.3,
-                default => $cost * 1.25,
-            }
-        );
+        return $selling < ($cost * 1.50); // 50% margin
     }
 
     private static function getMarginStatus(Product $product): string
@@ -2827,18 +2805,7 @@ class ProductResource extends BaseResource
                     ->whereNotNull('selling_price')
                     ->where('cost_price', '>', 0)
                     ->where('selling_price', '>', 0)
-                    ->whereRaw('selling_price < (
-                        CASE 
-                            WHEN cost_price <= 5 THEN cost_price * 2.5
-                            WHEN cost_price <= 10 THEN cost_price * 2.0
-                            WHEN cost_price <= 20 THEN cost_price * 1.8
-                            WHEN cost_price <= 50 THEN cost_price * 1.6
-                            WHEN cost_price <= 100 THEN cost_price * 1.5
-                            WHEN cost_price <= 200 THEN cost_price * 1.4
-                            WHEN cost_price <= 500 THEN cost_price * 1.3
-                            ELSE cost_price * 1.25
-                        END
-                    )');
+                    ->whereRaw('selling_price < (cost_price * 1.50)');
             });
         });
 

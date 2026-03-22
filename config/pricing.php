@@ -7,7 +7,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'min_margin_percent' => env('PRICING_MIN_MARGIN_PERCENT', 45),
+    'min_margin_percent' => env('PRICING_MIN_MARGIN_PERCENT', 50),
     'minimum_profit_margin' => env('PRICING_MINIMUM_PROFIT_MARGIN', 15),
     'shipping_buffer_percent' => env('PRICING_SHIPPING_BUFFER_PERCENT', 10),
     'max_discount_percent' => env('PRICING_MAX_DISCOUNT_PERCENT', 30),
