@@ -57,6 +57,24 @@ class AddressService
 
     public function deleteForCustomer(Customer $customer, Address $address): void
     {
+        $wasDefault = (bool) $address->is_default;
         $address->delete();
+
+        if (! $wasDefault) {
+            return;
+        }
+
+        $replacement = Address::query()
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->first();
+
+        if ($replacement) {
+            Address::query()
+                ->where('customer_id', $customer->id)
+                ->update(['is_default' => false]);
+
+            $replacement->update(['is_default' => true]);
+        }
     }
 }
