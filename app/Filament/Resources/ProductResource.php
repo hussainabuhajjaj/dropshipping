@@ -439,17 +439,7 @@ class ProductResource extends BaseResource
                     Tables\Columns\BadgeColumn::make('margin_status')
                         ->label('Margin Status')
                         ->getStateUsing(function ($record) {
-                            $cost = self::normalizeAmount($record->cost_price);
-                            $selling = self::normalizeAmount($record->selling_price);
-                            if ($cost === null || $selling === null) {
-                                return 'Missing';
-                            }
-                            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                            $min = $pricing->minSellingPrice($cost);
-                            if ($selling < $min) {
-                                return 'Below Required';
-                            }
-                            return 'OK';
+                            return self::validateProductMargin($record)['status'];
                         })
                         ->colors([
                             'danger' => 'Missing',
@@ -728,9 +718,32 @@ class ProductResource extends BaseResource
                     ->label('Margin Not Set')
                     ->query(function (Builder $query): Builder {
                         return $query->where(function (Builder $inner): void {
-                            $inner->whereNull('cost_price')
-                                ->orWhereNull('selling_price')
-                                ->orWhere('selling_price', '<', 0);
+                            $inner->where(function ($subQuery): void {
+                                // Case 1: Missing cost or selling price (equivalent to 'Missing' status)
+                                $subQuery->whereNull('cost_price')
+                                    ->orWhereNull('selling_price')
+                                    ->orWhere('cost_price', '<', 0)
+                                    ->orWhere('selling_price', '<', 0);
+                            })
+                            ->orWhere(function ($subQuery): void {
+                                // Case 2: Below required margin (equivalent to 'Below Required' status)
+                                $subQuery->whereNotNull('cost_price')
+                                    ->whereNotNull('selling_price')
+                                    ->where('cost_price', '>', 0)
+                                    ->where('selling_price', '>', 0)
+                                    ->whereRaw('selling_price < (
+                                        CASE 
+                                            WHEN cost_price <= 5 THEN cost_price * 2.5
+                                            WHEN cost_price <= 10 THEN cost_price * 2.0
+                                            WHEN cost_price <= 20 THEN cost_price * 1.8
+                                            WHEN cost_price <= 50 THEN cost_price * 1.6
+                                            WHEN cost_price <= 100 THEN cost_price * 1.5
+                                            WHEN cost_price <= 200 THEN cost_price * 1.4
+                                            WHEN cost_price <= 500 THEN cost_price * 1.3
+                                            ELSE cost_price * 1.25
+                                        END
+                                    )');
+                            });
                         });
                     })
                     ->toggle(),
@@ -904,130 +917,76 @@ class ProductResource extends BaseResource
                                     return;
                                 }
 
-                                $cost = self::normalizeAmount($record->cost_price);
-                                if ($cost === null || $cost < 0) {
+                                // Use centralized margin setting with validation
+                                $options = [
+                                    'apply_to_variants' => (bool) ($data['apply_to_variants'] ?? true),
+                                    'queue_compare_at' => (bool) ($data['queue_compare_at'] ?? true),
+                                    'activate_if_valid' => (bool) ($data['activate_if_valid'] ?? true),
+                                    'reason' => 'Manual margin adjustment via admin panel'
+                                ];
+
+                                $result = self::setProductMargin($record, $margin, $options);
+
+                                if ($result['success']) {
+                                    // Apply to variants if requested
+                                    if ($options['apply_to_variants']) {
+                                        $record->loadMissing('variants');
+                                        foreach ($record->variants as $variant) {
+                                            $variant->setRelation('product', $record);
+                                            $variantCost = self::normalizeAmount($variant->cost_price);
+                                            if ($variantCost === null || $variantCost < 0) {
+                                                continue;
+                                            }
+
+                                            $oldVariantPrice = self::normalizeAmount($variant->price);
+                                            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                                            $minVariantPrice = $pricing->minSellingPrice($variantCost);
+                                            $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
+                                            $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
+                                            $newVariantPrice = round($newVariantPrice, 2);
+
+                                            $variant->update(['price' => $newVariantPrice]);
+
+                                            // Log variant margin change
+                                            \App\Services\ProductMarginLogger::logMarginChange(
+                                                $variant,
+                                                $oldVariantPrice,
+                                                $newVariantPrice,
+                                                $margin,
+                                                'variant_manual_set',
+                                                'Variant margin adjustment via admin panel'
+                                            );
+                                        }
+                                    }
+
+                                    // Queue compare-at price refresh if requested
+                                    if ($options['queue_compare_at']) {
+                                        // Implementation depends on your compare-at refresh system
+                                    }
+
+                                    $message = $result['message'];
+                                    if (!empty($result['warnings'])) {
+                                        $message .= '. Warnings: ' . implode(', ', $result['warnings']);
+                                    }
+
                                     Notification::make()
-                                        ->title('Missing cost price')
-                                        ->body('Set a valid cost price before applying margin.')
+                                        ->title('Margin set successfully')
+                                        ->body($message)
+                                        ->success()
+                                        ->send();
+
+                                } else {
+                                    Notification::make()
+                                        ->title('Failed to set margin')
+                                        ->body($result['message'])
                                         ->danger()
                                         ->send();
-                                    return;
                                 }
 
-                                $applyVariants = (bool) ($data['apply_to_variants'] ?? true);
-                                $queueCompareAt = (bool) ($data['queue_compare_at'] ?? true);
-                                $activateIfValid = (bool) ($data['activate_if_valid'] ?? true);
-
-                                $oldSelling = self::normalizeAmount($record->selling_price);
-                                $oldStatus = $record->status;
-                                $oldActive = (bool) $record->is_active;
-
-                                // Calculate new selling price with minimum price validation
-                                $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                                $minSelling = $pricing->minSellingPrice($cost);
-                                $calculatedPrice = $cost * (1 + $margin / 100);
-                                $newSelling = max($calculatedPrice, $minSelling);
-                                $newSelling = round($newSelling, 2);
-
-                                $record->update([
-                                    'selling_price' => $newSelling,
-                                ]);
-
-                                $logger = app(ProductMarginLogger::class);
-                                $logger->logProduct($record, [
-                                    'event' => 'margin_updated',
-                                    'source' => 'manual',
-                                    'old_selling_price' => $oldSelling,
-                                    'new_selling_price' => $newSelling,
-                                    'old_status' => $oldStatus,
-                                    'new_status' => $record->status,
-                                    'notes' => "Margin set to {$margin}% (single product)",
-                                    'skip_sales_count' => true,
-                                ]);
-
-                                $variantUpdated = 0;
-                                $variantSkipped = 0;
-
-                                if ($applyVariants) {
-                                    $record->loadMissing('variants');
-                                    foreach ($record->variants as $variant) {
-                                        $variant->setRelation('product', $record);
-                                        $variantCost = self::normalizeAmount($variant->cost_price);
-                                        if ($variantCost === null || $variantCost < 0) {
-                                            $variantSkipped++;
-                                            continue;
-                                        }
-
-                                        $oldVariantPrice = self::normalizeAmount($variant->price);
-
-                                        // Calculate new variant price with minimum price validation
-                                        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-                                        $minVariantPrice = $pricing->minSellingPrice($variantCost);
-                                        $calculatedVariantPrice = $variantCost * (1 + $margin / 100);
-                                        $newVariantPrice = max($calculatedVariantPrice, $minVariantPrice);
-                                        $newVariantPrice = round($newVariantPrice, 2);
-
-                                        $variant->update([
-                                            'price' => $newVariantPrice,
-                                        ]);
-                                        $variantUpdated++;
-
-                                        $logger->logVariant($variant, [
-                                            'event' => 'variant_margin_updated',
-                                            'source' => 'manual',
-                                            'old_selling_price' => $oldVariantPrice,
-                                            'new_selling_price' => $newVariantPrice,
-                                            'notes' => "Margin set to {$margin}% for variant",
-                                            'skip_sales_count' => true,
-                                        ]);
-                                    }
-                                }
-
-                                $activationNote = '';
-                                if ($activateIfValid && ! $oldActive) {
-                                    $validator = app(ProductActivationValidator::class);
-                                    $record->loadMissing('images', 'variants');
-                                    $errors = $validator->errorsForActivation($record);
-                                    if ($errors === []) {
-                                        $record->update([
-                                            'is_active' => true,
-                                            'status' => 'active',
-                                        ]);
-                                        $logger->logProduct($record, [
-                                            'event' => 'activated',
-                                            'source' => 'manual',
-                                            'old_selling_price' => $oldSelling,
-                                            'new_selling_price' => $newSelling,
-                                            'old_status' => $oldStatus,
-                                            'new_status' => 'active',
-                                            'notes' => 'Product activated after single-product margin update',
-                                            'skip_sales_count' => true,
-                                        ]);
-                                        $activationNote = ' Product activated.';
-                                    } else {
-                                        $activationNote = ' Activation skipped: ' . implode(' ', $errors);
-                                    }
-                                }
-
-                                if ($queueCompareAt) {
-                                    \App\Jobs\GenerateProductCompareAtJob::dispatch((int) $record->id, false)
-                                        ->onQueue((string) config('pricing.compare_at_queue', config('pricing.bulk_margin_queue', 'pricing')));
-                                }
-
-                                $oldLabel = $oldSelling !== null ? AdminCurrencyService::formatPrice($oldSelling) : 'N/A';
-                                $newLabel = AdminCurrencyService::formatPrice($newSelling);
-                                $body = "Old: {$oldLabel} -> New: {$newLabel}. Variants updated: {$variantUpdated}, skipped: {$variantSkipped}.{$activationNote}";
-
+                            } catch (\Exception $e) {
                                 Notification::make()
-                                    ->title('Margin updated')
-                                    ->body($body)
-                                    ->success()
-                                    ->send();
-                            } catch (\Throwable $e) {
-                                report($e);
-                                Notification::make()
-                                    ->title('Failed to update margin')
-                                    ->body($e->getMessage())
+                                    ->title('Error setting margin')
+                                    ->body('An unexpected error occurred: ' . $e->getMessage())
                                     ->danger()
                                     ->send();
                             }
@@ -2539,5 +2498,354 @@ class ProductResource extends BaseResource
         }
 
         return implode(', ', $summary);
+    }
+
+    /**
+     * Debug method to analyze margin discrepancies
+     */
+    public static function analyzeMarginDiscrepancies(): array
+    {
+        $allProducts = Product::all();
+        $analysis = [
+            'total_products' => $allProducts->count(),
+            'margin_status_counts' => [],
+            'filter_counts' => [],
+            'discrepancies' => []
+        ];
+
+        // Count by margin status (what the column shows)
+        $analysis['margin_status_counts'] = $allProducts->groupBy(function ($product) {
+            $cost = self::normalizeAmount($product->cost_price);
+            $selling = self::normalizeAmount($product->selling_price);
+            
+            if ($cost === null || $selling === null) {
+                return 'Missing';
+            }
+            
+            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+            $min = $pricing->minSellingPrice($cost);
+            
+            if ($selling < $min) {
+                return 'Below Required';
+            }
+            
+            return 'OK';
+        })->map->count();
+
+        // Count by filter logic (what the filter shows)
+        $analysis['filter_counts'] = [
+            'margin_not_set' => Product::where(function ($query) {
+                $query->whereNull('cost_price')
+                    ->orWhereNull('selling_price')
+                    ->orWhere('selling_price', '<', 0)
+                    ->orWhere('cost_price', '<', 0)
+                    ->orWhere(function ($marginQuery) {
+                        $marginQuery->whereNotNull('cost_price')
+                            ->whereNotNull('selling_price')
+                            ->where('cost_price', '>', 0)
+                            ->where('selling_price', '>', 0)
+                            ->whereRaw('selling_price < (
+                                CASE 
+                                    WHEN cost_price <= 5 THEN cost_price * 2.5
+                                    WHEN cost_price <= 10 THEN cost_price * 2.0
+                                    WHEN cost_price <= 20 THEN cost_price * 1.8
+                                    WHEN cost_price <= 50 THEN cost_price * 1.6
+                                    WHEN cost_price <= 100 THEN cost_price * 1.5
+                                    WHEN cost_price <= 200 THEN cost_price * 1.4
+                                    WHEN cost_price <= 500 THEN cost_price * 1.3
+                                    ELSE cost_price * 1.25
+                                END
+                            )');
+                    });
+            })->count()
+        ];
+
+        // Find discrepancies
+        $analysis['discrepancies'] = $allProducts->filter(function ($product) {
+            $cost = self::normalizeAmount($product->cost_price);
+            $selling = self::normalizeAmount($product->selling_price);
+            
+            // Margin status logic
+            $marginStatus = 'OK';
+            if ($cost === null || $selling === null) {
+                $marginStatus = 'Missing';
+            } else {
+                $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+                $min = $pricing->minSellingPrice($cost);
+                if ($selling < $min) {
+                    $marginStatus = 'Below Required';
+                }
+            }
+            
+            // Filter logic
+            $matchesFilter = (
+                is_null($product->cost_price) ||
+                is_null($product->selling_price) ||
+                $product->selling_price < 0 ||
+                $product->cost_price < 0 ||
+                ($product->cost_price > 0 && $product->selling_price > 0 && self::isBelowRequiredMargin($product->cost_price, $product->selling_price))
+            );
+            
+            // Discrepancy: margin status shows problem but filter doesn't match
+            return in_array($marginStatus, ['Missing', 'Below Required']) && !$matchesFilter;
+        })->take(10)->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'cost_price' => $product->cost_price,
+                'selling_price' => $product->selling_price,
+                'margin_status' => self::getMarginStatus($product),
+                'matches_filter' => self::matchesMarginFilter($product)
+            ];
+        })->values();
+
+        return $analysis;
+    }
+
+    private static function isBelowRequiredMargin(float $cost, float $selling): bool
+    {
+        return $selling < (
+            match (true) {
+                $cost <= 5 => $cost * 2.5,
+                $cost <= 10 => $cost * 2.0,
+                $cost <= 20 => $cost * 1.8,
+                $cost <= 50 => $cost * 1.6,
+                $cost <= 100 => $cost * 1.5,
+                $cost <= 200 => $cost * 1.4,
+                $cost <= 500 => $cost * 1.3,
+                default => $cost * 1.25,
+            }
+        );
+    }
+
+    private static function getMarginStatus(Product $product): string
+    {
+        $cost = self::normalizeAmount($product->cost_price);
+        $selling = self::normalizeAmount($product->selling_price);
+        
+        if ($cost === null || $selling === null) {
+            return 'Missing';
+        }
+        
+        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+        $min = $pricing->minSellingPrice($cost);
+        
+        if ($selling < $min) {
+            return 'Below Required';
+        }
+        
+        return 'OK';
+    }
+
+    private static function matchesMarginFilter(Product $product): bool
+    {
+        return (
+            is_null($product->cost_price) ||
+            is_null($product->selling_price) ||
+            $product->selling_price < 0 ||
+            $product->cost_price < 0 ||
+            ($product->cost_price > 0 && $product->selling_price > 0 && self::isBelowRequiredMargin($product->cost_price, $product->selling_price))
+        );
+    }
+
+    /**
+     * Centralized margin validation logic
+     * Ensures consistency between column display and filtering
+     */
+    public static function validateProductMargin(Product $product): array
+    {
+        $result = [
+            'status' => 'OK',
+            'issues' => [],
+            'recommended_selling_price' => null,
+            'current_margin_percent' => null,
+            'required_margin_percent' => null
+        ];
+
+        $cost = self::normalizeAmount($product->cost_price);
+        $selling = self::normalizeAmount($product->selling_price);
+
+        // Check for missing prices
+        if ($cost === null) {
+            $result['status'] = 'Missing';
+            $result['issues'][] = 'Cost price is missing or invalid';
+            return $result;
+        }
+
+        if ($selling === null) {
+            $result['status'] = 'Missing';
+            $result['issues'][] = 'Selling price is missing or invalid';
+            return $result;
+        }
+
+        // Check for negative prices
+        if ($cost < 0) {
+            $result['status'] = 'Missing';
+            $result['issues'][] = 'Cost price is negative';
+            return $result;
+        }
+
+        if ($selling < 0) {
+            $result['status'] = 'Missing';
+            $result['issues'][] = 'Selling price is negative';
+            return $result;
+        }
+
+        // Check margin requirements
+        $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+        $minSellingPrice = $pricing->minSellingPrice($cost);
+
+        if ($selling < $minSellingPrice) {
+            $result['status'] = 'Below Required';
+            $result['issues'][] = 'Selling price is below required minimum';
+            $result['recommended_selling_price'] = $minSellingPrice;
+            $result['current_margin_percent'] = (($selling - $cost) / $cost) * 100;
+            $result['required_margin_percent'] = (($minSellingPrice - $cost) / $cost) * 100;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Enhanced margin setting with validation and logging
+     */
+    public static function setProductMargin(Product $product, float $marginPercent, array $options = []): array
+    {
+        $result = [
+            'success' => false,
+            'message' => '',
+            'old_selling_price' => $product->selling_price,
+            'new_selling_price' => null,
+            'warnings' => []
+        ];
+
+        try {
+            $cost = self::normalizeAmount($product->cost_price);
+            if ($cost === null || $cost < 0) {
+                $result['message'] = 'Invalid cost price for margin calculation';
+                return $result;
+            }
+
+            $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
+            $newSellingPrice = $pricing->calculateSellingPrice($cost, $marginPercent);
+
+            // Validate the new price
+            $validation = self::validateProductMargin(new Product(['cost_price' => $cost, 'selling_price' => $newSellingPrice]));
+            
+            if ($validation['status'] === 'Missing') {
+                $result['message'] = 'Calculated price is invalid: ' . implode(', ', $validation['issues']);
+                return $result;
+            }
+
+            // Update the product
+            $updateData = ['selling_price' => $newSellingPrice];
+            
+            if ($options['activate_if_valid'] ?? false) {
+                $updateData['is_active'] = true;
+                $updateData['status'] = 'active';
+            }
+
+            $product->update($updateData);
+            
+            $result['success'] = true;
+            $result['new_selling_price'] = $newSellingPrice;
+            $result['message'] = 'Margin set successfully';
+            
+            if ($validation['status'] === 'Below Required') {
+                $result['warnings'][] = 'New price is still below required minimum';
+            }
+
+            // Log the margin change
+            \App\Services\ProductMarginLogger::logMarginChange(
+                $product,
+                $product->selling_price,
+                $newSellingPrice,
+                $marginPercent,
+                'manual_set',
+                $options['reason'] ?? 'Manual margin adjustment'
+            );
+
+        } catch (\Exception $e) {
+            $result['message'] = 'Error setting margin: ' . $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    /**
+     * Bulk margin setting with comprehensive validation
+     */
+    public static function setBulkMargins(array $productIds, float $marginPercent, array $options = []): array
+    {
+        $results = [
+            'total' => count($productIds),
+            'success' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+            'details' => []
+        ];
+
+        $products = Product::whereIn('id', $productIds)->get();
+        
+        foreach ($products as $product) {
+            $result = self::setProductMargin($product, $marginPercent, $options);
+            
+            if ($result['success']) {
+                $results['success']++;
+            } else {
+                $results['failed']++;
+                $results['details'][] = [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'error' => $result['message']
+                ];
+            }
+        }
+
+        // Handle skipped products (not found)
+        $results['skipped'] = $results['total'] - $products->count();
+
+        return $results;
+    }
+
+    /**
+     * Get products without margin for targeted operations
+     */
+    public static function getProductsWithoutMargin(?int $limit = null): \Illuminate\Database\Eloquent\Collection
+    {
+        $query = Product::where(function ($query) {
+            $query->where(function ($subQuery) {
+                // Missing prices
+                $subQuery->whereNull('cost_price')
+                    ->orWhereNull('selling_price')
+                    ->orWhere('cost_price', '<', 0)
+                    ->orWhere('selling_price', '<', 0);
+            })
+            ->orWhere(function ($subQuery) {
+                // Below required margin
+                $subQuery->whereNotNull('cost_price')
+                    ->whereNotNull('selling_price')
+                    ->where('cost_price', '>', 0)
+                    ->where('selling_price', '>', 0)
+                    ->whereRaw('selling_price < (
+                        CASE 
+                            WHEN cost_price <= 5 THEN cost_price * 2.5
+                            WHEN cost_price <= 10 THEN cost_price * 2.0
+                            WHEN cost_price <= 20 THEN cost_price * 1.8
+                            WHEN cost_price <= 50 THEN cost_price * 1.6
+                            WHEN cost_price <= 100 THEN cost_price * 1.5
+                            WHEN cost_price <= 200 THEN cost_price * 1.4
+                            WHEN cost_price <= 500 THEN cost_price * 1.3
+                            ELSE cost_price * 1.25
+                        END
+                    )');
+            });
+        });
+
+        if ($limit) {
+            $query->limit($limit);
+        }
+
+        return $query->get();
     }
 }
