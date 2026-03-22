@@ -66,10 +66,19 @@ class Cart extends Model
 
     public function calculateShippingFees()
     {
+        return $this->quoteShippingForItems($this->items, true)['total'];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\CartItem>  $items
+     * @return array{total: float, lines: array<int, array<string, mixed>>}
+     */
+    public function quoteShippingForItems(Collection $items, bool $persist = false): array
+    {
         $this->removeInvalidCjItems();
 
-        $items = $this->items;
         $providers = $items->groupBy('fulfillment_provider_id');
+        $shippingLines = [];
         Log::info('Cart shipping calculation started', [
             'cart_id' => $this->id,
             'items' => $items->map(function ($item) {
@@ -84,20 +93,21 @@ class Cart extends Model
             'providers' => $providers->keys()->toArray(),
         ]);
 
-        CartShipping::query()->where('cart_id', $this->id)->delete();
+        if ($persist) {
+            CartShipping::query()->where('cart_id', $this->id)->delete();
+        }
         $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
 
-        foreach ($providers as $provider_id => $items) {
+        foreach ($providers as $provider_id => $providerItems) {
             Log::info('Evaluating provider shipping group', [
                 'cart_id' => $this->id,
                 'provider_id' => $provider_id,
-                'line_ids' => $items->pluck('id')->values()->all(),
+                'line_ids' => $providerItems->pluck('id')->values()->all(),
             ]);
             if ($provider_id == 1) {
-                //  cj check shipping cost
                 $client = app(CJDropshippingClient::class);
 
-                $productsForQuote = $items->map(function ($item) {
+                $productsForQuote = $providerItems->map(function ($item) {
                     $vid = null;
                     if (isset($item['variant_id'])) {
                         $variant = ProductVariant::query()->find($item['variant_id']);
@@ -125,8 +135,8 @@ class Cart extends Model
 
                 $payload = [
                     'startCountryCode' => 'CN',
-                    'endCountryCode' => @$default_warehouse->country ?? "CN",
-                    "products" => $productsForQuote,
+                    'endCountryCode' => @$default_warehouse->country ?? 'CN',
+                    'products' => $productsForQuote,
                 ];
                 try {
                     $result = $client->freightCalculate($payload);
@@ -136,14 +146,18 @@ class Cart extends Model
                         $company = $data->sortBy('logisticPrice')->first();
 
                         if (isset($company)) {
-                            CartShipping::query()->create([
+                            $line = [
                                 'cart_id' => $this['id'],
                                 'fulfillment_provider_id' => $provider_id,
                                 'logistic_name' => @$company['logisticName'],
                                 'logistic_price' => @$company['logisticPrice'],
                                 'total_postage_fee' => @$company['totalPostageFee'],
                                 'aging' => @$company['logisticAging'],
-                            ]);
+                            ];
+                            $shippingLines[] = $line;
+                            if ($persist) {
+                                CartShipping::query()->create($line);
+                            }
                             Log::info('CJ shipping quote stored', [
                                 'cart_id' => $this->id,
                                 'provider_id' => $provider_id,
@@ -209,7 +223,7 @@ class Cart extends Model
             if (isset($variant)) {
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
-                    $pack_weight = explode('-', (string)$pack_weight);
+                    $pack_weight = explode('-', (string) $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
                     $weight_breakdown[] = [
                         'item_id' => $item->id,
@@ -259,25 +273,29 @@ class Cart extends Model
                     ];
                 }
             }
-//dd($weight_breakdown,$total_weight,$product_attrs['cj_payload']['packingWeight']);
+
             $total_weight += (float) $unit_weight * $item->quantity;
         }
         Log::info('Cart weight summary', [
             'cart_id' => $this->id,
-            'total_weight_g' => $total_weight ,
+            'total_weight_g' => $total_weight,
             'weight_breakdown' => $weight_breakdown,
         ]);
         $total_weight_in_kg = $total_weight / 1000;
 
         $total_shipping = $default_warehouse->calculateShippingPerWeight($total_weight_in_kg);
-        CartShipping::query()->create([
+        $defaultLine = [
             'cart_id' => $this['id'],
             'fulfillment_provider_id' => null,
             'logistic_name' => @$default_warehouse['shipping_company_name'],
             'logistic_price' => @$total_shipping,
             'total_postage_fee' => @$total_shipping,
             'aging' => null,
-        ]);
+        ];
+        $shippingLines[] = $defaultLine;
+        if ($persist) {
+            CartShipping::query()->create($defaultLine);
+        }
 
         Log::info('Default warehouse shipping entry created', [
             'cart_id' => $this->id,
@@ -292,8 +310,10 @@ class Cart extends Model
             ],
         ]);
 
-        return CartShipping::query()->where('cart_id', $this->id)->sum('logistic_price');
-
+        return [
+            'total' => (float) collect($shippingLines)->sum(fn ($line) => (float) ($line['logistic_price'] ?? 0)),
+            'lines' => $shippingLines,
+        ];
     }
 
     public function emptyCart()
@@ -433,7 +453,7 @@ class Cart extends Model
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shippingTotal, $promotionModels, $coupon);
         $selectedMethod = 'standard';
 
         $firstItem = $cart_items->first();

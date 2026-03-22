@@ -23,6 +23,8 @@ class ConfirmRequest extends BaseRequest
             'country' => ['required', 'string', 'max:2'],
             'delivery_notes' => ['nullable', 'string', 'max:500'],
             'payment_method' => ['nullable', 'string'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
         ];
     }
 }

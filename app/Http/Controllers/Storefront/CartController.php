@@ -91,7 +91,7 @@ class CartController extends Controller
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn ($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('cart', $productIds, $categoryIds);
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $couponModel);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shipping, $promotionModels, $couponModel);
         return Inertia::render('Cart/Index', [
             'lines' => $cartPayload,
             'currency' => $cart[0]['currency'] ?? 'USD',

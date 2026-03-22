@@ -13,6 +13,8 @@ class PreviewRequest extends BaseRequest
         return [
             'email' => ['nullable', 'email'],
             'country' => ['nullable', 'string', 'max:2'],
+            'product_ids' => ['nullable', 'array'],
+            'product_ids.*' => ['integer'],
         ];
     }
 }

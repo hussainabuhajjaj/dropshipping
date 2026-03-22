@@ -65,6 +65,7 @@ class HomePageSettingResource extends BaseResource
                                 ->disk('public')
                                 ->directory('home')
                                 ->image()
+                                ->imageEditor()
                                 ->required(),
                             Forms\Components\TextInput::make('primary_label')->default('Shop now'),
                             Forms\Components\TextInput::make('primary_href')->default('/products'),

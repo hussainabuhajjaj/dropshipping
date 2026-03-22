@@ -28,14 +28,21 @@ class CartMinimumService
      *
      * @param  float  $subtotal
      * @param  float  $discount
+     * @param  float  $shipping
      * @param  Collection|null  $promotions
      * @param  Coupon|null  $coupon
      * @return array{passes: bool, threshold: float, effective_total: float, message: string|null}
      */
-    public function evaluate(float $subtotal, float $discount, ?Collection $promotions = null, ?Coupon $coupon = null): array
+    public function evaluate(
+        float $subtotal,
+        float $discount,
+        float $shipping = 0.0,
+        ?Collection $promotions = null,
+        ?Coupon $coupon = null
+    ): array
     {
         $threshold = $this->threshold();
-        $effective = max(0.0, $subtotal - $discount);
+        $effective = max(0.0, $subtotal - $discount) + max(0.0, $shipping);
 
         if (!$this->isEnabled() || $threshold <= 0.0 || $effective >= $threshold || $this->allowsOverride($promotions, $coupon)) {
             return [
@@ -51,7 +58,7 @@ class CartMinimumService
             'passes' => false,
             'threshold' => $threshold,
             'effective_total' => $effective,
-            'message' => "Add at least \${$formatted} worth of products (after discounts) before checking out.",
+            'message' => "Add at least \${$formatted} total (products, after discounts, plus shipping) before checking out.",
         ];
     }
 

@@ -134,7 +134,7 @@ class CheckoutController extends Controller
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shipping, $promotionModels, $coupon);
 
         return Inertia::render('Checkout/Index', [
             'subtotal' => $subtotal,
@@ -231,7 +231,7 @@ class CheckoutController extends Controller
         $cartContext = $this->buildCartContext($cart_items, $subtotal);
         $promotionEngine = app(PromotionEngine::class);
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $promotionModels, $coupon);
+        $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shippingTotal, $promotionModels, $coupon);
         if (!$minimumRequirement['passes']) {
             return back()
                 ->withErrors(['cart' => $minimumRequirement['message']])
