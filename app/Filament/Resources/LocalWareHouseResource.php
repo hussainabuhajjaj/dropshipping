@@ -64,7 +64,7 @@ class LocalWareHouseResource extends BaseResource
     ->minValue(0)
     ->maxValue(100),
                         Forms\Components\TextInput::make('shipping_cost_per_kg')->numeric()
-    ->minValue(1)
+    ->minValue(0)
     ->maxValue(100),
                         Forms\Components\TextInput::make('shipping_additional_cost')->numeric()
     ->minValue(0)
