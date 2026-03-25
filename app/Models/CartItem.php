@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Products\Models\ProductVariant;
+use App\Domain\Products\Services\PricingService;
 use Illuminate\Database\Eloquent\Model;
 
 class CartItem extends Model
@@ -39,7 +40,7 @@ class CartItem extends Model
             $costPrice = (float)($this?->variant?->cost_price ?? $this?->product?->cost_price ?? 0);
             if ($costPrice > 0) {
                 // Apply minimum margin (same logic as CJ import)
-                $pricingService = app(\App\Domain\Pricing\Services\PricingService::class);
+                $pricingService = app(PricingService::class);
                 $price = $pricingService->minSellingPrice($costPrice, $this?->product?->currency ?? 'USD');
             }
         }

@@ -176,15 +176,15 @@ class CJMyProducts extends Page implements HasTable
             $service = app(CjProductImportService::class);
             $result = $service->importBulkWithPipeline([
                 'pids' => [$pid],
-                'margin_percent' => (float) ($options['margin'] ?? 35),
                 'enrich' => (bool) ($options['enrich'] ?? true),
                 'force_activate' => (bool) ($options['auto_activate'] ?? true),
+                'force_reprice' => (bool) ($options['force_reprice'] ?? false),
             ]);
 
             if ($result['activated'] > 0) {
                 Notification::make()
                     ->title('Product imported and activated')
-                    ->body("Imported with {$options['margin']}% margin")
+                    ->body('Imported with weight-based pricing')
                     ->success()
                     ->send();
             } elseif ($result['imported'] > 0) {
@@ -386,13 +386,9 @@ class CJMyProducts extends Page implements HasTable
                     ->color('success')
                     ->schema([
                         TextInput::make('pid')->label('CJ PID')->required()->maxLength(200),
-                        TextInput::make('margin')
-                            ->label('Margin %')
-                            ->numeric()
-                            ->default(config('services.cj.import_margin', 35))
-                            ->required()
-                            ->minValue(0)
-                            ->maxValue(200),
+                        Toggle::make('force_reprice')
+                            ->label('Force reprice existing product')
+                            ->default(false),
                         Toggle::make('enrich')
                             ->label('Fetch full details')
                             ->default(true),

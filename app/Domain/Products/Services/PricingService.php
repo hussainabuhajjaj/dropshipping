@@ -2,6 +2,8 @@
 
 namespace App\Domain\Products\Services;
 
+use App\Domain\Products\DTOs\PricingResultDTO;
+use App\Models\LocalWareHouse;
 use App\Services\Currency\CurrencyConversionService;
 use InvalidArgumentException;
 use RuntimeException;
@@ -9,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class PricingService
 {
+    private readonly CurrencyConversionService $currencyService;
+
     public function __construct(
         private readonly float $minMarginPercent = 0,
         private readonly float $maxDiscountPercent = 0,
@@ -23,6 +27,204 @@ class PricingService
             minMarginPercent: (float) config('pricing.min_margin_percent', 45),
             maxDiscountPercent: (float) config('pricing.max_discount_percent', 30),
         );
+    }
+
+    public static function usesNewEngine(array $context = []): bool
+    {
+        if (! (bool) config('pricing.use_new_engine', false)) {
+            return false;
+        }
+
+        $rollout = (array) config('pricing.new_engine_rollout', []);
+        $productId = isset($context['product_id']) && is_scalar($context['product_id']) ? (string) $context['product_id'] : null;
+        $cjPid = isset($context['cj_pid']) && is_scalar($context['cj_pid']) ? trim((string) $context['cj_pid']) : null;
+        $categoryId = isset($context['category_id']) && is_scalar($context['category_id']) ? (string) $context['category_id'] : null;
+
+        $productIds = self::normalizeRolloutValues($rollout['product_ids'] ?? []);
+        $cjPids = self::normalizeRolloutValues($rollout['cj_pids'] ?? []);
+        $categoryIds = self::normalizeRolloutValues($rollout['category_ids'] ?? []);
+
+        $hasExplicitScopes = $productIds !== [] || $cjPids !== [] || $categoryIds !== [];
+        if ($hasExplicitScopes) {
+            if ($productId !== null && in_array($productId, $productIds, true)) {
+                return true;
+            }
+
+            if ($cjPid !== null && in_array($cjPid, $cjPids, true)) {
+                return true;
+            }
+
+            if ($categoryId !== null && in_array($categoryId, $categoryIds, true)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        $percentage = max(0, min(100, (int) ($rollout['percentage'] ?? 100)));
+        if ($percentage >= 100) {
+            return true;
+        }
+
+        if ($percentage <= 0) {
+            return false;
+        }
+
+        $rolloutKey = self::resolveRolloutKey($context);
+        if ($rolloutKey === null) {
+            return false;
+        }
+
+        $bucket = (crc32($rolloutKey) % 100) + 1;
+
+        return $bucket <= $percentage;
+    }
+
+    /**
+     * @param array<int|string, mixed> $values
+     * @return array<int, string>
+     */
+    private static function normalizeRolloutValues(array $values): array
+    {
+        return array_values(array_filter(array_map(static function (mixed $value): string {
+            return is_scalar($value) ? trim((string) $value) : '';
+        }, $values), static fn (string $value): bool => $value !== ''));
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private static function resolveRolloutKey(array $context): ?string
+    {
+        foreach (['cj_pid', 'product_id', 'category_id'] as $key) {
+            if (isset($context[$key]) && is_scalar($context[$key])) {
+                $value = trim((string) $context[$key]);
+                if ($value !== '') {
+                    return "{$key}:{$value}";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public function calculate(
+        float $productCost,
+        float $weight,
+        ?float $cjShipping = 0,
+        ?LocalWareHouse $warehouse = null,
+        string $currency = 'USD',
+        array $options = []
+    ): PricingResultDTO {
+        if ($productCost <= 0) {
+            throw new InvalidArgumentException('Product cost must be greater than 0');
+        }
+
+        $weightKg = max(0, $weight);
+        $cjShippingAmount = max(0, (float) ($cjShipping ?? 0));
+
+        $ratePerKg = $warehouse?->shipping_cost_per_kg
+            ?? (float) config('pricing.default_shipping_per_kg', 7);
+
+        if (! $warehouse || $warehouse->shipping_cost_per_kg === null) {
+            Log::warning('Missing warehouse for pricing', [
+                'warehouse_id' => $warehouse?->id,
+                'requested_warehouse_id' => $options['warehouse_id'] ?? null,
+                'fallback_rate_per_kg' => $ratePerKg,
+                'currency' => $currency,
+            ]);
+        }
+
+        $externalShipping = round($weightKg * $ratePerKg, 4);
+        $landedCost = $productCost + $cjShippingAmount + $externalShipping;
+        $marginUsed = $this->resolveMarginByWeight($weightKg);
+        $sellingPrice = $this->calculateSellingPriceFromLandedCost($landedCost, $marginUsed, $currency);
+
+        return new PricingResultDTO(
+            costPrice: $productCost,
+            weightKg: $weightKg,
+            cjShipping: $cjShippingAmount,
+            warehouseId: $warehouse?->id,
+            shippingRatePerKg: $ratePerKg,
+            externalShipping: $externalShipping,
+            landedCost: $landedCost,
+            basePrice: $sellingPrice,
+            currency: $currency,
+            marginPercent: $marginUsed * 100,
+            pricingMeta: [
+                'warehouse_id' => $warehouse?->id,
+                'shipping_rate_per_kg' => $ratePerKg,
+                'external_shipping' => round($externalShipping, 2),
+                'cj_shipping' => round($cjShippingAmount, 2),
+                'weight_kg' => round($weightKg, 4),
+                'landed_cost' => round($landedCost, 2),
+                'margin_used' => $marginUsed,
+                'margin_source' => 'weight_based',
+            ],
+        );
+    }
+
+    public function resolveMarginByWeight(float $weightKg): float
+    {
+        $sanitizedWeight = max(0, $weightKg);
+        $rules = (array) config('pricing.weight_margins', []);
+
+        foreach ($rules as $rule) {
+            if (! is_array($rule)) {
+                continue;
+            }
+
+            $max = $rule['max'] ?? null;
+            $margin = $this->normalizeConfiguredMargin($rule['margin'] ?? null);
+
+            if ($margin === null) {
+                continue;
+            }
+
+            if ($max === null || $sanitizedWeight <= (float) $max) {
+                return $margin;
+            }
+        }
+
+        return $this->normalizeConfiguredMargin(config('pricing.default_margin', 0.35)) ?? 0.35;
+    }
+
+    public function calculateSellingPriceFromLandedCost(float $landedCost, float $margin, string $currency = 'USD'): float
+    {
+        if ($landedCost <= 0) {
+            throw new InvalidArgumentException('Landed cost must be greater than 0');
+        }
+
+        $normalizedMargin = max(0, $margin);
+
+        return $this->roundForCurrency($landedCost * (1 + $normalizedMargin), $currency);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function previewPricing(array $data): array
+    {
+        $result = $this->calculate(
+            productCost: max(0, (float) ($data['product_cost'] ?? 0)),
+            weight: max(0, (float) ($data['weight_kg'] ?? 0)),
+            cjShipping: max(0, (float) ($data['cj_shipping'] ?? 0)),
+            warehouse: $data['warehouse'] instanceof LocalWareHouse ? $data['warehouse'] : null,
+            currency: (string) ($data['currency'] ?? 'USD'),
+            options: is_array($data['options'] ?? null) ? $data['options'] : [],
+        );
+
+        return [
+            'cost_price' => $result->costPrice,
+            'weight_kg' => $result->weightKg,
+            'cj_shipping' => $result->cjShipping,
+            'external_shipping' => $result->externalShipping,
+            'landed_cost' => $result->landedCost,
+            'selling_price' => $result->basePrice,
+            'margin_percent' => $result->marginPercent,
+            'pricing_meta' => $result->pricingMeta,
+        ];
     }
 
     /**
@@ -280,6 +482,25 @@ class PricingService
         $decimals = config('currency.decimals', []);
         $precision = isset($decimals[$currency]) ? (int) $decimals[$currency] : 2;
         return round($amount, $precision);
+    }
+
+    private function normalizeConfiguredMargin(mixed $margin): ?float
+    {
+        if (! is_numeric($margin)) {
+            return null;
+        }
+
+        $value = (float) $margin;
+
+        if ($value < 0) {
+            return 0.0;
+        }
+
+        if ($value > 1) {
+            return $value / 100;
+        }
+
+        return $value;
     }
 
     /**

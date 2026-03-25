@@ -71,7 +71,7 @@ class Cart extends Model
 
     /**
      * @param  \Illuminate\Support\Collection<int, \App\Models\CartItem>  $items
-     * @return array{total: float, lines: array<int, array<string, mixed>>}
+     * @return array{total: float, lines: array<int, array<string, mixed>>, unavailable: bool, reason: ?string}
      */
     public function quoteShippingForItems(Collection $items, bool $persist = false): array
     {
@@ -79,6 +79,8 @@ class Cart extends Model
 
         $providers = $items->groupBy('fulfillment_provider_id');
         $shippingLines = [];
+        $shippingUnavailable = false;
+        $shippingUnavailableReason = null;
         Log::info('Cart shipping calculation started', [
             'cart_id' => $this->id,
             'items' => $items->map(function ($item) {
@@ -126,6 +128,8 @@ class Cart extends Model
                 })->filter()->values()->all();
 
                 if (empty($productsForQuote)) {
+                    $shippingUnavailable = true;
+                    $shippingUnavailableReason = 'No valid CJ variants found for shipping quote.';
                     Log::warning('Skipping CJ freight quote because no valid cj_vid lines were found', [
                         'cart_id' => $this->id,
                         'provider_id' => $provider_id,
@@ -170,7 +174,14 @@ class Cart extends Model
                             ]);
                         }
                     }
+
+                    if (! isset($company)) {
+                        $shippingUnavailable = true;
+                        $shippingUnavailableReason = 'CJ returned no shipping options for one or more cart items.';
+                    }
                 } catch (ApiException $e) {
+                    $shippingUnavailable = true;
+                    $shippingUnavailableReason = 'CJ shipping quote failed.';
                     $message = strtolower($e->getMessage());
                     if (str_contains($message, 'variant not found') && preg_match('/vid:\s*([0-9]+)/i', $e->getMessage(), $matches)) {
                         $missingVid = $matches[1] ?? null;
@@ -189,6 +200,8 @@ class Cart extends Model
                         'error' => $e->getMessage(),
                     ]);
                 } catch (\Throwable $e) {
+                    $shippingUnavailable = true;
+                    $shippingUnavailableReason = 'CJ shipping quote failed.';
                     Log::warning('Unexpected freight calculation failure; skipping provider shipping quote', [
                         'cart_id' => $this->id,
                         'provider_id' => $provider_id,
@@ -281,38 +294,12 @@ class Cart extends Model
             'total_weight_g' => $total_weight,
             'weight_breakdown' => $weight_breakdown,
         ]);
-        $total_weight_in_kg = $total_weight / 1000;
-
-        $total_shipping = $default_warehouse->calculateShippingPerWeight($total_weight_in_kg);
-        $defaultLine = [
-            'cart_id' => $this['id'],
-            'fulfillment_provider_id' => null,
-            'logistic_name' => @$default_warehouse['shipping_company_name'],
-            'logistic_price' => @$total_shipping,
-            'total_postage_fee' => @$total_shipping,
-            'aging' => null,
-        ];
-        $shippingLines[] = $defaultLine;
-        if ($persist) {
-            CartShipping::query()->create($defaultLine);
-        }
-
-        Log::info('Default warehouse shipping entry created', [
-            'cart_id' => $this->id,
-            'shipping_company' => @$default_warehouse['shipping_company_name'],
-            'weight_kg' => $total_weight_in_kg,
-            'shipping_charge' => $total_shipping,
-            'warehouse_shipping_details' => [
-                'min_charge' => $default_warehouse['shipping_min_charge'] ?? null,
-                'base_cost' => $default_warehouse['shipping_base_cost'] ?? null,
-                'cost_per_kg' => $default_warehouse['shipping_cost_per_kg'] ?? null,
-                'additional_cost' => $default_warehouse['shipping_additional_cost'] ?? null,
-            ],
-        ]);
 
         return [
             'total' => (float) collect($shippingLines)->sum(fn ($line) => (float) ($line['logistic_price'] ?? 0)),
             'lines' => $shippingLines,
+            'unavailable' => $shippingUnavailable,
+            'reason' => $shippingUnavailableReason,
         ];
     }
 

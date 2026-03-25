@@ -122,52 +122,6 @@
             <Link href="/products" class="btn-ghost">{{ t('View all products') }}</Link>
           </template>
         </EmptyState>
-        <div v-if="products.length" class="pager-bar">
-          <div class="pager-meta">
-            <p class="pager-strong">
-              {{ t('Showing :from–:to of :total', {
-                from: productsPaginator.from ?? 1,
-                to: productsPaginator.to ?? products.length,
-                total: productsPaginator.total ?? products.length,
-              }) }}
-            </p>
-            <p class="pager-muted">
-              {{ t('Page :page of :pages', { page: productsPaginator.current_page ?? 1, pages: productsPaginator.last_page ?? 1 }) }}
-            </p>
-          </div>
-          <div class="pager-actions">
-            <button
-              type="button"
-              class="pager-button"
-              :disabled="productsPaginator.current_page <= 1"
-              @click="goToPage((productsPaginator.current_page ?? 1) - 1)"
-            >
-              ‹ {{ t('Prev') }}
-            </button>
-
-            <div class="pager-pill">
-              <label class="sr-only" :for="`page-select`">{{ t('Go to page') }}</label>
-              <select
-                :id="`page-select`"
-                :value="productsPaginator.current_page ?? 1"
-                @change="goToPage(Number($event.target.value))"
-              >
-                <option v-for="pageNumber in productsPaginator.last_page ?? 1" :key="`page-${pageNumber}`" :value="pageNumber">
-                  {{ t('Page :page', { page: pageNumber }) }}
-                </option>
-              </select>
-            </div>
-
-            <button
-              type="button"
-              class="pager-button"
-              :disabled="! hasMore"
-              @click="goToPage((productsPaginator.current_page ?? 1) + 1)"
-            >
-              {{ t('Next') }} ›
-            </button>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -256,7 +210,19 @@
           </div>
         </form>
       </div>
-    </Transition>
+  </Transition>
+
+    <PaginationRail
+      v-if="products.length"
+      :current-page="productsPaginator.current_page ?? 1"
+      :last-page="productsPaginator.last_page ?? 1"
+      :can-next="hasMore"
+      :loading="false"
+      @prev="goToPage(Math.max(1, (productsPaginator.current_page ?? 1) - 1))"
+      @next="goToPage(Math.min(productsPaginator.last_page ?? 1, (productsPaginator.current_page ?? 1) + 1))"
+      @sort="() => {}"
+      @filter="() => { filtersOpen = true }"
+    />
   </StorefrontLayout>
 </template>
 
@@ -266,6 +232,7 @@ import { Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
+import PaginationRail from '@/Components/PaginationRail.vue'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({

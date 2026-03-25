@@ -1,12 +1,14 @@
 <template>
-  <Link :href="`/products/${product.slug}`" class="block group">
+  <Link :href="`/products/${product.slug}`" class="block group h-full">
     <article
-      class="card flex h-full flex-col justify-between transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer"
-      :class="dense ? 'p-2 gap-2' : 'p-3'"
+      :class="dense
+        ? 'card flex h-full flex-col gap-2 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer p-2.5'
+        : 'card flex h-full flex-col gap-3 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer p-3'"
     >
       <div
-        class="relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10"
-        :class="dense ? 'aspect-[1/1]' : 'aspect-[4/5]'"
+        :class="dense
+          ? 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[1/1]'
+          : 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[4/5]'"
       >
         <img
           v-if="product.media?.[0]"
@@ -42,12 +44,12 @@
         </button>
       </div>
 
-    <div :class="dense ? 'mt-2 flex flex-1 flex-col justify-between gap-2' : 'mt-3 flex flex-1 flex-col justify-between gap-3'">
-      <div class="space-y-1">
-        <p v-if="product.category" class="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-          {{ product.category }}
-        </p>
-        <h3 :class="dense ? 'text-xs font-semibold leading-tight text-slate-900 line-clamp-2' : 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2'">
+      <div :class="dense ? 'flex flex-col gap-1.5 flex-1 justify-start' : 'flex flex-col gap-2 flex-1 justify-start'">
+        <div class="flex items-baseline gap-2">
+          <div :class="dense ? 'text-base font-bold text-slate-900' : 'text-lg font-bold text-slate-900'">{{ displayPriceFormatted }}</div>
+          <div v-if="hasDiscount" class="text-xs text-slate-400 line-through">{{ compareAtFormatted }}</div>
+        </div>
+        <h3 :class="dense ? 'text-[13px] font-semibold leading-snug text-slate-900 line-clamp-2' : 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2'">
           <Link :href="`/products/${product.slug}`" class="hover:text-[#29ab87]">
             {{ product.name }}
           </Link>
@@ -61,46 +63,38 @@
           </span>
           <span>{{ product.is_active ? t('In stock') : t('Unavailable') }}</span>
         </div>
-      </div>
 
-      <div class="flex flex-col gap-1">
-      <div class="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
-        <div :class="dense ? 'text-sm font-semibold text-slate-900' : 'text-base font-semibold text-slate-900'">
-          {{ displayPriceFormatted }}
-        </div>
-        <div v-if="hasDiscount" :class="dense ? 'text-xs text-slate-400 line-through' : 'text-sm text-slate-400 line-through'">
-          {{ compareAtFormatted }}
-        </div>
-      </div>
-      <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
-        {{ t('Ends in') }} {{ promoCountdown }}
-      </p>
-      <p v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-[0.65rem] text-slate-500">
-        {{ productPromotion.apply_hint }}
-      </p>
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
+        <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
+          {{ t('Ends in') }} {{ promoCountdown }}
+        </p>
+        <p v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-[0.65rem] text-slate-500">
+          {{ productPromotion.apply_hint }}
+        </p>
+
+        <div :class="dense ? 'mt-auto flex items-center justify-between gap-2' : 'mt-auto flex items-center justify-between gap-3'">
+          <button
+            type="button"
+            :class="dense
+              ? 'flex-1 rounded-full bg-[#29ab87] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#2aaa8a]'
+              : 'flex-1 rounded-full bg-[#29ab87] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2aaa8a]'"
+            @click.stop="addToCart"
+          >
+            {{ t('Add to cart') }}
+          </button>
           <Link
             :href="`/products/${product.slug}`"
-            :class="dense ? 'btn-secondary px-3 py-1.5 text-[11px] bg-[#29ab87] text-white hover:bg-[#2aaa8a]' : 'btn-secondary px-3 py-2 text-xs bg-[#29ab87] text-white hover:bg-[#2aaa8a]'"
+            :class="dense
+              ? 'rounded-full border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-900 hover:border-slate-300'
+              : 'rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 hover:border-slate-300'"
           >
-            {{ t('View product') }}
+            {{ t('Details') }}
           </Link>
-          <span
-            class="text-xs font-semibold uppercase tracking-[0.2em] text-[#29ab87]"
-            v-if="wishlistProcessing.value"
-          >
-            {{ t('Saving...') }}
-          </span>
         </div>
       </div>
-      <p class="text-[0.65rem] text-slate-500">
+
+      <p :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
         {{ t('Shipping calculated after address entry; final totals refresh during checkout.') }}
       </p>
-    </div>
-  </div>
-
-  <!-- Variant selection modal removed for cleaner UI -->
     </article>
   </Link>
 </template>
@@ -118,6 +112,8 @@ const props = defineProps({
   promotions: { type: Array, default: () => [] },
   dense: { type: Boolean, default: true },
 })
+
+const emit = defineEmits(['add-to-cart'])
 
 const { t } = useTranslations()
 const wishlisted = ref(Boolean(props.product.is_in_wishlist))
@@ -223,5 +219,11 @@ const addToWishlist = () => {
       },
     },
   )
+}
+
+const addToCart = () => {
+  // Emit for parent handlers; fallback to product page if no listener
+  if (typeof emit === 'function') emit('add-to-cart', props.product)
+  else router.visit(`/products/${props.product.slug}`)
 }
 </script>

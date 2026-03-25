@@ -3,13 +3,18 @@ import { router } from '@inertiajs/vue3'
 import { getAvailableCurrencies, getCurrencyDisplaySettings } from '@/utils/currency'
 
 const CURRENCY_KEY = 'dropshipping_currency'
-const currencyOptions = ['USD', 'XOF', 'JOD', 'EUR']
+const currencyOptions = ['USD', 'XOF']
 const selectedCurrency = ref('USD')
 
 const normalizeCurrency = (value) => {
   const normalized = String(value || '').trim().toUpperCase()
   const availableCurrencies = getAvailableCurrencies()
   return availableCurrencies.includes(normalized) ? normalized : 'USD'
+}
+
+const csrfHeaders = () => {
+  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  return token ? { 'X-CSRF-TOKEN': token } : {}
 }
 
 const setCurrency = (value) => {
@@ -20,6 +25,7 @@ const setCurrency = (value) => {
     // Make API call to backend to persist currency preference
     router.post('/currency', { currency: next }, {
       preserveScroll: true,
+      headers: csrfHeaders(),
       onSuccess: () => {
         console.log('Currency preference saved successfully')
       },

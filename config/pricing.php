@@ -8,8 +8,23 @@ return [
     */
 
     'min_margin_percent' => env('PRICING_MIN_MARGIN_PERCENT', 50),
-    'minimum_profit_margin' => env('PRICING_MINIMUM_PROFIT_MARGIN', 15),
+    'default_margin' => env('PRICING_DEFAULT_MARGIN', 0.35),
+    'minimum_profit_margin' => env('PRICING_MINIMUM_PROFIT_MARGIN', 20),
     'shipping_buffer_percent' => env('PRICING_SHIPPING_BUFFER_PERCENT', 10),
+    'default_shipping_per_kg' => env('PRICING_DEFAULT_SHIPPING_PER_KG', 14),
+    'use_new_engine' => env('PRICING_USE_NEW_ENGINE', true),
+    'new_engine_rollout' => [
+        'percentage' => env('PRICING_NEW_ENGINE_PERCENTAGE', 100),
+        'product_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('PRICING_NEW_ENGINE_PRODUCT_IDS', ''))))),
+        'cj_pids' => array_values(array_filter(array_map('trim', explode(',', (string) env('PRICING_NEW_ENGINE_CJ_PIDS', ''))))),
+        'category_ids' => array_values(array_filter(array_map('trim', explode(',', (string) env('PRICING_NEW_ENGINE_CATEGORY_IDS', ''))))),
+    ],
+    'weight_margins' => [
+        ['max' => 0.5, 'margin' => 0.65],
+        ['max' => 1.0, 'margin' => 0.55],
+        ['max' => 2.0, 'margin' => 0.45],
+        ['max' => null, 'margin' => 0.30],
+    ],
     'max_discount_percent' => env('PRICING_MAX_DISCOUNT_PERCENT', 30),
     'max_promotion_discount' => env('PRICING_MAX_PROMOTION_DISCOUNT', 30),
 

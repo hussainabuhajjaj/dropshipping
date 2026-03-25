@@ -22,7 +22,11 @@ class CategoryController extends Controller
     public function show(Request $request, Category $category, ProductMetaExtractor $metaExtractor): Response
     {
         $locale = app()->getLocale();
-        $category->loadMissing(['translations' => fn ($q) => $q->where('locale', $locale)]);
+        $category->loadMissing([
+            'translations' => fn ($q) => $q->where('locale', $locale),
+            'children.translations' => fn ($q) => $q->where('locale', $locale),
+            'children' => fn ($q) => $q->where('is_active', true)->withCount('products'),
+        ]);
         $category->increment('view_count');
 
         $perPage = 18;
@@ -98,7 +102,35 @@ class CategoryController extends Controller
                 'hero_cta_link' => $category->hero_cta_link,
                 'meta_title' => $category->translatedValue('meta_title', $locale),
                 'meta_description' => $category->translatedValue('meta_description', $locale),
+                'children' => $category->children
+                    ->map(fn (Category $child) => [
+                        'id' => $child->id,
+                        'name' => $child->translatedValue('name', $locale),
+                        'slug' => $child->slug,
+                        'image' => $child->hero_image
+                            ? (str_starts_with($child->hero_image, 'http://') || str_starts_with($child->hero_image, 'https://')
+                                ? $child->hero_image
+                                : url(Storage::url($child->hero_image)))
+                            : null,
+                        'product_count' => (int) ($child->products_count ?? 0),
+                    ])
+                    ->values()
+                    ->all(),
             ],
+            'subcategories' => $category->children
+                ->map(fn (Category $child) => [
+                    'id' => $child->id,
+                    'name' => $child->translatedValue('name', $locale),
+                    'slug' => $child->slug,
+                    'image' => $child->hero_image
+                        ? (str_starts_with($child->hero_image, 'http://') || str_starts_with($child->hero_image, 'https://')
+                            ? $child->hero_image
+                            : url(Storage::url($child->hero_image)))
+                        : null,
+                    'product_count' => (int) ($child->products_count ?? 0),
+                ])
+                ->values()
+                ->all(),
             'products' => $products,
             'currency' => 'USD',
             'promotions' => $promotions,
@@ -115,6 +147,7 @@ class CategoryController extends Controller
             'max_price' => $request->query('max_price'),
             'rating' => $request->query('rating'),
             'in_stock' => $request->query('in_stock'),
+            'categories' => array_values(array_filter((array) $request->query('categories', []))),
             'is_featured' => $request->query('is_featured'),
             'status' => $request->query('status'),
             'sort' => $request->query('sort'),
@@ -155,6 +188,18 @@ class CategoryController extends Controller
             ])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
+
+        if (! empty($filters['categories'])) {
+            $selectedCategoryIds = Category::query()
+                ->whereIn('id', $filters['categories'])
+                ->orWhereIn('slug', $filters['categories'])
+                ->pluck('id')
+                ->all();
+
+            if ($selectedCategoryIds !== []) {
+                $productQuery->whereIn('category_id', $selectedCategoryIds);
+            }
+        }
 
         if (!empty($filters['q'])) {
             $q = $filters['q'];

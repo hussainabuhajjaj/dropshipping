@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
 use App\Domain\Products\Services\CjProductImportService;
+use App\Domain\Products\Services\PricingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -26,6 +27,12 @@ class RefreshCjProductData extends Command
 
     public function handle(): int
     {
+        if (PricingService::usesNewEngine()) {
+            $this->warn('pricing.use_new_engine is enabled. This legacy refresh command is blocked to avoid mixing pricing engines.');
+
+            return self::INVALID;
+        }
+
         $this->info('🔄 CJ Product Data Refresh');
         $this->info('==========================');
 

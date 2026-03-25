@@ -89,19 +89,56 @@
                     </div>
                 </div>
 
-<!--                <div v-if="railCards.length" class="hero-rails">-->
-<!--                    <div-->
-<!--                        v-for="(card, index) in railCards"-->
-<!--                        :key="card.title"-->
-<!--                        class="rail-card"-->
-<!--                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"-->
-<!--                    >-->
-<!--                        <p class="rail-kicker">{{ card.kicker }}</p>-->
-<!--                        <h3>{{ card.title }}</h3>-->
-<!--                        <p>{{ card.subtitle }}</p>-->
-<!--                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>-->
-<!--                    </div>-->
-<!--                </div>-->
+                <div v-if="railCards.length" class="hero-rails">
+                    <div
+                        v-for="(card, index) in railCards"
+                        :key="card.title"
+                        class="rail-card"
+                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"
+                    >
+                        <p class="rail-kicker">{{ card.kicker }}</p>
+                        <h3>{{ card.title }}</h3>
+                        <p>{{ card.subtitle }}</p>
+                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="promoBanner" class="promo-banner">
+                <div class="promo-banner-inner" :style="{ background: promoBanner.background || '#fff' }">
+                    <div class="promo-copy">
+                        <p class="promo-kicker">{{ promoBanner.kicker || t('Featured') }}</p>
+                        <h2>{{ promoBanner.title }}</h2>
+                        <p class="promo-subtitle">{{ promoBanner.subtitle }}</p>
+                        <div class="promo-actions" v-if="promoBanner.cta">
+                            <Link :href="promoBanner.cta.href || '#'" class="promo-cta">{{ promoBanner.cta.label || t('Learn more') }}</Link>
+                        </div>
+                    </div>
+                    <div v-if="promoBanner.images?.length" class="promo-strip">
+                        <img v-for="(img, idx) in promoBanner.images" :key="`promo-img-${idx}`" :src="img" :alt="promoBanner.title" loading="lazy" />
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="reasonsBlocks.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('More reasons to shop') }}</p>
+                        <h2 class="section-title">{{ t('Why customers choose us') }}</h2>
+                    </div>
+                </div>
+                <div class="reasons-grid">
+                    <article
+                        v-for="reason in reasonsBlocks"
+                        :key="`reason-${reason.title}`"
+                        class="reason-card"
+                    >
+                        <div class="reason-icon" v-if="reason.icon">{{ reason.icon }}</div>
+                        <img v-else-if="reason.image" :src="reason.image" :alt="reason.title" loading="lazy" />
+                        <p class="reason-title">{{ reason.title }}</p>
+                        <p class="reason-copy">{{ reason.subtitle }}</p>
+                    </article>
+                </div>
             </section>
 
 <!--            <section class="section-block">-->
@@ -132,32 +169,122 @@
                 />
             </section>
 
-            <section v-if="seasonalDrops.length" class="section-block">
+            <!-- Seasonal drops and offers removed per request -->
+
+            <section v-if="savingsBlocks.length" class="section-block">
                 <div class="section-head">
                     <div>
-                        <p class="section-kicker">{{ t('Seasonal drops') }}</p>
-                        <h2 class="section-title">{{ t('Limited edits and festive drops') }}</h2>
+                        <p class="section-kicker">{{ t('Maximize your savings') }}</p>
+                        <h2 class="section-title">{{ t('Stackable deals and perks') }}</h2>
                     </div>
-                    <Link :href="seasonalDropsViewAllHref" class="section-link">{{ t('View all') }}</Link>
                 </div>
-                <div class="seasonal-grid">
+                <div class="savings-grid">
                     <Link
-                        v-for="drop in seasonalDrops"
-                        :key="drop.id"
-                        :href="drop.href"
-                        class="seasonal-card"
+                        v-for="block in savingsBlocks"
+                        :key="`savings-${block.id || block.title}`"
+                        :href="block.href || '/products'"
+                        class="savings-card"
                     >
-                        <div class="seasonal-media">
-                            <img v-if="drop.image" :src="drop.image" :alt="drop.title" loading="lazy" />
-                            <div v-else class="seasonal-fallback">{{ drop.kicker?.slice(0, 2) || 'SD' }}</div>
-                            <span v-if="drop.tag" class="seasonal-tag">{{ drop.tag }}</span>
-                        </div>
-                        <div class="seasonal-body">
-                            <p class="seasonal-kicker">{{ drop.kicker }}</p>
-                            <h3>{{ drop.title }}</h3>
-                            <p class="seasonal-subtitle">{{ drop.subtitle }}</p>
-                        </div>
+                        <p class="savings-kicker">{{ block.kicker || t('Deal') }}</p>
+                        <h3 class="savings-title">{{ block.title }}</h3>
+                        <p class="savings-subtitle">{{ block.subtitle }}</p>
+                        <span class="savings-tag">{{ block.tagline || t('Save more') }}</span>
                     </Link>
+                </div>
+            </section>
+
+            <section v-if="categoryIcons.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Explore more') }}</p>
+                        <h2 class="section-title">{{ t('Top picks by category') }}</h2>
+                    </div>
+                </div>
+                <div class="icon-grid">
+                    <Link
+                        v-for="icon in categoryIcons"
+                        :key="`icon-${icon.slug}`"
+                        :href="icon.href"
+                        class="icon-tile"
+                    >
+                        <div class="icon-avatar">{{ icon.badge }}</div>
+                        <p class="icon-label">{{ icon.label }}</p>
+                    </Link>
+                </div>
+            </section>
+
+            <section v-if="flashDeals?.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Deals') }}</p>
+                        <h2 class="section-title">{{ t('Hot deals today') }}</h2>
+                    </div>
+                    <Link href="/products?sort=price_desc" class="section-link">{{ t('View all') }}</Link>
+                </div>
+                <div class="rail-track overflow-x-auto pb-2">
+                    <ProductCard
+                        v-for="deal in flashDeals"
+                        :key="`deal-${deal.id}`"
+                        :product="deal"
+                        :currency="currency"
+                        :promotions="homepagePromotions"
+                        class="rail-card"
+                    />
+                </div>
+            </section>
+
+            <section v-if="featuredDeals.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Maximize your savings') }}</p>
+                        <h2 class="section-title">{{ t('Stackable deals and fast delivery') }}</h2>
+                    </div>
+                    <Link :href="flashDealsViewAllHref" class="section-link">{{ t('Shop all deals') }}</Link>
+                </div>
+                <div class="deal-rail">
+                    <ProductCard
+                        v-for="deal in featuredDeals"
+                        :key="`featured-deal-${deal.id}`"
+                        :product="deal"
+                        :currency="currency"
+                        :promotions="homepagePromotions"
+                        class="deal-card-rail"
+                    />
+                </div>
+            </section>
+
+            <section v-if="sectionBlocks.length" class="space-y-10">
+                <div
+                    v-for="block in sectionBlocks"
+                    :key="block.key"
+                    class="section-block"
+                >
+                    <div class="section-head">
+                        <h2 class="section-title">{{ block.title }}</h2>
+                        <Link href="/products" class="section-link">{{ t('View all') }}</Link>
+                    </div>
+                    <div class="rail-track overflow-x-auto pb-2">
+                        <ProductCard
+                            v-for="item in block.items"
+                            :key="`${block.key}-${item.id}`"
+                            :product="item"
+                            :currency="currency"
+                            :promotions="homepagePromotions"
+                            class="rail-card"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="topStrip.length" class="section-block">
+                <div class="section-head">
+                    <h2 class="section-title">{{ t('Why shop with us') }}</h2>
+                </div>
+                <div class="trust-grid">
+                    <div v-for="item in topStrip" :key="item.title" class="trust-card">
+                        <p class="trust-title">{{ item.title }}</p>
+                        <p class="trust-body">{{ item.subtitle }}</p>
+                    </div>
                 </div>
             </section>
 
@@ -210,6 +337,32 @@
                             class="featured-category-product"
                         />
                     </div>
+                </div>
+            </section>
+
+            <section v-if="focusBlocks.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('In focus') }}</p>
+                        <h2 class="section-title">{{ t('Curated stories and trends') }}</h2>
+                    </div>
+                </div>
+                <div class="focus-grid">
+                    <Link
+                        v-for="block in focusBlocks"
+                        :key="`focus-${block.id || block.title}`"
+                        :href="block.href || '/products'"
+                        class="focus-card"
+                    >
+                        <div v-if="block.image" class="focus-media">
+                            <img :src="block.image" :alt="block.title" loading="lazy" />
+                        </div>
+                        <div class="focus-body">
+                            <p class="focus-kicker">{{ block.kicker || t('Spotlight') }}</p>
+                            <h3>{{ block.title }}</h3>
+                            <p class="focus-subtitle">{{ block.subtitle }}</p>
+                        </div>
+                    </Link>
                 </div>
             </section>
 
@@ -340,6 +493,98 @@
                 </div>
             </section>
 
+            <section v-if="popularSearches.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Popular Searches') }}</p>
+                        <h2 class="section-title">{{ t('Trending lookups') }}</h2>
+                    </div>
+                </div>
+                <div class="chip-cloud">
+                    <Link
+                        v-for="term in popularSearches"
+                        :key="`search-${term}`"
+                        :href="`/search?q=${encodeURIComponent(term)}`"
+                        class="chip-pill"
+                    >
+                        {{ term }}
+                    </Link>
+                </div>
+            </section>
+
+            <section v-if="contentSections.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Learn more') }}</p>
+                        <h2 class="section-title">{{ t('Shopping guides and FAQs') }}</h2>
+                    </div>
+                </div>
+                <div class="content-stack">
+                    <article
+                        v-for="section in contentSections"
+                        :key="`content-${section.id || section.title}`"
+                        class="content-section"
+                    >
+                        <h3 class="content-title">{{ section.title }}</h3>
+                        <p class="content-body">{{ section.body }}</p>
+                        <Link v-if="section.href" :href="section.href" class="content-link">{{ t('Read more') }}</Link>
+                    </article>
+                </div>
+            </section>
+
+            <section v-if="supportContacts.length" class="support-strip">
+                <div class="support-title">{{ t("We're Always Here To Help") }}</div>
+                <div class="support-items">
+                    <div
+                        v-for="contact in supportContacts"
+                        :key="contact.label"
+                        class="support-item"
+                    >
+                        <p class="support-label">{{ contact.label }}</p>
+                        <p class="support-value">
+                            <Link :href="contact.href || '#'" class="support-link">
+                                {{ contact.value }}
+                            </Link>
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="footerColumns.length" class="footer-grid">
+                <div
+                    v-for="column in footerColumns"
+                    :key="column.title"
+                    class="footer-column"
+                >
+                    <p class="footer-heading">{{ column.title }}</p>
+                    <Link
+                        v-for="link in column.links || []"
+                        :key="link.label"
+                        :href="link.href"
+                        class="footer-link"
+                    >
+                        {{ link.label }}
+                    </Link>
+                </div>
+            </section>
+
+            <section v-if="downloadBadges.length || paymentBadges.length" class="footer-meta">
+                <div v-if="downloadBadges.length" class="download-row">
+                    <p class="footer-heading">{{ t('Shop on the go') }}</p>
+                    <div class="badge-row">
+                        <Link v-for="badge in downloadBadges" :key="badge.href" :href="badge.href" class="badge">
+                            {{ badge.label }}
+                        </Link>
+                    </div>
+                </div>
+                <div v-if="paymentBadges.length" class="payment-row">
+                    <p class="footer-heading">{{ t('Payment methods') }}</p>
+                    <div class="badge-row">
+                        <span v-for="badge in paymentBadges" :key="badge" class="badge">{{ badge }}</span>
+                    </div>
+                </div>
+            </section>
+
             <section v-if="valueProps.length" class="value-grid">
                 <div v-for="item in valueProps" :key="item.title" class="value-card">
                     <h3>{{ item.title }}</h3>
@@ -394,6 +639,11 @@ const props = defineProps({
     banners: { type: Object, default: () => ({}) },
     seasonalDrops: { type: Array, default: () => [] },
     seasonalDropsViewAllHref: { type: String, default: '/products' },
+    popularSearches: { type: Array, default: () => [] },
+    footerColumns: { type: Array, default: () => [] },
+    supportContacts: { type: Array, default: () => [] },
+    downloadBadges: { type: Array, default: () => [] },
+    paymentBadges: { type: Array, default: () => [] },
 })
 
 const page = usePage()
@@ -496,6 +746,66 @@ const formatCount = (count) => {
 }
 
 const featuredDeals = computed(() => (Array.isArray(props.flashDeals) ? props.flashDeals.slice(0, 6) : []))
+const sectionBlocks = computed(() => {
+    return [
+        { key: 'trending', title: t('Trending Now'), items: props.trending ?? [] },
+        { key: 'best-sellers', title: t('Best Sellers'), items: props.bestSellers ?? [] },
+        { key: 'recommended', title: t('Recommended For You'), items: props.recommended ?? [] },
+        { key: 'new-arrivals', title: t('New Arrivals'), items: props.bestValue ?? [] },
+    ].filter((section) => Array.isArray(section.items) && section.items.length)
+})
+const categoryIcons = computed(() => {
+    const fromContent = Array.isArray(props.homeContent?.category_icons) ? props.homeContent.category_icons : []
+    const fallback = Array.isArray(props.categories) ? props.categories : []
+    const source = fromContent.length ? fromContent : fallback
+    return source.slice(0, 16).map((item) => {
+        const label = item.label || item.name
+        const slug = item.slug || item.id || label
+        return {
+            ...item,
+            label,
+            slug,
+            badge: item.badge || buildShort(String(label || '')),
+            href: item.href || `/categories/${encodeURIComponent(slug)}`,
+        }
+    })
+})
+const savingsBlocks = computed(() => {
+    const blocks = Array.isArray(props.homeContent?.savings_blocks) ? props.homeContent.savings_blocks : []
+    return blocks.slice(0, 6)
+})
+const focusBlocks = computed(() => {
+    const blocks = Array.isArray(props.homeContent?.focus_blocks) ? props.homeContent.focus_blocks : []
+    return blocks.slice(0, 6).map((block) => ({
+        ...block,
+        title: block.title || t('Featured story'),
+        subtitle: block.subtitle || '',
+    }))
+})
+const popularSearches = computed(() => {
+    if (Array.isArray(props.homeContent?.popular_searches)) return props.homeContent.popular_searches
+    return Array.isArray(props.popularSearches) ? props.popularSearches : []
+})
+const footerColumns = computed(() => {
+    if (Array.isArray(props.homeContent?.footer_columns)) return props.homeContent.footer_columns
+    return Array.isArray(props.footerColumns) ? props.footerColumns : []
+})
+const supportContacts = computed(() => {
+    if (Array.isArray(props.homeContent?.support_contacts)) return props.homeContent.support_contacts
+    return Array.isArray(props.supportContacts) ? props.supportContacts : []
+})
+const downloadBadges = computed(() => {
+    if (Array.isArray(props.homeContent?.download_badges)) return props.homeContent.download_badges
+    return Array.isArray(props.downloadBadges) ? props.downloadBadges : []
+})
+const paymentBadges = computed(() => {
+    if (Array.isArray(props.homeContent?.payment_badges)) return props.homeContent.payment_badges
+    return Array.isArray(props.paymentBadges) ? props.paymentBadges : []
+})
+const contentSections = computed(() => {
+    const sections = Array.isArray(props.homeContent?.content_sections) ? props.homeContent.content_sections : []
+    return sections.filter((section) => section?.title && section?.body)
+})
 const promotionForProduct = (product) => {
     if (!product || homepagePromotions.value.length === 0) return null
     return homepagePromotions.value.find(p => {
@@ -521,26 +831,7 @@ const promoCountdown = (promo) => {
     return formatCountdown(promo.end_at, now.value) ?? ''
 }
 
-const featuredPromotions = computed(() => {
-    const promos = homepagePromotions.value ?? []
-    if (!promos.length) return []
-    const intentOrder = {
-        urgency: 0,
-        cart_growth: 1,
-        shipping_support: 2,
-        acquisition: 3,
-        other: 4,
-    }
-    return [...promos]
-        .sort((a, b) => {
-            const intentDiff = (intentOrder[a.intent] ?? 9) - (intentOrder[b.intent] ?? 9)
-            if (intentDiff !== 0) return intentDiff
-            const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0)
-            if (priorityDiff !== 0) return priorityDiff
-            return (b.value ?? 0) - (a.value ?? 0)
-        })
-        .slice(0, 4)
-})
+const featuredPromotions = computed(() => [])
 
 const promoValue = (promo) => {
     if (!promo) return ''
@@ -614,6 +905,21 @@ const railCards = computed(() => {
         return props.homeContent.rail_cards
     }
     return []
+})
+const promoBanner = computed(() => {
+    if (props.homeContent?.promo_banner && typeof props.homeContent.promo_banner === 'object') {
+        return props.homeContent.promo_banner
+    }
+    return null
+})
+const reasonsBlocks = computed(() => {
+    const reasons = Array.isArray(props.homeContent?.reasons) ? props.homeContent.reasons : []
+    return reasons.map((r) => ({
+        title: r.title || t('Reason'),
+        subtitle: r.subtitle || '',
+        icon: r.icon || '',
+        image: r.image || '',
+    }))
 })
 
 const featuredCategories = computed(() => {
@@ -711,6 +1017,99 @@ const valueProps = computed(() => {
 .hero-block {
     display: block;
     gap: 18px;
+}
+
+.rail-track {
+    display: flex;
+    gap: 12px;
+}
+
+.rail-card {
+    min-width: 180px;
+    max-width: 220px;
+}
+
+.rail-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    white-space: nowrap;
+}
+.rail-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+.rail-chip-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 12px;
+    background: var(--Simbazu-cream);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--Simbazu-ink);
+}
+.rail-chip-label {
+    font-weight: 700;
+    color: var(--Simbazu-ink);
+}
+
+.offer-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.offer-card {
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 14px;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    display: grid;
+    gap: 8px;
+}
+.offer-badge {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--Simbazu-cream);
+    color: var(--Simbazu-ink);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+.offer-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--Simbazu-ink);
+    line-height: 1.2;
+}
+.offer-subtitle {
+    font-size: 12px;
+    color: #475569;
+}
+.offer-tag {
+    font-weight: 800;
+    color: var(--Simbazu-ink);
+    font-size: 13px;
+}
+
+.deal-rail {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+.deal-card-rail {
+    min-width: 180px;
+    max-width: 220px;
 }
 
 .hero-carousel {
@@ -879,8 +1278,6 @@ const valueProps = computed(() => {
 }
 
 .rail-card {
-    border-radius: 22px;
-    padding: 18px;
     border: 1px solid transparent;
 }
 
@@ -892,6 +1289,68 @@ const valueProps = computed(() => {
 .rail-ink {
     background: linear-gradient(135deg, #eef2ff, #f5f7ff);
     border-color: #d7ddff;
+}
+
+.promo-banner {
+    width: 100%;
+}
+
+.promo-banner-inner {
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 24px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.promo-copy h2 {
+    font-size: clamp(1.5rem, 1.2vw + 1rem, 2rem);
+    font-weight: 800;
+    color: #111827;
+    margin-top: 6px;
+}
+
+.promo-copy .promo-kicker {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #6b7280;
+}
+
+.promo-subtitle {
+    color: #4b5563;
+    font-size: 13px;
+    margin-top: 6px;
+}
+
+.promo-actions .promo-cta {
+    display: inline-flex;
+    margin-top: 10px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: var(--Simbazu-ink);
+    color: #fff;
+    font-weight: 700;
+}
+
+.promo-strip {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(120px, 1fr);
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
+.promo-strip img {
+    width: 100%;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .rail-kicker {
@@ -1287,6 +1746,326 @@ const valueProps = computed(() => {
     color: #fff;
     border-radius: 24px;
     padding: 24px;
+}
+
+.icon-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.icon-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.icon-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--Simbazu-cream);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #111827;
+}
+
+.icon-label {
+    font-weight: 700;
+    font-size: 13px;
+    color: #0f172a;
+    text-align: center;
+}
+
+.savings-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.savings-card {
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    padding: 14px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+    display: grid;
+    gap: 8px;
+}
+
+.savings-kicker {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.savings-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.savings-subtitle {
+    font-size: 13px;
+    color: #4b5563;
+}
+
+.savings-tag {
+    display: inline-flex;
+    width: fit-content;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--Simbazu-cream);
+    color: #111827;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.focus-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.focus-card {
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.focus-media {
+    aspect-ratio: 16 / 9;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.focus-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.focus-body {
+    padding: 14px;
+    display: grid;
+    gap: 6px;
+}
+
+.focus-kicker {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.focus-subtitle {
+    font-size: 12px;
+    color: #4b5563;
+}
+
+.content-stack {
+    display: grid;
+    gap: 12px;
+}
+
+.content-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    padding: 16px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.content-title {
+    font-weight: 800;
+    font-size: 15px;
+    color: #0f172a;
+}
+
+.content-body {
+    margin-top: 8px;
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.content-link {
+    margin-top: 10px;
+    display: inline-flex;
+    font-weight: 700;
+    color: #111827;
+    font-size: 13px;
+}
+
+.reasons-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.reason-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    display: grid;
+    gap: 8px;
+    text-align: center;
+}
+
+.reason-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto;
+    border-radius: 14px;
+    background: var(--Simbazu-cream);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #111827;
+}
+
+.reason-card img {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto;
+    object-fit: contain;
+}
+
+.reason-title {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 14px;
+}
+
+.reason-copy {
+    color: #4b5563;
+    font-size: 12px;
+}
+
+.chip-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chip-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    color: #0f172a;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.support-strip {
+    border-radius: 20px;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+}
+
+.support-title {
+    font-weight: 800;
+    font-size: 16px;
+    color: #111827;
+}
+
+.support-items {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.support-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.support-label {
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.support-link {
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.footer-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.footer-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-heading {
+    font-weight: 800;
+    font-size: 14px;
+    color: #0f172a;
+    text-transform: capitalize;
+}
+
+.footer-link {
+    color: #4b5563;
+    font-size: 13px;
+}
+
+.footer-meta {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: center;
+}
+
+.badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    color: #0f172a;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
 }
 
 .banner-fill {

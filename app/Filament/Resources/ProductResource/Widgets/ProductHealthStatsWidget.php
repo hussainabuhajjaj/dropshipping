@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\ProductResource\Widgets;
 
+use App\Domain\Products\Services\PricingService;
 use App\Models\Product;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -28,17 +29,23 @@ class ProductHealthStatsWidget extends StatsOverviewWidget
 
         $translatedProducts = max(0, $totalProducts - $untranslatedProducts);
 
+        $usingNewEngine = PricingService::usesNewEngine();
         $marginFactor = (1 + ((float) config('pricing.min_margin_percent', 20) / 100))
             * (1 + ((float) config('pricing.shipping_buffer_percent', 10) / 100));
 
-        $marginSetProducts = (clone $baseQuery)
-            ->whereNotNull('cost_price')
-            ->whereNotNull('selling_price')
-            ->where('selling_price', '>', 0)
-            ->whereRaw('selling_price >= (cost_price * ?)', [$marginFactor])
-            ->count();
+        if ($usingNewEngine) {
+            $marginSetProducts = null;
+            $marginNotSetProducts = null;
+        } else {
+            $marginSetProducts = (clone $baseQuery)
+                ->whereNotNull('cost_price')
+                ->whereNotNull('selling_price')
+                ->where('selling_price', '>', 0)
+                ->whereRaw('selling_price >= (cost_price * ?)', [$marginFactor])
+                ->count();
 
-        $marginNotSetProducts = max(0, $totalProducts - $marginSetProducts);
+            $marginNotSetProducts = max(0, $totalProducts - $marginSetProducts);
+        }
 
         $zeroSellingPriceProducts = (clone $baseQuery)
             ->where(function (Builder $query): void {
@@ -69,9 +76,9 @@ class ProductHealthStatsWidget extends StatsOverviewWidget
             Stat::make('Untranslated products', (string) $untranslatedProducts)
                 ->description('Need translation')
                 ->color($untranslatedProducts > 0 ? 'warning' : 'success'),
-            Stat::make('Margin set', (string) $marginSetProducts)
-                ->description("{$marginNotSetProducts} not set")
-                ->color($marginNotSetProducts > 0 ? 'warning' : 'success'),
+            Stat::make('Margin set', $usingNewEngine ? 'N/A' : (string) $marginSetProducts)
+                ->description($usingNewEngine ? 'Legacy margin metric disabled' : "{$marginNotSetProducts} not set")
+                ->color($usingNewEngine ? 'gray' : ($marginNotSetProducts > 0 ? 'warning' : 'success')),
             Stat::make('Selling price = 0', (string) $zeroSellingPriceProducts)
                 ->description('Missing/zero product price')
                 ->color($zeroSellingPriceProducts > 0 ? 'danger' : 'success'),

@@ -19,8 +19,8 @@ use App\Jobs\SyncCjStockByVidChunkJob;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use Illuminate\Http\Client\ConnectionException;
+use App\Models\LocalWareHouse;
 use App\Models\ProductReview;
-use App\Domain\Products\Services\PricingService;
 use App\Services\ProductMarginLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +53,16 @@ class CjProductImportService
 
     public function importByPid(string $pid, array $options = []): ?Product
     {
+        $cachedPreview = $this->getCachedImportPreview($pid);
+        if (is_array($cachedPreview)) {
+            $productData = $cachedPreview['product'] ?? null;
+            $variants = is_array($cachedPreview['variants'] ?? null) ? $cachedPreview['variants'] : null;
+
+            if (is_array($productData) && $productData !== []) {
+                return $this->importFromPayload($productData, $variants, $options);
+            }
+        }
+
         try {
             $productResp = $this->client->getProduct($pid);
             $productData = $productResp->data ?? null;
@@ -69,6 +79,154 @@ class CjProductImportService
         }
 
         return $this->importFromPayload($productData, null, $options);
+    }
+
+    /**
+     * Build and cache a CJ import preview so the same payload can be reused during import.
+     *
+     * @return array{
+     *   pid:string,
+     *   product:array<string,mixed>,
+     *   variants:array<int,array<string,mixed>>,
+     *   inventory:array<int,array<string,mixed>>,
+     *   images:array<int,string>,
+     *   videos:array<int,string>,
+     *   validation:array<string,mixed>
+     * }
+     */
+    public function buildImportPreview(string $pid): array
+    {
+        $pid = trim($pid);
+        if ($pid === '') {
+            throw new \InvalidArgumentException('CJ product id is required for preview.');
+        }
+
+        $cached = $this->getCachedImportPreview($pid);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $productResp = $this->client->getProduct($pid);
+        $productData = $productResp->data ?? null;
+
+        if (! is_array($productData) || $productData === []) {
+            throw new \RuntimeException("CJ returned no product details for {$pid}.");
+        }
+
+        $variants = $this->buildPreviewVariants($pid, $productData);
+        $inventoryRows = $this->extractPreviewInventoryRows($variants);
+
+        $preview = [
+            'pid' => $pid,
+            'product' => $productData,
+            'variants' => $variants,
+            'inventory' => $inventoryRows,
+            'images' => $this->mediaService->extractImageUrls($productData, $variants),
+            'videos' => $this->mediaService->extractVideoUrls($productData, $variants),
+            'validation' => $this->validateImportPreview($productData, $variants),
+        ];
+
+        Cache::put($this->importPreviewCacheKey($pid), $preview, now()->addHours(2));
+
+        return $preview;
+    }
+
+    /**
+     * @return array{
+     *   is_valid:bool,
+     *   errors:array<int,string>,
+     *   warnings:array<int,string>,
+     *   variants_count:int,
+     *   variants_missing_price:int,
+     *   variants_missing_inventory:int
+     * }
+     */
+    public function validateImportPreview(array $productData, array $variants): array
+    {
+        $errors = [];
+        $warnings = [];
+        $missingPrice = 0;
+        $missingInventory = 0;
+        $hasProductLevelPrice = is_numeric($productData['productCost'] ?? null)
+            || is_numeric($productData['productSellPrice'] ?? null)
+            || is_numeric($productData['sellPrice'] ?? null)
+            || is_numeric($productData['suggestSellPrice'] ?? null);
+
+        foreach ($variants as $variant) {
+            if (! is_array($variant)) {
+                continue;
+            }
+
+            $hasPrice = is_numeric($variant['variantSellPrice'] ?? null) || is_numeric($variant['variantSugSellPrice'] ?? null);
+            if (! $hasPrice) {
+                $missingPrice++;
+            }
+
+            $inventoryEntries = is_array($variant['inventories'] ?? null) ? $variant['inventories'] : [];
+            $hasInventory = collect($inventoryEntries)->contains(function ($inventory): bool {
+                return is_array($inventory)
+                    && (
+                        is_numeric($inventory['totalInventory'] ?? null)
+                        || is_numeric($inventory['cjInventory'] ?? null)
+                        || is_numeric($inventory['factoryInventory'] ?? null)
+                    );
+            });
+
+            if (! $hasInventory) {
+                $missingInventory++;
+            }
+        }
+
+        if ($variants === []) {
+            if ($hasProductLevelPrice) {
+                $warnings[] = 'CJ returned no variants. This product will be imported as a single product without variants.';
+            } else {
+                $errors[] = 'No variants were returned by CJ, and no product-level price is available.';
+            }
+        }
+
+        if ($missingPrice > 0) {
+            $errors[] = "{$missingPrice} variant(s) are missing CJ pricing.";
+        }
+
+        if ($missingInventory > 0) {
+            $errors[] = "{$missingInventory} variant(s) are missing inventory data.";
+        }
+
+        if (($productData['status'] ?? null) !== null && (string) $productData['status'] !== '3') {
+            $warnings[] = 'CJ product status is not marked as On Sale.';
+        }
+
+        return [
+            'is_valid' => $errors === [],
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'variants_count' => count($variants),
+            'variants_missing_price' => $missingPrice,
+            'variants_missing_inventory' => $missingInventory,
+        ];
+    }
+
+    public function getCachedImportPreview(string $pid): ?array
+    {
+        $pid = trim($pid);
+        if ($pid === '') {
+            return null;
+        }
+
+        $cached = Cache::get($this->importPreviewCacheKey($pid));
+
+        return is_array($cached) ? $cached : null;
+    }
+
+    public function clearCachedImportPreview(string $pid): void
+    {
+        $pid = trim($pid);
+        if ($pid === '') {
+            return;
+        }
+
+        Cache::forget($this->importPreviewCacheKey($pid));
     }
 
     public function importFromPayload(array $productData, ?array $variants = null, array $options = []): ?Product
@@ -196,6 +354,12 @@ class CjProductImportService
         if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && isset($productData['productSellPrice']) && is_numeric($productData['productSellPrice'])) {
             $rawCost = (float) $productData['productSellPrice'];
         }
+        if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && isset($productData['sellPrice']) && is_numeric($productData['sellPrice'])) {
+            $rawCost = (float) $productData['sellPrice'];
+        }
+        if ((!is_numeric($rawCost) || (float) $rawCost <= 0) && is_array($variants) && $variants !== []) {
+            $rawCost = $this->deriveProductCostFromVariants($variants) ?? 0;
+        }
 
         // Validate cost price
         if (!is_numeric($rawCost) || $rawCost < 0) {
@@ -210,11 +374,42 @@ class CjProductImportService
         $totalStock = (int) ($productData['totalStock'] ?? $productData['stock'] ?? 0);
         $stockOnHand = $this->calculateStockOnHand($totalStock);
 
+        $useNewPricingEngine = PricingService::usesNewEngine([
+            'cj_pid' => $pid,
+            'category_id' => $category?->id,
+        ]);
+        $pricingWarehouse = $useNewPricingEngine
+            ? $this->resolvePricingWarehouse($productData, is_array($variants) ? $variants : [], $options)
+            : null;
+        $pricingResult = $useNewPricingEngine && $rawCost > 0
+            ? PricingService::makeFromConfig()->calculate(
+                productCost: (float) $rawCost,
+                weight: $this->extractProductWeightKg($productData, is_array($variants) ? $variants : []),
+                cjShipping: $this->extractCjShippingAmount($productData),
+                warehouse: $pricingWarehouse,
+                currency: $currency,
+                options: [
+                    'category_id' => $category?->id,
+                    'margin_percent' => $options['margin_percent'] ?? null,
+                    'warehouse_id' => $options['warehouse_id'] ?? null,
+                ],
+            )
+            : null;
+
+        $forceReprice = (bool) ($options['force_reprice'] ?? false);
+        $shouldApplyDynamicPrice = $useNewPricingEngine
+            && ! $lockPrice
+            && (! $product || ! $product->exists || $forceReprice);
+
         $payload = [
             'name' => $name,
             'category_id' => $category?->id,
             'description' => $description,
-            'selling_price' => $product?->selling_price ?? null, // Keep existing, don't update
+            'selling_price' => $useNewPricingEngine
+                ? ($shouldApplyDynamicPrice
+                    ? ($pricingResult?->basePrice ?? $product?->selling_price ?? null)
+                    : ($product?->selling_price ?? null))
+                : ($product?->selling_price ?? null),
             'cost_price' => $rawCost, // ONLY cost price from CJ API
             'currency' => $productData['currency'] ?? 'USD',
             'attributes' => $attributes,
@@ -226,6 +421,11 @@ class CjProductImportService
             'cj_total_stock' => $totalStock, // Store total CJ stock for reference
             'default_fulfillment_provider_id' => $this->resolveDefaultFulfillmentProviderId(),
         ];
+
+        if ($useNewPricingEngine && $shouldApplyDynamicPrice) {
+            $payload['local_warehouse_id'] = $pricingWarehouse?->id;
+            $payload['pricing_meta'] = $pricingResult?->pricingMeta;
+        }
 
         $syncVariants = ($options['syncVariants'] ?? true) === true && !$lockVariants;
         $syncImages = ($options['syncImages'] ?? true) === true && !$lockImages;
@@ -245,6 +445,10 @@ class CjProductImportService
                 'cj_total_stock' => $payload['cj_total_stock'],
             ])
             : ['created'];
+
+        if ($useNewPricingEngine) {
+            $changedFields[] = 'warehouse_pricing';
+        }
 
         if ($syncVariants) {
             $changedFields[] = 'variants';
@@ -315,7 +519,7 @@ class CjProductImportService
 
         if ($syncVariants) {
             try {
-                $this->syncVariants($product, $variants, $pid);
+                $this->syncVariants($product, $variants, $pid, $productData, $options, $pricingWarehouse);
             } catch (\Throwable $e) {
                 Log::warning('Failed to sync variants for product', ['cj_pid' => $pid, 'error' => $e->getMessage()]);
             }
@@ -406,6 +610,129 @@ class CjProductImportService
         }
 
         return $product;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildPreviewVariants(string $pid, array $productData): array
+    {
+        $variants = is_array($productData['variants'] ?? null) ? $productData['variants'] : [];
+
+        if ($variants === []) {
+            $variantResp = $this->client->getVariantsByPid($pid);
+            $variants = is_array($variantResp->data ?? null) ? $variantResp->data : [];
+        }
+
+        if ($variants === []) {
+            return [];
+        }
+
+        $stockRows = [];
+        try {
+            $stockResp = $this->client->getStockByPid($pid);
+            $stockRows = is_array($stockResp->data ?? null) ? $stockResp->data : [];
+        } catch (ApiException $e) {
+            Log::warning('CJ stock preview fetch failed', ['pid' => $pid, 'error' => $e->getMessage()]);
+        }
+
+        if ($stockRows !== []) {
+            $variants = $this->mergeStockRowsIntoVariants($variants, $stockRows);
+        }
+
+        return $this->attachInventoriesToVariants($variants);
+    }
+
+    /**
+     * @param  array<int,array<string,mixed>>  $variants
+     * @param  array<int,array<string,mixed>>  $stockRows
+     * @return array<int,array<string,mixed>>
+     */
+    private function mergeStockRowsIntoVariants(array $variants, array $stockRows): array
+    {
+        $inventoryByVid = collect($stockRows)
+            ->filter(fn ($row) => is_array($row))
+            ->groupBy(fn (array $row) => trim((string) ($row['vid'] ?? '')))
+            ->map(function ($rows): array {
+                return $rows
+                    ->filter(fn ($row) => is_array($row))
+                    ->map(function (array $row): array {
+                        return [
+                            'countryCode' => $row['countryCode'] ?? null,
+                            'totalInventory' => (int) ($row['totalInventoryNum'] ?? $row['storageNum'] ?? 0),
+                            'cjInventory' => (int) ($row['cjInventoryNum'] ?? 0),
+                            'factoryInventory' => (int) ($row['factoryInventoryNum'] ?? 0),
+                            'warehouse' => $row['areaEn'] ?? null,
+                            'verifiedWarehouse' => null,
+                            'stock' => is_array($row['stock'] ?? null) ? $row['stock'] : [],
+                        ];
+                    })
+                    ->values()
+                    ->all();
+            })
+            ->all();
+
+        return collect($variants)
+            ->map(function ($variant) use ($inventoryByVid) {
+                if (! is_array($variant)) {
+                    return $variant;
+                }
+
+                $vid = trim((string) ($variant['vid'] ?? ''));
+                if ($vid === '') {
+                    return $variant;
+                }
+
+                if (! isset($inventoryByVid[$vid])) {
+                    return $variant;
+                }
+
+                $variant['inventories'] = $inventoryByVid[$vid];
+
+                return $variant;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int,array<string,mixed>>  $variants
+     * @return array<int,array<string,mixed>>
+     */
+    private function extractPreviewInventoryRows(array $variants): array
+    {
+        return collect($variants)
+            ->flatMap(function ($variant): array {
+                if (! is_array($variant)) {
+                    return [];
+                }
+
+                $vid = trim((string) ($variant['vid'] ?? ''));
+                $inventories = is_array($variant['inventories'] ?? null) ? $variant['inventories'] : [];
+
+                return collect($inventories)
+                    ->filter(fn ($inventory) => is_array($inventory))
+                    ->map(function (array $inventory) use ($vid): array {
+                        return [
+                            'vid' => $vid,
+                            'countryCode' => $inventory['countryCode'] ?? null,
+                            'totalInventoryNum' => (int) ($inventory['totalInventory'] ?? 0),
+                            'cjInventoryNum' => (int) ($inventory['cjInventory'] ?? 0),
+                            'factoryInventoryNum' => (int) ($inventory['factoryInventory'] ?? 0),
+                            'areaEn' => $inventory['warehouse'] ?? null,
+                            'stock' => $inventory['stock'] ?? [],
+                        ];
+                    })
+                    ->values()
+                    ->all();
+            })
+            ->values()
+            ->all();
+    }
+
+    private function importPreviewCacheKey(string $pid): string
+    {
+        return 'cj:import-preview:v2:' . trim($pid);
     }
 
     private function resolveDefaultFulfillmentProviderId(): ?int
@@ -711,18 +1038,40 @@ class CjProductImportService
             $name = $this->cleanProductName($productData['productNameEn'] ?? $productData['productName'] ?? ($productData['name'] ?? null)) ?: 'CJ Product';
             $slug = Str::slug($name . '-' . $pid);
 
-            $firstVariantPrice = null;
             $variants = $productData['variants'] ?? [];
-            if (is_array($variants) && count($variants) > 0) {
-                $first = $variants[0];
-                if (isset($first['variantSellPrice']) && is_numeric($first['variantSellPrice'])) {
-                    $firstVariantPrice = (float)$first['variantSellPrice'];
-                }
+            $rawCost = $productData['productCost'] ?? $productData['productSellPrice'] ?? $productData['sellPrice'] ?? null;
+            if ((! is_numeric($rawCost) || (float) $rawCost <= 0) && is_array($variants) && $variants !== []) {
+                $rawCost = $this->deriveProductCostFromVariants($variants);
             }
+            $rawCost = is_numeric($rawCost) ? (float) $rawCost : 0.0;
 
-            $price = $productData['productSellPrice'] ?? null;
-            dd($price);
-            $priceValue = is_numeric($firstVariantPrice) ? $firstVariantPrice : (is_numeric($price) ? (float)$price : null);
+            $categoryId = $this->resolveCategoryFromPayload($productData)?->id;
+            $existingProduct = Product::query()
+                ->where('cj_pid', $pid)
+                ->first(['id', 'selling_price']);
+            $forceReprice = (bool) ($options['force_reprice'] ?? false);
+            $useNewPricingEngine = PricingService::usesNewEngine([
+                'cj_pid' => $pid,
+                'category_id' => $categoryId,
+            ]);
+            $shouldApplyDynamicPrice = $useNewPricingEngine && (! $existingProduct || $forceReprice);
+            $warehouse = $useNewPricingEngine
+                ? $this->resolvePricingWarehouse($productData, is_array($variants) ? $variants : [], $options)
+                : null;
+            $pricing = $useNewPricingEngine && $rawCost > 0
+                ? PricingService::makeFromConfig()->calculate(
+                    productCost: $rawCost,
+                    weight: $this->extractProductWeightKg($productData, is_array($variants) ? $variants : []),
+                    cjShipping: $this->extractCjShippingAmount($productData),
+                    warehouse: $warehouse,
+                    currency: (string) ($productData['currency'] ?? 'USD'),
+                    options: [
+                        'category_id' => $categoryId,
+                        'margin_percent' => $options['margin_percent'] ?? null,
+                        'warehouse_id' => $options['warehouse_id'] ?? null,
+                    ],
+                )
+                : null;
 
             $incomingDescription = $this->cleanDescription(
                 $productData['descriptionEn']
@@ -742,10 +1091,12 @@ class CjProductImportService
                 'cj_pid' => $pid,
                 'name' => $name,
                 'slug' => $slug,
-                'category_id' => $this->resolveCategoryFromPayload($productData)?->id ?? null,
+                'category_id' => $categoryId,
                 'description' => $incomingDescription,
-                'selling_price' => $priceValue ?? 0,
-                'cost_price' => $priceValue ?? 0,
+                'selling_price' => $shouldApplyDynamicPrice
+                    ? ($pricing?->basePrice ?? 0)
+                    : (($existingProduct?->selling_price !== null) ? (float) $existingProduct->selling_price : $rawCost),
+                'cost_price' => $rawCost,
                 'currency' => $productData['currency'] ?? 'USD',
                 'attributes' => json_encode($attributes, JSON_UNESCAPED_SLASHES),
                 'source_url' => $productData['productUrl'] ?? $productData['sourceUrl'] ?? null,
@@ -760,6 +1111,11 @@ class CjProductImportService
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+
+            if ($shouldApplyDynamicPrice) {
+                $rows[array_key_last($rows)]['local_warehouse_id'] = $warehouse?->id;
+                $rows[array_key_last($rows)]['pricing_meta'] = json_encode($pricing?->pricingMeta, JSON_UNESCAPED_SLASHES);
+            }
         }
 
         if (empty($rows)) {
@@ -770,6 +1126,15 @@ class CjProductImportService
         $updateColumns = [
             'name', 'slug', 'category_id', 'description', 'selling_price', 'cost_price', 'currency', 'attributes', 'source_url', 'cj_synced_at', 'default_fulfillment_provider_id', 'cj_last_payload', 'cj_last_changed_fields', 'updated_at', 'status', 'is_active', 'is_featured', 'cj_sync_enabled'
         ];
+
+        $hasNewPricingRows = collect($rows)->contains(static function (array $row): bool {
+            return array_key_exists('local_warehouse_id', $row) || array_key_exists('pricing_meta', $row);
+        });
+
+        if ($hasNewPricingRows) {
+            $updateColumns[] = 'local_warehouse_id';
+            $updateColumns[] = 'pricing_meta';
+        }
 
         DB::transaction(function () use ($rows, $updateColumns) {
             // Chunk to a reasonable DB batch size to avoid giant queries
@@ -991,7 +1356,14 @@ class CjProductImportService
         ];
     }
 
-    private function syncVariants(Product $product, mixed $variants, string $pid): void
+    private function syncVariants(
+        Product $product,
+        mixed $variants,
+        string $pid,
+        array $productData = [],
+        array $options = [],
+        ?LocalWareHouse $pricingWarehouse = null,
+    ): void
     {
         // CRITICAL FIX: Validate product relationship before processing variants
         if (!$product->exists || !$product->cj_pid || $product->cj_pid !== $pid) {
@@ -1059,9 +1431,52 @@ class CjProductImportService
                         $sellPrice = (float) $rawCost;
                     }
 
+                    $useNewPricingEngine = PricingService::usesNewEngine([
+                        'product_id' => $product->id,
+                        'cj_pid' => $product->cj_pid,
+                        'category_id' => $product->category_id,
+                    ]);
+                    $forceReprice = (bool) ($options['force_reprice'] ?? false);
+                    $existingVariant = null;
+                    if ($vid !== '') {
+                        $existingVariant = ProductVariant::query()
+                            ->where('product_id', $product->id)
+                            ->where('cj_vid', $vid)
+                            ->first(['id', 'price', 'metadata']);
+                    }
+                    $shouldApplyVariantDynamicPrice = $useNewPricingEngine && (! $existingVariant || $forceReprice);
+                    $variantWarehouse = $useNewPricingEngine
+                        ? $this->resolveVariantPricingWarehouse($variant, $pricingWarehouse, $options)
+                        : null;
+                    $variantPricing = $useNewPricingEngine && $rawCost > 0
+                        ? PricingService::makeFromConfig()->calculate(
+                            productCost: (float) $rawCost,
+                            weight: $this->extractVariantWeightKg($variant, $productData),
+                            cjShipping: $this->extractCjShippingAmount($variant),
+                            warehouse: $variantWarehouse,
+                            currency: $product->currency ?? 'USD',
+                            options: [
+                                'category_id' => $product->category_id,
+                                'margin_percent' => $options['margin_percent'] ?? null,
+                                'warehouse_id' => $options['warehouse_id'] ?? null,
+                            ],
+                        )
+                        : null;
+
                     // Ensure numeric types for typed variant creation
                     $rawCost = $this->parseFloat($rawCost) ?? 0.0;
                     $sellPrice = $this->parseFloat($sellPrice) ?? $rawCost;
+
+                    if ($shouldApplyVariantDynamicPrice) {
+                        $sellPrice = max($sellPrice, $variantPricing?->basePrice ?? 0.0);
+                    } elseif ($existingVariant && is_numeric($existingVariant->price) && (float) $existingVariant->price > 0) {
+                        $sellPrice = (float) $existingVariant->price;
+                        $existingMeta = is_array($existingVariant->metadata) ? $existingVariant->metadata : [];
+                        $existingWarehouseId = $existingMeta['local_warehouse_id'] ?? null;
+                        if ($existingWarehouseId && ! $variantWarehouse) {
+                            $variantWarehouse = \App\Models\LocalWareHouse::query()->find($existingWarehouseId);
+                        }
+                    }
 
                     // Enforce minimum margin: sell price >= cost * 1.5 (50% over cost)
                     $sellPrice = $this->enforceMinMargin($sellPrice, $rawCost, 1.5);
@@ -1073,8 +1488,8 @@ class CjProductImportService
                         $product->name
                     );
 
-                    $options = $this->parseVariantOptions($variant);
-                    foreach ($options as $key => $value) {
+                    $variantOptions = $this->parseVariantOptions($variant);
+                    foreach ($variantOptions as $key => $value) {
                         $productOptionMap[$key][] = $value;
                     }
 
@@ -1089,7 +1504,25 @@ class CjProductImportService
                     $variantStockOnHand = $stockData['stock_on_hand'];
 
                     // CRITICAL FIX: Atomic variant creation with enhanced validation
-                    $this->createVariantWithValidation($product, $vid, $sku, $title, $sellPrice, $rawCost, $options, $variant, $variantStock, $variantStockOnHand, $pid);
+                    $this->createVariantWithValidation(
+                        $product,
+                        $vid,
+                        $sku,
+                        $title,
+                        $sellPrice,
+                        $rawCost,
+                        $variantOptions,
+                        $variant,
+                        $variantStock,
+                        $variantStockOnHand,
+                        $pid,
+                        $variantWarehouse,
+                        $shouldApplyVariantDynamicPrice
+                            ? ($variantPricing?->pricingMeta ?? [])
+                            : ((is_array($existingVariant?->metadata ?? null) && is_array($existingVariant->metadata['pricing_meta'] ?? null))
+                                ? $existingVariant->metadata['pricing_meta']
+                                : []),
+                    );
                 } catch (\Throwable $e) {
                     Log::warning('Failed to sync single variant', ['product_id' => $product->id, 'variant' => $variant, 'error' => $e->getMessage()]);
                 }
@@ -1177,6 +1610,109 @@ class CjProductImportService
      * Normalize various CJ payload shapes (including My Products) into the
      * canonical keys expected by the importer. Keeps original keys intact.
      */
+
+    private function deriveProductCostFromVariants(array $variants): ?float
+    {
+        $costs = collect($variants)
+            ->filter(fn ($variant) => is_array($variant))
+            ->map(function (array $variant): ?float {
+                foreach (['variantCost', 'variantSellPrice', 'variantSugSellPrice', 'sellPrice'] as $field) {
+                    $value = $variant[$field] ?? null;
+
+                    if (is_numeric($value) && (float) $value > 0) {
+                        return (float) $value;
+                    }
+                }
+
+                return null;
+            })
+            ->filter(fn ($value) => is_numeric($value) && (float) $value > 0)
+            ->values();
+
+        if ($costs->isEmpty()) {
+            return null;
+        }
+
+        return (float) $costs->min();
+    }
+
+    private function resolvePricingWarehouse(array $productData, array $variants = [], array $options = []): ?LocalWareHouse
+    {
+        $selectedWarehouseId = $options['warehouse_id'] ?? null;
+        if (is_numeric($selectedWarehouseId)) {
+            $selectedWarehouse = LocalWareHouse::query()->find((int) $selectedWarehouseId);
+
+            if ($selectedWarehouse) {
+                return $selectedWarehouse;
+            }
+        }
+
+        $countries = $this->extractWarehouseCountries($productData, $variants);
+
+        if ($countries !== []) {
+            $matched = LocalWareHouse::query()
+                ->whereIn('country', $countries)
+                ->orderByRaw('CASE WHEN shipping_cost_per_kg IS NULL OR shipping_cost_per_kg <= 0 THEN 1 ELSE 0 END')
+                ->orderBy('shipping_cost_per_kg')
+                ->orderByDesc('is_default')
+                ->first();
+
+            if ($matched) {
+                return $matched;
+            }
+        }
+
+        return LocalWareHouse::query()
+            ->orderByDesc('is_default')
+            ->orderByRaw('CASE WHEN shipping_cost_per_kg IS NULL OR shipping_cost_per_kg <= 0 THEN 1 ELSE 0 END')
+            ->orderBy('shipping_cost_per_kg')
+            ->first();
+    }
+
+    private function resolveVariantPricingWarehouse(array $variant, ?LocalWareHouse $fallback, array $options = []): ?LocalWareHouse
+    {
+        $warehouse = $this->resolvePricingWarehouse($variant, [$variant], $options);
+
+        return $warehouse ?? $fallback;
+    }
+
+    private function extractProductWeightKg(array $productData, array $variants = []): float
+    {
+        $grams = $this->parseFloat($productData['productWeight'] ?? null);
+
+        if ((! $grams || $grams <= 0) && $variants !== []) {
+            $grams = collect($variants)
+                ->filter(fn ($variant) => is_array($variant))
+                ->map(fn (array $variant) => $this->parseFloat($variant['variantWeight'] ?? null))
+                ->filter(fn ($weight) => is_numeric($weight) && (float) $weight > 0)
+                ->min();
+        }
+
+        return $grams && $grams > 0 ? round($grams / 1000, 4) : 0.0;
+    }
+
+    private function extractVariantWeightKg(array $variant, array $productData = []): float
+    {
+        $grams = $this->parseFloat($variant['variantWeight'] ?? null)
+            ?? $this->parseFloat($productData['productWeight'] ?? null)
+            ?? 0.0;
+
+        return $grams > 0 ? round($grams / 1000, 4) : 0.0;
+    }
+
+    private function extractCjShippingAmount(array $payload): float
+    {
+        foreach (['cjShipping', 'shippingCost', 'shipping_fee', 'shippingFee', 'postageAmount', 'postage'] as $field) {
+            $value = $payload[$field] ?? null;
+
+            if (is_numeric($value) && (float) $value >= 0) {
+                return (float) $value;
+            }
+        }
+
+        return 0.0;
+    }
+
     private function normalizeProductPayload(array $productData): array
     {
         $data = $productData;
@@ -1561,28 +2097,38 @@ class CjProductImportService
                 }
 
                 try {
-                    // Fetch product directly by PID
-                    $detailResp = $this->client->getProduct($pid);
-                    if (!isset($detailResp->data) || !is_array($detailResp->data)) {
-                        continue;
-                    }
+                    $preview = $this->getCachedImportPreview($pid);
+                    $fullData = is_array($preview['product'] ?? null) ? $preview['product'] : null;
+                    $variants = is_array($preview['variants'] ?? null) ? $preview['variants'] : [];
 
-                    $fullData = $detailResp->data;
-                    $report['fetched']++;
+                    if ($fullData === null) {
+                        // Fetch product directly by PID
+                        $detailResp = $this->client->getProduct($pid);
+                        if (!isset($detailResp->data) || !is_array($detailResp->data)) {
+                            continue;
+                        }
 
-                    // Fetch variants
-                    $variants = [];
-                    if ($enrich) {
-                        try {
-                            $variantResp = $this->client->getVariantsByPid($pid);
-                            $variants = $variantResp->data ?? [];
-                            $report['enriched']++;
+                        $fullData = $detailResp->data;
+                        $report['fetched']++;
 
-                            if ($enrichSleepMs > 0) {
-                                usleep($enrichSleepMs * 1000);
+                        // Fetch variants
+                        if ($enrich) {
+                            try {
+                                $variantResp = $this->client->getVariantsByPid($pid);
+                                $variants = $variantResp->data ?? [];
+                                $report['enriched']++;
+
+                                if ($enrichSleepMs > 0) {
+                                    usleep($enrichSleepMs * 1000);
+                                }
+                            } catch (ApiException $e) {
+                                Log::warning('Variant fetch failed for PID', ['pid' => $pid, 'error' => $e->getMessage()]);
                             }
-                        } catch (ApiException $e) {
-                            Log::warning('Variant fetch failed for PID', ['pid' => $pid, 'error' => $e->getMessage()]);
+                        }
+                    } else {
+                        $report['fetched']++;
+                        if ($variants !== []) {
+                            $report['enriched']++;
                         }
                     }
 
@@ -1740,6 +2286,7 @@ class CjProductImportService
             'generateSeo' => false,
             'respectSyncFlag' => false,
             'updateExisting' => true,
+            'margin_percent' => $marginPercent,
         ]);
 
         if (!$product) {
@@ -1756,23 +2303,8 @@ class CjProductImportService
             'use_cache' => true,
         ]);
 
-        // Apply margin
-        $costPrice = (float) ($product->cost_price ?? 0);
-        if ($costPrice > 0) {
-            $marginFactor = 1 + ($marginPercent / 100);
-            $sellingPrice = round($costPrice * $marginFactor, 2);
-            $product->selling_price = $sellingPrice;
-            $product->save();
+        if (($product->cost_price ?? 0) > 0) {
             $report['priced']++;
-
-            // Apply margin to variants
-            foreach ($product->variants as $variant) {
-                $variantCost = (float) ($variant->cost_price ?? $costPrice);
-                if ($variantCost > 0) {
-                    $variant->price = round($variantCost * $marginFactor, 2);
-                    $variant->save();
-                }
-            }
         }
 
         // Count media/variants sync
@@ -2508,7 +3040,9 @@ class CjProductImportService
         array $variant,
         int $variantStock,
         int $variantStockOnHand,
-        string $pid
+        string $pid,
+        ?LocalWareHouse $warehouse = null,
+        array $pricingMeta = [],
     ): void {
         // CRITICAL FIX: Validate SKU uniqueness within product scope
         if ($sku) {
@@ -2561,15 +3095,17 @@ class CjProductImportService
             'stock_on_hand' => $variantStockOnHand,
             'cj_stock' => $variantStock,
             'cj_stock_synced_at' => now(),
-            'metadata' => [
+            'metadata' => array_filter([
                 'cj_vid' => $vid,
                 'cj_variant' => $variant,
+                'local_warehouse_id' => $warehouse?->id,
+                'pricing_meta' => $pricingMeta !== [] ? $pricingMeta : null,
                 'inventory_data' => $variant['inventories'] ?? null,
                 'selected_country' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
                 'extracted_stock' => $variantStock,
                 'validation_version' => '2.0',
                 'sync_timestamp' => now()->toISOString()
-            ],
+            ], static fn ($value) => $value !== null),
         ];
 
         // CRITICAL FIX: Use transaction to ensure atomic variant creation

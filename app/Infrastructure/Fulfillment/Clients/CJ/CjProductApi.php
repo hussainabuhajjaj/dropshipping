@@ -275,4 +275,16 @@ class CjProductApi extends CjBaseApi
 
         return $this->client()->post('/v1/product/sourcing/query', $payload);
     }
+
+    public function querySourcingBySourceIds(array $sourceIds): ApiResponse
+    {
+        $payload = [
+            'sourceIds' => array_values(array_filter(
+                array_map(static fn ($id) => is_scalar($id) ? trim((string) $id) : '', $sourceIds),
+                static fn (string $id) => $id !== ''
+            )),
+        ];
+
+        return $this->client()->post('/v1/product/sourcing/query', $payload);
+    }
 }

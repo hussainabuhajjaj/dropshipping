@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
+use App\Domain\Products\Services\PricingService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,12 @@ class RepairCjDataCorruption extends Command
 
     public function handle(): int
     {
+        if (PricingService::usesNewEngine()) {
+            $this->warn('pricing.use_new_engine is enabled. This legacy repair command is blocked to avoid mixing pricing engines.');
+
+            return self::INVALID;
+        }
+
         $this->info('🔧 CJ Data Corruption Repair Tool');
         $this->info('================================');
 

@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
+use App\Domain\Products\Services\PricingService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\CjPidClaimService;
@@ -43,6 +44,14 @@ class SyncCjVariantsJobImproved implements ShouldQueue
 
     public function handle(CJDropshippingClient $client, CjPidClaimService $claimService): void
     {
+        if (PricingService::usesNewEngine()) {
+            Log::warning('Skipped legacy improved CJ variant sync job because pricing.use_new_engine is enabled.', [
+                'cj_pid' => $this->cjPid,
+            ]);
+
+            return;
+        }
+
         $claimToken = $this->claimToken ?? $this->acquireClaim($claimService);
         
         try {

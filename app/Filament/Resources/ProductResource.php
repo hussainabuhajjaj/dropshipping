@@ -105,7 +105,7 @@ class ProductResource extends BaseResource
                     });
                 },
             ])
-            ->with(['images', 'latestMarginLog']);
+            ->with(['images', 'latestMarginLog', 'localWarehouse']);
     }
 
     public static function form(Schema $schema): Schema
@@ -423,6 +423,30 @@ class ProductResource extends BaseResource
                         ->label('Cost Price')
                         ->formatStateUsing(fn (float $state, Product $record): string => AdminCurrencyService::formatCost($state, $record->currency))
                         ->sortable(),
+                    Tables\Columns\TextColumn::make('pricing_engine')
+                        ->label('Pricing Engine')
+                        ->state(fn (Product $record): string => data_get($record->pricing_meta, 'margin_source') === 'weight_based' ? 'Weight Based' : 'Legacy')
+                        ->badge()
+                        ->color(fn (Product $record): string => data_get($record->pricing_meta, 'margin_source') === 'weight_based' ? 'success' : 'gray')
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('pricing_meta.margin_used')
+                        ->label('Margin Used')
+                        ->state(function (Product $record): string {
+                            $margin = data_get($record->pricing_meta, 'margin_used');
+
+                            return is_numeric($margin) ? number_format(((float) $margin) * 100, 2) . '%' : '--';
+                        })
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('pricing_meta.landed_cost')
+                        ->label('Landed Cost')
+                        ->state(function (Product $record): string {
+                            $landedCost = data_get($record->pricing_meta, 'landed_cost');
+
+                            return is_numeric($landedCost)
+                                ? AdminCurrencyService::formatCost((float) $landedCost, $record->currency)
+                                : '--';
+                        })
+                        ->toggleable(isToggledHiddenByDefault: true),
                     Tables\Columns\TextColumn::make('latestMarginLog.old_selling_price')
                         ->label('Old Price')
                         ->formatStateUsing(fn (float $state): string => AdminCurrencyService::formatPrice($state))
@@ -937,14 +961,13 @@ class ProductResource extends BaseResource
                                             $variant->update(['price' => $newVariantPrice]);
 
                                             // Log variant margin change
-                                            \App\Services\ProductMarginLogger::logMarginChange(
-                                                $variant,
-                                                $oldVariantPrice,
-                                                $newVariantPrice,
-                                                $margin,
-                                                'variant_manual_set',
-                                                'Variant margin adjustment via admin panel'
-                                            );
+                                            app(\App\Services\ProductMarginLogger::class)->logVariant($variant, [
+                                                'event' => 'variant_manual_set',
+                                                'source' => 'manual',
+                                                'old_selling_price' => $oldVariantPrice,
+                                                'new_selling_price' => $newVariantPrice,
+                                                'notes' => 'Variant margin adjustment via admin panel',
+                                            ]);
                                         }
                                     }
 
@@ -1533,6 +1556,15 @@ class ProductResource extends BaseResource
                                 ->reactive(),
                         ])
                         ->action(function (Collection $records, array $data): void {
+                            if (PricingService::usesNewEngine()) {
+                                Notification::make()
+                                    ->title('Legacy margin tools disabled')
+                                    ->body('Manual margin updates are blocked while pricing.use_new_engine is enabled. Wire this flow to the centralized pricing engine before using it.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
                             $preset = (string) ($data['margin_preset'] ?? '35');
                             $margin = $preset === 'custom'
                                 ? (float) ($data['margin_percent'] ?? 0)
@@ -2055,6 +2087,64 @@ class ProductResource extends BaseResource
                         ->badge(),
                 ])
                 ->columns(5),
+            Section::make('Dynamic Pricing')
+                ->schema([
+                    TextEntry::make('pricing_engine')
+                        ->label('Pricing Engine')
+                        ->state(fn (Product $record) => data_get($record->pricing_meta, 'margin_source') === 'weight_based' ? 'Weight Based' : 'Legacy')
+                        ->badge()
+                        ->color(fn (Product $record) => data_get($record->pricing_meta, 'margin_source') === 'weight_based' ? 'success' : 'gray'),
+                    TextEntry::make('localWarehouse.name')
+                        ->label('Local Warehouse')
+                        ->state(fn (Product $record) => $record->localWarehouse?->name ?? '--'),
+                    TextEntry::make('pricing_meta.weight_kg')
+                        ->label('Weight (kg)')
+                        ->state(fn (Product $record) => is_numeric(data_get($record->pricing_meta, 'weight_kg')) ? number_format((float) data_get($record->pricing_meta, 'weight_kg'), 4) : '--'),
+                    TextEntry::make('pricing_meta.margin_used')
+                        ->label('Margin Used')
+                        ->state(fn (Product $record) => is_numeric(data_get($record->pricing_meta, 'margin_used')) ? number_format(((float) data_get($record->pricing_meta, 'margin_used')) * 100, 2) . '%' : '--'),
+                    TextEntry::make('pricing_meta.margin_source')
+                        ->label('Margin Source')
+                        ->state(fn (Product $record) => data_get($record->pricing_meta, 'margin_source') ?: '--')
+                        ->badge(),
+                    TextEntry::make('pricing_meta.shipping_rate_per_kg')
+                        ->label('Shipping / kg')
+                        ->state(function (Product $record): string {
+                            $value = data_get($record->pricing_meta, 'shipping_rate_per_kg');
+
+                            return is_numeric($value)
+                                ? AdminCurrencyService::formatCost((float) $value, $record->currency)
+                                : '--';
+                        }),
+                    TextEntry::make('pricing_meta.external_shipping')
+                        ->label('External Shipping')
+                        ->state(function (Product $record): string {
+                            $value = data_get($record->pricing_meta, 'external_shipping');
+
+                            return is_numeric($value)
+                                ? AdminCurrencyService::formatCost((float) $value, $record->currency)
+                                : '--';
+                        }),
+                    TextEntry::make('pricing_meta.cj_shipping')
+                        ->label('CJ Shipping')
+                        ->state(function (Product $record): string {
+                            $value = data_get($record->pricing_meta, 'cj_shipping');
+
+                            return is_numeric($value)
+                                ? AdminCurrencyService::formatCost((float) $value, $record->currency)
+                                : '--';
+                        }),
+                    TextEntry::make('pricing_meta.landed_cost')
+                        ->label('Landed Cost')
+                        ->state(function (Product $record): string {
+                            $value = data_get($record->pricing_meta, 'landed_cost');
+
+                            return is_numeric($value)
+                                ? AdminCurrencyService::formatCost((float) $value, $record->currency)
+                                : '--';
+                        }),
+                ])
+                ->columns(3),
             Section::make('Inventory & Sync')
                 ->schema([
                     TextEntry::make('stock_on_hand')
@@ -2698,6 +2788,11 @@ class ProductResource extends BaseResource
         ];
 
         try {
+            if (PricingService::usesNewEngine()) {
+                $result['message'] = 'Manual margin updates are blocked while pricing.use_new_engine is enabled.';
+                return $result;
+            }
+
             $cost = self::normalizeAmount($product->cost_price);
             if ($cost === null || $cost < 0) {
                 $result['message'] = 'Invalid cost price for margin calculation';
@@ -2705,7 +2800,14 @@ class ProductResource extends BaseResource
             }
 
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
-            $newSellingPrice = $pricing->calculateSellingPrice($cost, $marginPercent);
+            $currency = (string) ($product->currency ?: 'USD');
+            $priceResult = $pricing->calculateSellingPrice(
+                cost: $cost,
+                currency: $currency,
+                marginPercent: $marginPercent,
+                categoryId: $product->category_id,
+            );
+            $newSellingPrice = (float) ($priceResult['base_price'] ?? 0);
 
             // Validate the new price
             $validation = self::validateProductMargin(new Product(['cost_price' => $cost, 'selling_price' => $newSellingPrice]));
@@ -2716,6 +2818,7 @@ class ProductResource extends BaseResource
             }
 
             // Update the product
+            $oldSellingPrice = $product->selling_price;
             $updateData = ['selling_price' => $newSellingPrice];
             
             if ($options['activate_if_valid'] ?? false) {
@@ -2734,14 +2837,13 @@ class ProductResource extends BaseResource
             }
 
             // Log the margin change
-            \App\Services\ProductMarginLogger::logMarginChange(
-                $product,
-                $product->selling_price,
-                $newSellingPrice,
-                $marginPercent,
-                'manual_set',
-                $options['reason'] ?? 'Manual margin adjustment'
-            );
+            app(\App\Services\ProductMarginLogger::class)->logProduct($product, [
+                'event' => 'manual_set',
+                'source' => 'manual',
+                'old_selling_price' => $oldSellingPrice,
+                'new_selling_price' => $newSellingPrice,
+                'notes' => $options['reason'] ?? 'Manual margin adjustment',
+            ]);
 
         } catch (\Exception $e) {
             $result['message'] = 'Error setting margin: ' . $e->getMessage();

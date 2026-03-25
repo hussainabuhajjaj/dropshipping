@@ -6,11 +6,19 @@ namespace App\Services\Currency;
 
 use App\Domain\Products\Models\Product;
 use App\Domain\Products\Models\ProductVariant;
+use App\Domain\Products\Services\PricingService;
 use RuntimeException;
 
 class CurrencyConversionService
 {
-     public function convertAmount(?float $amount, string $from = 'USD', string $to = 'XOF'): ?float
+    private const PRICING_META_AMOUNT_KEYS = [
+        'shipping_rate_per_kg',
+        'external_shipping',
+        'cj_shipping',
+        'landed_cost',
+    ];
+
+    public function convertAmount(?float $amount, string $from = 'USD', string $to = 'XOF'): ?float
     {
         if ($amount === null) {
             return null;
@@ -61,6 +69,14 @@ class CurrencyConversionService
             );
         }
 
+        if (PricingService::usesNewEngine([
+            'product_id' => $product->id,
+            'cj_pid' => $product->cj_pid,
+            'category_id' => $product->category_id,
+        ])) {
+            $product->pricing_meta = $this->convertPricingMeta($product->pricing_meta, $fromCurrency, $toCurrency);
+        }
+
         $product->currency = $toCurrency;
         $product->save();
 
@@ -99,6 +115,19 @@ class CurrencyConversionService
                 $fromCurrency,
                 $toCurrency
             );
+        }
+
+        $product = $variant->relationLoaded('product') ? $variant->product : $variant->product()->first();
+        if ($product && PricingService::usesNewEngine([
+            'product_id' => $product->id,
+            'cj_pid' => $product->cj_pid,
+            'category_id' => $product->category_id,
+        ])) {
+            $metadata = is_array($variant->metadata) ? $variant->metadata : [];
+            if (isset($metadata['pricing_meta']) && is_array($metadata['pricing_meta'])) {
+                $metadata['pricing_meta'] = $this->convertPricingMeta($metadata['pricing_meta'], $fromCurrency, $toCurrency);
+            }
+            $variant->metadata = $metadata;
         }
 
         $variant->currency = $toCurrency;
@@ -164,5 +193,28 @@ class CurrencyConversionService
 
         $number = (float) $value;
         return is_finite($number) ? $number : null;
+    }
+
+    /**
+     * @param array<string, mixed>|null $meta
+     * @return array<string, mixed>|null
+     */
+    private function convertPricingMeta(?array $meta, string $fromCurrency, string $toCurrency): ?array
+    {
+        if (! is_array($meta) || $meta === []) {
+            return $meta;
+        }
+
+        foreach (self::PRICING_META_AMOUNT_KEYS as $key) {
+            if (array_key_exists($key, $meta) && is_numeric($meta[$key])) {
+                $meta[$key] = $this->convertAmount((float) $meta[$key], $fromCurrency, $toCurrency);
+            }
+        }
+
+        if (array_key_exists('currency', $meta) && is_scalar($meta['currency'])) {
+            $meta['currency'] = $toCurrency;
+        }
+
+        return $meta;
     }
 }

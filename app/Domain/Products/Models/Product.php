@@ -6,6 +6,7 @@ namespace App\Domain\Products\Models;
 
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use App\Domain\Products\Services\PricingService;
 use App\Models\ProductMarginLog;
 use App\Models\ProductTranslation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -50,6 +51,8 @@ class Product extends Model
         'meta_description',
         'selling_price',
         'cost_price',
+        'local_warehouse_id',
+        'pricing_meta',
         'status',
         'currency',
         'supplier_currency',
@@ -72,6 +75,7 @@ class Product extends Model
     protected $casts = [
         'options' => 'array',
         'attributes' => 'array',
+        'pricing_meta' => 'array',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'cj_sync_enabled' => 'boolean',
@@ -102,6 +106,11 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function localWarehouse(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\LocalWareHouse::class, 'local_warehouse_id');
     }
 
     public function images(): HasMany
@@ -199,6 +208,17 @@ class Product extends Model
         $staleCutoff = now()->subHours($staleHours)->toDateTimeString();
         $marginFactor = (1 + ((float) config('pricing.min_margin_percent', 20) / 100))
             * (1 + ((float) config('pricing.shipping_buffer_percent', 10) / 100));
+        $pricingPenaltySql = PricingService::usesNewEngine()
+            ? '0'
+            : <<<SQL
+CASE
+    WHEN products.cost_price IS NULL
+        OR products.cost_price <= 0
+        OR products.selling_price < (products.cost_price * ?)
+        THEN 10
+    ELSE 0
+END
+SQL;
 
         $sql = <<<SQL
 GREATEST(
@@ -239,13 +259,7 @@ GREATEST(
                     ) THEN 15
                 ELSE 0
             END
-            - CASE
-                WHEN products.cost_price IS NULL
-                    OR products.cost_price <= 0
-                    OR products.selling_price < (products.cost_price * ?)
-                    THEN 10
-                ELSE 0
-            END
+            - {$pricingPenaltySql}
             - CASE
                 WHEN products.cj_pid IS NOT NULL
                     AND products.cj_sync_enabled = 1
@@ -262,7 +276,11 @@ SQL;
             $query->select('products.*');
         }
 
-        return $query->selectRaw($sql, [$marginFactor, $staleCutoff]);
+        $bindings = PricingService::usesNewEngine()
+            ? [$staleCutoff]
+            : [$marginFactor, $staleCutoff];
+
+        return $query->selectRaw($sql, $bindings);
     }
 
     public function scopeWhereQualityScoreBelow(Builder $query, int $maxScore = 60, int $staleHours = 24): Builder

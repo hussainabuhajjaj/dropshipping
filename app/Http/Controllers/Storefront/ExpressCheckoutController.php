@@ -54,6 +54,9 @@ class ExpressCheckoutController extends Controller
         $shipping = 0;
         if (isset($data['shipping_address'])) {
             $shippingQuote = $this->quoteShipping($cart, $data['shipping_address']);
+            if ((bool) ($shippingQuote['unavailable'] ?? false)) {
+                return response()->json(['error' => $shippingQuote['error'] ?? 'Shipping is unavailable for one or more items in your cart.'], 422);
+            }
             $shipping = $shippingQuote['shipping_total'] ?? 0;
         }
 
@@ -131,6 +134,9 @@ class ExpressCheckoutController extends Controller
                 $subtotal = $this->subtotal($cart);
                 
                 $shippingQuote = $this->quoteShipping($cart, $data['shipping_address']);
+                if ((bool) ($shippingQuote['unavailable'] ?? false)) {
+                    throw new \RuntimeException($shippingQuote['error'] ?? 'Shipping is unavailable for one or more items in your cart.');
+                }
                 $coupon = session('cart_coupon');
                 $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
                 $discount = $discounts['amount'];
@@ -293,6 +299,7 @@ class ExpressCheckoutController extends Controller
                 return [
                     'shipping_total' => 0,
                     'shipping_method' => 'unavailable',
+                    'unavailable' => true,
                     'error' => 'No CJ product in cart',
                 ];
             }
@@ -320,11 +327,13 @@ class ExpressCheckoutController extends Controller
                     'shipping_total' => (float) ($best['freight'] ?? 0),
                     'shipping_method' => $best['logisticName'] ?? 'CJ',
                     'freightList' => $data['freightList'],
+                    'unavailable' => false,
                 ];
             }
             return [
                 'shipping_total' => 0,
                 'shipping_method' => 'unavailable',
+                'unavailable' => true,
                 'error' => $data['msg'] ?? 'No shipping options',
             ];
         } catch (\Throwable $e) {
@@ -332,6 +341,7 @@ class ExpressCheckoutController extends Controller
             return [
                 'shipping_total' => 0,
                 'shipping_method' => 'unavailable',
+                'unavailable' => true,
                 'error' => $e->getMessage(),
             ];
         }

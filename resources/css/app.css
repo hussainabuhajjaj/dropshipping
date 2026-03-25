@@ -37,19 +37,22 @@
     html {
         font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
         color: var(--text-strong);
-        background-color: var(--surface-muted);
+        background-color: #ffffff;
     }
 
     body {
-        background-color: var(--surface-muted);
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='1' cy='1' r='1' fill='rgba(148,163,184,0.18)'/%3E%3C/svg%3E");
-        background-size: 28px 28px;
+        background-color: #ffffff;
+        background-image: none;
         line-height: 1.6;
     }
 
     img {
         display: block;
     }
+}
+
+.brand-theme {
+    background-color: #ffffff;
 }
 
 @layer components {

@@ -467,10 +467,6 @@ const form = useForm({
 })
 const showLoginPrompt = ref(false)
 const submit = () => {
-  if (!page.props.auth?.user) {
-    showLoginPrompt.value = true
-    return
-  }
   form.product_id = props.product.id
   form.variant_id = selectedVariantId.value
   form.post('/cart', {
@@ -479,12 +475,18 @@ const submit = () => {
       successMessage.value = t('Added to cart.')
       clearSuccessSoon()
     },
-        onError:()=>{
-        console.log(page.props.errors[0]);
-            // successMessage.value = t('Not Added to cart.')
-            // useToast('error','123')
-            toastAlert('error',page.props.errors[0])
-        }
+    onError: (errors) => {
+      const message = errors?.cart
+        || errors?.message
+        || Object.values(errors ?? {}).find((value) => typeof value === 'string')
+
+      if (typeof message === 'string' && message.toLowerCase().includes('log in')) {
+        showLoginPrompt.value = true
+        return
+      }
+
+      toastAlert('error', message || t('Unable to add this item to your cart right now.'))
+    },
   })
 }
 

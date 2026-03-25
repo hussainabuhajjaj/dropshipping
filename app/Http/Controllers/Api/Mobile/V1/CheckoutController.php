@@ -57,6 +57,9 @@ class CheckoutController extends ApiController
         $locale = app()->getLocale();
 
         $pricing = $this->buildPricingPayload($cart, $customer, $cartItems);
+        if ((bool) ($pricing['shipping_unavailable'] ?? false)) {
+            return $this->error((string) ($pricing['shipping_unavailable_reason'] ?? 'Shipping is unavailable for one or more items in your cart.'), 422);
+        }
         $subtotal = (float) $pricing['subtotal'];
         $shipping = (float) $pricing['shipping'];
         $discount = (float) $pricing['discount'];
@@ -324,6 +327,8 @@ class CheckoutController extends ApiController
             'subtotal' => $subtotal,
             'shipping' => $shippingTotal,
             'shipping_lines' => $shippingQuote['lines'] ?? [],
+            'shipping_unavailable' => (bool) ($shippingQuote['unavailable'] ?? false),
+            'shipping_unavailable_reason' => $shippingQuote['reason'] ?? null,
             'discount' => $discount,
             'tax' => $taxTotal,
             'total' => $total,

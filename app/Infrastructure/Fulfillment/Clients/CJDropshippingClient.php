@@ -348,6 +348,11 @@ class CJDropshippingClient
         return $this->products()->querySourcing($sourcingId, $pageNum, $pageSize);
     }
 
+    public function querySourcingBySourceIds(array $sourceIds): ApiResponse
+    {
+        return $this->products()->querySourcingBySourceIds($sourceIds);
+    }
+
     public function addToMyProducts(string $pid): ApiResponse
     {
         return $this->products()->addToMyProducts($pid);

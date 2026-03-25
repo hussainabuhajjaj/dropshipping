@@ -84,7 +84,8 @@ class CheckoutController extends Controller
         $cart = $result['cart'];
         $cart_items = $result['cart_items'];
         $subtotal = $cart->subTotal();
-        $shipping = $cart->calculateShippingFees();
+        $shippingQuote = $cart->quoteShippingForItems($cart_items, true);
+        $shipping = (float) ($shippingQuote['total'] ?? 0);
 
         $customer = auth('customer')->user();
 
@@ -139,6 +140,8 @@ class CheckoutController extends Controller
         return Inertia::render('Checkout/Index', [
             'subtotal' => $subtotal,
             'shipping' => $shipping,
+            'shipping_unavailable' => (bool) ($shippingQuote['unavailable'] ?? false),
+            'shipping_unavailable_reason' => $shippingQuote['reason'] ?? null,
             'discount' => $discount,
             'coupon' => $coupon,
             'discount_label' => @$discounts['label'],
@@ -212,7 +215,13 @@ class CheckoutController extends Controller
         $customer = auth('customer')->user();
         $locale = app()->getLocale();
         $subtotal = $cart->subTotal();
-        $shipping = $cart->calculateShippingFees();
+        $shippingQuote = $cart->quoteShippingForItems($cart_items, true);
+        if ((bool) ($shippingQuote['unavailable'] ?? false)) {
+            return back()->withErrors([
+                'cart' => $shippingQuote['reason'] ?? 'Shipping is unavailable for one or more items in your cart.',
+            ]);
+        }
+        $shipping = (float) ($shippingQuote['total'] ?? 0);
 
 
         $coupon = session('cart_coupon');

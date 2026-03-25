@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Domain\Products\Services\ProductActivationValidator;
+use App\Domain\Products\Services\PricingService;
 use App\Jobs\GenerateProductCompareAtJob;
 use App\Models\Product;
 use App\Services\ProductMarginLogger;
@@ -43,6 +44,15 @@ class ApplyProductMarginChunkJob implements ShouldQueue
 
     public function handle(ProductMarginLogger $logger, ProductActivationValidator $validator): void
     {
+        if (PricingService::usesNewEngine()) {
+            Log::warning('Skipped legacy bulk margin job because pricing.use_new_engine is enabled.', [
+                'product_ids' => $this->productIds,
+                'margin' => $this->margin,
+            ]);
+
+            return;
+        }
+
         $records = Product::query()
             ->whereIn('id', $this->productIds)
             ->with(['variants', 'images'])

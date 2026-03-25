@@ -31,6 +31,7 @@ use Filament\Support\ArrayRecord;
 use Filament\Support\Contracts\TranslatableContentDriver;
 use App\Filament\Pages\BasePage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use UnitEnum;
 
@@ -73,6 +74,11 @@ class CJCatalog extends BasePage implements HasTable
     public ?string $imagePreviewName = null;
     public array $imagePreviewUrls = [];
     public array $videoPreviewUrls = [];
+    public array $importPreviewProducts = [];
+    public array $importPreviewOptions = [];
+    public array $importPreviewFailedPids = [];
+    public ?string $importPreviewMode = null;
+    public ?string $importPreviewError = null;
 
     public ?string $productName = null;
     public ?string $productSku = null;
@@ -173,7 +179,7 @@ class CJCatalog extends BasePage implements HasTable
     {
         return [
             Action::make('syncListedCjProducts')
-                ->label('Sync Listed CJ Products')
+                ->label('Preview Listed CJ Products')
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
                 ->action(fn (): mixed => $this->syncListedCjProducts()),
@@ -287,14 +293,10 @@ class CJCatalog extends BasePage implements HasTable
                 ->icon('heroicon-o-rocket-launch')
                 ->color('success')
                 ->form([
-                    TextInput::make('margin')
-                        ->label('Margin %')
-                        ->numeric()
-                        ->default(config('services.cj.import_margin', 35))
-                        ->required()
-                        ->minValue(0)
-                        ->maxValue(200)
-                        ->helperText('Markup percentage to apply on cost price'),
+                    Toggle::make('force_reprice')
+                        ->label('Force reprice existing product')
+                        ->default(false)
+                        ->helperText('New imports use weight-based pricing automatically. Enable this only to reprice an already imported product.'),
                     Toggle::make('enrich')
                         ->label('Fetch full details')
                         ->default(true)
@@ -305,21 +307,19 @@ class CJCatalog extends BasePage implements HasTable
                         ->helperText('Activate product if it passes validation'),
                 ])
                 ->action(function (array $record, array $data): void {
-                    $this->importWithPipeline($this->recordPid($record), $data);
+                    $this->openImportPreview([$this->recordPid($record)], $data, 'pipeline');
                 })
-                ->requiresConfirmation()
-                ->modalHeading('Import with Full Pipeline')
+                ->modalHeading('Preview before import')
                 ->modalDescription(fn (array $record) =>
-                "Import {$this->recordName($record)} with automatic pricing, validation, and activation."
+                "Load the CJ preview for {$this->recordName($record)} before import."
                 )
                 ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
             Action::make('import')
-                ->label('Import (Legacy)')
+                ->label('Preview Import (Legacy)')
                 ->color('gray')
                 ->action(function (array $record): void {
-                    $this->import($this->recordPid($record));
+                    $this->openImportPreview([$this->recordPid($record)], [], 'legacy');
                 })
-                ->requiresConfirmation()
                 ->visible(fn (array $record): bool => $this->recordPid($record) !== ''),
             Action::make('add_to_my')
                 ->label(label: 'Add to My')
@@ -358,23 +358,14 @@ class CJCatalog extends BasePage implements HasTable
                 ->modalDescription('Configure import settings for selected products')
                 ->modalWidth('2xl')
                 ->form([
-                    Section::make('Pricing Settings')
+                    Section::make('Pricing Engine')
                         ->schema([
-                            TextInput::make('margin')
-                                ->label('Margin %')
-                                ->numeric()
-                                ->default(config('services.cj.import_margin', 60))
-                                ->required()
-                                ->minValue(0)
-                                ->maxValue(200)
-                                ->suffix('%')
-                                ->helperText('Markup percentage to apply on cost price (recommended: 60%)'),
-                            Toggle::make('apply_to_variants')
-                                ->label('Apply margin to all variants')
-                                ->default(true)
-                                ->helperText('Apply the same margin to all product variants'),
+                            Toggle::make('force_reprice')
+                                ->label('Force reprice existing products')
+                                ->default(false)
+                                ->helperText('New imports use weight-based pricing automatically. Enable this only when existing imported products should be recalculated from CJ data.'),
                         ])
-                        ->columns(2),
+                        ->columns(1),
 
                     Section::make('Import Options')
                         ->schema([
@@ -435,18 +426,17 @@ class CJCatalog extends BasePage implements HasTable
                 ])
                 ->action(function (Collection $records, array $data): void {
                     $pids = $this->selectedPids($records);
-                    $this->bulkImportWithPipeline($pids, $data);
+                    $this->openImportPreview($pids, $data, 'bulk_pipeline');
                 })
-                ->modalSubmitActionLabel('Import Selected Products')
+                ->modalSubmitActionLabel('Preview Selected Products')
                 ->modalCancelActionLabel('Cancel'),
             BulkAction::make('importSelected')
-                ->label('Queue import (Legacy)')
+                ->label('Preview queue import (Legacy)')
                 ->icon('heroicon-o-cloud-arrow-down')
                 ->color('gray')
-                ->requiresConfirmation()
                 ->action(function (Collection $records): void {
                     $pids = $this->selectedPids($records);
-                    $this->queueImportByPids($pids, 'selected products');
+                    $this->openImportPreview($pids, [], 'bulk_legacy');
                 }),
             BulkAction::make('addSelected')
                 ->label('Add selection to My Products')
@@ -457,10 +447,10 @@ class CJCatalog extends BasePage implements HasTable
                 }),
 
             BulkAction::make('previewPricing')
-                ->label('Preview Pricing')
+                ->label('Preview Legacy Margin Pricing')
                 ->icon('heroicon-o-calculator')
                 ->color('info')
-                ->modalHeading('Preview Pricing for Selected Products')
+                ->modalHeading('Preview Legacy Margin Pricing')
                 ->modalWidth('3xl')
                 ->schema([
                     TextInput::make('preview_margin')
@@ -848,6 +838,101 @@ class CJCatalog extends BasePage implements HasTable
         $this->imagePreviewUrl = $url;
     }
 
+    public function openImportPreview(array $pids, array $options = [], string $mode = 'pipeline'): void
+    {
+        $pids = array_values(array_unique(array_filter(
+            array_map(static fn ($pid) => trim((string) $pid), $pids),
+            static fn (string $pid) => $pid !== ''
+        )));
+
+        if ($pids === []) {
+            Notification::make()->title('No CJ products selected')->warning()->send();
+            return;
+        }
+
+        $this->importPreviewProducts = [];
+        $this->importPreviewOptions = $options;
+        $this->importPreviewMode = $mode;
+        $this->importPreviewError = null;
+        $this->importPreviewFailedPids = [];
+
+        $service = $this->importService();
+
+        foreach ($pids as $pid) {
+            try {
+                $this->importPreviewProducts[] = $service->buildImportPreview($pid);
+            } catch (ApiException $e) {
+                $this->importPreviewFailedPids[] = $pid;
+                Log::warning('CJ catalog preview failed', ['pid' => $pid, 'error' => $e->getMessage()]);
+            } catch (\Throwable $e) {
+                $this->importPreviewFailedPids[] = $pid;
+                Log::warning('CJ catalog preview failed unexpectedly', ['pid' => $pid, 'error' => $e->getMessage()]);
+            }
+        }
+
+        if ($this->importPreviewProducts === []) {
+            $this->importPreviewError = 'CJ preview could not be loaded for the selected product(s).';
+            Notification::make()->title('Preview unavailable')->body($this->importPreviewError)->danger()->send();
+            return;
+        }
+
+        if ($this->importPreviewFailedPids !== []) {
+            $this->importPreviewError = 'Some products could not be previewed and will not be importable until preview succeeds.';
+        }
+
+        $this->dispatch('open-modal', id: $this->getImportPreviewModalId());
+    }
+
+    public function closeImportPreview(): void
+    {
+        $this->importPreviewProducts = [];
+        $this->importPreviewOptions = [];
+        $this->importPreviewMode = null;
+        $this->importPreviewError = null;
+        $this->importPreviewFailedPids = [];
+    }
+
+    public function confirmImportPreview(): void
+    {
+        if ($this->importPreviewProducts === []) {
+            Notification::make()->title('No preview data')->warning()->send();
+            return;
+        }
+
+        $hasInvalidPreview = collect($this->importPreviewProducts)
+            ->contains(fn (array $preview): bool => ! (bool) ($preview['validation']['is_valid'] ?? false));
+
+        if ($hasInvalidPreview || $this->importPreviewFailedPids !== []) {
+            Notification::make()
+                ->title('Preview validation failed')
+                ->body('Resolve the preview errors before importing.')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        $pids = collect($this->importPreviewProducts)
+            ->map(fn (array $preview) => trim((string) ($preview['pid'] ?? '')))
+            ->filter()
+            ->values()
+            ->all();
+
+        $mode = $this->importPreviewMode ?? 'pipeline';
+        $options = $this->importPreviewOptions;
+
+        $this->dispatch('close-modal', id: $this->getImportPreviewModalId());
+
+        if ($mode === 'legacy') {
+            $this->import($pids[0] ?? '');
+        } elseif ($mode === 'bulk_legacy') {
+            $this->queueImportByPids($pids, 'selected products');
+        } elseif ($mode === 'bulk_pipeline') {
+            $this->bulkImportWithPipeline($pids, $options);
+        } else {
+            $this->importWithPipeline($pids[0] ?? '', $options);
+        }
+    }
+
     private function loadProductMedia(string $pid, ?string $fallbackUrl = null): void
     {
         try {
@@ -931,6 +1016,11 @@ class CJCatalog extends BasePage implements HasTable
     public function getImagePreviewModalId(): string
     {
         return $this->getId() . '-image-preview';
+    }
+
+    public function getImportPreviewModalId(): string
+    {
+        return $this->getId() . '-import-preview';
     }
 
     private function sumStorage(mixed $payload): int
@@ -1041,7 +1131,7 @@ class CJCatalog extends BasePage implements HasTable
             ->values()
             ->all();
 
-        $this->queueImportByPids($pids, 'current page');
+        $this->openImportPreview($pids, [], 'bulk_legacy');
     }
 
     public function queueSyncJob(): void
@@ -1062,14 +1152,8 @@ class CJCatalog extends BasePage implements HasTable
             ]);
 
             [, $list] = $this->resolveCatalogPayload((array) ($resp->data ?? []));
-            $count = $this->importPids(
-                collect($list)->map(fn (array $record): string => $this->recordPid($record))->filter()->values()->all(),
-            );
-
-            $message = $count > 0 ? "Imported {$count} of your CJ My Products." : 'No CJ My Products were imported.';
-            Notification::make()->title('My Products')->body($message)->success()->send();
-            $this->recordCommandMessage($message);
-            $this->fetch();
+            $pids = collect($list)->map(fn (array $record): string => $this->recordPid($record))->filter()->values()->all();
+            $this->openImportPreview($pids, [], 'bulk_legacy');
         } catch (ApiException $e) {
             $this->notifyApiError($e);
         } catch (\Throwable $e) {
@@ -1081,7 +1165,7 @@ class CJCatalog extends BasePage implements HasTable
     {
 
         $pids = $this->selectedPids($records);
-        $this->bulkImportByPids($pids, 'from your selection');
+        $this->openImportPreview($pids, [], 'bulk_legacy');
     }
 
     public function queueImportSelectedProducts(): void
@@ -1099,6 +1183,29 @@ class CJCatalog extends BasePage implements HasTable
         }
 
         $this->queueImportByPids($pids, 'selected products');
+    }
+
+    public function previewSelectedProducts(): void
+    {
+        $selected = $this->getSelectedTableRecords();
+        $pids = $this->selectedPids($selected);
+        $this->openImportPreview($pids, [], 'bulk_legacy');
+    }
+
+    /**
+     * @param array<int, mixed> $keys
+     */
+    public function previewSelectedProductsByKeys(array $keys): void
+    {
+        $pids = collect($keys)
+            ->filter(fn (mixed $key): bool => is_string($key) || is_numeric($key))
+            ->map(fn (mixed $key): string => trim((string) $key))
+            ->filter(fn (string $pid): bool => $pid !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->openImportPreview($pids, [], 'bulk_legacy');
     }
 
     /**
@@ -1151,13 +1258,13 @@ class CJCatalog extends BasePage implements HasTable
             $importService = app(\App\Domain\Products\Services\CjProductImportService::class);
             $result = $importService->importBulkWithPipeline([
                 'pids' => [$pid],
-                'margin_percent' => (float) ($options['margin'] ?? 35),
                 'enrich' => (bool) ($options['enrich'] ?? true),
                 'force_activate' => (bool) ($options['auto_activate'] ?? true),
+                'force_reprice' => (bool) ($options['force_reprice'] ?? false),
             ]);
 
             if ($result['activated'] > 0) {
-                $this->notifySuccess("Product imported and activated with {$options['margin']}% margin");
+                $this->notifySuccess('Product imported and activated with weight-based pricing');
             } elseif ($result['imported'] > 0) {
                 $errors = $result['activation_errors'][$pid] ?? [];
                 if (empty($errors)) {
@@ -1251,12 +1358,12 @@ class CJCatalog extends BasePage implements HasTable
             // Dispatch chunks as jobs for parallel processing
             foreach ($chunks as $index => $chunk) {
                 \App\Jobs\ImportCjProductPipelineChunkJob::dispatch($chunk, [
-                    'margin_percent' => (float) ($options['margin'] ?? 60),
                     'enrich' => (bool) ($options['enrich'] ?? true),
                     'force_activate' => (bool) ($options['auto_activate'] ?? true),
                     'skip_translations' => !(bool) ($options['queue_translations'] ?? true),
                     'skip_seo' => !(bool) ($options['queue_seo'] ?? true),
                     'default_category_id' => $options['default_category_id'] ?? null,
+                    'force_reprice' => (bool) ($options['force_reprice'] ?? false),
                     'tracking_key' => $trackingKey,
                     'chunk_index' => $index,
                 ])->onQueue('cj-import');
@@ -1742,12 +1849,42 @@ class CJCatalog extends BasePage implements HasTable
 
     private function selectedPids(Collection $records): array
     {
-        return $records
-            ->map(fn ($record) => $this->recordPid((array) $record))
-            ->filter()
+        $pids = $records
+            ->map(function ($record): string {
+                if (is_array($record)) {
+                    return $this->recordPid($record);
+                }
+
+                if ($record instanceof ArrayRecord) {
+                    return $this->recordPid($record->toArray());
+                }
+
+                if (is_object($record) && method_exists($record, 'toArray')) {
+                    return $this->recordPid((array) $record->toArray());
+                }
+
+                if (is_string($record) || is_numeric($record)) {
+                    return trim((string) $record);
+                }
+
+                return $this->recordPid((array) $record);
+            })
+            ->filter(fn (string $pid): bool => $pid !== '')
             ->unique()
             ->values()
             ->all();
+
+        if ($pids === [] && ! empty($this->selectedTableRecords)) {
+            $pids = collect($this->selectedTableRecords)
+                ->filter(fn (mixed $key): bool => is_string($key) || is_numeric($key))
+                ->map(fn (mixed $key): string => trim((string) $key))
+                ->filter(fn (string $pid): bool => $pid !== '')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $pids;
     }
 
     private function bulkImportByPids(array $pids, string $context): void
@@ -1843,14 +1980,7 @@ class CJCatalog extends BasePage implements HasTable
                 ->values()
                 ->all();
 
-            $imported = $this->importPids($pids);
-            $message = $imported > 0
-                ? "Imported {$imported} listed CJ products."
-                : 'No listed CJ products were imported.';
-
-            Notification::make()->title('Listed Products')->body($message)->success()->send();
-            $this->recordCommandMessage($message);
-            $this->fetch();
+            $this->openImportPreview($pids, [], 'bulk_legacy');
         } catch (ApiException $e) {
             $this->notifyApiError($e);
         } catch (\Throwable $e) {

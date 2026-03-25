@@ -10,12 +10,18 @@ const localeOptions = computed(() => {
     return entries.map(([code, label]) => ({ code, label }))
 })
 
+const csrfHeaders = () => {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    return token ? { 'X-CSRF-TOKEN': token } : {}
+}
+
 const setLocale = (target) => {
     if (! target || target === locale.value) {
         return
     }
     router.post('/language', { language: target }, {
         preserveScroll: true,
+        headers: csrfHeaders(),
         onSuccess: () => {
             console.log('Language preference saved successfully')
         },

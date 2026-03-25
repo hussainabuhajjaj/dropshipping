@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Domain\Products\Services\CjProductImportService;
+use App\Domain\Products\Services\PricingService;
 use App\Models\Product;
 use Illuminate\Console\Command;
 
@@ -18,6 +19,12 @@ class CjFixZeroPrices extends Command
 
     public function handle(): int
     {
+        if (PricingService::usesNewEngine()) {
+            $this->warn('pricing.use_new_engine is enabled. This legacy zero-price repair command is blocked to avoid mixing pricing engines.');
+
+            return self::INVALID;
+        }
+
         $limit = (int) $this->option('limit');
         $dryRun = (bool) $this->option('dry-run');
 

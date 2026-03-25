@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\Products\Services\PricingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +19,12 @@ class MonitorPriceCorruption extends Command
 
     public function handle()
     {
+        if (PricingService::usesNewEngine()) {
+            $this->warn('pricing.use_new_engine is enabled. This legacy corruption monitor path is blocked to avoid mixing pricing engines.');
+
+            return self::INVALID;
+        }
+
         $threshold = (float) $this->option('threshold');
         $alertThreshold = (float) $this->option('alert-threshold');
         $fixAuto = $this->option('fix-auto');

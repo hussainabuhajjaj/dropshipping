@@ -1,5 +1,5 @@
-const CACHE_NAME = 'simbazu-shell-v1';
-const CORE_ASSETS = ['/', '/manifest.webmanifest', '/images/category-default.png'];
+const CACHE_NAME = 'simbazu-shell-v2';
+const CORE_ASSETS = ['/manifest.webmanifest', '/images/category-default.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,15 +27,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const accept = event.request.headers.get('accept') || '';
+  const isHtmlRequest =
+    event.request.mode === 'navigate' ||
+    accept.includes('text/html');
+
+  // Never cache dynamic HTML/Inertia documents. They carry CSRF tokens and session-coupled state.
+  if (isHtmlRequest) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+
         const cloned = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => null);
         return response;
       })
       .catch(() =>
-        caches.match(event.request).then((cached) => cached || caches.match('/'))
+        caches.match(event.request)
       )
   );
 });

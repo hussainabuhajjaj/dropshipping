@@ -270,6 +270,11 @@ const rootCategories = ref([
     { name: 'Baby & Kids', slug: 'baby-kids' }
 ])
 
+const csrfHeaders = () => {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    return token ? { 'X-CSRF-TOKEN': token } : {}
+}
+
 // Methods
 const toggleAccount = () => {
     accountOpen.value = !accountOpen.value
@@ -279,6 +284,7 @@ const setLocale = (code) => {
     if (!code || code === locale.value) return
     router.post('/language', { language: code }, {
         preserveScroll: true,
+        headers: csrfHeaders(),
         onSuccess: () => {
             console.log('Language preference saved successfully')
         },
@@ -293,6 +299,7 @@ const onCurrencyChange = () => {
     console.log('Currency changed to:', selectedCurrency.value)
     router.post('/currency', { currency: selectedCurrency.value }, {
         preserveScroll: true,
+        headers: csrfHeaders(),
         onSuccess: () => {
             console.log('Currency preference saved successfully')
         },
