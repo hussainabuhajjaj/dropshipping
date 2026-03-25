@@ -898,16 +898,22 @@ class ProductResource extends BaseResource
                             ]);
                         }),
                     Action::make('setMargin')
-                        ->label('Set margin')
+                        ->label(fn (): string => config('pricing.use_new_engine') ? 'Recalculate pricing' : 'Set margin')
                         ->icon('heroicon-o-calculator')
                         ->schema([
+                            Placeholder::make('pricing_mode_notice')
+                                ->label('Pricing mode')
+                                ->content(config('pricing.use_new_engine')
+                                    ? 'Weight-based pricing is active. This action will recalculate the product and variant prices from cost, weight, shipping, and warehouse data.'
+                                    : 'Legacy manual margin pricing is active.'),
                             TextInput::make('margin_percent')
                                 ->label('Margin %')
                                 ->numeric()
                                 ->default(50)
                                 ->minValue(0)
                                 ->maxValue(500)
-                                ->required(),
+                                ->required()
+                                ->visible(fn (): bool => ! config('pricing.use_new_engine')),
                             Toggle::make('apply_to_variants')
                                 ->label('Apply to variants')
                                 ->default(true),
@@ -920,6 +926,22 @@ class ProductResource extends BaseResource
                         ])
                         ->action(function (Product $record, array $data): void {
                             try {
+                                if (config('pricing.use_new_engine')) {
+                                    $result = self::repriceProductWithCurrentEngine($record, [
+                                        'apply_to_variants' => (bool) ($data['apply_to_variants'] ?? true),
+                                        'activate_if_valid' => (bool) ($data['activate_if_valid'] ?? true),
+                                        'reason' => 'Manual dynamic repricing via admin panel',
+                                    ]);
+
+                                    Notification::make()
+                                        ->title($result['success'] ? 'Pricing updated' : 'Failed to update pricing')
+                                        ->body($result['message'])
+                                        ->color($result['success'] ? 'success' : 'danger')
+                                        ->send();
+
+                                    return;
+                                }
+
                                 $margin = (float) ($data['margin_percent'] ?? 0);
                                 if ($margin < 0) {
                                     Notification::make()
@@ -1495,9 +1517,14 @@ class ProductResource extends BaseResource
                             Notification::make()->title('Chunked sync queued')->success()->send();
                         }),
                     BulkAction::make('setMargin')
-                        ->label('Set Margin %')
+                        ->label(fn (): string => config('pricing.use_new_engine') ? 'Recalculate pricing' : 'Set Margin %')
                         ->icon('heroicon-o-calculator')
                         ->schema([
+                            Placeholder::make('pricing_mode_notice')
+                                ->label('Pricing mode')
+                                ->content(config('pricing.use_new_engine')
+                                    ? 'Weight-based pricing is active. Selected products will be repriced using centralized pricing rules.'
+                                    : 'Legacy manual margin pricing is active.'),
                             Select::make('margin_preset')
                                 ->label('Margin preset')
                                 ->options([
@@ -1512,7 +1539,8 @@ class ProductResource extends BaseResource
                                 ->default('35')
                                 ->native(false)
                                 ->required()
-                                ->reactive(),
+                                ->reactive()
+                                ->visible(fn (): bool => ! config('pricing.use_new_engine')),
                             TextInput::make('margin_percent')
                                 ->label('Custom margin %')
                                 ->numeric()
@@ -1520,7 +1548,7 @@ class ProductResource extends BaseResource
                                 ->maxValue(500)
                                 ->step('0.01')
                                 ->required()
-                                ->visible(fn (callable $get): bool => $get('margin_preset') === 'custom')
+                                ->visible(fn (callable $get): bool => ! config('pricing.use_new_engine') && $get('margin_preset') === 'custom')
                                 ->reactive(),
                             Toggle::make('apply_to_variants')
                                 ->label('Apply to variants')
@@ -1528,6 +1556,7 @@ class ProductResource extends BaseResource
                             Toggle::make('use_low_cost_rule')
                                 ->label('Use special margin for low-cost products')
                                 ->default(true)
+                                ->visible(fn (): bool => ! config('pricing.use_new_engine'))
                                 ->reactive(),
                             TextInput::make('low_cost_min')
                                 ->label('Low-cost min ($)')
@@ -1535,7 +1564,7 @@ class ProductResource extends BaseResource
                                 ->default(0.01)
                                 ->minValue(0)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->visible(fn (callable $get): bool => ! config('pricing.use_new_engine') && (bool) $get('use_low_cost_rule'))
                                 ->reactive(),
                             TextInput::make('low_cost_max')
                                 ->label('Low-cost max ($)')
@@ -1543,7 +1572,7 @@ class ProductResource extends BaseResource
                                 ->default(1)
                                 ->minValue(0.01)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->visible(fn (callable $get): bool => ! config('pricing.use_new_engine') && (bool) $get('use_low_cost_rule'))
                                 ->reactive(),
                             TextInput::make('low_cost_margin_percent')
                                 ->label('Low-cost margin %')
@@ -1552,15 +1581,34 @@ class ProductResource extends BaseResource
                                 ->minValue(0)
                                 ->maxValue(2000)
                                 ->step('0.01')
-                                ->visible(fn (callable $get): bool => (bool) $get('use_low_cost_rule'))
+                                ->visible(fn (callable $get): bool => ! config('pricing.use_new_engine') && (bool) $get('use_low_cost_rule'))
                                 ->reactive(),
                         ])
                         ->action(function (Collection $records, array $data): void {
-                            if (PricingService::usesNewEngine()) {
+                            if (config('pricing.use_new_engine')) {
+                                $updated = 0;
+                                $failed = 0;
+
+                                $records->loadMissing('variants', 'localWarehouse');
+
+                                foreach ($records as $record) {
+                                    $result = self::repriceProductWithCurrentEngine($record, [
+                                        'apply_to_variants' => (bool) ($data['apply_to_variants'] ?? true),
+                                        'activate_if_valid' => true,
+                                        'reason' => 'Bulk dynamic repricing via admin panel',
+                                    ]);
+
+                                    if ($result['success']) {
+                                        $updated++;
+                                    } else {
+                                        $failed++;
+                                    }
+                                }
+
                                 Notification::make()
-                                    ->title('Legacy margin tools disabled')
-                                    ->body('Manual margin updates are blocked while pricing.use_new_engine is enabled. Wire this flow to the centralized pricing engine before using it.')
-                                    ->danger()
+                                    ->title('Dynamic repricing complete')
+                                    ->body("Updated {$updated} product(s)." . ($failed > 0 ? " {$failed} product(s) failed." : ''))
+                                    ->color($failed > 0 ? 'warning' : 'success')
                                     ->send();
                                 return;
                             }
@@ -2777,6 +2825,120 @@ class ProductResource extends BaseResource
     /**
      * Enhanced margin setting with validation and logging
      */
+    public static function repriceProductWithCurrentEngine(Product $product, array $options = []): array
+    {
+        $result = [
+            'success' => false,
+            'message' => '',
+        ];
+
+        try {
+            $cost = self::normalizeAmount($product->cost_price);
+            if ($cost === null || $cost <= 0) {
+                $result['message'] = 'Invalid cost price for dynamic pricing.';
+                return $result;
+            }
+
+            $warehouse = $product->relationLoaded('localWarehouse')
+                ? $product->localWarehouse
+                : ($product->local_warehouse_id ? \App\Models\LocalWareHouse::query()->find($product->local_warehouse_id) : null);
+
+            $weightKg = self::resolveProductWeightKg($product);
+            $cjShipping = (float) (data_get($product->pricing_meta, 'cj_shipping') ?? 0);
+            $pricing = PricingService::makeFromConfig()->calculate(
+                productCost: $cost,
+                weight: $weightKg,
+                cjShipping: $cjShipping,
+                warehouse: $warehouse,
+                currency: (string) ($product->currency ?: 'USD'),
+                options: [
+                    'category_id' => $product->category_id,
+                    'warehouse_id' => $warehouse?->id,
+                ],
+            );
+
+            $oldSellingPrice = $product->selling_price;
+            $updateData = [
+                'selling_price' => $pricing->basePrice,
+                'local_warehouse_id' => $warehouse?->id,
+                'pricing_meta' => $pricing->pricingMeta,
+            ];
+
+            if ($options['activate_if_valid'] ?? false) {
+                $updateData['is_active'] = true;
+                $updateData['status'] = 'active';
+            }
+
+            $product->update($updateData);
+
+            app(\App\Services\ProductMarginLogger::class)->logProduct($product, [
+                'event' => 'dynamic_reprice',
+                'source' => 'manual',
+                'old_selling_price' => $oldSellingPrice,
+                'new_selling_price' => $pricing->basePrice,
+                'notes' => $options['reason'] ?? 'Manual dynamic repricing',
+            ]);
+
+            $variantCount = 0;
+            if ($options['apply_to_variants'] ?? true) {
+                $product->loadMissing('variants');
+                foreach ($product->variants as $variant) {
+                    $variantCost = self::normalizeAmount($variant->cost_price);
+                    if ($variantCost === null || $variantCost <= 0) {
+                        continue;
+                    }
+
+                    $variantMeta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+                    $variantWarehouseId = $variantMeta['local_warehouse_id'] ?? null;
+                    $variantWarehouse = $variantWarehouseId
+                        ? \App\Models\LocalWareHouse::query()->find((int) $variantWarehouseId)
+                        : $warehouse;
+
+                    $variantWeightKg = self::resolveVariantWeightKg($variant, $product);
+                    $variantCjShipping = (float) (data_get($variantMeta, 'pricing_meta.cj_shipping') ?? $cjShipping);
+                    $variantPricing = PricingService::makeFromConfig()->calculate(
+                        productCost: $variantCost,
+                        weight: $variantWeightKg,
+                        cjShipping: $variantCjShipping,
+                        warehouse: $variantWarehouse,
+                        currency: (string) ($variant->currency ?: $product->currency ?: 'USD'),
+                        options: [
+                            'category_id' => $product->category_id,
+                            'warehouse_id' => $variantWarehouse?->id,
+                        ],
+                    );
+
+                    $oldVariantPrice = $variant->price;
+                    $variantMeta['local_warehouse_id'] = $variantWarehouse?->id;
+                    $variantMeta['pricing_meta'] = $variantPricing->pricingMeta;
+
+                    $variant->update([
+                        'price' => $variantPricing->basePrice,
+                        'metadata' => $variantMeta,
+                    ]);
+
+                    app(\App\Services\ProductMarginLogger::class)->logVariant($variant, [
+                        'event' => 'dynamic_reprice',
+                        'source' => 'manual',
+                        'old_selling_price' => $oldVariantPrice,
+                        'new_selling_price' => $variantPricing->basePrice,
+                        'notes' => $options['reason'] ?? 'Manual dynamic repricing',
+                    ]);
+
+                    $variantCount++;
+                }
+            }
+
+            $result['success'] = true;
+            $result['message'] = "Repriced product with weight-based pricing" . (($options['apply_to_variants'] ?? true) ? " and {$variantCount} variant(s)." : '.');
+
+            return $result;
+        } catch (\Throwable $e) {
+            $result['message'] = 'Error recalculating pricing: ' . $e->getMessage();
+            return $result;
+        }
+    }
+
     public static function setProductMargin(Product $product, float $marginPercent, array $options = []): array
     {
         $result = [
@@ -2850,6 +3012,67 @@ class ProductResource extends BaseResource
         }
 
         return $result;
+    }
+
+    private static function resolveProductWeightKg(Product $product): float
+    {
+        $pricingWeight = self::normalizeAmount(data_get($product->pricing_meta, 'weight_kg'));
+        if ($pricingWeight !== null && $pricingWeight > 0) {
+            return $pricingWeight;
+        }
+
+        $attributes = is_array($product->attributes ?? null) ? $product->attributes : [];
+        $payloadWeight = self::extractWeightKgFromRaw(data_get($attributes, 'cj_payload.productWeight'));
+        if ($payloadWeight > 0) {
+            return $payloadWeight;
+        }
+
+        $variantWeight = $product->variants()
+            ->whereNotNull('weight_grams')
+            ->orderByDesc('weight_grams')
+            ->value('weight_grams');
+
+        return $variantWeight ? round(((float) $variantWeight) / 1000, 4) : 0.0;
+    }
+
+    private static function resolveVariantWeightKg(mixed $variant, Product $product): float
+    {
+        $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+        $pricingWeight = self::normalizeAmount(data_get($meta, 'pricing_meta.weight_kg'));
+        if ($pricingWeight !== null && $pricingWeight > 0) {
+            return $pricingWeight;
+        }
+
+        $weightGrams = self::normalizeAmount($variant->weight_grams);
+        if ($weightGrams !== null && $weightGrams > 0) {
+            return round($weightGrams / 1000, 4);
+        }
+
+        $cjVariantWeight = self::extractWeightKgFromRaw(data_get($meta, 'cj_variant.variantWeight'));
+        if ($cjVariantWeight > 0) {
+            return $cjVariantWeight;
+        }
+
+        return self::resolveProductWeightKg($product);
+    }
+
+    private static function extractWeightKgFromRaw(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        if (is_numeric($value)) {
+            $numeric = (float) $value;
+            return $numeric > 10 ? round($numeric / 1000, 4) : round($numeric, 4);
+        }
+
+        if (is_string($value) && preg_match_all('/-?\d+(?:\.\d+)?/', $value, $matches) && ! empty($matches[0])) {
+            $numeric = (float) end($matches[0]);
+            return $numeric > 10 ? round($numeric / 1000, 4) : round($numeric, 4);
+        }
+
+        return 0.0;
     }
 
     /**
