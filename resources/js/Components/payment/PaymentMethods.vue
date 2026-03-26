@@ -46,7 +46,7 @@
                 </svg>
                 {{ t('Processing...') }}
             </span>
-            <span v-else>{{ t('Pay with Korapay') }} • {{ formattedAmount }}</span>
+            <span v-else>{{ t('Pay Now') }} • {{ formattedAmount }}</span>
         </button>
 
         <!-- Secure Payment Notice -->
@@ -55,7 +55,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 15v2m-6 4h12a3 3 0 003-3v-6a3 3 0 00-3-3H6a3 3 0 00-3 3v6a3 3 0 003 3zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            {{ t('Secure XOF mobile money checkout with Korapay.') }}
+            {{ t('Secure payment with mobile money checkout.') }}
         </p>
 
         <!-- Payment Icons -->

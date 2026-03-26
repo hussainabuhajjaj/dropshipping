@@ -373,36 +373,38 @@
                             >
                                 <div
                                     v-if="cartOpen"
-                                    class="absolute right-0 top-full mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg"
+                                    class="absolute right-0 top-full mt-2 flex max-h-[min(32rem,calc(100vh-7rem))] w-72 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg"
                                 >
                                     <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ t('Cart') }}</p>
 
-                                    <div v-if="cartLines.length" class="mt-3 space-y-3">
-                                        <div v-for="line in cartLines" :key="line.id" class="flex items-center gap-3">
-                                            <div
-                                                class="h-12 w-12 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                                                <img v-if="line.media?.[0]" :src="line.media[0]" :alt="line.name"
-                                                     class="h-full w-full object-cover"/>
-                                            </div>
-                                            <div class="flex-1">
-                                                <p class="text-xs font-semibold text-slate-900">{{ line.name }}</p>
-                                                <p class="text-[0.7rem] text-slate-500">
-                                                    {{ line.variant || t('Standard') }} ·
-                                                    {{ t('Qty :quantity', {quantity: line.quantity}) }}
-                                                </p>
-                                            </div>
-                                            <div class="text-xs font-semibold text-slate-800">
-                                                {{ formatPrice(line.price) }}
+                                    <div v-if="cartLines.length" class="mt-3 flex min-h-0 flex-1 flex-col">
+                                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                                            <div v-for="line in cartLines" :key="line.id" class="flex items-center gap-3">
+                                                <div
+                                                    class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                                    <img v-if="line.media?.[0]" :src="line.media[0]" :alt="line.name"
+                                                         class="h-full w-full object-cover"/>
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="truncate text-xs font-semibold text-slate-900">{{ line.name }}</p>
+                                                    <p class="text-[0.7rem] text-slate-500">
+                                                        {{ line.variant || t('Standard') }} ·
+                                                        {{ t('Qty :quantity', {quantity: line.quantity}) }}
+                                                    </p>
+                                                </div>
+                                                <div class="shrink-0 text-xs font-semibold text-slate-800">
+                                                    {{ formatPrice(line.price) }}
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div
-                                            class="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
+                                            class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-600">
                                             <span>{{ t('Subtotal') }}</span>
                                             <span class="font-semibold text-slate-900">{{ formatPrice(cartSubtotal) }}</span>
                                         </div>
 
-                                        <div class="grid gap-2">
+                                        <div class="mt-3 grid gap-2">
                                             <Link href="/cart" class="btn-primary w-full text-center">{{
                                                     t('View cart')
                                                 }}

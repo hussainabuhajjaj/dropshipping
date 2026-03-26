@@ -42,7 +42,7 @@ class CartMinimumService
     ): array
     {
         $threshold = $this->threshold();
-        $effective = max(0.0, $subtotal - $discount) + max(0.0, $shipping);
+        $effective = max(0.0, $subtotal - $discount);
 
         if (!$this->isEnabled() || $threshold <= 0.0 || $effective >= $threshold || $this->allowsOverride($promotions, $coupon)) {
             return [
@@ -58,7 +58,7 @@ class CartMinimumService
             'passes' => false,
             'threshold' => $threshold,
             'effective_total' => $effective,
-            'message' => "Add at least \${$formatted} total (products, after discounts, plus shipping) before checking out.",
+            'message' => "Add at least \${$formatted} in products after discounts before checking out.",
         ];
     }
 
