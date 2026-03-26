@@ -26,8 +26,6 @@
                 ref="trackRef"
                 class="rail-track"
                 @scroll.passive="updateArrows"
-                @touchstart.passive="onTouchStart"
-                @touchend.passive="onTouchEnd"
             >
                 <template v-if="isLoading">
                     <div v-for="n in skeletonCount" :key="`skeleton-${n}`" class="rail-card skeleton-card">
@@ -102,7 +100,6 @@ const loadingMore = ref(false)
 const trackRef = ref(null)
 const sectionRef = ref(null)
 const observer = ref(null)
-const touchStartX = ref(0)
 const skeletonCount = 10
 
 const viewAllHref = computed(() => `/products?category=${encodeURIComponent(props.category.slug || props.category.name)}`)
@@ -125,17 +122,6 @@ const scroll = (direction) => {
     const amount = el.clientWidth * 0.7
     const delta = direction === 'left' ? -amount : amount
     el.scrollBy({ left: delta, behavior: 'smooth' })
-}
-
-const onTouchStart = (event) => {
-    touchStartX.value = event.changedTouches?.[0]?.clientX ?? 0
-}
-
-const onTouchEnd = (event) => {
-    const endX = event.changedTouches?.[0]?.clientX ?? 0
-    const delta = touchStartX.value - endX
-    if (Math.abs(delta) < 30) return
-    scroll(delta > 0 ? 'right' : 'left')
 }
 
 const loadPage = async (pageToLoad = 1) => {
@@ -222,7 +208,9 @@ onBeforeUnmount(() => {
     padding: 4px;
     mask-image: linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%);
-    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: auto;
 }
 
 .rail-card {
