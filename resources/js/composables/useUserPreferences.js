@@ -3,16 +3,16 @@ import { router, usePage } from '@inertiajs/vue3'
 
 // State management
 const preferences = ref({
-  currency: 'USD',
+  currency: 'XOF',
   language: 'en',
-  availableCurrencies: ['USD', 'XOF'],
+  availableCurrencies: ['XOF'],
   availableLanguages: ['en', 'fr'],
   currencyRates: {},
   currencyDecimals: {},
   displaySettings: {
     auto_convert_prices: true,
-    show_currency_selector: true,
-    default_customer_currency: 'USD',
+    show_currency_selector: false,
+    default_customer_currency: 'XOF',
   }
 })
 
@@ -23,16 +23,16 @@ export function useUserPreferences() {
   const page = usePage()
 
   const normalizePreferences = (payload = {}) => ({
-    currency: payload.currency || 'USD',
+    currency: payload.currency || 'XOF',
     language: payload.language || 'en',
-    availableCurrencies: payload.available_currencies || ['USD', 'XOF'],
+    availableCurrencies: payload.available_currencies || ['XOF'],
     availableLanguages: Object.keys(payload.available_languages || { en: 'English' }),
-    currencyRates: payload.currency_rates || { USD: 1 },
-    currencyDecimals: payload.currency_decimals || { USD: 2 },
+    currencyRates: payload.currency_rates || { USD: 1, USD_XOF: 600, XOF_USD: 0.00167 },
+    currencyDecimals: payload.currency_decimals || { XOF: 0 },
     displaySettings: payload.display_settings || {
       auto_convert_prices: true,
-      show_currency_selector: true,
-      default_customer_currency: 'USD',
+      show_currency_selector: false,
+      default_customer_currency: 'XOF',
     },
   })
 

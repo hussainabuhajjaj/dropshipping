@@ -17,16 +17,20 @@ class SetUserPreferences
     public function handle(Request $request, Closure $next)
     {
         // Set currency from session or user preferences
-        $currency = session('user_currency', 'USD');
+        $currency = 'XOF';
 
         if (auth('customer')->check()) {
             $user = auth('customer')->user();
-            $currency = $user->preferred_currency ?? $currency;
+            $currency = $user->preferred_currency === 'XOF' ? 'XOF' : $currency;
 
             // Update session if user preference exists
-            if ($user->preferred_currency && session('user_currency') !== $user->preferred_currency) {
-                session(['user_currency' => $user->preferred_currency]);
+            if (session('user_currency') !== 'XOF') {
+                session(['user_currency' => 'XOF']);
             }
+        }
+
+        if (session('user_currency') !== 'XOF') {
+            session(['user_currency' => 'XOF']);
         }
 
         // Share currency with all views

@@ -89,7 +89,7 @@ class UserPreferenceService
      */
     public function getAvailableCurrencies(): array
     {
-        return config('currency.supported', ['USD', 'XOF']);
+        return ['XOF'];
     }
 
     /**
@@ -163,14 +163,14 @@ class UserPreferenceService
     {
         return [
             'auto_convert_prices' => Cache::get('currency_auto_convert', true),
-            'show_currency_selector' => Cache::get('currency_show_selector', true),
-            'default_customer_currency' => Cache::get('currency_default_customer', 'USD'),
+            'show_currency_selector' => false,
+            'default_customer_currency' => 'XOF',
         ];
     }
 
     private function fetchPreferences(): array
     {
-        $currency = 'USD';
+        $currency = 'XOF';
         $language = 'en';
 
         $customer = $this->resolveCustomer();
@@ -183,7 +183,7 @@ class UserPreferenceService
         }
 
         return [
-            'currency' => $currency,
+            'currency' => 'XOF',
             'language' => $language,
             'available_currencies' => $this->getAvailableCurrencies(),
             'available_languages' => $this->getAvailableLanguages(),

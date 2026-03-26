@@ -33,7 +33,7 @@
 
         <!-- Pay with Korapay Button -->
         <button
-            @click="processCardPayment"
+            @click="processPayment"
             class="w-full bg-[#f59e0b] text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-[#d97706] transition disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!selectedMethod || is_processing"
         >
@@ -55,7 +55,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 15v2m-6 4h12a3 3 0 003-3v-6a3 3 0 00-3-3H6a3 3 0 00-3 3v6a3 3 0 003 3zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            Secured by Korapay. PCI DSS compliant.
+            {{ t('Secure XOF mobile money checkout with Korapay.') }}
         </p>
 
         <!-- Payment Icons -->
@@ -64,14 +64,16 @@
 
             <PaymentBadges
                 class="mt-3"
+                :show-card="false"
+                :show-stripe="false"
+                :show-mobile-money="true"
             />
         </div>
     </div>
 </template>
 
 <script setup>
-import {ref, computed, watch, onMounted} from 'vue'
-import {router} from "@inertiajs/vue3";
+import {ref, computed, watch} from 'vue'
 import {useTranslations} from '@/i18n'
 import PaymentBadges from "@/Components/PaymentBadges.vue";
 
@@ -99,17 +101,10 @@ const props = defineProps({
 // Available payment methods (mapped to Korapay channels)
 const availableMethods = ref([
     {
-        id: 'card',
-        name: 'Card Payment',
-        channel: 'card',
-        description: 'Visa, Mastercard',
-        icon: null
-    },
-    {
         id: 'mobile_money',
         name: 'Mobile Money',
         channel: 'mobile_money',
-        description: 'Wave Cash, Orange Money',
+        description: 'Wave, Orange Money',
         icon: null
     }
 ])
@@ -118,9 +113,9 @@ const is_processing = computed(() => props.is_processing);
 const emit = defineEmits([ 'method-change', 'pay-cards'])
 
 // State
-const selectedMethod = ref('card')
+const selectedMethod = ref('mobile_money')
 
-const processCardPayment = () => {
+const processPayment = () => {
     emit('pay-cards' , selectedMethod.value)
 }
 

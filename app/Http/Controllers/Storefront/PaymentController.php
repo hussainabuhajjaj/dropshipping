@@ -117,14 +117,14 @@ class PaymentController extends Controller
 
         $extra_validation_rules = $this->getItemValidationArray($type);
         $request->validate(array_merge([
-            'method' => 'required|in:card,mobile_money',
+            'method' => 'required|in:mobile_money',
         ], $extra_validation_rules));
 
         $final_total = @$summery['total'] ?? 0;
 
         $method = $request->input('method');
 
-        if (in_array($method, ['card', 'mobile_money'])) {
+        if ($method === 'mobile_money') {
             session()->put('request_body', $request->all());
             $checkout = $this->korapayService->initializePayment($final_total, $method);
 

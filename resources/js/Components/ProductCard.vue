@@ -1,15 +1,15 @@
 <template>
-  <Link :href="`/products/${product.slug}`" class="block group h-full">
-    <article
+  <article
+    :class="dense
+      ? 'card group flex h-full flex-col gap-2 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 p-2.5'
+      : 'card group flex h-full flex-col gap-3 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 p-3'"
+  >
+    <div
       :class="dense
-        ? 'card flex h-full flex-col gap-2 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer p-2.5'
-        : 'card flex h-full flex-col gap-3 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 cursor-pointer p-3'"
+        ? 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[1/1]'
+        : 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[4/5]'"
     >
-      <div
-        :class="dense
-          ? 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[1/1]'
-          : 'relative w-full overflow-hidden rounded-lg bg-gradient-to-br from-[#dfff86]/60 via-white to-[#29ab87]/10 aspect-[4/5]'"
-      >
+      <Link :href="`/products/${product.slug}`" class="block h-full w-full">
         <img
           v-if="product.media?.[0]"
           :src="product.media[0]"
@@ -25,86 +25,96 @@
         <span v-else-if="hasDiscount" class="badge-accent absolute right-2 top-2 text-xs">
           {{ t('Save :percent%', { percent: discountPercent }) }}
         </span>
+      </Link>
+      <button
+        type="button"
+        class="absolute left-2 top-2 rounded-full bg-white/70 p-1.5 text-xs transition hover:bg-white"
+        :class="{
+          'text-[#e0245e]': wishlisted.value,
+          'text-slate-400': !wishlisted.value,
+        }"
+        :disabled="wishlistProcessing.value"
+        @click.stop.prevent="addToWishlist"
+        @pointerdown.stop.prevent
+      >
+        <svg v-if="wishlisted.value" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+        <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 stroke-current fill-none" stroke-width="1.5">
+          <path d="M12.1 20.55l-.1.1-.11-.1C7.14 16.24 4 13.39 4 9.5 4 6.42 6.42 4 9.5 4c1.74 0 3.41.81 4.6 2.1C15.09 4.81 16.76 4 18.5 4 21.58 4 24 6.42 24 9.5c0 3.89-3.14 6.74-7.9 11.05z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div :class="dense ? 'flex flex-col gap-1.5 flex-1 justify-start' : 'flex flex-col gap-2 flex-1 justify-start'">
+      <div class="flex items-baseline gap-2">
+        <div :class="dense ? 'text-base font-bold text-slate-900' : 'text-lg font-bold text-slate-900'">{{ displayPriceFormatted }}</div>
+        <div v-if="hasDiscount" class="text-xs text-slate-400 line-through">{{ compareAtFormatted }}</div>
+      </div>
+      <h3 :class="dense ? 'text-[13px] font-semibold leading-snug text-slate-900 line-clamp-2' : 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2'">
+        <Link :href="`/products/${product.slug}`" class="hover:text-[#29ab87]">
+          {{ product.name }}
+        </Link>
+      </h3>
+      <div class="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+        <span v-if="rating" class="inline-flex items-center gap-0.5">
+          <svg viewBox="0 0 24 24" class="h-3 w-3 text-slate-500" fill="currentColor">
+            <path d="M12 3.5l2.6 5.4 6 .9-4.3 4.1 1 5.8L12 16.9 6.7 19.7l1-5.8-4.3-4.1 6-.9L12 3.5z" />
+          </svg>
+          {{ rating }}<span v-if="ratingCount"> ({{ ratingCount }})</span>
+        </span>
+        <span>{{ product.is_active ? t('In stock') : t('Unavailable') }}</span>
+      </div>
+
+      <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
+        {{ t('Ends in') }} {{ promoCountdown }}
+      </p>
+      <p v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-[0.65rem] text-slate-500">
+        {{ productPromotion.apply_hint }}
+      </p>
+
+      <div :class="dense ? 'mt-auto flex items-center justify-between gap-2' : 'mt-auto flex items-center justify-between gap-3'">
         <button
           type="button"
-          class="absolute left-2 top-2 rounded-full bg-white/70 p-1.5 text-xs transition hover:bg-white"
-          :class="{
-            'text-[#e0245e]': wishlisted.value,
-            'text-slate-400': !wishlisted.value,
-          }"
-          :disabled="wishlistProcessing.value"
-          @click.stop="addToWishlist"
+          :class="dense
+            ? 'flex-1 rounded-full bg-[#29ab87] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#2aaa8a]'
+            : 'flex-1 rounded-full bg-[#29ab87] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2aaa8a]'"
+          @click.stop.prevent="openProductModal"
+          @pointerdown.stop.prevent
         >
-          <svg v-if="wishlisted.value" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-3.5 w-3.5 stroke-current fill-none" stroke-width="1.5">
-            <path d="M12.1 20.55l-.1.1-.11-.1C7.14 16.24 4 13.39 4 9.5 4 6.42 6.42 4 9.5 4c1.74 0 3.41.81 4.6 2.1C15.09 4.81 16.76 4 18.5 4 21.58 4 24 6.42 24 9.5c0 3.89-3.14 6.74-7.9 11.05z"/>
-          </svg>
+          {{ t('Add to cart') }}
         </button>
+        <Link
+          :href="`/products/${product.slug}`"
+          :class="dense
+            ? 'rounded-full border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-900 hover:border-slate-300'
+            : 'rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 hover:border-slate-300'"
+        >
+          {{ t('Details') }}
+        </Link>
       </div>
+    </div>
 
-      <div :class="dense ? 'flex flex-col gap-1.5 flex-1 justify-start' : 'flex flex-col gap-2 flex-1 justify-start'">
-        <div class="flex items-baseline gap-2">
-          <div :class="dense ? 'text-base font-bold text-slate-900' : 'text-lg font-bold text-slate-900'">{{ displayPriceFormatted }}</div>
-          <div v-if="hasDiscount" class="text-xs text-slate-400 line-through">{{ compareAtFormatted }}</div>
-        </div>
-        <h3 :class="dense ? 'text-[13px] font-semibold leading-snug text-slate-900 line-clamp-2' : 'text-sm font-semibold leading-snug text-slate-900 line-clamp-2'">
-          <Link :href="`/products/${product.slug}`" class="hover:text-[#29ab87]">
-            {{ product.name }}
-          </Link>
-        </h3>
-        <div class="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-          <span v-if="rating" class="inline-flex items-center gap-0.5">
-            <svg viewBox="0 0 24 24" class="h-3 w-3 text-slate-500" fill="currentColor">
-              <path d="M12 3.5l2.6 5.4 6 .9-4.3 4.1 1 5.8L12 16.9 6.7 19.7l1-5.8-4.3-4.1 6-.9L12 3.5z" />
-            </svg>
-            {{ rating }}<span v-if="ratingCount"> ({{ ratingCount }})</span>
-          </span>
-          <span>{{ product.is_active ? t('In stock') : t('Unavailable') }}</span>
-        </div>
+    <p :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
+      {{ t('Shipping calculated after address entry; final totals refresh during checkout.') }}
+    </p>
+  </article>
 
-        <p v-if="promoCountdown" class="text-[0.65rem] font-semibold text-amber-700">
-          {{ t('Ends in') }} {{ promoCountdown }}
-        </p>
-        <p v-if="productPromotion?.apply_hint && !promotionPriceDiscountable" class="text-[0.65rem] text-slate-500">
-          {{ productPromotion.apply_hint }}
-        </p>
-
-        <div :class="dense ? 'mt-auto flex items-center justify-between gap-2' : 'mt-auto flex items-center justify-between gap-3'">
-          <button
-            type="button"
-            :class="dense
-              ? 'flex-1 rounded-full bg-[#29ab87] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#2aaa8a]'
-              : 'flex-1 rounded-full bg-[#29ab87] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2aaa8a]'"
-            @click.stop="addToCart"
-          >
-            {{ t('Add to cart') }}
-          </button>
-          <Link
-            :href="`/products/${product.slug}`"
-            :class="dense
-              ? 'rounded-full border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-900 hover:border-slate-300'
-              : 'rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 hover:border-slate-300'"
-          >
-            {{ t('Details') }}
-          </Link>
-        </div>
-      </div>
-
-      <p :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
-        {{ t('Shipping calculated after address entry; final totals refresh during checkout.') }}
-      </p>
-    </article>
-  </Link>
+  <ProductQuickAddSheet
+    :is-open="isQuickAddOpen"
+    :product="product"
+    :currency="currency"
+    @close="closeProductModal"
+  />
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Link, router, useForm } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import ProductQuickAddSheet from '@/Components/ProductQuickAddSheet.vue'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -118,9 +128,52 @@ const emit = defineEmits(['add-to-cart'])
 const { t } = useTranslations()
 const wishlisted = ref(Boolean(props.product.is_in_wishlist))
 const wishlistProcessing = ref(false)
+const isQuickAddOpen = ref(false)
 const now = usePromoNow()
 const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
+
+const readMetaCsrfToken = () =>
+  document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
+
+const writeMetaCsrfToken = (token) => {
+  if (!token) return
+
+  const existing = document.querySelector('meta[name="csrf-token"]')
+  if (existing) {
+    existing.setAttribute('content', token)
+    return
+  }
+
+  const meta = document.createElement('meta')
+  meta.setAttribute('name', 'csrf-token')
+  meta.setAttribute('content', token)
+  document.head.appendChild(meta)
+}
+
+const refreshCsrfToken = async () => {
+  if (typeof window === 'undefined') return ''
+
+  const response = await fetch(window.location.href, {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      Accept: 'text/html,application/xhtml+xml',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  })
+
+  const html = await response.text()
+  const match = html.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i)
+  const token = match?.[1] ?? ''
+
+  if (token) {
+    writeMetaCsrfToken(token)
+  }
+
+  return token
+}
 
 // Promotion logic
 const productPromotion = computed(() => {
@@ -193,37 +246,87 @@ const compareAtFormatted = computed(() =>
 )
 const rating = computed(() => props.product.rating ?? null)
 const ratingCount = computed(() => props.product.rating_count ?? null)
+const isComplexProduct = computed(() => {
+  const variants = Array.isArray(props.product.variants) ? props.product.variants : []
+  if (variants.length > 12) return true
+
+  const optionGroups = new Set()
+
+  for (const variant of variants) {
+    const options = variant?.options
+    if (!options || typeof options !== 'object') continue
+
+    for (const [key] of Object.entries(options)) {
+      optionGroups.add(key)
+    }
+  }
+
+  return optionGroups.size > 1 && variants.length > 6
+})
 
 // Wishlist logic
-const addToWishlist = () => {
+const addToWishlist = async () => {
   if (wishlistProcessing.value) return
+
   wishlistProcessing.value = true
+
+  let csrfToken = readMetaCsrfToken()
+
+  try {
+    csrfToken = await refreshCsrfToken() || csrfToken
+  } catch {
+    // Use the current token if the refresh request fails.
+  }
+
   if (wishlisted.value) {
     router.delete(`/account/wishlist/${props.product.id}`, {
       preserveScroll: true,
-      onFinish: () => {
+      headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+      onSuccess: () => {
         wishlistProcessing.value = false
         wishlisted.value = false
+      },
+      onError: () => {
+        wishlistProcessing.value = false
+      },
+      onFinish: () => {
+        wishlistProcessing.value = false
       },
     })
     return
   }
+
   router.post(
     '/account/wishlist',
     { product_id: props.product.id },
     {
       preserveScroll: true,
-      onFinish: () => {
+      headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
+      onSuccess: () => {
         wishlistProcessing.value = false
         wishlisted.value = true
+      },
+      onError: () => {
+        wishlistProcessing.value = false
+      },
+      onFinish: () => {
+        wishlistProcessing.value = false
       },
     },
   )
 }
 
-const addToCart = () => {
-  // Emit for parent handlers; fallback to product page if no listener
-  if (typeof emit === 'function') emit('add-to-cart', props.product)
-  else router.visit(`/products/${props.product.slug}`)
+const openProductModal = () => {
+  if (isComplexProduct.value) {
+    router.visit(props.product.href || `/products/${props.product.slug}`)
+    return
+  }
+
+  isQuickAddOpen.value = true
+  emit('add-to-cart', props.product)
+}
+
+const closeProductModal = () => {
+  isQuickAddOpen.value = false
 }
 </script>

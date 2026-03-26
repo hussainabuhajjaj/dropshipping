@@ -224,7 +224,7 @@
                         </Link>
 
                         <!-- Account -->
-                        <div ref="accountRef" class="relative z-[100]">
+                        <div ref="accountRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
                                 class="relative inline-flex h-10 w-10 items-center justify-center overflow-visible text-white transition hover:text-[#f59e0b]"
@@ -338,7 +338,7 @@
                         </div>
 
                         <!-- Cart -->
-                        <div ref="cartRef" class="relative z-[100]">
+                        <div ref="cartRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
                                 class="relative inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"

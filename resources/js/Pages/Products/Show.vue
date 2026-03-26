@@ -409,8 +409,6 @@
 
 <script setup>
 // Promotion logic for product details
-import {useToast} from "vue-toast-notification";
-import {toastAlert} from "@/utils/toast.js";
 function productPromotionForDetails(product, promotions) {
   if (!promotions?.length) return null
   const targeted = promotions.find(p =>
@@ -425,13 +423,14 @@ function productPromotionForDetails(product, promotions) {
 }
 
 import { computed, ref } from 'vue'
-import { Head, Link, useForm, router } from '@inertiajs/vue3'
+import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import LoginRequiredModal from '@/Components/LoginRequiredModal.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import Modal from '@/Components/Modal.vue'
 import { useTranslations } from '@/i18n'
+import { useProductCartForm } from '@/composables/useProductCartForm.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 import {usePage} from '@inertiajs/vue3'
@@ -460,39 +459,21 @@ const promotionPriceDiscountable = computed(() => {
   return true
 })
 
-const form = useForm({
-  product_id: props.product.id,
-  variant_id: props.product.variants?.[0]?.id ?? null,
-  quantity: 1,
-})
-const showLoginPrompt = ref(false)
-const submit = () => {
-  form.product_id = props.product.id
-  form.variant_id = selectedVariantId.value
-  form.post('/cart', {
-    preserveScroll: true,
-    onSuccess: () => {
-      successMessage.value = t('Added to cart.')
-      clearSuccessSoon()
-    },
-    onError: (errors) => {
-      const message = errors?.cart
-        || errors?.message
-        || Object.values(errors ?? {}).find((value) => typeof value === 'string')
-
-      if (typeof message === 'string' && message.toLowerCase().includes('log in')) {
-        showLoginPrompt.value = true
-        return
-      }
-
-      toastAlert('error', message || t('Unable to add this item to your cart right now.'))
-    },
-  })
-}
-
-const selectedVariantId = ref(props.product.variants?.[0]?.id ?? null)
-const selectedVariant = computed(() => {
-  return props.product.variants?.find((variant) => variant.id === selectedVariantId.value) ?? null
+const {
+  decrementQty,
+  form,
+  incrementQty,
+  isOutOfStock,
+  selectVariant,
+  selectedVariant,
+  selectedVariantId,
+  showLoginPrompt,
+  stockBadge,
+  submit,
+  successMessage,
+} = useProductCartForm({
+  product: props.product,
+  t,
 })
 
 const basePriceForDisplay = computed(() => Number(selectedVariant.value?.price ?? props.product.price ?? 0))
@@ -534,35 +515,6 @@ const compareAtFormatted = computed(() =>
 const displayPromotionValue = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
-const selectVariant = (id) => {
-  selectedVariantId.value = id
-}
-
-const stockStatus = computed(() => {
-  const stock = selectedVariant.value?.stock_on_hand
-  const threshold = selectedVariant.value?.low_stock_threshold ?? 5
-  if (stock === null || stock === undefined) {
-    return { label: '', status: 'unknown' }
-  }
-  if (stock <= 0) {
-    return { label: t('Out of stock'), status: 'out' }
-  }
-  if (stock <= threshold) {
-    return { label: t('Low stock'), status: 'low' }
-  }
-  return { label: t('In stock'), status: 'in' }
-})
-
-const stockBadge = computed(() => {
-  const { status, label } = stockStatus.value
-  if (!label) return { label: '', class: '', dot: '' }
-  if (status === 'out') return { label, class: 'border border-red-200 bg-red-50 text-red-700', dot: 'bg-red-500' }
-  if (status === 'low') return { label, class: 'border border-amber-200 bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
-  return { label, class: 'border border-emerald-200 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' }
-})
-
-const isOutOfStock = computed(() => stockStatus.value.status === 'out')
-
 const selectedImage = ref(props.product.media?.[0] ?? null)
 const activeTab = ref('description')
 
@@ -571,30 +523,11 @@ const productPromotion = computed(() => productPromotionForDetails(props.product
 const promoCountdown = computed(() => formatCountdown(productPromotion.value?.end_at, now.value))
 
 const authUser = computed(() => page.props.auth?.user ?? null)
-const successMessage = ref(page.props.flash?.cart_notice ?? '')
 const reviewNotice = ref(page.props.flash?.review_notice ?? '')
 const reviewsState = ref([...(props.reviews ?? [])])
 const votedHelpfulIds = ref(new Set())
 const helpfulLoadingId = ref(null)
 const imagesError = ref('')
-let successTimeout = null
-
-const clearSuccessSoon = () => {
-  if (successTimeout) {
-    clearTimeout(successTimeout)
-  }
-  successTimeout = setTimeout(() => {
-    successMessage.value = ''
-  }, 2400)
-}
-
-const incrementQty = () => {
-  form.quantity = Math.max(1, Number(form.quantity || 1) + 1)
-}
-
-const decrementQty = () => {
-  form.quantity = Math.max(1, Number(form.quantity || 1) - 1)
-}
 
 const specEntries = computed(() => {
   const specs = props.product.specs ?? {}

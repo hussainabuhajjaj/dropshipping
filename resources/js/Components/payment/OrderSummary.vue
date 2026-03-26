@@ -107,7 +107,7 @@ const props = defineProps({
     },
     currency: {
         type: String,
-        default: 'JOD'
+        default: 'XOF'
     }
 })
 

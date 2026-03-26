@@ -129,7 +129,7 @@ const defaultAddress = page.props.defaultAddress
 const userAddresses = page.props.addresses || []
 const items = computed(() => page.props.items)
 
-const displayCurrency = computed(() => currentCurrency.value || 'USD')
+const displayCurrency = computed(() => 'XOF')
 const is_processing = ref(false)
 const address = ref(null);
 
@@ -143,7 +143,7 @@ const totalItems = computed(() => {
 })
 
 // Payment state
-const selectedMethod = ref('card')
+const selectedMethod = ref('mobile_money')
 const selectedMethodName = ref('')
 const estimatedDelivery = ref('7-21 business days')
 
@@ -160,8 +160,7 @@ onMounted(()=>{
 const handleMethodChange = (method) => {
     selectedMethod.value = method
     const methodNames = {
-        card: 'Visa , MasterCard',
-        mobile_money: 'Mobile Payment',
+        mobile_money: 'Mobile Money',
     }
     selectedMethodName.value = methodNames[method] || method
 }
