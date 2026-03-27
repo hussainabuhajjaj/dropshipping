@@ -537,8 +537,8 @@ class ProductResource extends BaseResource
                         ->tooltip(fn (Product $record) => is_array($record->cj_last_changed_fields) ? implode(', ', $record->cj_last_changed_fields) : null),
                     Tables\Columns\TextColumn::make('cj_last_payload')
                         ->label('CJ Payload')
-                        ->getStateUsing(fn (Product $record): ?string => 
-                            $record->cj_last_payload ? 
+                        ->getStateUsing(fn (Product $record): ?string =>
+                            $record->cj_last_payload ?
                             self::extractCjPayloadSummary($record->cj_last_payload) : ''
                         )
                         ->limit(50)
@@ -760,13 +760,13 @@ class ProductResource extends BaseResource
                         });
                     })
                     ->toggle(),
-                
+
                 // CJ Import Filters
                 Tables\Filters\Filter::make('cj_imported')
                     ->label('CJ Imported')
                     ->query(fn (Builder $query): Builder => $query->whereNotNull('cj_imported_at'))
                     ->toggle(),
-                
+
                 Tables\Filters\SelectFilter::make('cj_import_timeframe')
                     ->label('CJ Import Timeframe')
                     ->options([
@@ -781,7 +781,7 @@ class ProductResource extends BaseResource
                         if (!isset($data['value'])) {
                             return $query;
                         }
-                        
+
                         return match ($data['value']) {
                             'today' => $query->whereDate('cj_imported_at', today()),
                             'this_week' => $query->whereBetween('cj_imported_at', [now()->startOfWeek(), now()->endOfWeek()]),
@@ -795,7 +795,7 @@ class ProductResource extends BaseResource
                     ->default('all')
                     ->searchable()
                     ->preload(),
-                
+
                 Tables\Filters\Filter::make('cj_import_date_range')
                     ->label('CJ Import Date Range')
                     ->form([
@@ -850,28 +850,32 @@ class ProductResource extends BaseResource
                         ->icon('heroicon-o-pencil-square')
                         ->slideOver()
                         ->schema([
-                            TextInput::make('selling_price')->label('Selling Price (USD)')->helperText('Default product-level price in USD; variants may override.')->numeric()->required()->prefix('$')->step(0.01),
+                            TextInput::make('selling_price')->label('Selling Price (USD)')
+                                ->helperText('Default product-level price in USD; variants may override.')
+                                ->numeric()->required()
+                                ->prefix('$')
+                                ->step(0.01),
                             TextInput::make('cost_price')->label('Cost Price (USD)')->numeric()->required()->prefix('$')->step(0.01),
-                            TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(0),
+                            TextInput::make('stock_on_hand')->label('Stock on hand')->numeric()->minValue(200)->default(200),
                             Toggle::make('is_active')->label('Active'),
                             Toggle::make('is_featured')->label('Featured'),
-                            
+
                             // CJ Payload Section
                             Section::make('CJ API Payload')
                                 ->description('Raw data from the last CJ Dropshipping API sync')
                                 ->schema([
                                     Placeholder::make('cj_payload_summary')
                                         ->label('Payload Summary')
-                                        ->content(fn (Product $record): string => 
-                                            $record->cj_last_payload ? 
-                                            self::extractCjPayloadSummary($record->cj_last_payload) : 
+                                        ->content(fn (Product $record): string =>
+                                            $record->cj_last_payload ?
+                                            self::extractCjPayloadSummary($record->cj_last_payload) :
                                             'No CJ payload data available'
                                         ),
                                     Textarea::make('cj_payload_raw')
                                         ->label('Full CJ Payload (JSON)')
-                                        ->formatStateUsing(fn (Product $record): string => 
-                                            $record->cj_last_payload ? 
-                                            json_encode($record->cj_last_payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : 
+                                        ->formatStateUsing(fn (Product $record): string =>
+                                            $record->cj_last_payload ?
+                                            json_encode($record->cj_last_payload['sellPrice'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) :
                                             ''
                                         )
                                         ->rows(8)
@@ -1934,13 +1938,13 @@ class ProductResource extends BaseResource
                                 $productIds = $records->pluck('id')->toArray();
                                 $chunkSize = 10;
                                 $chunks = array_chunk($productIds, $chunkSize);
-                                
+
                                 foreach ($chunks as $chunk) {
                                     TranslateProductsChunkJob::dispatch($chunk, $locales)
                                         ->onConnection('redis')
                                         ->onQueue('translations');
                                 }
-                                
+
                                 Notification::make()
                                     ->title('Translations queued')
                                     ->body("Queued {$records->count()} product(s) using optimized chunk jobs.")
@@ -2602,7 +2606,7 @@ class ProductResource extends BaseResource
         // Extract key information for display - prioritize selling price
         $keyFields = [
             'selling_price' => '💰 Selling Price',
-            'pid' => 'PID', 
+            'pid' => 'PID',
             'productCost' => 'Cost',
             'productTitle' => 'Title',
             'categoryName' => 'Category',
@@ -2612,7 +2616,7 @@ class ProductResource extends BaseResource
         foreach ($keyFields as $field => $label) {
             if (isset($payloadArray[$field])) {
                 $value = $payloadArray[$field];
-                
+
                 // Special formatting for selling price
                 if ($field === 'selling_price') {
                     $price = is_numeric($value) ? '$' . number_format((float) $value, 2) : json_encode($value);
@@ -2644,18 +2648,18 @@ class ProductResource extends BaseResource
         $analysis['margin_status_counts'] = $allProducts->groupBy(function ($product) {
             $cost = self::normalizeAmount($product->cost_price);
             $selling = self::normalizeAmount($product->selling_price);
-            
+
             if ($cost === null || $selling === null) {
                 return 'Missing';
             }
-            
+
             $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
             $min = $pricing->minSellingPrice($cost);
-            
+
             if ($selling < $min) {
                 return 'Below Required';
             }
-            
+
             return 'OK';
         })->map->count();
 
@@ -2672,7 +2676,7 @@ class ProductResource extends BaseResource
                             ->where('cost_price', '>', 0)
                             ->where('selling_price', '>', 0)
                             ->whereRaw('selling_price < (
-                                CASE 
+                                CASE
                                     WHEN cost_price <= 5 THEN cost_price * 2.5
                                     WHEN cost_price <= 10 THEN cost_price * 2.0
                                     WHEN cost_price <= 20 THEN cost_price * 1.8
@@ -2691,7 +2695,7 @@ class ProductResource extends BaseResource
         $analysis['discrepancies'] = $allProducts->filter(function ($product) {
             $cost = self::normalizeAmount($product->cost_price);
             $selling = self::normalizeAmount($product->selling_price);
-            
+
             // Margin status logic
             $marginStatus = 'OK';
             if ($cost === null || $selling === null) {
@@ -2703,7 +2707,7 @@ class ProductResource extends BaseResource
                     $marginStatus = 'Below Required';
                 }
             }
-            
+
             // Filter logic
             $matchesFilter = (
                 is_null($product->cost_price) ||
@@ -2712,7 +2716,7 @@ class ProductResource extends BaseResource
                 $product->cost_price < 0 ||
                 ($product->cost_price > 0 && $product->selling_price > 0 && self::isBelowRequiredMargin($product->cost_price, $product->selling_price))
             );
-            
+
             // Discrepancy: margin status shows problem but filter doesn't match
             return in_array($marginStatus, ['Missing', 'Below Required']) && !$matchesFilter;
         })->take(10)->map(function ($product) {
@@ -2738,18 +2742,18 @@ class ProductResource extends BaseResource
     {
         $cost = self::normalizeAmount($product->cost_price);
         $selling = self::normalizeAmount($product->selling_price);
-        
+
         if ($cost === null || $selling === null) {
             return 'Missing';
         }
-        
+
         $pricing = \App\Domain\Products\Services\PricingService::makeFromConfig();
         $min = $pricing->minSellingPrice($cost);
-        
+
         if ($selling < $min) {
             return 'Below Required';
         }
-        
+
         return 'OK';
     }
 
@@ -2973,7 +2977,7 @@ class ProductResource extends BaseResource
 
             // Validate the new price
             $validation = self::validateProductMargin(new Product(['cost_price' => $cost, 'selling_price' => $newSellingPrice]));
-            
+
             if ($validation['status'] === 'Missing') {
                 $result['message'] = 'Calculated price is invalid: ' . implode(', ', $validation['issues']);
                 return $result;
@@ -2982,18 +2986,18 @@ class ProductResource extends BaseResource
             // Update the product
             $oldSellingPrice = $product->selling_price;
             $updateData = ['selling_price' => $newSellingPrice];
-            
+
             if ($options['activate_if_valid'] ?? false) {
                 $updateData['is_active'] = true;
                 $updateData['status'] = 'active';
             }
 
             $product->update($updateData);
-            
+
             $result['success'] = true;
             $result['new_selling_price'] = $newSellingPrice;
             $result['message'] = 'Margin set successfully';
-            
+
             if ($validation['status'] === 'Below Required') {
                 $result['warnings'][] = 'New price is still below required minimum';
             }
@@ -3089,10 +3093,10 @@ class ProductResource extends BaseResource
         ];
 
         $products = Product::whereIn('id', $productIds)->get();
-        
+
         foreach ($products as $product) {
             $result = self::setProductMargin($product, $marginPercent, $options);
-            
+
             if ($result['success']) {
                 $results['success']++;
             } else {
