@@ -17,7 +17,7 @@
           </div>
           <div class="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2">
             <button
-              v-for="(image, idx) in product.media"
+              v-for="(image, idx) in galleryImages"
               :key="idx"
               type="button"
               class="h-2 w-2 rounded-full border border-white/60 bg-white/60 transition"
@@ -28,7 +28,7 @@
         </div>
         <div class="grid grid-cols-5 gap-3 sm:grid-cols-6">
           <button
-            v-for="(image, idx) in product.media"
+            v-for="(image, idx) in galleryImages"
             :key="idx"
             type="button"
             class="aspect-square overflow-hidden rounded-xl border border-transparent bg-slate-50 transition"
@@ -103,7 +103,77 @@
           {{ t('Customs and duties are shown before payment. Delivery timelines begin after dispatch and local clearance.') }}
         </div>
 
-        <div v-if="product.variants?.length" class="space-y-3">
+        <div v-if="useGroupedVariantPicker" class="space-y-5">
+          <div
+            v-for="group in optionGroups"
+            :key="group.key"
+            class="space-y-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ group.label }}</label>
+              <span v-if="selectedOptions[group.key]" class="text-sm font-semibold text-slate-900">{{ selectedOptions[group.key] }}</span>
+            </div>
+
+            <div v-if="group.presentation === 'image'" class="flex flex-wrap gap-3">
+              <button
+                v-for="choice in getGroupChoices(group.key)"
+                :key="`${group.key}-${choice.value}`"
+                type="button"
+                class="w-24 overflow-hidden rounded-2xl border bg-white text-left transition"
+                :class="choice.selected ? 'border-slate-900 ring-2 ring-slate-200' : choice.disabled ? 'cursor-not-allowed border-slate-200 opacity-40' : 'border-slate-200 hover:border-slate-400'"
+                :disabled="choice.disabled"
+                @click="updateOptionSelection(group.key, choice.value)"
+              >
+                <div class="aspect-square bg-slate-50">
+                  <img
+                    v-if="choice.image"
+                    :src="choice.image"
+                    :alt="choice.label"
+                    class="h-full w-full object-cover"
+                  />
+                  <div v-else class="flex h-full items-center justify-center px-2 text-center text-xs font-semibold text-slate-500">
+                    {{ choice.label }}
+                  </div>
+                </div>
+                <div class="border-t border-slate-100 px-2 py-2 text-xs font-semibold text-slate-800">
+                  {{ choice.label }}
+                </div>
+              </button>
+            </div>
+
+            <select
+              v-else-if="group.presentation === 'dropdown'"
+              :value="selectedOptions[group.key] ?? ''"
+              class="input-base w-full max-w-sm"
+              @change="updateOptionSelection(group.key, $event.target.value)"
+            >
+              <option
+                v-for="choice in getGroupChoices(group.key)"
+                :key="`${group.key}-${choice.value}`"
+                :value="choice.value"
+                :disabled="choice.disabled"
+              >
+                {{ choice.label }}{{ choice.outOfStock ? ` (${t('Out of stock')})` : '' }}
+              </option>
+            </select>
+
+            <div v-else class="flex flex-wrap gap-2">
+              <button
+                v-for="choice in getGroupChoices(group.key)"
+                :key="`${group.key}-${choice.value}`"
+                type="button"
+                class="rounded-2xl border px-4 py-2 text-sm font-semibold transition"
+                :class="choice.selected ? 'border-slate-900 bg-slate-900 text-white' : choice.disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300' : choice.outOfStock ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 text-slate-800 hover:border-slate-400'"
+                :disabled="choice.disabled"
+                @click="updateOptionSelection(group.key, choice.value)"
+              >
+                {{ choice.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="product.variants?.length" class="space-y-3">
           <label class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ t('Variant') }}</label>
           <div class="flex flex-wrap gap-2">
             <button
@@ -422,7 +492,7 @@ function productPromotionForDetails(product, promotions) {
   return promotions.find(p => p.is_sitewide) ?? null
 }
 
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
@@ -515,7 +585,275 @@ const compareAtFormatted = computed(() =>
 const displayPromotionValue = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 
-const selectedImage = ref(props.product.media?.[0] ?? null)
+const visualOptionPattern = /(color|colour|finish|shade|pattern|style)/i
+const dropdownOptionPattern = /(bundle|pack|quantity|set)/i
+const sizeOptionPattern = /^(xxxs|xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|one size|free size|small|medium|large|us\s*\d+.*|eu\s*\d+.*|uk\s*\d+.*|\d{2,3}([-/]\d{2,3})?)$/i
+
+const normalizeOptionKey = (value) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')
+const splitCompoundValue = (value, separator) =>
+  String(value ?? '')
+    .split(separator)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+const inferCompoundOptionConfig = (variants) => {
+  if (variants.length < 2) {
+    return null
+  }
+
+  const rawVariantOptions = variants.map((variant) => {
+    const rawOptions = variant?.options && typeof variant.options === 'object' ? Object.entries(variant.options) : []
+    return rawOptions.length === 1 ? rawOptions[0] : null
+  })
+
+  if (rawVariantOptions.some((entry) => !entry)) {
+    return null
+  }
+
+  const separators = [/\s*\/\s*/, /\s*\|\s*/, /\s*-\s*/, /\s*,\s*/]
+
+  for (const separator of separators) {
+    const partsList = rawVariantOptions.map(([, value]) => splitCompoundValue(value, separator))
+    const partCount = partsList[0]?.length ?? 0
+
+    if (partCount < 2 || partsList.some((parts) => parts.length !== partCount)) {
+      continue
+    }
+
+    const labels = Array.from({ length: partCount }, (_, index) => {
+      const values = partsList.map((parts) => parts[index])
+      if (values.every((value) => sizeOptionPattern.test(value))) {
+        return 'Size'
+      }
+      if (index === 0) {
+        return 'Color'
+      }
+      return `Option ${index + 1}`
+    })
+
+    return {
+      separator,
+      labels,
+    }
+  }
+
+  return null
+}
+
+const normalizedVariants = computed(() => {
+  const variants = Array.isArray(props.product.variants) ? props.product.variants : []
+  const compoundConfig = inferCompoundOptionConfig(variants)
+
+  return variants.map((variant) => {
+    const rawOptions = variant?.options && typeof variant.options === 'object' ? variant.options : {}
+    const normalizedOptions = {}
+    const optionLabels = {}
+
+    Object.entries(rawOptions).forEach(([key, value]) => {
+      const normalizedKey = normalizeOptionKey(key)
+      const label = String(key ?? '').trim()
+      const normalizedValue = String(value ?? '').trim()
+
+      if (!normalizedKey || !normalizedValue) {
+        return
+      }
+
+      normalizedOptions[normalizedKey] = normalizedValue
+      optionLabels[normalizedKey] = label || normalizedKey
+    })
+
+    if (compoundConfig && Object.keys(normalizedOptions).length === 1 && normalizedOptions.option) {
+      const parts = splitCompoundValue(normalizedOptions.option, compoundConfig.separator)
+
+      if (parts.length === compoundConfig.labels.length) {
+        Object.keys(normalizedOptions).forEach((key) => {
+          delete normalizedOptions[key]
+        })
+        Object.keys(optionLabels).forEach((key) => {
+          delete optionLabels[key]
+        })
+
+        parts.forEach((part, index) => {
+          const label = compoundConfig.labels[index]
+          const normalizedKey = normalizeOptionKey(label)
+          normalizedOptions[normalizedKey] = part
+          optionLabels[normalizedKey] = label
+        })
+      }
+    }
+
+    return {
+      ...variant,
+      normalizedOptions,
+      optionLabels,
+      variant_image: variant?.variant_image || null,
+    }
+  })
+})
+
+const optionGroups = computed(() => {
+  const groups = new Map()
+
+  normalizedVariants.value.forEach((variant) => {
+    Object.entries(variant.normalizedOptions).forEach(([key, value]) => {
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label: variant.optionLabels[key] || key,
+          values: new Map(),
+        })
+      }
+
+      const group = groups.get(key)
+      if (!group.values.has(value)) {
+        group.values.set(value, {
+          value,
+          label: value,
+          image: variant.variant_image || null,
+        })
+      } else if (!group.values.get(value).image && variant.variant_image) {
+        group.values.get(value).image = variant.variant_image
+      }
+    })
+  })
+
+  const scoreGroup = (group) => {
+    const label = group.label || group.key
+    const hasImages = Array.from(group.values.values()).some((value) => Boolean(value.image))
+    if (hasImages) return -30
+    if (visualOptionPattern.test(label)) return -20
+    if (dropdownOptionPattern.test(label)) return 15
+    return 0
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const values = Array.from(group.values.values())
+      const presentation = values.length > 8 || dropdownOptionPattern.test(group.label)
+        ? 'dropdown'
+        : (values.some((value) => value.image) ? 'image' : 'button')
+
+      return {
+        key: group.key,
+        label: group.label,
+        presentation,
+        values,
+      }
+    })
+    .sort((a, b) => scoreGroup(a) - scoreGroup(b))
+})
+
+const useGroupedVariantPicker = computed(() =>
+  optionGroups.value.length > 0 && optionGroups.value.some((group) => group.values.length > 1)
+)
+
+const selectedOptions = ref({})
+
+const variantMatchesSelection = (variant, selection) => {
+  return Object.entries(selection).every(([key, value]) => {
+    if (!value) return true
+    return variant.normalizedOptions[key] === value
+  })
+}
+
+const choosePreferredValue = (groupKey, values, variants) => {
+  return [...values]
+    .sort((left, right) => {
+      const leftVariants = variants.filter((variant) => variant.normalizedOptions[groupKey] === left)
+      const rightVariants = variants.filter((variant) => variant.normalizedOptions[groupKey] === right)
+      const leftScore = (leftVariants.some((variant) => Number(variant.stock_on_hand ?? 0) > 0) ? 100 : 0) + (leftVariants.some((variant) => variant.variant_image) ? 10 : 0)
+      const rightScore = (rightVariants.some((variant) => Number(variant.stock_on_hand ?? 0) > 0) ? 100 : 0) + (rightVariants.some((variant) => variant.variant_image) ? 10 : 0)
+      return rightScore - leftScore
+    })[0] ?? null
+}
+
+const choosePreferredVariant = (variants) => {
+  if (!variants.length) return null
+  return variants.find((variant) => variant.id === selectedVariantId.value)
+    ?? variants.find((variant) => Number(variant.stock_on_hand ?? 0) > 0)
+    ?? variants[0]
+}
+
+const resolveVariantState = (desiredSelection = {}) => {
+  let candidates = [...normalizedVariants.value]
+  const resolvedSelection = {}
+
+  optionGroups.value.forEach((group) => {
+    const values = [...new Set(candidates.map((variant) => variant.normalizedOptions[group.key]).filter(Boolean))]
+    if (!values.length) {
+      return
+    }
+
+    const desiredValue = desiredSelection[group.key]
+    const chosenValue = desiredValue && values.includes(desiredValue)
+      ? desiredValue
+      : choosePreferredValue(group.key, values, candidates)
+
+    if (!chosenValue) {
+      return
+    }
+
+    resolvedSelection[group.key] = chosenValue
+    candidates = candidates.filter((variant) => variant.normalizedOptions[group.key] === chosenValue)
+  })
+
+  return {
+    selection: resolvedSelection,
+    variant: choosePreferredVariant(candidates),
+  }
+}
+
+const getGroupChoices = (groupKey) => {
+  const group = optionGroups.value.find((entry) => entry.key === groupKey)
+  if (!group) {
+    return []
+  }
+
+  const baseSelection = { ...selectedOptions.value }
+  delete baseSelection[groupKey]
+
+  return group.values.map((choice) => {
+    const matchingVariants = normalizedVariants.value.filter((variant) =>
+      variantMatchesSelection(variant, { ...baseSelection, [groupKey]: choice.value }),
+    )
+
+    return {
+      ...choice,
+      disabled: matchingVariants.length === 0,
+      outOfStock: matchingVariants.length > 0 && !matchingVariants.some((variant) => Number(variant.stock_on_hand ?? 0) > 0),
+      selected: selectedOptions.value[groupKey] === choice.value,
+    }
+  })
+}
+
+const updateOptionSelection = (groupKey, value) => {
+  if (!value) {
+    return
+  }
+
+  const next = {
+    ...selectedOptions.value,
+    [groupKey]: value,
+  }
+
+  const resolved = resolveVariantState(next)
+  selectedOptions.value = resolved.selection
+
+  if (resolved.variant && resolved.variant.id !== selectedVariantId.value) {
+    selectVariant(resolved.variant.id)
+  }
+}
+
+const galleryImages = computed(() => {
+  const images = [
+    selectedVariant.value?.variant_image ?? null,
+    ...(Array.isArray(props.product.media) ? props.product.media : []),
+  ].filter(Boolean)
+
+  return [...new Set(images)]
+})
+
+const selectedImage = ref(null)
 const activeTab = ref('description')
 
 const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
@@ -528,6 +866,61 @@ const reviewsState = ref([...(props.reviews ?? [])])
 const votedHelpfulIds = ref(new Set())
 const helpfulLoadingId = ref(null)
 const imagesError = ref('')
+
+watch(
+  [normalizedVariants, optionGroups],
+  () => {
+    if (!useGroupedVariantPicker.value) {
+      return
+    }
+
+    const currentVariant = normalizedVariants.value.find((variant) => variant.id === selectedVariantId.value)
+      ?? normalizedVariants.value[0]
+
+    const resolved = resolveVariantState(currentVariant?.normalizedOptions ?? {})
+    selectedOptions.value = resolved.selection
+
+    if (resolved.variant && resolved.variant.id !== selectedVariantId.value) {
+      selectVariant(resolved.variant.id)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  selectedVariantId,
+  (variantId) => {
+    if (!useGroupedVariantPicker.value) {
+      return
+    }
+
+    const currentVariant = normalizedVariants.value.find((variant) => variant.id === variantId)
+    if (currentVariant) {
+      selectedOptions.value = { ...currentVariant.normalizedOptions }
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  galleryImages,
+  (images) => {
+    if (!images.length) {
+      selectedImage.value = null
+      return
+    }
+
+    if (selectedVariant.value?.variant_image && images.includes(selectedVariant.value.variant_image)) {
+      selectedImage.value = selectedVariant.value.variant_image
+      return
+    }
+
+    if (!selectedImage.value || !images.includes(selectedImage.value)) {
+      selectedImage.value = images[0]
+    }
+  },
+  { immediate: true },
+)
 
 const specEntries = computed(() => {
   const specs = props.product.specs ?? {}

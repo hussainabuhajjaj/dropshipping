@@ -89,19 +89,19 @@
                     </div>
                 </div>
 
-                <div v-if="railCards.length" class="hero-rails">
-                    <div
-                        v-for="(card, index) in railCards"
-                        :key="card.title"
-                        class="rail-card"
-                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"
-                    >
-                        <p class="rail-kicker">{{ card.kicker }}</p>
-                        <h3>{{ card.title }}</h3>
-                        <p>{{ card.subtitle }}</p>
-                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>
-                    </div>
-                </div>
+<!--                <div v-if="railCards.length" class="hero-rails">-->
+<!--                    <div-->
+<!--                        v-for="(card, index) in railCards"-->
+<!--                        :key="card.title"-->
+<!--                        class="rail-card"-->
+<!--                        :class="index === 0 ? 'rail-sun' : 'rail-ink'"-->
+<!--                    >-->
+<!--                        <p class="rail-kicker">{{ card.kicker }}</p>-->
+<!--                        <h3>{{ card.title }}</h3>-->
+<!--                        <p>{{ card.subtitle }}</p>-->
+<!--                        <Link :href="card.href" class="rail-link">{{ card.cta }}</Link>-->
+<!--                    </div>-->
+<!--                </div>-->
             </section>
 
             <section v-if="promoBanner" class="promo-banner">
@@ -141,18 +141,6 @@
                 </div>
             </section>
 
-<!--            <section class="section-block">-->
-<!--                <div class="section-head">-->
-<!--                    <div>-->
-<!--                        <p class="section-kicker">{{ t('Trust & delivery') }}</p>-->
-<!--                        <h2 class="section-title">{{ t('Confidence at every step') }}</h2>-->
-<!--                    </div>-->
-<!--                </div>-->
-<!--                <div class="grid gap-6 lg:grid-cols-[1.1fr,1fr]">-->
-<!--                    <TrustBadges />-->
-<!--                    <DeliveryTimeline />-->
-<!--                </div>-->
-<!--            </section>-->
 
             <section v-if="featuredCategories.length" class="section-block category-stack">
                 <div class="section-head">
@@ -2141,11 +2129,11 @@ const valueProps = computed(() => {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 8px !important;
     }
-    
+
     .featured-category-slider {
         grid-auto-columns: minmax(140px, 1fr);
     }
-    
+
     .deal-grid {
         grid-template-columns: repeat(1, minmax(0, 1fr));
     }

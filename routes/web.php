@@ -70,6 +70,54 @@ Route::get('/locale/{locale}', function (string $locale, Request $request) {
 })->name('locale.set');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+Route::get('/.well-known/apple-app-site-association', function () {
+    $teamId = (string) config('mobile_app_links.ios.team_id', '');
+    $bundleId = (string) config('mobile_app_links.ios.bundle_id', '');
+    $paths = config('mobile_app_links.ios.paths', ['/products/*']);
+
+    $appId = trim($teamId) !== '' && trim($bundleId) !== ''
+        ? sprintf('%s.%s', trim($teamId), trim($bundleId))
+        : null;
+
+    return response()->json([
+        'applinks' => [
+            'apps' => [],
+            'details' => $appId
+                ? [[
+                    'appIDs' => [$appId],
+                    'components' => collect($paths)
+                        ->filter(fn ($path) => is_string($path) && $path !== '')
+                        ->map(fn (string $path) => ['/' => $path])
+                        ->values()
+                        ->all(),
+                ]]
+                : [],
+        ],
+    ])->header('Content-Type', 'application/json');
+});
+Route::get('/.well-known/assetlinks.json', function () {
+    $packageName = (string) config('mobile_app_links.android.package_name', '');
+    $fingerprints = collect(config('mobile_app_links.android.sha256_cert_fingerprints', []))
+        ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+        ->map(fn (string $value) => trim($value))
+        ->values()
+        ->all();
+
+    if ($packageName === '' || empty($fingerprints)) {
+        return response()->json([]);
+    }
+
+    return response()->json([
+        [
+            'relation' => ['delegate_permission/common.handle_all_urls'],
+            'target' => [
+                'namespace' => 'android_app',
+                'package_name' => $packageName,
+                'sha256_cert_fingerprints' => $fingerprints,
+            ],
+        ],
+    ])->header('Content-Type', 'application/json');
+});
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');

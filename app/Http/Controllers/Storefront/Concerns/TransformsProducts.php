@@ -23,12 +23,13 @@ trait TransformsProducts
             ->all();
         $locale = app()->getLocale();
         $variants = collect($product->variants ?? []);
-        $variantPayload = $variants->map(function ($variant) use ($locale, $product) {
+        $variantPayload = $variants->map(function ($variant) use ($locale, $product, $homeBuilder) {
             $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
             $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
             $localizedTitle = $translations[$locale]['title'] ?? null;
             $fullTitle = $localizedTitle ?: $variant->title;
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
+            $variantImage = $homeBuilder->normalizeImage(is_string($variant->variant_image ?? null) ? $variant->variant_image : null);
 
             return [
                 'id' => $variant->id,
@@ -36,6 +37,7 @@ trait TransformsProducts
                 'full_title' => $fullTitle,
                 'display_title' => $displayTitle,
                 'options' => is_array($variant->options ?? null) ? $variant->options : null,
+                'variant_image' => $variantImage,
                 'price' => (float) ($variant->price ?? 0),
                 'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
                 'sku' => $variant->sku,
