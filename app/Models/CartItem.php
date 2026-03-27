@@ -39,9 +39,12 @@ class CartItem extends Model
         if ($price <= 0) {
             $costPrice = (float)($this?->variant?->cost_price ?? $this?->product?->cost_price ?? 0);
             if ($costPrice > 0) {
-                // Apply minimum margin (same logic as CJ import)
                 $pricingService = app(PricingService::class);
-                $price = $pricingService->minSellingPrice($costPrice, $this?->product?->currency ?? 'USD');
+                $price = $this?->variant
+                    ? $pricingService->minimumPriceForVariant($this->variant, $this->product, $costPrice)
+                    : ($this?->product
+                        ? $pricingService->minimumPriceForProduct($this->product, $costPrice)
+                        : $pricingService->minSellingPrice($costPrice, 'USD'));
             }
         }
         

@@ -3,10 +3,11 @@
 namespace App\Domain\Products\Services;
 
 use App\Domain\Products\DTOs\PricingResultDTO;
+use App\Domain\Products\Models\Product;
+use App\Domain\Products\Models\ProductVariant;
 use App\Models\LocalWareHouse;
 use App\Services\Currency\CurrencyConversionService;
 use InvalidArgumentException;
-use RuntimeException;
 use Illuminate\Support\Facades\Log;
 
 class PricingService
@@ -329,6 +330,39 @@ class PricingService
         return $this->roundForCurrency($minPrice, $currency);
     }
 
+    public function minimumPriceForProduct(Product $product, ?float $costOverride = null): float
+    {
+        $cost = $costOverride ?? (is_numeric($product->cost_price) ? (float) $product->cost_price : 0.0);
+        $currency = (string) ($product->currency ?: 'USD');
+        $pricingMeta = is_array($product->pricing_meta ?? null) ? $product->pricing_meta : [];
+        $warehouseId = is_numeric($product->local_warehouse_id ?? null) ? (int) $product->local_warehouse_id : null;
+
+        return $this->minimumPriceForContext($cost, $currency, $pricingMeta, $warehouseId);
+    }
+
+    public function minimumPriceForVariant(ProductVariant $variant, ?Product $product = null, ?float $costOverride = null): float
+    {
+        $product ??= $variant->relationLoaded('product') ? $variant->product : $variant->product()->first();
+
+        $cost = $costOverride ?? (is_numeric($variant->cost_price) ? (float) $variant->cost_price : 0.0);
+        $currency = (string) ($variant->currency ?: $product?->currency ?: 'USD');
+        $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+        $pricingMeta = is_array($metadata['pricing_meta'] ?? null) ? $metadata['pricing_meta'] : [];
+        $warehouseId = is_numeric($metadata['local_warehouse_id'] ?? null)
+            ? (int) $metadata['local_warehouse_id']
+            : (is_numeric($product?->local_warehouse_id ?? null) ? (int) $product->local_warehouse_id : null);
+
+        if (! isset($pricingMeta['weight_kg']) && is_numeric($variant->weight_grams ?? null) && (float) $variant->weight_grams > 0) {
+            $pricingMeta['weight_kg'] = ((float) $variant->weight_grams) / 1000;
+        }
+
+        if (! isset($pricingMeta['cj_shipping']) && $product && is_array($product->pricing_meta ?? null)) {
+            $pricingMeta['cj_shipping'] = $product->pricing_meta['cj_shipping'] ?? null;
+        }
+
+        return $this->minimumPriceForContext($cost, $currency, $pricingMeta, $warehouseId);
+    }
+
     /**
      * Calculate selling price with margin and optional category multiplier.
      */
@@ -452,12 +486,13 @@ class PricingService
      */
     private function getCategoryMultiplier(?int $categoryId): float
     {
+        $multipliers = config('pricing.category_multipliers', []);
+
         if (!$categoryId) {
-            return 1.0;
+            return (float) ($multipliers['default'] ?? 1.0);
         }
 
-        $multipliers = config('pricing.category_multipliers', []);
-        return $multipliers[$categoryId] ?? 1.0;
+        return (float) ($multipliers[$categoryId] ?? $multipliers['default'] ?? 1.0);
     }
 
     /**
@@ -501,6 +536,40 @@ class PricingService
         }
 
         return $value;
+    }
+
+    private function minimumPriceForContext(float $cost, string $currency, array $pricingMeta = [], ?int $warehouseId = null): float
+    {
+        if ($cost <= 0) {
+            return $this->minSellingPrice($cost, $currency);
+        }
+
+        $weightKg = $this->normalizeNumeric($pricingMeta['weight_kg'] ?? null);
+        $cjShipping = $this->normalizeNumeric($pricingMeta['cj_shipping'] ?? null) ?? 0.0;
+
+        if ($weightKg !== null) {
+            $warehouse = $warehouseId ? LocalWareHouse::query()->find($warehouseId) : null;
+
+            return $this->calculate(
+                productCost: $cost,
+                weight: $weightKg,
+                cjShipping: $cjShipping,
+                warehouse: $warehouse,
+                currency: $currency,
+                options: ['warehouse_id' => $warehouseId]
+            )->basePrice;
+        }
+
+        return $this->minSellingPrice($cost, $currency);
+    }
+
+    private function normalizeNumeric(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     /**

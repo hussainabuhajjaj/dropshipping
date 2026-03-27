@@ -42,7 +42,7 @@ class ProductActivationValidator
         if (! is_numeric($cost) || (float) $cost < 0) {
             $errors[] = 'Cost price is required for margin validation.';
         } elseif (is_numeric($selling)) {
-            $min = $pricing->minSellingPrice((float) $cost);
+            $min = $pricing->minimumPriceForProduct($product, (float) $cost);
             if ((float) $selling < $min) {
                 $errors[] = "Selling price is below recommended minimum ({$min}).";
             }
@@ -83,7 +83,7 @@ class ProductActivationValidator
                     continue;
                 }
 
-                $variantMin = $pricing->minSellingPrice($variantCost);
+                $variantMin = $pricing->minimumPriceForVariant($variant, $product, $variantCost);
                 if ((float) $variant->price < $variantMin) {
                     $variantBelowMargin++;
                 }
