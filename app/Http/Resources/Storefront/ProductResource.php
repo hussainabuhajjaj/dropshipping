@@ -6,6 +6,7 @@ namespace App\Http\Resources\Storefront;
 
 use App\Domain\Products\Models\Product;
 use App\Services\Currency\CurrencyConversionService;
+use App\Services\Pricing\ProductCompareAtService as CompareAtService;
 use App\Services\Storefront\HomeBuilderService;
 use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class ProductResource extends JsonResource
     use ResolvesStorefrontVariantLabels;
 
     protected bool $includeMeta = false;
+    protected ?CompareAtService $compareAtService = null;
 
     public function toArray(Request $request): array
     {
@@ -36,6 +38,12 @@ class ProductResource extends JsonResource
             $fullTitle = $localizedTitle ?: $variant->title;
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
             $variantImage = $homeBuilder->normalizeImage(is_string($variant->variant_image ?? null) ? $variant->variant_image : null);
+            $price = $variant->price !== null ? (float) $variant->price : null;
+            $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
+            $referencePrice = $this->compareAtService()->referencePrice(
+                $price,
+                $product->selling_price !== null ? (float) $product->selling_price : null
+            );
 
             return [
                 'id' => $variant->id,
@@ -44,8 +52,8 @@ class ProductResource extends JsonResource
                 'display_title' => $displayTitle,
                 'options' => is_array($variant->options ?? null) ? $variant->options : null,
                 'variant_image' => $variantImage,
-                'price' => (float) ($variant->price ?? 0),
-                'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
+                'price' => $price ?? 0.0,
+                'compare_at_price' => $this->displayCompareAt($referencePrice, $compareAt),
                 'sku' => $variant->sku,
                 'currency' => $variant->currency ?? $product->currency ?? 'USD',
                 'cj_vid' => $variant->cj_vid,
@@ -139,6 +147,18 @@ class ProductResource extends JsonResource
         }
 
         return $data;
+    }
+
+    protected function displayCompareAt(?float $price, ?float $compareAt): ?float
+    {
+        return $this->compareAtService()->isDisplayWorthy($price, $compareAt)
+            ? round((float) $compareAt, 2)
+            : null;
+    }
+
+    protected function compareAtService(): CompareAtService
+    {
+        return $this->compareAtService ??= app(CompareAtService::class);
     }
 
     private function resolveRequestedCurrency(Request $request, CurrencyConversionService $converter): ?string

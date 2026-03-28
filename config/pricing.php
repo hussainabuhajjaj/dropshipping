@@ -27,6 +27,11 @@ return [
     ],
     'max_discount_percent' => env('PRICING_MAX_DISCOUNT_PERCENT', 30),
     'max_promotion_discount' => env('PRICING_MAX_PROMOTION_DISCOUNT', 30),
+    'compare_at' => [
+        'min_discount_percent' => env('PRICING_COMPARE_AT_MIN_DISCOUNT_PERCENT', 5),
+        'default_discount_percent' => env('PRICING_COMPARE_AT_DEFAULT_DISCOUNT_PERCENT', 18),
+        'max_discount_percent' => env('PRICING_COMPARE_AT_MAX_DISCOUNT_PERCENT', 30),
+    ],
 
     'category_multipliers' => [
         1 => env('PRICING_ELECTRONICS_MULTIPLIER', 1.2), // Electronics

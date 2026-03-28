@@ -90,7 +90,7 @@
             <span class="h-2 w-2 rounded-full" :class="stockBadge.dot" />
             {{ stockBadge.label }}
           </span>
-          <span class="text-xs text-slate-500">{{ t('Ships in :days days', { days: product.lead_time_days ?? 7 }) }}</span>
+          <span class="text-xs text-slate-500">{{ t('Ships in :days days', { days: product.lead_time_days ?? "7-21" }) }}</span>
           <span v-if="reviewSummary.count" class="inline-flex items-center gap-1 text-xs text-slate-600">
             <svg viewBox="0 0 24 24" class="h-4 w-4 text-slate-500" fill="currentColor">
               <path d="M12 3.5l2.6 5.4 6 .9-4.3 4.1 1 5.8L12 16.9 6.7 19.7l1-5.8-4.3-4.1 6-.9L12 3.5z" />

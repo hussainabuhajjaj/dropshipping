@@ -1169,21 +1169,12 @@ class ProductResource extends BaseResource
                                 ->default(false),
                         ])
                         ->action(function (Product $record, array $data): void {
-                            if (empty(config('services.deepseek.key'))) {
-                                Notification::make()
-                                    ->title('DeepSeek not configured')
-                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                    ->danger()
-                                    ->send();
-                                return;
-                            }
-
                             $force = (bool) ($data['force'] ?? false);
                             $runNow = (bool) ($data['run_now'] ?? false);
 
                             if ($runNow) {
                                 try {
-                                    app(\App\Services\AI\ProductCompareAtService::class)->generate($record, $force);
+                                    app(\App\Services\Pricing\ProductCompareAtService::class)->generate($record, $force);
                                     Notification::make()
                                         ->title('Compare-at updated')
                                         ->success()
@@ -2007,21 +1998,11 @@ class ProductResource extends BaseResource
                                 ->default(false),
                         ])
                         ->action(function (Collection $records, array $data): void {
-                            if (empty(config('services.deepseek.key'))) {
-                                Notification::make()
-                                    ->title('DeepSeek not configured')
-                                    ->body('Set DEEPSEEK_API_KEY in your .env to enable AI features.')
-                                    ->danger()
-                                    ->send();
-
-                                return;
-                            }
-
                             $force = (bool) ($data['force'] ?? false);
                             $runNow = (bool) ($data['run_now'] ?? false);
 
                             if ($runNow) {
-                                $service = app(\App\Services\AI\ProductCompareAtService::class);
+                                $service = app(\App\Services\Pricing\ProductCompareAtService::class);
                                 $updated = 0;
                                 $failed = 0;
 
