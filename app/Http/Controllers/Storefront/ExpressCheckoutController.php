@@ -209,20 +209,33 @@ class ExpressCheckoutController extends Controller
                 // Create order items
                 $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
                 foreach ($cart as $line) {
+                    $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+                    $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                        ->where('product_variant_id', $line['variant_id'])
+                        ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                        ->first();
+
                     $order->orderItems()->create([
                         'product_variant_id' => $line['variant_id'],
-                        'fulfillment_provider_id' => $line['fulfillment_provider_id'] ?? $fallbackProvider,
+                        'fulfillment_provider_id' => $providerId,
+                        'supplier_product_id' => $supplierProduct?->id,
                         'fulfillment_status' => 'pending',
                         'quantity' => $line['quantity'],
                         'unit_price' => $line['price'],
                         'total' => $line['price'] * $line['quantity'],
+                        'source_sku' => $supplierProduct?->external_sku ?? ($line['sku'] ?? null),
                         'snapshot' => [
                             'name' => $line['name'],
                             'variant' => $line['variant'],
+                            'supplier_type' => $line['supplier_type'] ?? null,
                         ],
                         'meta' => [
                             'media' => $line['media'],
                             'coupon_code' => $coupon['code'] ?? null,
+                            'supplier_type' => $line['supplier_type'] ?? null,
+                            'supplier_product_id' => $supplierProduct?->id,
+                            'external_product_id' => $supplierProduct?->external_product_id,
+                            'external_sku' => $supplierProduct?->external_sku,
                         ],
                     ]);
                 }

@@ -37,7 +37,7 @@ class ProductResource extends JsonResource
             $localizedTitle = $translations[$locale]['title'] ?? null;
             $fullTitle = $localizedTitle ?: $variant->title;
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
-            $variantImage = $homeBuilder->normalizeImage(is_string($variant->variant_image ?? null) ? $variant->variant_image : null);
+            $variantImage = $homeBuilder->normalizeImage($this->resolveStorefrontVariantImage($variant));
             $price = $variant->price !== null ? (float) $variant->price : null;
             $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
             $referencePrice = $this->compareAtService()->referencePrice(
@@ -50,7 +50,7 @@ class ProductResource extends JsonResource
                 'title' => $displayTitle,
                 'full_title' => $fullTitle,
                 'display_title' => $displayTitle,
-                'options' => is_array($variant->options ?? null) ? $variant->options : null,
+                'options' => $this->normalizeStorefrontVariantOptions($variant),
                 'variant_image' => $variantImage,
                 'price' => $price ?? 0.0,
                 'compare_at_price' => $this->displayCompareAt($referencePrice, $compareAt),
@@ -159,6 +159,50 @@ class ProductResource extends JsonResource
     protected function compareAtService(): CompareAtService
     {
         return $this->compareAtService ??= app(CompareAtService::class);
+    }
+
+    private function normalizeStorefrontVariantOptions(mixed $variant): ?array
+    {
+        $options = is_array($variant->options ?? null) ? $variant->options : [];
+        $properties = is_array($options['properties'] ?? null) ? $options['properties'] : [];
+        $merged = [...$properties];
+
+        foreach ($options as $key => $value) {
+            if ($key === 'properties' || ! is_scalar($value)) {
+                continue;
+            }
+
+            $normalized = trim((string) $value);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $merged[(string) $key] = $normalized;
+        }
+
+        return $merged === [] ? null : $merged;
+    }
+
+    private function resolveStorefrontVariantImage(mixed $variant): ?string
+    {
+        if (is_string($variant->variant_image ?? null) && trim($variant->variant_image) !== '') {
+            return trim($variant->variant_image);
+        }
+
+        $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+
+        foreach ((array) data_get($metadata, 'raw.ae_sku_property_dtos', []) as $property) {
+            if (! is_array($property)) {
+                continue;
+            }
+
+            $image = $property['sku_image'] ?? $property['image_url'] ?? null;
+            if (is_string($image) && trim($image) !== '') {
+                return trim($image);
+            }
+        }
+
+        return null;
     }
 
     private function resolveRequestedCurrency(Request $request, CurrencyConversionService $converter): ?string

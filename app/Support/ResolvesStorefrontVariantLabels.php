@@ -61,10 +61,25 @@ trait ResolvesStorefrontVariantLabels
     protected function extractVariantOptionValues(mixed $variant): array
     {
         $options = is_array($variant->options ?? null) ? $variant->options : [];
+        $properties = is_array($options['properties'] ?? null) ? $options['properties'] : [];
+
+        if ($properties !== []) {
+            return array_values(array_filter(array_map(
+                fn ($value) => is_scalar($value) ? trim((string) $value) : '',
+                $properties
+            )));
+        }
 
         return array_values(array_filter(array_map(
-            fn ($value) => is_scalar($value) ? trim((string) $value) : '',
-            $options
+            function ($value, $key) {
+                if (in_array((string) $key, ['sku_attr', 'sku_code', 'properties'], true)) {
+                    return '';
+                }
+
+                return is_scalar($value) ? trim((string) $value) : '';
+            },
+            $options,
+            array_keys($options)
         )));
     }
 }

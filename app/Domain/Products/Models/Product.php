@@ -58,6 +58,7 @@ class Product extends Model
         'supplier_currency',
         'default_fulfillment_provider_id',
         'supplier_id',
+        'supplier_type',
         'supplier_product_url',
         'shipping_estimate_days',
         'is_active',
@@ -96,6 +97,7 @@ class Product extends Model
         'translated_locales' => 'array',
         'last_translation_at' => 'datetime',
         'supplier_currency' => 'string',
+        'supplier_type' => 'string',
     ];
 
     public function variants(): HasMany

@@ -211,7 +211,7 @@ class PricingService
             productCost: max(0, (float) ($data['product_cost'] ?? 0)),
             weight: max(0, (float) ($data['weight_kg'] ?? 0)),
             cjShipping: max(0, (float) ($data['cj_shipping'] ?? 0)),
-            warehouse: $data['warehouse'] instanceof LocalWareHouse ? $data['warehouse'] : null,
+            warehouse: (($data['warehouse'] ?? null) instanceof LocalWareHouse) ? $data['warehouse'] : null,
             currency: (string) ($data['currency'] ?? 'USD'),
             options: is_array($data['options'] ?? null) ? $data['options'] : [],
         );

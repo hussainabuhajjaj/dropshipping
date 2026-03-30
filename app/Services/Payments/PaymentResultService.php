@@ -147,23 +147,34 @@ class PaymentResultService
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
 
             foreach ($cart_items as $line) {
+                $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+                $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                    ->where('product_variant_id', $line['variant_id'])
+                    ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                    ->first();
+
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_variant_id' => $line['variant_id'],
-                    'fulfillment_provider_id' => $line['fulfillment_provider_id'] ?? $fallbackProvider,
-                    'supplier_product_id' => null,
+                    'fulfillment_provider_id' => $providerId,
+                    'supplier_product_id' => $supplierProduct?->id,
                     'fulfillment_status' => 'pending',
                     'quantity' => $line['quantity'],
                     'unit_price' => $line->getSinglePrice(),
                     'total' => $line->getSinglePrice() * $line['quantity'],
-                    'source_sku' => null,
+                    'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
                     'snapshot' => [
                         'name' => @$line?->product['name'],
                         'variant' => @$line?->variant['title'],
+                        'supplier_type' => $line->product?->supplier_type,
                     ],
                     'meta' => [
                         'media' => $line['media'] ?? null,
                         'coupon_code' => $coupon['code'] ?? null,
+                        'supplier_type' => $line->product?->supplier_type,
+                        'supplier_product_id' => $supplierProduct?->id,
+                        'external_product_id' => $supplierProduct?->external_product_id,
+                        'external_sku' => $supplierProduct?->external_sku,
                     ],
                 ]);
             }

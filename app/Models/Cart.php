@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Http\Resources\User\CartResource;
+use App\Infrastructure\Fulfillment\Clients\AliExpressClient;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\CartMinimumService;
@@ -106,6 +107,9 @@ class Cart extends Model
                 'provider_id' => $provider_id,
                 'line_ids' => $providerItems->pluck('id')->values()->all(),
             ]);
+            $firstProviderItem = $providerItems->first();
+            $providerSupplierType = (string) ($firstProviderItem?->product?->supplier_type ?? '');
+
             if ($provider_id == 1) {
                 $client = app(CJDropshippingClient::class);
 
@@ -207,6 +211,110 @@ class Cart extends Model
                         'provider_id' => $provider_id,
                         'error' => $e->getMessage(),
                     ]);
+                }
+            } elseif ($providerSupplierType === 'aliexpress') {
+                $client = app(AliExpressClient::class);
+                $providerTotal = 0.0;
+                $providerMaxDays = null;
+                $providerMethods = [];
+
+                foreach ($providerItems as $item) {
+                    $variant = $item->variant ?? ProductVariant::query()->with('product.localWarehouse')->find($item['variant_id']);
+                    $product = $item->product ?? $variant?->product;
+                    $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                        ->where('product_variant_id', $item['variant_id'])
+                        ->when($provider_id, fn ($query) => $query->where('fulfillment_provider_id', $provider_id))
+                        ->first();
+
+                    $warehouse = $product?->localWarehouse ?? $default_warehouse;
+                    $shipToCountry = strtoupper((string) ($warehouse?->country ?? 'CN'));
+                    $variantMetadata = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+                    $productAttributes = is_array($product?->attributes ?? null) ? $product->attributes : [];
+                    $productId = $supplierProduct?->external_product_id ?? ($productAttributes['ali_item_id'] ?? null);
+                    $selectedSkuId = $supplierProduct?->external_sku ?? ($variantMetadata['ali_sku_id'] ?? null);
+
+                    if (! $productId || ! $selectedSkuId) {
+                        $shippingUnavailable = true;
+                        $shippingUnavailableReason = 'AliExpress shipping quote failed because product mapping is incomplete.';
+                        Log::warning('Skipping AliExpress freight quote because product mapping is incomplete', [
+                            'cart_id' => $this->id,
+                            'provider_id' => $provider_id,
+                            'item_id' => $item->id,
+                            'product_id' => $item->product_id,
+                            'variant_id' => $item->variant_id,
+                        ]);
+                        continue 2;
+                    }
+
+                    try {
+                        $result = $client->freightQuery([
+                            'quantity' => (int) ($item['quantity'] ?? 1),
+                            'shipToCountry' => $shipToCountry !== '' ? $shipToCountry : 'CN',
+                            'productId' => (string) $productId,
+                            'language' => 'en',
+                            'locale' => 'en_US',
+                            'selectedSkuId' => (string) $selectedSkuId,
+                            'currency' => (string) ($variant?->currency ?? $product?->currency ?? 'USD'),
+                        ]);
+
+                        $options = collect(data_get($result, 'result.delivery_options', []))
+                            ->filter(fn ($option) => is_array($option))
+                            ->map(function (array $option) {
+                                $feeCent = $option['shipping_fee_cent'] ?? null;
+                                $fee = is_numeric($feeCent)
+                                    ? ((float) $feeCent / 100)
+                                    : ((isset($option['free_shipping']) && $option['free_shipping']) ? 0.0 : null);
+
+                                return [
+                                    'name' => $option['company'] ?? $option['code'] ?? 'AliExpress',
+                                    'code' => $option['code'] ?? null,
+                                    'price' => $fee,
+                                    'max_days' => isset($option['max_delivery_days']) && is_numeric($option['max_delivery_days'])
+                                        ? (int) $option['max_delivery_days']
+                                        : null,
+                                    'raw' => $option,
+                                ];
+                            })
+                            ->filter(fn ($option) => $option['price'] !== null)
+                            ->sortBy('price')
+                            ->values();
+
+                        $best = $options->first();
+                        if (! $best) {
+                            $shippingUnavailable = true;
+                            $shippingUnavailableReason = 'AliExpress returned no delivery options for one or more cart items.';
+                            continue 2;
+                        }
+
+                        $providerTotal += (float) $best['price'];
+                        $providerMethods[] = $best['name'];
+                        $providerMaxDays = $providerMaxDays === null
+                            ? $best['max_days']
+                            : max((int) $providerMaxDays, (int) ($best['max_days'] ?? 0));
+                    } catch (\Throwable $e) {
+                        $shippingUnavailable = true;
+                        $shippingUnavailableReason = 'AliExpress shipping quote failed.';
+                        Log::warning('AliExpress freight calculation failed; skipping provider shipping quote', [
+                            'cart_id' => $this->id,
+                            'provider_id' => $provider_id,
+                            'item_id' => $item->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        continue 2;
+                    }
+                }
+
+                $line = [
+                    'cart_id' => $this['id'],
+                    'fulfillment_provider_id' => $provider_id,
+                    'logistic_name' => implode(' + ', array_values(array_unique(array_filter($providerMethods)))),
+                    'logistic_price' => round($providerTotal, 2),
+                    'total_postage_fee' => round($providerTotal, 2),
+                    'aging' => $providerMaxDays,
+                ];
+                $shippingLines[] = $line;
+                if ($persist) {
+                    CartShipping::query()->create($line);
                 }
             }
         }

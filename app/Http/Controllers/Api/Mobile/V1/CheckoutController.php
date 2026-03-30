@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Domain\Common\Models\Address;
 use App\Domain\Orders\Models\OrderAuditLog;
+use App\Domain\Products\Models\ProductVariant;
+use App\Domain\Products\Services\AliExpressProductImportService;
 use App\Http\Requests\Api\Mobile\V1\Checkout\ConfirmRequest;
 use App\Http\Requests\Api\Mobile\V1\Checkout\PreviewRequest;
 use App\Http\Resources\Mobile\V1\CheckoutConfirmResource;
@@ -38,6 +40,9 @@ class CheckoutController extends ApiController
     {
         $cart = $this->resolveCart($request);
         $cartItems = $this->resolveCheckoutItems($cart, $request);
+        if ($message = $this->validateAliExpressStockForCheckoutItems($cartItems, (string) $request->input('country', 'CN'))) {
+            return $this->error($message, 422);
+        }
         $payload = $this->buildPricingPayload($cart, $request->user(), $cartItems);
 
         return $this->success(new CheckoutPreviewResource($payload));
@@ -51,6 +56,10 @@ class CheckoutController extends ApiController
 
         if ($cartItems->isEmpty()) {
             return $this->error('Cart is empty', 422);
+        }
+
+        if ($message = $this->validateAliExpressStockForCheckoutItems($cartItems, (string) ($validated['country'] ?? 'CN'))) {
+            return $this->error($message, 422);
         }
 
         $customer = $request->user();
@@ -159,25 +168,36 @@ class CheckoutController extends ApiController
 
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
             foreach ($cartItems as $line) {
+                $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+                $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                    ->where('product_variant_id', $line['variant_id'])
+                    ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                    ->first();
+
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_variant_id' => $line['variant_id'],
-                    'fulfillment_provider_id' => $line['fulfillment_provider_id'] ?? $fallbackProvider,
-                    'supplier_product_id' => null,
+                    'fulfillment_provider_id' => $providerId,
+                    'supplier_product_id' => $supplierProduct?->id,
                     'fulfillment_status' => 'pending',
                     'quantity' => $line['quantity'],
                     'unit_price' => $line->getSinglePrice(),
                     'total' => $line->getSinglePrice() * $line['quantity'],
-                    'source_sku' => null,
+                    'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
                     'snapshot' => [
                         'name' => $line?->product['name'],
                         'variant' => $line->variant
                             ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
                             : null,
+                        'supplier_type' => $line->product?->supplier_type,
                     ],
                     'meta' => [
                         'media' => $line['media'] ?? null,
                         'coupon_code' => $coupon['code'] ?? null,
+                        'supplier_type' => $line->product?->supplier_type,
+                        'supplier_product_id' => $supplierProduct?->id,
+                        'external_product_id' => $supplierProduct?->external_product_id,
+                        'external_sku' => $supplierProduct?->external_sku,
                     ],
                 ]);
             }
@@ -271,6 +291,56 @@ class CheckoutController extends ApiController
         return $cart->items
             ->whereIn('product_id', $selectedProductIds->all())
             ->values();
+    }
+
+    private function validateAliExpressStockForCheckoutItems($cartItems, string $shipToCountry = 'CN'): ?string
+    {
+        $cartItems->loadMissing(['product', 'variant.product']);
+        $service = app(AliExpressProductImportService::class);
+        $shipToCountry = strtoupper(trim($shipToCountry)) !== '' ? strtoupper(trim($shipToCountry)) : 'CN';
+
+        foreach ($cartItems as $item) {
+            $product = $item->product;
+            $variant = $item->variant;
+
+            if (! $variant instanceof ProductVariant) {
+                continue;
+            }
+
+            $supplierType = (string) ($product?->supplier_type ?? '');
+            $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+            if ($supplierType !== 'aliexpress' && empty($metadata['ali_sku_id'])) {
+                continue;
+            }
+
+            try {
+                $liveStock = $service->refreshVariantLiveStock($variant, [
+                    'ship_to_country' => $shipToCountry,
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+
+                continue;
+            }
+
+            if ($liveStock === null) {
+                continue;
+            }
+
+            if ((int) $item->quantity > $liveStock) {
+                $variantTitle = $this->resolveVariantDisplayTitle($variant, $variant->title, $product?->name);
+
+                return $liveStock > 0
+                    ? "AliExpress stock changed for {$product?->name} ({$variantTitle}). Only {$liveStock} left."
+                    : "AliExpress stock changed for {$product?->name} ({$variantTitle}). This variant is now out of stock.";
+            }
+
+            if ((int) ($item->stock_on_hand ?? -1) !== $liveStock) {
+                $item->forceFill(['stock_on_hand' => $liveStock])->save();
+            }
+        }
+
+        return null;
     }
 
     private function buildPricingPayload(Cart $cart, ?Customer $customer, $cartItems = null): array

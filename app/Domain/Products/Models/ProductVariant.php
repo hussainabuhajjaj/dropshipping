@@ -26,6 +26,7 @@ class ProductVariant extends Model
         'compare_at_price',
         'cost_price',
         'currency',
+        'supplier_currency',
         'weight_grams',
         'package_length_mm',
         'package_width_mm',
@@ -43,6 +44,7 @@ class ProductVariant extends Model
         'cj_variant_data' => 'array',
         'cj_stock_synced_at' => 'datetime',
         'metadata' => 'array',
+        'supplier_currency' => 'string',
         'stock_on_hand' => 'integer',
         'low_stock_threshold' => 'integer',
     ];

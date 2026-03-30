@@ -34,9 +34,15 @@ class OrderItemsRelationManager extends RelationManager
                     ->selectablePlaceholder(false),
                 Tables\Columns\TextColumn::make('supplierProduct.external_product_id')
                     ->label('Supplier Link')
-                    ->url(fn ($record) => $record->supplierProduct?->external_product_id
-                        ? 'https://www.aliexpress.com/item/'.$record->supplierProduct->external_product_id.'.html'
-                        : null, true),
+                    ->url(fn ($record) => match ($record->supplierProduct?->fulfillmentProvider?->code) {
+                        'ae', 'aliexpress' => $record->supplierProduct?->external_product_id
+                            ? 'https://www.aliexpress.com/item/' . $record->supplierProduct->external_product_id . '.html'
+                            : null,
+                        'cj' => $record->supplierProduct?->external_product_id
+                            ? 'https://app.cjdropshipping.com/product-detail?pid=' . $record->supplierProduct->external_product_id
+                            : null,
+                        default => null,
+                    }, true),
                 Tables\Columns\TextColumn::make('fulfillmentJob.status')
                     ->label('Job')
                     ->badge()

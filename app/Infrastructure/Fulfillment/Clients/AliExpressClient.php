@@ -7,9 +7,12 @@ namespace App\Infrastructure\Fulfillment\Clients;
 use App\Domain\Fulfillment\Exceptions\FulfillmentException;
 use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Fulfillment\DTOs\FulfillmentRequestData;
+use App\Domain\Orders\Models\OrderItem;
+use App\Models\LocalWareHouse;
 use App\Models\AliExpressToken;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AliExpressClient
 {
@@ -107,10 +110,86 @@ class AliExpressClient
         ]);
     }
 
+    public function createOrder(FulfillmentRequestData $request): array
+    {
+        $orderItems = $this->resolveOrderItems($request);
+        if ($orderItems === []) {
+            throw new FulfillmentException('AliExpress dispatch requires at least one order item.');
+        }
+
+        $warehouse = $this->resolveWarehouseForOrderItems($orderItems);
+        if (! $warehouse) {
+            throw new FulfillmentException('AliExpress dispatch requires a configured local warehouse address.');
+        }
+
+        $productItems = [];
+        foreach ($orderItems as $orderItem) {
+            $variant = $orderItem->productVariant;
+            $supplierProduct = $orderItem->supplierProduct;
+            $variantMetadata = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+            $productAttributes = is_array($variant?->product?->attributes ?? null) ? $variant->product->attributes : [];
+
+            $externalProductId = $supplierProduct?->external_product_id
+                ?? ($productAttributes['ali_item_id'] ?? null);
+            $skuAttr = $variantMetadata['ali_sku_attr'] ?? null;
+
+            if (! is_numeric($externalProductId)) {
+                throw new FulfillmentException("Missing AliExpress external product id for order item {$orderItem->id}.");
+            }
+
+            $productItems[] = array_filter([
+                'product_count' => max(1, (int) $orderItem->quantity),
+                'product_id' => (int) $externalProductId,
+                'sku_attr' => is_string($skuAttr) && trim($skuAttr) !== '' ? trim($skuAttr) : null,
+                'order_memo' => $request->options['order_memo'] ?? null,
+            ], fn ($value) => $value !== null && $value !== '');
+        }
+
+        $response = $this->callDsApi('aliexpress.ds.order.create', array_filter([
+            'param_place_order_request4_open_api_d_t_o' => [
+                'out_order_id' => (string) ($request->order_id ?? ('ae-' . Str::uuid()->toString())),
+                'logistics_address' => $this->buildWarehouseAddressPayload($warehouse),
+                'product_items' => $productItems,
+            ],
+            'payment' => [
+                'pay_currency' => strtoupper((string) ($request->options['currency'] ?? 'USD')),
+            ],
+            'trade_extra_param' => [
+                'business_model' => (string) ($request->options['business_model'] ?? 'retail'),
+            ],
+        ], fn ($value) => $value !== null && $value !== []));
+
+        if (($response['code'] ?? null) !== '0') {
+            $error = $response['msg'] ?? $response['rsp_msg'] ?? 'AliExpress order create failed.';
+            throw new FulfillmentException((string) $error);
+        }
+
+        return $response;
+    }
+
+    public function freightQuery(array $queryDeliveryReq): array
+    {
+        $response = $this->callDsApi('aliexpress.ds.freight.query', [
+            'queryDeliveryReq' => $queryDeliveryReq,
+        ]);
+
+        if (($response['code'] ?? null) !== '0' && ($response['success'] ?? null) !== true) {
+            $error = $response['msg'] ?? $response['rsp_msg'] ?? 'AliExpress freight query failed.';
+            throw new FulfillmentException((string) $error);
+        }
+
+        return $response;
+    }
+
     protected function callDsApi(string $method, array $extra): array
     {
         $appKey = config('ali_express.client_id');
         $appSecret = config('ali_express.client_secret');
+
+        $normalizedExtra = [];
+        foreach ($extra as $key => $value) {
+            $normalizedExtra[$key] = $this->normalizeDsParamValue($value);
+        }
 
         $params = [
             'method' => $method,
@@ -118,7 +197,7 @@ class AliExpressClient
             'timestamp' => (string)(now()->timestamp * 1000),
             'sign_method' => 'sha256',
             'access_token' => $this->getAccessToken(),
-            ...$extra,
+            ...$normalizedExtra,
         ];
 
         $params['sign'] = $this->sign($params, $appSecret, $method);
@@ -134,6 +213,74 @@ class AliExpressClient
 
 
         return $response->json() ?? [];
+    }
+
+    private function resolveOrderItems(FulfillmentRequestData $request): array
+    {
+        if ($request->orderItem instanceof OrderItem) {
+            return [$request->orderItem->loadMissing(['supplierProduct', 'productVariant.product.localWarehouse'])];
+        }
+
+        $ids = collect($request->order_items ?? [])
+            ->map(fn ($item) => is_array($item) ? ($item['id'] ?? null) : null)
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return OrderItem::query()
+            ->with(['supplierProduct', 'productVariant.product.localWarehouse'])
+            ->whereIn('id', $ids->all())
+            ->get()
+            ->all();
+    }
+
+    private function resolveWarehouseForOrderItems(array $orderItems): ?LocalWareHouse
+    {
+        foreach ($orderItems as $orderItem) {
+            $warehouse = $orderItem->productVariant?->product?->localWarehouse;
+            if ($warehouse instanceof LocalWareHouse) {
+                return $warehouse;
+            }
+        }
+
+        return LocalWareHouse::query()
+            ->where('is_default', true)
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function buildWarehouseAddressPayload(LocalWareHouse $warehouse): array
+    {
+        return array_filter([
+            'address' => trim((string) $warehouse->line1),
+            'address2' => trim((string) ($warehouse->line2 ?? '')) ?: null,
+            'city' => trim((string) $warehouse->city),
+            'contact_person' => trim((string) $warehouse->name) ?: null,
+            'country' => strtoupper(trim((string) $warehouse->country)),
+            'full_name' => trim((string) $warehouse->name) ?: null,
+            'locale' => str_replace('-', '_', app()->getLocale()),
+            'mobile_no' => trim((string) ($warehouse->phone ?? '')) ?: null,
+            'phone_country' => strtoupper(trim((string) $warehouse->country)),
+            'province' => trim((string) ($warehouse->state ?? '')) ?: trim((string) $warehouse->city),
+            'zip' => trim((string) ($warehouse->postal_code ?? '')) ?: null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function normalizeDsParamValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return $value;
     }
 
     // =========================
@@ -180,6 +327,11 @@ class AliExpressClient
         foreach ($params as $key => $value) {
             if ($key === '' || $value === '' || $value === null) {
                 continue;
+            }
+            if (is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } elseif (is_bool($value)) {
+                $value = $value ? 'true' : 'false';
             }
             $stringToSign .= $key . $value;
         }

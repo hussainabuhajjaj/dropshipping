@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\Mobile\V1;
 
+use App\Domain\Products\Services\AliExpressProductImportService;
 use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Http\Requests\Api\Mobile\V1\Cart\AddItemRequest;
@@ -69,7 +70,7 @@ class CartController extends ApiController
                 return $this->error('Selected variant is invalid for fulfillment. Please choose another variant.', 422);
             }
         }
-        if ($selectedVariant && ! $this->isVariantAvailableForCart($selectedVariant, $providerId)) {
+        if ($selectedVariant && ! $this->isVariantAvailableForCart($selectedVariant, $product, $providerId, $incomingQty)) {
             return $this->error('Selected variant is no longer available. Please choose another variant.', 422);
         }
 
@@ -120,7 +121,9 @@ class CartController extends ApiController
         $newQty = (int) $request->validated()['quantity'];
         $variant = $cartItem->variant;
 
-        if (! $this->hasStock($cartItem->toArray(), $newQty, $variant)) {
+        $providerId = (int) ($cartItem->fulfillment_provider_id ?? $cartItem->product?->default_fulfillment_provider_id ?? 0);
+        if (! $this->hasStock($cartItem->toArray(), $newQty, $variant)
+            || ($variant && ! $this->isVariantAvailableForCart($variant, $cartItem->product, $providerId, $newQty))) {
             return $this->error('Insufficient stock for this item.', 422);
         }
 
@@ -337,10 +340,33 @@ class CartController extends ApiController
         return true;
     }
 
-    private function isVariantAvailableForCart(ProductVariant $variant, int $providerId): bool
+    private function isVariantAvailableForCart(ProductVariant $variant, ?Product $product, int $providerId, int $desiredQty = 1): bool
     {
         // Only validate against CJ for CJ provider.
         if ($providerId !== 1) {
+            $supplierType = (string) ($product?->supplier_type ?? '');
+            $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+
+            if ($supplierType !== 'aliexpress' && empty($meta['ali_sku_id'])) {
+                return true;
+            }
+
+            try {
+                $liveStock = app(AliExpressProductImportService::class)->refreshVariantLiveStock($variant, [
+                    'ship_to_country' => 'CN',
+                ]);
+
+                if ($liveStock !== null) {
+                    return $liveStock >= $desiredQty;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Skipping AliExpress variant availability check due to runtime error', [
+                    'variant_id' => $variant->id,
+                    'ali_sku_id' => $meta['ali_sku_id'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return true;
         }
 

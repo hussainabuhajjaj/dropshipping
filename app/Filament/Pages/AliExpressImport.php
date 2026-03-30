@@ -46,6 +46,13 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
     public string $min_rating = '0';
     public bool $in_stock_only = false;
     public ?int $page_size = 40;
+    public string $ship_to_country = 'AE';
+    public string $target_currency = 'USD';
+    public string $target_language = 'en_US';
+    public bool $remove_personal_benefit = false;
+    public ?string $biz_model = null;
+    public ?string $province_code = 'Dubai';
+    public ?string $city_code = 'Dubai';
     public int $apiPageSize = 40;
     public ?int $apiTotalCount = null;
     public int $nextApiPageToFetch = 1;
@@ -59,6 +66,8 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
 
     /** Selected itemIds to import */
     public array $selectedProductIds = [];
+    public ?array $importPreview = null;
+    public array $importForm = [];
     protected ?Collection $importedAliIds = null;
     protected array $activeFilters = [];
     protected string $activeFiltersHash = '';
@@ -167,6 +176,63 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                             ->live()
                             ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
                     ]),
+
+                    Section::make('Product request parameters')
+                        ->description('These values are sent to AliExpress when opening the product preview and when confirming the import.')
+                        ->schema([
+                            Grid::make(3)->schema([
+                                \Filament\Forms\Components\TextInput::make('ship_to_country')
+                                    ->label('Ship to country')
+                                    ->required()
+                                    ->placeholder('CN')
+                                    ->maxLength(8)
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+
+                                \Filament\Forms\Components\TextInput::make('target_currency')
+                                    ->label('Target currency')
+                                    ->placeholder('USD')
+                                    ->maxLength(8)
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+
+                                \Filament\Forms\Components\Select::make('target_language')
+                                    ->label('Target language')
+                                    ->options($this->getAliExpressLanguageOptions())
+                                    ->searchable()
+                                    ->allowHtml(false)
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+                            ]),
+
+                            Grid::make(3)->schema([
+                                \Filament\Forms\Components\TextInput::make('province_code')
+                                    ->label('Province code')
+                                    ->placeholder('Guangdong')
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+
+                                \Filament\Forms\Components\TextInput::make('city_code')
+                                    ->label('City code')
+                                    ->placeholder('Guangzhou')
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+
+                                \Filament\Forms\Components\TextInput::make('biz_model')
+                                    ->label('Business model')
+                                    ->placeholder('BETA model if required')
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+                            ]),
+
+                            Grid::make(1)->schema([
+                                \Filament\Forms\Components\Toggle::make('remove_personal_benefit')
+                                    ->label('Remove personal benefit')
+                                    ->helperText('If enabled, AliExpress should not apply crowd-type promotion benefits.')
+                                    ->live()
+                                    ->afterStateUpdated(fn () => $this->refreshPreviewFromForm()),
+                            ]),
+                        ]),
                 ]),
         ]);
     }
@@ -311,11 +377,10 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
                     ->color(fn (array $record) => $this->isSelectedRecord($record) ? 'gray' : 'primary'),
 
                 Action::make('import_now')
-                    ->label('Import now')
-                    // ->icon('heroicon-o-download')
+                    ->label('Import')
                     ->color('success')
                     ->visible(fn (array $record) => ! $this->isImportedRecord($record))
-                    ->action(fn (array $record) => $this->importSingleRecord($record)),
+                    ->action(fn (array $record) => $this->openImportPreview($record)),
             ]);
     }
 
@@ -501,44 +566,32 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
 
     public function importSelectedProducts(): void
     {
-        try {
-            if (!$this->ensureAliExpressToken()) {
-                return;
-            }
-
-            if (empty($this->selectedProductIds)) {
-                Notification::make()->warning()->title('No selection')->body('Select items from table.')->send();
-                return;
-            }
-
-            $service = app(AliExpressProductImportService::class);
-
-        $idsToImport = array_filter($this->selectedProductIds, fn ($id) => !$this->getImportedAliIds()->contains($id));
-
-            if ($idsToImport === []) {
-                Notification::make()->info()->title('Nothing new')->body('All selected items are already imported.')->send();
-                return;
-            }
-
-            $importedCount = 0;
-
-            foreach ($idsToImport as $itemId) {
-                $product = $service->importById($itemId, ['ship_to_country' => 'CN']);
-                if ($product) {
-                    $importedCount++;
-                }
-            }
-            $this->refreshImportedAliIds();
-            Notification::make()
-                ->success()
-                ->title('Import complete ✓')
-                ->body("Imported {$importedCount} products.")
-                ->persistent()
-                ->send();
-        } catch (\Exception $e) {
-            Log::error('Import selected failed', ['error' => $e->getMessage()]);
-            Notification::make()->danger()->title('Import Failed ✗')->body($e->getMessage())->persistent()->send();
+        if (!$this->ensureAliExpressToken()) {
+            return;
         }
+
+        $idsToImport = array_values(array_filter(
+            $this->selectedProductIds,
+            fn ($id) => ! $this->getImportedAliIds()->contains($id)
+        ));
+
+        if ($idsToImport === []) {
+            Notification::make()->warning()->title('No selection')->body('Select one not-yet-imported product to review.')->send();
+            return;
+        }
+
+        if (count($idsToImport) > 1) {
+            Notification::make()->warning()->title('Review one product at a time')->body('The AliExpress pre-import editor currently supports a single product per confirmation.')->send();
+            return;
+        }
+
+        $record = collect($this->searchResults)->first(fn ($item) => $this->getRecordId((array) $item) === $idsToImport[0]);
+        if (! is_array($record)) {
+            Notification::make()->warning()->title('Preview missing')->body('Reload the preview list and try again.')->send();
+            return;
+        }
+
+        $this->openImportPreview($record);
     }
 
     public function loadMoreResults(): void
@@ -659,6 +712,13 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             'max' => isset($state['max_price']) ? (string) $state['max_price'] : null,
             'minRating' => $minRating > 0 ? $minRating : null,
             'inStockOnly' => !empty($state['in_stock_only']) ? true : null,
+            'ship_to_country' => $this->normalizeAliExpressScalar($state['ship_to_country'] ?? null),
+            'target_currency' => $this->normalizeAliExpressScalar($state['target_currency'] ?? null),
+            'target_language' => $this->normalizeAliExpressScalar($state['target_language'] ?? null),
+            'remove_personal_benefit' => ! empty($state['remove_personal_benefit']) ? true : null,
+            'biz_model' => $this->normalizeAliExpressScalar($state['biz_model'] ?? null),
+            'province_code' => $this->normalizeAliExpressScalar($state['province_code'] ?? null),
+            'city_code' => $this->normalizeAliExpressScalar($state['city_code'] ?? null),
         ];
     }
 
@@ -674,6 +734,13 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             'max' => isset($this->max_price) ? (string) $this->max_price : null,
             'minRating' => $minRating > 0 ? $minRating : null,
             'inStockOnly' => $this->in_stock_only ? true : null,
+            'ship_to_country' => $this->normalizeAliExpressScalar($this->ship_to_country),
+            'target_currency' => $this->normalizeAliExpressScalar($this->target_currency),
+            'target_language' => $this->normalizeAliExpressScalar($this->target_language),
+            'remove_personal_benefit' => $this->remove_personal_benefit ? true : null,
+            'biz_model' => $this->normalizeAliExpressScalar($this->biz_model),
+            'province_code' => $this->normalizeAliExpressScalar($this->province_code),
+            'city_code' => $this->normalizeAliExpressScalar($this->city_code),
         ];
     }
 
@@ -735,9 +802,9 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             'max' => $this->activeFilters['max'] ?? null,
             'minRating' => $this->activeFilters['minRating'] ?? null,
             'inStockOnly' => $this->activeFilters['inStockOnly'] ?? null,
-            'local' => 'en_US',
-            'countryCode' => 'CN',
-            'currency' => 'USD',
+            'local' => $this->activeFilters['target_language'] ?? 'en_US',
+            'countryCode' => $this->activeFilters['ship_to_country'] ?? 'CN',
+            'currency' => $this->activeFilters['target_currency'] ?? 'USD',
         ], fn ($value) => $value !== null && $value !== '');
     }
     protected function fetchNextApiPage(): int
@@ -1137,7 +1204,7 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
         Notification::make()->success()->title('Selected')->body("Item {$id} added.")->send();
     }
 
-    protected function importSingleRecord(array $record): void
+    public function openImportPreview(array $record): void
     {
         if (!$this->ensureAliExpressToken()) {
             return;
@@ -1155,20 +1222,171 @@ class AliExpressImport extends Page implements HasSchemas, HasTable
             return;
         }
 
-        $service = app(AliExpressProductImportService::class);
-        $product = $service->importById($id, ['ship_to_country' => 'CN']);
+        try {
+            $service = app(AliExpressProductImportService::class);
+            $requestOptions = $this->buildImportRequestOptions();
+            $preview = $service->buildImportPreviewById($id, $requestOptions);
 
-        if ($product) {
-            Notification::make()->success()->title('Imported')->body("Item {$id} imported.")->send();
-        } else {
-            Notification::make()->danger()->title('Import failed')->body("Item {$id} could not be imported.")->send();
+            if (! is_array($preview)) {
+                Notification::make()->danger()->title('Preview unavailable')->body("Item {$id} could not be previewed.")->send();
+                return;
+            }
+
+            $this->importPreview = $preview;
+            $this->importForm = [
+                'ali_item_id' => $id,
+                'title' => (string) ($preview['title'] ?? ''),
+                'description' => (string) ($preview['description'] ?? ''),
+                'category_id' => $preview['category_id'] ?? null,
+                'enabled_variant_ids' => $preview['selected_variant_ids'] ?? [],
+                ...$requestOptions,
+            ];
+
+            $this->dispatch('open-modal', id: $this->getImportPreviewModalId());
+        } catch (\Exception $e) {
+            Log::error('AliExpress import preview failed', ['item_id' => $id, 'error' => $e->getMessage()]);
+            Notification::make()->danger()->title('Preview failed')->body($e->getMessage())->send();
+        }
+    }
+
+    public function closeImportPreview(): void
+    {
+        $this->importPreview = null;
+        $this->importForm = [];
+    }
+
+    public function confirmImportPreview(): void
+    {
+        if (! $this->ensureAliExpressToken()) {
+            return;
         }
 
+        $preview = $this->importPreview;
+        $itemId = (string) ($this->importForm['ali_item_id'] ?? '');
+        $categoryId = $this->importForm['category_id'] ?? null;
+        $enabledVariantIds = array_values(array_filter(array_map(
+            fn ($value) => trim((string) $value),
+            (array) ($this->importForm['enabled_variant_ids'] ?? [])
+        )));
+
+        if (! is_array($preview) || $itemId === '') {
+            Notification::make()->warning()->title('Preview missing')->body('Open a product preview before importing.')->send();
+            return;
+        }
+
+        if (! $categoryId) {
+            Notification::make()->warning()->title('Category required')->body('Select a local category before importing.')->send();
+            return;
+        }
+
+        if ($enabledVariantIds === []) {
+            Notification::make()->warning()->title('No valid variants')->body('Enable at least one valid variant before importing.')->send();
+            return;
+        }
+
+        $service = app(AliExpressProductImportService::class);
+        $product = $service->importById($itemId, [
+            ...$this->buildImportRequestOptions($this->importForm),
+            'title' => (string) ($this->importForm['title'] ?? ''),
+            'description' => (string) ($this->importForm['description'] ?? ''),
+            'category_id' => (int) $categoryId,
+            'enabled_variant_ids' => $enabledVariantIds,
+        ]);
+
+        if (! $product) {
+            Notification::make()->danger()->title('Import failed')->body("Item {$itemId} could not be imported.")->send();
+            return;
+        }
+
+        $this->dispatch('close-modal', id: $this->getImportPreviewModalId());
+        $this->closeImportPreview();
         $this->refreshImportedAliIds();
         $this->selectedProductIds = array_values(array_filter(
             $this->selectedProductIds,
-            fn ($value) => $value !== $id
+            fn ($value) => $value !== $itemId
         ));
+        Notification::make()->success()->title('Imported')->body("Item {$itemId} imported successfully.")->send();
+    }
+
+    public function getImportPreviewModalId(): string
+    {
+        return 'aliexpress-import-preview-modal';
+    }
+
+    public function getImportCategoryOptions(): array
+    {
+        return Category::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->map(fn ($name) => (string) $name)
+            ->all();
+    }
+
+    public function getAliExpressLanguageOptions(): array
+    {
+        return [
+            'en_US' => 'English (en_US)',
+            'en' => 'English (en)',
+            'de' => 'German (de)',
+            'ru' => 'Russian (ru)',
+            'pt' => 'Portuguese (pt)',
+            'ko' => 'Korean (ko)',
+            'it' => 'Italian (it)',
+            'fr' => 'French (fr)',
+            'zh' => 'Chinese (zh)',
+            'es' => 'Spanish (es)',
+            'iw' => 'Hebrew legacy (iw)',
+            'he' => 'Hebrew (he)',
+            'ar' => 'Arabic (ar)',
+            'vi' => 'Vietnamese (vi)',
+            'th' => 'Thai (th)',
+            'uk' => 'Ukrainian (uk)',
+            'ja' => 'Japanese (ja)',
+            'id' => 'Indonesian (id)',
+            'pl' => 'Polish (pl)',
+            'nl' => 'Dutch (nl)',
+            'tr' => 'Turkish (tr)',
+            'ko_KR' => 'Korean (ko_KR)',
+        ];
+    }
+
+    protected function buildImportRequestOptions(?array $source = null): array
+    {
+        $source ??= $this->form->getState();
+
+        return array_filter([
+            'ship_to_country' => $this->normalizeAliExpressScalar($source['ship_to_country'] ?? $this->ship_to_country ?? 'AE'),
+            'target_currency' => $this->normalizeAliExpressScalar($source['target_currency'] ?? $this->target_currency ?? 'USD'),
+            'target_language' => $this->normalizeAliExpressScalar($source['target_language'] ?? $this->target_language ?? 'en_US'),
+            'remove_personal_benefit' => isset($source['remove_personal_benefit'])
+                ? (bool) $source['remove_personal_benefit']
+                : $this->remove_personal_benefit,
+            'biz_model' => $this->normalizeAliExpressScalar($source['biz_model'] ?? $this->biz_model),
+            'province_code' => $this->normalizeAliExpressScalar($source['province_code'] ?? $this->province_code ?? 'Dubai'),
+            'city_code' => $this->normalizeAliExpressScalar($source['city_code'] ?? $this->city_code ?? 'Dubai'),
+        ], fn ($value) => is_bool($value) || ($value !== null && $value !== ''));
+    }
+
+    protected function normalizeAliExpressScalar(mixed $value): ?string
+    {
+        $value = is_scalar($value) ? trim((string) $value) : '';
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function getImportPreviewVariantRows(): Collection
+    {
+        return collect($this->importPreview['variants'] ?? [])
+            ->filter(fn ($variant) => is_array($variant))
+            ->values();
+    }
+
+    public function getImportPreviewAttributeRows(): Collection
+    {
+        return collect($this->importPreview['attributes'] ?? [])
+            ->filter(fn ($attribute) => is_array($attribute))
+            ->values();
     }
 
 

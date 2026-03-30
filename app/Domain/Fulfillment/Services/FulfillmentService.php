@@ -44,7 +44,10 @@ class FulfillmentService
             supplierProduct: $orderItem->supplierProduct,
             shippingAddress: $orderItem->order?->shippingAddress,
             billingAddress: $orderItem->order?->billingAddress,
-            options: ['currency' => $orderItem->order?->currency],
+            options: [
+                'currency' => $orderItem->order?->currency,
+                'ship_to_country' => $orderItem->order?->shippingAddress?->country,
+            ],
         );
 
         return DB::transaction(function () use ($orderItem, $provider, $strategy, $requestData) {
@@ -95,7 +98,10 @@ class FulfillmentService
             provider: $provider,
             shippingAddress: $order?->shippingAddress,
             billingAddress: $order?->billingAddress,
-            options: ['currency' => $order?->currency],
+            options: [
+                'currency' => $order?->currency,
+                'ship_to_country' => $order?->shippingAddress?->country,
+            ],
         );
         return DB::transaction(function () use ($order, $product_items, $provider, $strategy, $requestData) {
 
