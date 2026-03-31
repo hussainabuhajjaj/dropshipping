@@ -6,6 +6,39 @@ use App\Models\Product;
 
 class ProductMetaExtractor
 {
+    private const HIDDEN_ATTRIBUTE_KEYS = [
+        'brand',
+        'cj_pid',
+        'cj_last_payload',
+        'cj_last_changed_fields',
+        'cj_payload',
+        'cjpid',
+        'cj',
+        'ali_item_id',
+        'ali_category_id',
+        'ali_product_id',
+        'aliexpress_item_id',
+        'aliexpress_category_id',
+        'supplier_type',
+        'supplier_product_id',
+        'source_sku',
+        'product_subject',
+        'product_detail',
+        'product_mobile_detail',
+        'ae_multimedia',
+        'ae_multimedia_info_dto',
+        'ae_item_base_info_dto',
+        'ae_item_properties',
+        'ae_store_info',
+        'ae_multimedia_info',
+        'detail',
+        'mobile_detail',
+        'subject',
+        'provider',
+        'product_provider',
+        'supplier',
+    ];
+
     public function extract(array $products): array
     {
         $attributeKeys = [];
@@ -24,8 +57,7 @@ class ProductMetaExtractor
                 }
                 if (!is_array($attrs)) continue;
                 foreach ($attrs as $key => $value) {
-                    // Remove brand and CJ fields from attributes
-                    if (in_array($key, ['brand', 'cj_pid', 'cj_last_payload', 'cj_last_changed_fields', 'cj_payload', 'cjpid', 'cj'])) continue;
+                    if ($this->shouldSkipAttributeKey($key)) continue;
                     $attributeKeys[$key] = true;
                     if (!isset($attributeOptions[$key])) $attributeOptions[$key] = [];
                     if (is_string($value)) {
@@ -69,5 +101,19 @@ class ProductMetaExtractor
             'attributeDefs' => $attributeDefs,
             'brands' => $brands,
         ];
+    }
+
+    private function shouldSkipAttributeKey(string $key): bool
+    {
+        $normalized = strtolower(trim($key));
+
+        if (in_array($normalized, self::HIDDEN_ATTRIBUTE_KEYS, true)) {
+            return true;
+        }
+
+        return str_contains($normalized, 'ali_')
+            || str_contains($normalized, 'aliexpress')
+            || str_contains($normalized, 'ae_')
+            || str_contains($normalized, 'supplier_');
     }
 }
