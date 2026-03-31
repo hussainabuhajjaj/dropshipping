@@ -158,27 +158,22 @@
             </section>
 
             <section v-if="seasonalDrops.length" class="section-block">
-                <div class="section-head">
-                    <div>
-                        <p class="section-kicker">{{ t('Collections') }}</p>
-                        <h2 class="section-title">{{ t('Curated collections for you') }}</h2>
-                    </div>
-                    <Link :href="seasonalDropsViewAllHref" class="section-link">{{ t('View all') }}</Link>
-                </div>
-                <div class="focus-grid">
+                <div class="collection-showcase-grid">
                     <Link
                         v-for="item in seasonalDrops"
                         :key="`seasonal-drop-${item.id || item.href || item.title}`"
                         :href="item.href || seasonalDropsViewAllHref"
-                        class="focus-card"
+                        class="collection-showcase-card"
                     >
-                        <div v-if="item.image" class="focus-media">
+                        <div v-if="item.image" class="collection-showcase-media">
                             <img :src="item.image" :alt="item.title || t('Collection')" loading="lazy" />
                         </div>
-                        <div class="focus-body">
-                            <p class="focus-kicker">{{ item.kicker || item.tag || t('Collection') }}</p>
+                        <div v-else class="collection-showcase-media collection-showcase-fallback"></div>
+                        <div class="collection-showcase-overlay"></div>
+                        <div class="collection-showcase-body">
+                            <p class="collection-showcase-kicker">{{ item.kicker || item.tag || t('Collection') }}</p>
                             <h3>{{ item.title || t('Collection') }}</h3>
-                            <p class="focus-subtitle">{{ item.subtitle || '' }}</p>
+                            <p class="collection-showcase-subtitle">{{ item.subtitle || '' }}</p>
                         </div>
                     </Link>
                 </div>
@@ -1836,6 +1831,75 @@ const valueProps = computed(() => {
     display: grid;
     gap: 14px;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.collection-showcase-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.collection-showcase-card {
+    position: relative;
+    min-height: 320px;
+    border-radius: 24px;
+    overflow: hidden;
+    background: #0f172a;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+    display: block;
+}
+
+.collection-showcase-media {
+    position: absolute;
+    inset: 0;
+    background: #e2e8f0;
+}
+
+.collection-showcase-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.collection-showcase-fallback {
+    background: linear-gradient(135deg, #dbeafe, #cbd5e1);
+}
+
+.collection-showcase-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0.78) 100%);
+}
+
+.collection-showcase-body {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 1;
+    padding: 22px;
+    display: grid;
+    gap: 8px;
+}
+
+.collection-showcase-kicker {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.82);
+    font-weight: 700;
+}
+
+.collection-showcase-body h3 {
+    font-size: 28px;
+    line-height: 1.05;
+    font-weight: 800;
+    color: #fff;
+}
+
+.collection-showcase-subtitle {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 34ch;
 }
 
 .focus-card {

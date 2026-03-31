@@ -352,7 +352,7 @@ class HomeController extends Controller
                 'title' => $collection->localizedValue('title', $locale) ?? $collection->title,
                 'subtitle' => $collection->localizedValue('description', $locale) ?? '',
                 'image' => $homeBuilder->normalizeImage($collection->hero_image),
-                'href' => '/products?collection=' . urlencode((string) $collection->slug),
+                'href' => '/collections/' . urlencode((string) $collection->slug),
                 'tag' => $collection->type === 'guide' ? 'Guide' : 'Collection',
             ];
         }
