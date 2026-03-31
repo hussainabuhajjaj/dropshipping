@@ -43,7 +43,7 @@ class SyncCjInventoryHourly implements ShouldQueue
 
             // Dispatch sync job for each product
             $products->each(function (Product $product) {
-                SyncCjVariantsJob::dispatch($product->cj_pid)
+                SyncCjVariantsJobImproved::dispatch($product->cj_pid)
                     ->onQueue('cj-sync');
             });
 

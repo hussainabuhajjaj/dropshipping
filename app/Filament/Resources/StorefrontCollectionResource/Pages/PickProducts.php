@@ -37,12 +37,9 @@ class PickProducts extends Page
     public function mount(int $record): void
     {
         $this->record = StorefrontCollection::findOrFail($record);
-        
-        // Load currently associated products
-        $this->selectedProducts = $this->record->products()
-            ->orderBy('storefront_collection_products.position')
-            ->pluck('products.id')
-            ->toArray();
+
+        // This picker should only show products that are not already attached.
+        $this->selectedProducts = [];
     }
     
     protected function getHeaderActions(): array
@@ -76,7 +73,15 @@ class PickProducts extends Page
     public function table(Table $table): Table
     {
         return $table
-            ->query(Product::query()->with(['category', 'images']))
+            ->query(
+                Product::query()
+                    ->with(['category', 'images'])
+                    ->whereNotIn('products.id', function ($sub) {
+                        $sub->select('product_id')
+                            ->from('storefront_collection_products')
+                            ->where('storefront_collection_id', $this->record->id);
+                    })
+            )
             ->columns([
                 Tables\Columns\CheckboxColumn::make('selected')
                     ->label('')
