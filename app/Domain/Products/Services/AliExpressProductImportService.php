@@ -12,13 +12,17 @@ use App\Domain\Products\Models\SupplierProduct;
 use App\Infrastructure\Fulfillment\Clients\AliExpressClient;
 use App\Models\LocalWareHouse;
 use App\Services\ProductMarginLogger;
+use App\Services\Pricing\ProductCompareAtService;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class AliExpressProductImportService
 {
     private const SEARCH_PAGE_LIMIT = 40;
+    private const DELIVERABILITY_CACHE_TTL_SECONDS = 21600;
+    private const DELIVERABILITY_MAX_SKU_PROBES = 2;
 
     public function __construct(
         private readonly AliExpressClient $client,
@@ -95,6 +99,175 @@ class AliExpressProductImportService
         $productData = $this->fetchProductPayload($aliId, $options);
 
         return is_array($productData) ? $this->buildImportPreview($productData, $options) : null;
+    }
+
+    public function resolveDeliverabilityById(string $aliId, array $options = []): array
+    {
+        return $this->summarizeVariantDeliverability(
+            $this->resolveVariantDeliverabilityById($aliId, $options)
+        );
+    }
+
+    public function resolveVariantDeliverabilityById(string $aliId, array $options = []): array
+    {
+        $shipToCountry = (string) ($options['ship_to_country'] ?? 'AE');
+        $provinceCode = (string) ($options['province_code'] ?? '');
+        $cityCode = (string) ($options['city_code'] ?? '');
+        $language = (string) ($options['target_language'] ?? 'en_US');
+        $currency = (string) ($options['target_currency'] ?? 'USD');
+        $cacheKey = sprintf(
+            'aliexpress:deliverability:variants:%s:%s:%s:%s:%s',
+            $aliId,
+            strtoupper($shipToCountry),
+            Str::lower($provinceCode),
+            Str::lower($cityCode),
+            strtoupper($currency)
+        );
+
+        return Cache::remember($cacheKey, now()->addSeconds(self::DELIVERABILITY_CACHE_TTL_SECONDS), function () use (
+            $aliId,
+            $options,
+            $shipToCountry,
+            $provinceCode,
+            $cityCode,
+            $language,
+            $currency
+        ): array {
+            $productData = $this->fetchProductPayload($aliId, $options);
+            if (! is_array($productData)) {
+                return [];
+            }
+
+            $skuRows = collect($this->extractAliSkuRows($productData))
+                ->filter(fn (array $sku): bool => filled($sku['sku_id'] ?? null))
+                ->sortByDesc(fn (array $sku): int => (int) ($this->resolveSkuStock($sku) ?? -1))
+                ->values();
+
+            $statuses = [];
+
+            foreach ($skuRows as $sku) {
+                $skuId = (string) ($sku['sku_id'] ?? '');
+                if ($skuId === '') {
+                    continue;
+                }
+
+                $reason = null;
+                $option = null;
+
+                try {
+                    $response = $this->client->freightQuery([
+                        'quantity' => 1,
+                        'shipToCountry' => $shipToCountry,
+                        'productId' => $aliId,
+                        'provinceCode' => $provinceCode,
+                        'cityCode' => $cityCode,
+                        'language' => $language,
+                        'locale' => $language,
+                        'selectedSkuId' => $skuId,
+                        'currency' => $currency,
+                    ]);
+
+                    $success = (bool) data_get($response, 'result.success', false);
+                    $optionsList = collect(data_get($response, 'result.delivery_options', []))
+                        ->filter(fn ($deliveryOption) => is_array($deliveryOption))
+                        ->values();
+
+                    if ($success && $optionsList->isNotEmpty()) {
+                        $option = $optionsList->first();
+                    } else {
+                        $reason = (string) (data_get($response, 'result.msg')
+                            ?? data_get($response, 'rsp_msg')
+                            ?? 'No available delivery options returned.');
+                    }
+                } catch (\Throwable $e) {
+                    $reason = $e->getMessage();
+                }
+
+                $statuses[$skuId] = [
+                    'sku_id' => $skuId,
+                    'is_deliverable' => is_array($option),
+                    'reason' => is_array($option) ? null : ($reason ?: 'No available delivery options returned.'),
+                    'delivery_option' => $option,
+                ];
+            }
+
+            return $statuses;
+        });
+    }
+
+    private function buildDeliverabilityCandidates(\Illuminate\Support\Collection $skuRows): array
+    {
+        if ($skuRows->isEmpty()) {
+            return [];
+        }
+
+        $inStock = $skuRows
+            ->filter(fn (array $sku): bool => ($this->resolveSkuStock($sku) ?? 0) > 0)
+            ->values();
+
+        $candidates = collect();
+
+        if ($inStock->isNotEmpty()) {
+            $candidates->push($inStock->first());
+            if ($inStock->count() > 1) {
+                $candidates->push($inStock->last());
+            }
+        } else {
+            $candidates->push($skuRows->first());
+            if ($skuRows->count() > 1) {
+                $candidates->push($skuRows->last());
+            }
+        }
+
+        return $candidates
+            ->filter(fn ($sku) => is_array($sku) && filled($sku['sku_id'] ?? null))
+            ->unique(fn (array $sku) => (string) ($sku['sku_id'] ?? ''))
+            ->take(self::DELIVERABILITY_MAX_SKU_PROBES)
+            ->values()
+            ->all();
+    }
+
+    private function summarizeVariantDeliverability(array $statuses): array
+    {
+        if ($statuses === []) {
+            return [
+                'is_deliverable' => false,
+                'reason' => 'No deliverable AliExpress SKU found for the selected destination.',
+                'sku_id' => null,
+                'delivery_option' => null,
+                'deliverable_variants_count' => 0,
+                'variants_count' => 0,
+            ];
+        }
+
+        $firstDeliverable = collect($statuses)->first(
+            fn ($status) => is_array($status) && ($status['is_deliverable'] ?? false)
+        );
+
+        if (is_array($firstDeliverable)) {
+            return [
+                'is_deliverable' => true,
+                'reason' => null,
+                'sku_id' => $firstDeliverable['sku_id'] ?? null,
+                'delivery_option' => $firstDeliverable['delivery_option'] ?? null,
+                'deliverable_variants_count' => collect($statuses)->filter(fn ($status) => $status['is_deliverable'] ?? false)->count(),
+                'variants_count' => count($statuses),
+            ];
+        }
+
+        $lastReason = collect($statuses)
+            ->pluck('reason')
+            ->filter(fn ($reason) => is_string($reason) && $reason !== '')
+            ->last() ?? 'No deliverable AliExpress SKU found for the selected destination.';
+
+        return [
+            'is_deliverable' => false,
+            'reason' => $lastReason,
+            'sku_id' => null,
+            'delivery_option' => null,
+            'deliverable_variants_count' => 0,
+            'variants_count' => count($statuses),
+        ];
     }
 
     public function importById($aliId, array $options = []): ?Product
@@ -717,6 +890,7 @@ class AliExpressProductImportService
             $this->syncVariants($product, $skuRows, $productData);
             $this->syncSupplierProducts($product, $skuRows, $providerId, $aliItemId, $currency, $productData);
             $this->syncImages($product, $productData);
+            app(ProductCompareAtService::class)->generate($product);
 
             return $product;
         } catch (\Exception $e) {
@@ -1045,7 +1219,7 @@ class AliExpressProductImportService
             $variantPayload = [
                 'title' => $this->buildVariantTitle($sku),
                 'price' => $variantPrice,
-                'compare_at_price' => $skuPrice,
+                'compare_at_price' => $this->normalizeCompareAtPrice($skuPrice, $variantPrice),
                 'cost_price' => $variantCost ?? 0,
                 'currency' => $currency,
                 'supplier_currency' => $supplierCurrency,
@@ -1116,6 +1290,15 @@ class AliExpressProductImportService
 
             throw $e;
         }
+    }
+
+    private function normalizeCompareAtPrice(?float $candidate, ?float $price): ?float
+    {
+        if ($candidate === null || $price === null || $candidate <= 0 || $price <= 0) {
+            return null;
+        }
+
+        return $candidate > $price ? $candidate : null;
     }
 
     private function ensureDefaultVariant(Product $product): void

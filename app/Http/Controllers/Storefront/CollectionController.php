@@ -8,12 +8,19 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\StorefrontCollection;
 use App\Models\Product;
+use App\Services\Storefront\ProductMetaExtractor;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CollectionController extends Controller
 {
     use TransformsProducts;
+
+    public function __construct(
+        private readonly ProductMetaExtractor $productMetaExtractor,
+    ) {
+    }
 
     public function index(): Response
     {
@@ -41,13 +48,14 @@ class CollectionController extends Controller
         $locale = app()->getLocale();
         abort_if(! $collection->isActiveForLocale($locale), 404);
 
-        $products = $collection
-            ->resolveProducts($locale)
+        $resolvedProducts = $collection->resolveProducts($locale);
+        $products = $resolvedProducts
             ->map(fn (Product $product) => $this->transformProduct($product));
 
         return Inertia::render('Collections/Show', [
             'collection' => $this->transformCollectionDetail($collection, $locale),
             'products' => $products,
+            'filters' => $this->buildFilters($resolvedProducts),
         ]);
     }
 
@@ -99,5 +107,27 @@ class CollectionController extends Controller
         }
 
         return url(\Storage::url($path));
+    }
+
+    private function buildFilters(Collection $products): array
+    {
+        $priceValues = $products
+            ->map(function ($product): ?float {
+                if ($product->selling_price !== null && is_numeric($product->selling_price)) {
+                    return (float) $product->selling_price;
+                }
+
+                return null;
+            })
+            ->filter(fn ($value): bool => $value !== null)
+            ->values();
+
+        return [
+            'price_range' => [
+                'min' => $priceValues->isNotEmpty() ? round((float) $priceValues->min(), 2) : null,
+                'max' => $priceValues->isNotEmpty() ? round((float) $priceValues->max(), 2) : null,
+            ],
+            ...$this->productMetaExtractor->extract($products->all()),
+        ];
     }
 }

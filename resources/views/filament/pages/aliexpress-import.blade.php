@@ -132,7 +132,7 @@
                         </div>
                     @else
                         <div class="text-sm text-gray-600">
-                            Loading preview results...
+                            Set filters, then click Preview Products.
                         </div>
                     @endif
             </x-filament::section>
@@ -161,6 +161,9 @@
         $previewPackage = is_array($importPreview['package'] ?? null) ? $importPreview['package'] : [];
         $previewLogistics = is_array($importPreview['logistics'] ?? null) ? $importPreview['logistics'] : [];
         $previewRequest = is_array($importPreview['request_options'] ?? null) ? $importPreview['request_options'] : [];
+        $previewDeliverability = is_array($importPreview['deliverability'] ?? null) ? $importPreview['deliverability'] : [];
+        $deliverableVariantsCount = (int) ($previewDeliverability['deliverable_variants_count'] ?? 0);
+        $variantsCheckedCount = (int) ($previewDeliverability['variants_count'] ?? 0);
         $pricingPreview = is_array($importPreview['pricing_preview'] ?? null) ? $importPreview['pricing_preview'] : [];
         $optionStockSummary = $previewVariants
             ->flatMap(function (array $variant) {
@@ -400,6 +403,65 @@
                         </x-filament::fieldset>
                     @endif
 
+                    <x-filament::fieldset label="Delivery status">
+                        <div class="space-y-3 text-sm text-gray-700 dark:text-gray-200">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <x-filament::badge :color="($previewDeliverability['is_deliverable'] ?? false) ? 'success' : 'danger'">
+                                    {{ ($previewDeliverability['is_deliverable'] ?? false) ? 'Deliverable' : 'Not deliverable' }}
+                                </x-filament::badge>
+                                <x-filament::badge color="gray">
+                                    {{ $previewRequest['ship_to_country'] ?? 'AE' }}{{ !empty($previewRequest['city_code']) ? ' / ' . $previewRequest['city_code'] : '' }}
+                                </x-filament::badge>
+                                @if ($variantsCheckedCount > 0)
+                                    <x-filament::badge :color="$deliverableVariantsCount > 0 ? 'success' : 'danger'">
+                                        {{ $deliverableVariantsCount }} / {{ $variantsCheckedCount }} variant{{ $variantsCheckedCount === 1 ? '' : 's' }} deliverable
+                                    </x-filament::badge>
+                                @endif
+                                @if (! empty($previewDeliverability['sku_id']))
+                                    <x-filament::badge color="info">Example SKU {{ $previewDeliverability['sku_id'] }}</x-filament::badge>
+                                @endif
+                            </div>
+
+                            @if (! empty($previewDeliverability['reason']))
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                    {{ $previewDeliverability['reason'] }}
+                                </div>
+                            @endif
+
+                            @if (is_array($previewDeliverability['delivery_option'] ?? null))
+                                @php
+                                    $deliveryOption = $previewDeliverability['delivery_option'];
+                                @endphp
+                                <div class="grid gap-3 md:grid-cols-2">
+                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Shipping method</div>
+                                        <div class="mt-1 font-medium text-gray-950 dark:text-white">
+                                            {{ $deliveryOption['company'] ?? ($deliveryOption['code'] ?? '—') }}
+                                        </div>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Shipping fee</div>
+                                        <div class="mt-1 font-medium text-gray-950 dark:text-white">
+                                            {{ $deliveryOption['shipping_fee_format'] ?? '—' }}
+                                        </div>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Estimated delivery</div>
+                                        <div class="mt-1 font-medium text-gray-950 dark:text-white">
+                                            {{ $deliveryOption['delivery_date_desc'] ?? (($deliveryOption['min_delivery_days'] ?? null) && ($deliveryOption['max_delivery_days'] ?? null) ? ($deliveryOption['min_delivery_days'] . '-' . $deliveryOption['max_delivery_days'] . ' days') : '—') }}
+                                        </div>
+                                    </div>
+                                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Available stock</div>
+                                        <div class="mt-1 font-medium text-gray-950 dark:text-white">
+                                            {{ $deliveryOption['available_stock'] ?? '—' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </x-filament::fieldset>
+
                     <x-filament::fieldset label="Variants">
                         <div class="space-y-3 max-h-[44vh] overflow-y-auto pr-1">
                             @forelse ($previewVariants as $variant)
@@ -407,13 +469,15 @@
                                     $skuId = (string) ($variant['sku_id'] ?? '');
                                     $checked = in_array($skuId, (array) ($this->importForm['enabled_variant_ids'] ?? []), true);
                                     $variantStock = is_numeric($variant['stock'] ?? null) ? (int) $variant['stock'] : null;
+                                    $variantDeliverability = is_array($variant['deliverability'] ?? null) ? $variant['deliverability'] : [];
+                                    $variantDeliveryOption = is_array($variantDeliverability['delivery_option'] ?? null) ? $variantDeliverability['delivery_option'] : null;
                                 @endphp
                                 <label class="flex items-start gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-800">
                                     <input
                                         type="checkbox"
                                         wire:model.defer="importForm.enabled_variant_ids"
                                         value="{{ $skuId }}"
-                                        @disabled(! ($variant['is_valid'] ?? false))
+                                        @disabled(! ($variant['is_valid'] ?? false) || ! ($variantDeliverability['is_deliverable'] ?? false))
                                         class="mt-1 rounded border-gray-300 text-primary-600 shadow-sm"
                                     />
                                     <div class="min-w-0 flex-1">
@@ -424,8 +488,13 @@
                                                     {{ $variantStock > 0 ? 'In stock' : 'Out of stock' }}: {{ $variantStock }}
                                                 </x-filament::badge>
                                             @endif
+                                            <x-filament::badge :color="($variantDeliverability['is_deliverable'] ?? false) ? 'success' : 'danger'">
+                                                {{ ($variantDeliverability['is_deliverable'] ?? false) ? 'Deliverable' : 'Not deliverable' }}
+                                            </x-filament::badge>
                                             @if (! ($variant['is_valid'] ?? false))
                                                 <x-filament::badge color="danger">Invalid</x-filament::badge>
+                                            @elseif (! ($variantDeliverability['is_deliverable'] ?? false))
+                                                <x-filament::badge color="danger">Disabled</x-filament::badge>
                                             @elseif ($checked)
                                                 <x-filament::badge color="success">Enabled</x-filament::badge>
                                             @endif
@@ -444,6 +513,23 @@
                                             @endif
                                             • Stock {{ $variant['stock'] ?? '—' }}
                                         </div>
+                                        @if ($variantDeliveryOption || ! empty($variantDeliverability['reason']))
+                                            <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                @if ($variantDeliveryOption)
+                                                    Deliver to {{ $previewRequest['ship_to_country'] ?? 'AE' }}{{ !empty($previewRequest['city_code']) ? ' / ' . $previewRequest['city_code'] : '' }}
+                                                    • {{ $variantDeliveryOption['company'] ?? ($variantDeliveryOption['code'] ?? 'Shipping option') }}
+                                                    • {{ $variantDeliveryOption['shipping_fee_format'] ?? '—' }}
+                                                    @if (! empty($variantDeliveryOption['delivery_date_desc']))
+                                                        • {{ $variantDeliveryOption['delivery_date_desc'] }}
+                                                    @endif
+                                                    @if (array_key_exists('available_stock', $variantDeliveryOption))
+                                                        • Live stock {{ $variantDeliveryOption['available_stock'] }}
+                                                    @endif
+                                                @else
+                                                    {{ $variantDeliverability['reason'] }}
+                                                @endif
+                                            </div>
+                                        @endif
                                         @if (! empty($variant['properties']))
                                             <div class="mt-2 flex flex-wrap gap-2">
                                                 @foreach ($variant['properties'] as $propertyName => $propertyValue)

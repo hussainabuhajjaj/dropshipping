@@ -6,12 +6,19 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Http\Resources\Mobile\V1\ProductResource;
 use App\Models\StorefrontCollection;
+use App\Services\Storefront\ProductMetaExtractor;
+use Illuminate\Support\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class CollectionController extends ApiController
 {
+    public function __construct(
+        private readonly ProductMetaExtractor $productMetaExtractor,
+    ) {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $locale = app()->getLocale();
@@ -40,6 +47,7 @@ class CollectionController extends ApiController
         $page    = max((int) ($request->query('page', 1)), 1);
 
         $products = $collection->resolveProducts($locale);
+        $filters = $this->buildFilters($products);
 
         $total   = $products->count();
         $items   = $products->forPage($page, $perPage)->values();
@@ -51,6 +59,7 @@ class CollectionController extends ApiController
             [
                 'collection' => $this->transformDetail($collection, $locale),
                 'products'   => $productPayload,
+                'filters'    => $filters,
             ],
             null,
             200,
@@ -111,5 +120,27 @@ class CollectionController extends ApiController
         }
 
         return url(\Storage::url($path));
+    }
+
+    private function buildFilters(Collection $products): array
+    {
+        $priceValues = $products
+            ->map(function ($product): ?float {
+                if ($product->selling_price !== null && is_numeric($product->selling_price)) {
+                    return (float) $product->selling_price;
+                }
+
+                return null;
+            })
+            ->filter(fn ($value): bool => $value !== null)
+            ->values();
+
+        return [
+            'price_range' => [
+                'min' => $priceValues->isNotEmpty() ? round((float) $priceValues->min(), 2) : null,
+                'max' => $priceValues->isNotEmpty() ? round((float) $priceValues->max(), 2) : null,
+            ],
+            ...$this->productMetaExtractor->extract($products->all()),
+        ];
     }
 }

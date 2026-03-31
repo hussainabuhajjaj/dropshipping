@@ -157,7 +157,32 @@
                 />
             </section>
 
-            <!-- Seasonal drops and offers removed per request -->
+            <section v-if="seasonalDrops.length" class="section-block">
+                <div class="section-head">
+                    <div>
+                        <p class="section-kicker">{{ t('Collections') }}</p>
+                        <h2 class="section-title">{{ t('Curated collections for you') }}</h2>
+                    </div>
+                    <Link :href="seasonalDropsViewAllHref" class="section-link">{{ t('View all') }}</Link>
+                </div>
+                <div class="focus-grid">
+                    <Link
+                        v-for="item in seasonalDrops"
+                        :key="`seasonal-drop-${item.id || item.href || item.title}`"
+                        :href="item.href || seasonalDropsViewAllHref"
+                        class="focus-card"
+                    >
+                        <div v-if="item.image" class="focus-media">
+                            <img :src="item.image" :alt="item.title || t('Collection')" loading="lazy" />
+                        </div>
+                        <div class="focus-body">
+                            <p class="focus-kicker">{{ item.kicker || item.tag || t('Collection') }}</p>
+                            <h3>{{ item.title || t('Collection') }}</h3>
+                            <p class="focus-subtitle">{{ item.subtitle || '' }}</p>
+                        </div>
+                    </Link>
+                </div>
+            </section>
 
             <section v-if="savingsBlocks.length" class="section-block">
                 <div class="section-head">
@@ -260,18 +285,6 @@
                             :promotions="homepagePromotions"
                             class="rail-card"
                         />
-                    </div>
-                </div>
-            </section>
-
-            <section v-if="topStrip.length" class="section-block">
-                <div class="section-head">
-                    <h2 class="section-title">{{ t('Why shop with us') }}</h2>
-                </div>
-                <div class="trust-grid">
-                    <div v-for="item in topStrip" :key="item.title" class="trust-card">
-                        <p class="trust-title">{{ item.title }}</p>
-                        <p class="trust-body">{{ item.subtitle }}</p>
                     </div>
                 </div>
             </section>

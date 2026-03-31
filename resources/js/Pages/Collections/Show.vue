@@ -32,6 +32,21 @@
 
       <div v-if="collection.content" class="prose max-w-none prose-slate" v-html="collection.content"></div>
 
+      <div v-if="filterPills.length" class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold text-slate-900">{{ t('Filters') }}</h2>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="pill in filterPills"
+            :key="pill"
+            class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+          >
+            {{ pill }}
+          </span>
+        </div>
+      </div>
+
       <div class="space-y-4">
         <div class="flex items-center justify-between">
           <h2 class="text-xl font-semibold text-slate-900">{{ t('Featured products') }}</h2>
@@ -64,6 +79,7 @@ import { useTranslations } from '@/i18n'
 const props = defineProps({
   collection: { type: Object, required: true },
   products: { type: Array, default: () => [] },
+  filters: { type: Object, default: () => ({}) },
 })
 
 const { t, locale } = useTranslations()
@@ -88,4 +104,27 @@ const formatDate = (value) => {
   if (!value) return ''
   return new Date(value).toLocaleDateString(locale.value || 'en')
 }
+
+const filterPills = computed(() => {
+  const pills = []
+  const priceRange = props.filters?.price_range
+  if (priceRange && (priceRange.min !== null || priceRange.max !== null)) {
+    pills.push(`${t('Price')}: ${priceRange.min ?? 0} - ${priceRange.max ?? 0}`)
+  }
+
+  if (Array.isArray(props.filters?.brands) && props.filters.brands.length) {
+    pills.push(`${t('Brands')}: ${props.filters.brands.slice(0, 4).join(', ')}`)
+  }
+
+  if (Array.isArray(props.filters?.attributeDefs)) {
+    props.filters.attributeDefs
+      .filter((item) => Array.isArray(item.options) && item.options.length)
+      .slice(0, 6)
+      .forEach((item) => {
+        pills.push(`${item.label}: ${item.options.slice(0, 3).join(', ')}`)
+      })
+  }
+
+  return pills
+})
 </script>
