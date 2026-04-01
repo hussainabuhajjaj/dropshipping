@@ -5,7 +5,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-900">{{ $this->record->title }}</h3>
-                    <p class="text-sm text-gray-600">{{ $this->record->slug }} • {{ $this->record->products()->count() }} products currently in collection</p>
+                    <p class="text-sm text-gray-600">{{ $this->record->slug }} • {{ $this->attachedProductsCount }} products currently in collection</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -17,13 +17,13 @@
                           }">
                         {{ ucfirst($this->record->type) }}
                     </span>
-                    @if($this->record->is_visible)
+                    @if($this->record->is_active)
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Visible
+                            Active
                         </span>
                     @else
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Hidden
+                            Inactive
                         </span>
                     @endif
                 </div>
@@ -34,17 +34,14 @@
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <h4 class="text-sm font-medium text-blue-900">Selection Summary</h4>
+                    <h4 class="text-sm font-medium text-blue-900">Attach Products</h4>
                     <p class="text-sm text-blue-700">
-                        {{ count($this->selectedProducts) }} products selected
-                        @if(count($this->selectedProducts) > 0)
-                            • {{ count(array_intersect($this->selectedProducts, $this->record->products()->pluck('products.id')->toArray())) }} already in collection
-                            • {{ count(array_diff($this->selectedProducts, $this->record->products()->pluck('products.id')->toArray())) }} new to add
-                        @endif
+                        {{ $this->selectedProductsCount }} products selected
+                        • {{ $this->availableProductsCount }} products available to attach
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
-                    @if(count($this->selectedProducts) > 0)
+                    @if($this->selectedProductsCount > 0)
                         <button wire:click="addSelectedProducts" 
                                 class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,12 +49,9 @@
                             </svg>
                             Add Selected
                         </button>
-                        <button wire:click="removeSelectedProducts" 
-                                class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
-                            </svg>
-                            Remove Selected
+                        <button wire:click="addSelectedProducts(true)" 
+                                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Add and return
                         </button>
                     @endif
                     <button wire:click="$set('selectedProducts', [])" 
@@ -84,7 +78,7 @@
                 <div class="text-sm text-green-600">Active Products</div>
             </div>
             <div class="bg-blue-50 rounded-lg p-4 text-center">
-                <div class="text-2xl font-bold text-blue-900">{{ $this->record->products()->count() }}</div>
+                <div class="text-2xl font-bold text-blue-900">{{ $this->attachedProductsCount }}</div>
                 <div class="text-sm text-blue-600">In Collection</div>
             </div>
         </div>

@@ -9,6 +9,7 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\StorefrontCollection;
 use App\Models\Product;
 use App\Services\Storefront\ProductMetaExtractor;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -48,9 +49,21 @@ class CollectionController extends Controller
         $locale = app()->getLocale();
         abort_if(! $collection->isActiveForLocale($locale), 404);
 
-        $resolvedProducts = $collection->resolveProducts($locale);
-        $products = $resolvedProducts
-            ->map(fn (Product $product) => $this->transformProduct($product));
+        try {
+            $resolvedProducts = $collection->resolveProducts($locale);
+            $products = $resolvedProducts
+                ->map(fn (Product $product) => $this->transformProduct($product));
+        } catch (\Throwable $e) {
+            Log::error('Storefront collection render failed', [
+                'collection_id' => $collection->id,
+                'collection_slug' => $collection->slug,
+                'locale' => $locale,
+                'error' => $e->getMessage(),
+            ]);
+
+            $resolvedProducts = collect();
+            $products = collect();
+        }
 
         return Inertia::render('Collections/Show', [
             'collection' => $this->transformCollectionDetail($collection, $locale),

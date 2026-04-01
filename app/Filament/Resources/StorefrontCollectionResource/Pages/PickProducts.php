@@ -58,13 +58,13 @@ class PickProducts extends Page
                     $this->addSelectedProducts();
                 })
                 ->disabled(fn () => empty($this->selectedProducts)),
-                
-            Actions\Action::make('remove_selected')
-                ->label('Remove Selected Products')
-                ->icon('heroicon-o-minus')
-                ->color('danger')
+
+            Actions\Action::make('add_and_back')
+                ->label('Add and return')
+                ->icon('heroicon-o-check')
+                ->color('gray')
                 ->action(function (): void {
-                    $this->removeSelectedProducts();
+                    $this->addSelectedProducts(redirectAfter: true);
                 })
                 ->disabled(fn () => empty($this->selectedProducts)),
         ];
@@ -137,26 +137,11 @@ class PickProducts extends Page
             ->filters([
                 Tables\Filters\SelectFilter::make('category_id')
                     ->label('Category')
-                    ->options(function () {
-                        // Debug: Log category options loading
-                        $categories = Category::query()->orderBy('name')->pluck('name', 'id')->all();
-                        \Log::info('PickProducts category options loaded', [
-                            'total_categories' => count($categories),
-                            'categories' => array_slice($categories, 0, 5, true), // First 5 categories
-                            'timestamp' => now()->toISOString()
-                        ]);
-                        return ['' => 'All Categories'] + $categories;
-                    })
+                    ->options(fn () => ['' => 'All Categories'] + Category::query()->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
                     ->preload()
                     ->getSearchResultsUsing(function (string $search) {
-                        // Debug: Log search attempt
-                        \Log::info('PickProducts category search', [
-                            'search_term' => $search,
-                            'timestamp' => now()->toISOString()
-                        ]);
-                        
-                        $results = Category::query()
+                        return Category::query()
                             ->where(function ($query) use ($search) {
                                 $query->where('name', 'like', "%{$search}%")
                                       ->orWhere('slug', 'like', "%{$search}%");
@@ -164,16 +149,6 @@ class PickProducts extends Page
                             ->orderBy('name')
                             ->limit(50)
                             ->pluck('name', 'id');
-                            
-                        // Debug: Log search results
-                        \Log::info('PickProducts category search results', [
-                            'search_term' => $search,
-                            'results_count' => $results->count(),
-                            'results' => $results->take(5)->toArray(), // First 5 results
-                            'timestamp' => now()->toISOString()
-                        ]);
-                        
-                        return $results;
                     })
                     ->getOptionLabelUsing(function ($value) {
                         if (empty($value)) {
@@ -184,35 +159,12 @@ class PickProducts extends Page
                     })
                     ->query(function (Builder $query, array $data): Builder {
                         $value = $data['value'] ?? null;
-                        
-                        // Debug: Log filter application
-                        \Log::info('PickProducts category filter applied', [
-                            'category_id' => $value,
-                            'table' => $query->getModel()->getTable(),
-                            'sql_before' => $query->toSql(),
-                            'timestamp' => now()->toISOString()
-                        ]);
-                        
-                        // Handle empty/null values - show all products
+
                         if (blank($value)) {
-                            \Log::info('PickProducts category filter cleared - showing all products', [
-                                'timestamp' => now()->toISOString()
-                            ]);
                             return $query;
                         }
-                        
-                        // Explicitly filter by category_id
-                        $query = $query->where('products.category_id', $value);
-                        
-                        // Debug: Log the final query
-                        \Log::info('PickProducts category filter query', [
-                            'category_id' => $value,
-                            'sql_after' => $query->toSql(),
-                            'bindings' => $query->getBindings(),
-                            'timestamp' => now()->toISOString()
-                        ]);
-                        
-                        return $query;
+
+                        return $query->where('products.category_id', $value);
                     }),
                     
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -341,7 +293,7 @@ class PickProducts extends Page
             ->poll('60s');
     }
     
-    protected function addSelectedProducts(): void
+    protected function addSelectedProducts(bool $redirectAfter = false): void
     {
         if (empty($this->selectedProducts)) {
             return;
@@ -378,12 +330,12 @@ class PickProducts extends Page
             ->title('Products Added')
             ->body(count($newProductIds) . ' products added to collection "' . $this->record->title . '".')
             ->send();
-            
-        // Refresh the selected products list
-        $this->selectedProducts = $this->record->products()
-            ->orderBy('storefront_collection_products.position')
-            ->pluck('products.id')
-            ->toArray();
+
+        $this->selectedProducts = [];
+
+        if ($redirectAfter) {
+            $this->redirect(route('filament.admin.resources.storefront-collections.edit', ['record' => $this->record->id]));
+        }
     }
     
     protected function removeSelectedProducts(): void
@@ -429,5 +381,20 @@ class PickProducts extends Page
         return [
             // You can add widgets here to show collection stats
         ];
+    }
+
+    public function getAttachedProductsCountProperty(): int
+    {
+        return (int) $this->record->products()->count();
+    }
+
+    public function getSelectedProductsCountProperty(): int
+    {
+        return count($this->selectedProducts ?? []);
+    }
+
+    public function getAvailableProductsCountProperty(): int
+    {
+        return (clone $this->table->getQuery())->count();
     }
 }

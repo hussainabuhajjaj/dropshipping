@@ -19,7 +19,7 @@ class EditStorefrontCollection extends EditRecord
     {
         return [
             Actions\Action::make('pick_products')
-                ->label('Pick products')
+                ->label(fn (): string => 'Manage products (' . $this->record->products()->count() . ')')
                 ->icon('heroicon-o-plus')
                 ->url(fn () => '/admin/storefront-collections/' . $this->record->id . '/products/pick'),
             Actions\Action::make('translate_to_fr')

@@ -15,6 +15,11 @@ class CreateStorefrontCollection extends CreateRecord
 {
     protected static string $resource = StorefrontCollectionResource::class;
 
+    protected function getRedirectUrl(): string
+    {
+        return static::getResource()::getUrl('pick-products', ['record' => $this->record]);
+    }
+
     protected function getHeaderActions(): array
     {
         return [
@@ -109,5 +114,13 @@ class CreateStorefrontCollection extends CreateRecord
                         ->send();
                 }),
         ];
+    }
+
+    protected function getCreatedNotification(): ?Notification
+    {
+        return Notification::make()
+            ->success()
+            ->title('Collection created')
+            ->body('Next, attach products to this collection.');
     }
 }

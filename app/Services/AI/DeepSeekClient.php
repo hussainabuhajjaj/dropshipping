@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Arr;
 use RuntimeException;
 
 class DeepSeekClient implements TranslationProvider
@@ -116,7 +117,7 @@ class DeepSeekClient implements TranslationProvider
         try {
             $response->throw();
         } catch (RequestException $exception) {
-            throw new RuntimeException('DeepSeek request failed: ' . $exception->getMessage(), 0, $exception);
+            throw new RuntimeException($this->formatRequestException($exception), 0, $exception);
         }
 
         // Mark attempt after successful response
@@ -132,6 +133,36 @@ class DeepSeekClient implements TranslationProvider
         }
 
         return trim($content);
+    }
+
+    private function formatRequestException(RequestException $exception): string
+    {
+        $response = $exception->response;
+        $status = $response?->status();
+        $payload = $response?->json();
+
+        $message = is_array($payload)
+            ? Arr::get($payload, 'error.message')
+            : null;
+        $code = is_array($payload)
+            ? Arr::get($payload, 'error.code')
+            : null;
+
+        if ($status === 402 || strcasecmp((string) $message, 'Insufficient Balance') === 0) {
+            return 'DeepSeek translation failed: insufficient account balance. Top up the DeepSeek account or switch the translation provider.';
+        }
+
+        if ($status === 429) {
+            return 'DeepSeek translation failed: rate limit exceeded. Please try again shortly.';
+        }
+
+        if (is_string($message) && trim($message) !== '') {
+            $suffix = is_string($code) && trim($code) !== '' ? " ({$code})" : '';
+
+            return 'DeepSeek request failed: ' . trim($message) . $suffix;
+        }
+
+        return 'DeepSeek request failed: ' . $exception->getMessage();
     }
 
     public function localeToLanguage(string $locale): string
