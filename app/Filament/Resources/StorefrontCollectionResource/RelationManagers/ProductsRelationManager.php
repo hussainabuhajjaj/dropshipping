@@ -496,7 +496,7 @@ class ProductsRelationManager extends RelationManager
 
     private function maybeProxyCjUrl(string $url): string
     {
-        if (str_starts_with($url, 'https://cf.cjdropshipping.com/')) {
+        if (str_starts_with($url, 'https://cf.cjdropshipping.test/')) {
             return url('/media/proxy?url=' . urlencode($url));
         }
 

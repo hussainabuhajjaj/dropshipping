@@ -183,6 +183,10 @@ class StorefrontCollection extends Model
             $manualProducts = $this->loadProductsByIds($manualIds);
         }
 
+        if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
+            return $this->sliceToLimit($manualProducts, $limit);
+        }
+
         if ($mode === 'manual') {
             return $this->sliceToLimit($manualProducts, $limit);
         }
@@ -206,6 +210,12 @@ class StorefrontCollection extends Model
         $page = max(1, $page ?? LengthAwarePaginator::resolveCurrentPage());
 
         $manualIds = $this->manualProductIds();
+
+        if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
+            $manualProducts = $this->sliceToLimit($this->loadProductsByIds($manualIds), $limit);
+
+            return $this->paginateCollection($manualProducts, $perPage, $page);
+        }
 
         if ($mode === 'rules') {
             return $this->paginateRuleProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
@@ -388,6 +398,30 @@ class StorefrontCollection extends Model
         $normalized = (int) $limit;
 
         return $normalized > 0 ? $normalized : null;
+    }
+
+    private function shouldFallbackToManualProducts(string $mode, array $rules, array $manualIds): bool
+    {
+        if ($mode !== 'rules' || empty($manualIds)) {
+            return false;
+        }
+
+        return ! $this->hasMeaningfulRules($rules);
+    }
+
+    private function hasMeaningfulRules(array $rules): bool
+    {
+        foreach ($rules as $value) {
+            if (is_array($value) && ! empty($value)) {
+                return true;
+            }
+
+            if (! is_array($value) && $value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function paginateRuleProducts(
