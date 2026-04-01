@@ -16,7 +16,7 @@
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <span>{{ products.length }} {{ t('items') }}</span>
+          <span>{{ productsPager.total ?? products.length }} {{ t('items') }}</span>
           <span class="rounded-full bg-slate-100 px-3 py-1">{{ typeLabel }}</span>
           <span v-if="collection.starts_at" class="rounded-full bg-slate-100 px-3 py-1">
             {{ t('Starts') }} {{ formatDate(collection.starts_at) }}
@@ -122,6 +122,18 @@
         </div>
       </div>
 
+      <PaginationRail
+        v-if="products.length"
+        :current-page="productsPager.current_page ?? 1"
+        :last-page="productsPager.last_page ?? 1"
+        :can-next="(productsPager.current_page ?? 1) < (productsPager.last_page ?? 1)"
+        :loading="false"
+        :show-sort="false"
+        @prev="goToPage(Math.max(1, (productsPager.current_page ?? 1) - 1))"
+        @next="goToPage(Math.min(productsPager.last_page ?? 1, (productsPager.current_page ?? 1) + 1))"
+        @filter="() => {}"
+      />
+
       <div v-if="collection.content" class="prose max-w-none prose-slate" v-html="collection.content"></div>
     </section>
   </StorefrontLayout>
@@ -129,15 +141,16 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Head, Link, usePage } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
+import PaginationRail from '@/Components/PaginationRail.vue'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({
   collection: { type: Object, required: true },
-  products: { type: Array, default: () => [] },
+  products: { type: Object, default: () => ({ data: [] }) },
   filters: { type: Object, default: () => ({}) },
 })
 
@@ -150,6 +163,8 @@ const minPrice = ref('')
 const maxPrice = ref('')
 const selectedColor = ref('')
 const selectedSize = ref('')
+const productsPager = computed(() => props.products ?? { data: [] })
+const products = computed(() => productsPager.value.data ?? [])
 
 const typeLabel = computed(() => {
   switch (props.collection.type) {
@@ -172,7 +187,7 @@ const formatDate = (value) => {
 const normalizeValue = (value) => String(value ?? '').trim().toLowerCase()
 
 const variantOptions = computed(() =>
-  props.products.flatMap((product) => Array.isArray(product.variants) ? product.variants : [])
+  products.value.flatMap((product) => Array.isArray(product.variants) ? product.variants : [])
 )
 
 const deriveOptionValues = (matcher) => {
@@ -209,7 +224,7 @@ const filteredProducts = computed(() => {
   const min = minPrice.value !== '' ? Number(minPrice.value) : null
   const max = maxPrice.value !== '' ? Number(maxPrice.value) : null
 
-  return props.products.filter((product) => {
+  return products.value.filter((product) => {
     const name = normalizeValue(product.name)
     const description = normalizeValue(product.description)
     const category = normalizeValue(product.category)
@@ -234,6 +249,14 @@ const filteredProducts = computed(() => {
     return true
   })
 })
+
+const goToPage = (pageNumber) => {
+  router.get(
+    `/collections/${props.collection.slug}`,
+    { page: pageNumber },
+    { preserveState: true, preserveScroll: true, replace: true }
+  )
+}
 
 const activeFilterPills = computed(() => {
   const pills = []

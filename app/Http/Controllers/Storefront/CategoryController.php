@@ -37,10 +37,9 @@ class CategoryController extends Controller
 
         $productsForMeta = Product::query()
             ->where('is_active', true)
-            ->whereIn('category_id', $categoryIds)
-            ->get(['attributes']);
+            ->whereIn('category_id', $categoryIds);
 
-        $meta = $metaExtractor->extract($productsForMeta->all());
+        $meta = $metaExtractor->extractFromQuery($productsForMeta);
 
         $attributeDefs = collect($meta['attributeDefs'])
             ->reject(fn ($attr) => in_array($attr['key'], [

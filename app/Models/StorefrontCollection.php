@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 
 class StorefrontCollection extends Model
@@ -197,6 +198,30 @@ class StorefrontCollection extends Model
         return $this->sliceToLimit($combined, $limit);
     }
 
+    public function paginateResolvedProducts(?string $locale = null, int $perPage = 18, ?int $page = null): LengthAwarePaginator
+    {
+        $mode = $this->selection_mode ?: 'rules';
+        $rules = $this->rules ?? [];
+        $limit = $this->normalizeLimit($this->product_limit ?? Arr::get($rules, 'limit'));
+        $page = max(1, $page ?? LengthAwarePaginator::resolveCurrentPage());
+
+        $manualIds = $this->manualProductIds();
+
+        if ($mode === 'rules') {
+            return $this->paginateRuleProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
+        }
+
+        $manualProducts = empty($manualIds)
+            ? collect()
+            : $this->sliceToLimit($this->loadProductsByIds($manualIds), $limit);
+
+        if ($mode === 'manual') {
+            return $this->paginateCollection($manualProducts, $perPage, $page);
+        }
+
+        return $this->paginateHybridProducts($rules, $manualIds, $manualProducts, $locale, $perPage, $page, $limit);
+    }
+
     private function loadRuleProducts(array $rules, array $excludeIds, ?int $limit, ?string $locale)
     {
         $query = $this->buildRuleQuery($rules, $excludeIds, $locale);
@@ -352,5 +377,106 @@ class StorefrontCollection extends Model
             return $collection;
         }
         return $collection->take($limit)->values();
+    }
+
+    private function normalizeLimit(mixed $limit): ?int
+    {
+        if ($limit === null || $limit === '') {
+            return null;
+        }
+
+        $normalized = (int) $limit;
+
+        return $normalized > 0 ? $normalized : null;
+    }
+
+    private function paginateRuleProducts(
+        array $rules,
+        array $excludeIds,
+        ?string $locale,
+        int $perPage,
+        int $page,
+        ?int $limit
+    ): LengthAwarePaginator {
+        $query = $this->buildRuleQuery($rules, $excludeIds, $locale);
+        $total = (clone $query)->count();
+
+        if ($limit !== null) {
+            $total = min($total, $limit);
+        }
+
+        $offset = max(0, ($page - 1) * $perPage);
+        if ($offset >= $total) {
+            return $this->paginateCollection(collect(), $perPage, $page, $total);
+        }
+
+        $remaining = $total - $offset;
+        $items = $query
+            ->offset($offset)
+            ->limit(min($perPage, $remaining))
+            ->get();
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    private function paginateHybridProducts(
+        array $rules,
+        array $manualIds,
+        $manualProducts,
+        ?string $locale,
+        int $perPage,
+        int $page,
+        ?int $limit
+    ): LengthAwarePaginator {
+        $ruleQuery = $this->buildRuleQuery($rules, $manualIds, $locale);
+        $manualCount = $manualProducts->count();
+        $ruleCount = (clone $ruleQuery)->count();
+        $total = $manualCount + $ruleCount;
+
+        if ($limit !== null) {
+            $total = min($total, $limit);
+        }
+
+        $offset = max(0, ($page - 1) * $perPage);
+        if ($offset >= $total) {
+            return $this->paginateCollection(collect(), $perPage, $page, $total);
+        }
+
+        $items = collect();
+
+        if ($offset < $manualCount) {
+            $items = $manualProducts->slice($offset, $perPage)->values();
+        }
+
+        $remaining = $perPage - $items->count();
+        if ($remaining > 0) {
+            $ruleOffset = max(0, $offset - $manualCount);
+            $availableRuleTotal = max(0, $total - min($manualCount, $total));
+            if ($ruleOffset < $availableRuleTotal) {
+                $ruleItems = $ruleQuery
+                    ->offset($ruleOffset)
+                    ->limit(min($remaining, $availableRuleTotal - $ruleOffset))
+                    ->get();
+                $items = $items->concat($ruleItems)->values();
+            }
+        }
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    private function paginateCollection($items, int $perPage, int $page, ?int $total = null): LengthAwarePaginator
+    {
+        $collection = collect($items)->values();
+
+        return new LengthAwarePaginator(
+            $collection,
+            $total ?? $collection->count(),
+            $perPage,
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'pageName' => 'page',
+            ]
+        );
     }
 }

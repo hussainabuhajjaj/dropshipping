@@ -9,6 +9,8 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\StorefrontCollection;
 use App\Models\Product;
 use App\Services\Storefront\ProductMetaExtractor;
+use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -44,15 +46,28 @@ class CollectionController extends Controller
         ]);
     }
 
-    public function show(StorefrontCollection $collection): Response
+    public function show(Request $request, string $slug): Response|RedirectResponse
     {
+        $collection = StorefrontCollection::query()->where('slug', $slug)->first();
+        if (! $collection) {
+            $fallbackCategorySlug = $this->legacyCollectionCategorySlug($slug);
+            if ($fallbackCategorySlug) {
+                return redirect()->route('categories.show', ['category' => $fallbackCategorySlug], 301);
+            }
+
+            abort(404);
+        }
+
         $locale = app()->getLocale();
         abort_if(! $collection->isActiveForLocale($locale), 404);
+        $perPage = 18;
+        $page = max(1, (int) $request->integer('page', 1));
 
         try {
-            $resolvedProducts = $collection->resolveProducts($locale);
+            $resolvedProducts = $collection->paginateResolvedProducts($locale, $perPage, $page);
             $products = $resolvedProducts
-                ->map(fn (Product $product) => $this->transformProduct($product));
+                ->through(fn (Product $product) => $this->transformProduct($product))
+                ->withQueryString();
         } catch (\Throwable $e) {
             Log::error('Storefront collection render failed', [
                 'collection_id' => $collection->id,
@@ -61,14 +76,23 @@ class CollectionController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            $resolvedProducts = collect();
-            $products = collect();
+            $resolvedProducts = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect(),
+                0,
+                $perPage,
+                $page,
+                [
+                    'path' => $request->url(),
+                    'pageName' => 'page',
+                ]
+            );
+            $products = $resolvedProducts;
         }
 
         return Inertia::render('Collections/Show', [
             'collection' => $this->transformCollectionDetail($collection, $locale),
             'products' => $products,
-            'filters' => $this->buildFilters($resolvedProducts),
+            'filters' => $this->buildFilters(collect($resolvedProducts->items())),
         ]);
     }
 
@@ -142,5 +166,19 @@ class CollectionController extends Controller
             ],
             ...$this->productMetaExtractor->extract($products->all()),
         ];
+    }
+
+    private function legacyCollectionCategorySlug(string $slug): ?string
+    {
+        return [
+            'women' => 'womens-clothing',
+            'womens' => 'womens-clothing',
+            'women-collection' => 'womens-clothing',
+            'womens-collection' => 'womens-clothing',
+            'men' => 'mens-clothing',
+            'mens' => 'mens-clothing',
+            'men-collection' => 'mens-clothing',
+            'mens-collection' => 'mens-clothing',
+        ][strtolower(trim($slug))] ?? null;
     }
 }

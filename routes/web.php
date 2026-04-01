@@ -122,7 +122,7 @@ Route::get('/products', [ProductController::class, 'index'])->name('products.ind
 Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');
 Route::get('/collections', [\App\Http\Controllers\Storefront\CollectionController::class, 'index'])->name('collections.index');
-Route::get('/collections/{collection:slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
+Route::get('/collections/{slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
 Route::get('/campaigns/{campaign:slug}', [\App\Http\Controllers\Storefront\CampaignController::class, 'show'])->name('campaigns.show');
 Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');
 Route::get('/search', SearchController::class)->name('search');
