@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\StorefrontCollectionResource\RelationManagers;
 
+use App\Filament\Resources\StorefrontCollectionResource;
 use App\Models\Category;
 use App\Services\Storefront\HomeBuilderService;
 use App\Jobs\ApplyProductMarginChunkJob;
@@ -13,6 +14,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachBulkAction;
 use Filament\Actions\BulkAction;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -144,28 +146,28 @@ class ProductsRelationManager extends RelationManager
                     })
                     ->query(function (Builder $query, array $data): Builder {
                         $value = $data['value'] ?? null;
-                        
+
                         // Handle empty/null values - show all products
                         if (blank($value)) {
                             return $query;
                         }
-                        
+
                         // Debug: Log the filter value
                         \Log::info('Category filter applied', [
                             'category_id' => $value,
                             'table' => $query->getModel()->getTable(),
                             'sql_before' => $query->toSql()
                         ]);
-                        
+
                         // Explicitly filter by category_id
                         $query = $query->where('products.category_id', $value);
-                        
+
                         // Debug: Log the final query
                         \Log::info('Category filter query', [
                             'sql_after' => $query->toSql(),
                             'bindings' => $query->getBindings()
                         ]);
-                        
+
                         return $query;
                     }),
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -267,13 +269,33 @@ class ProductsRelationManager extends RelationManager
                     ->toggle(),
             ])
             ->headerActions([])
-            ->recordActions([])
+            ->recordActions([
+                Action::make('remove_from_collection')
+                    ->label('Remove')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(function (Product $record): void {
+                        $this->ownerRecord->products()->detach($record->id);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Product Removed')
+                            ->body('The product was removed from this collection.')
+                            ->send();
+                    }),
+            ])
             ->toolbarActions([
                 Action::make('add_products')
                     ->label('Add Products')
                     ->icon('heroicon-o-plus')
-                    ->url(fn () => '/admin/storefront-collections/' . $this->ownerRecord->id . '/products/pick')
+                    ->url(fn (): string => StorefrontCollectionResource::getUrl('pick-products', ['record' => $this->ownerRecord]))
                     ->color('success'),
+
+                DetachBulkAction::make('remove_from_collection')
+                    ->label('Remove from Collection')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger'),
 
                 BulkActionGroup::make([
                     BulkAction::make('activate')

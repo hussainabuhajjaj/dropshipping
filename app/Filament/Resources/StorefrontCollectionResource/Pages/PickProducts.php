@@ -13,43 +13,52 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
-class PickProducts extends Page
+class PickProducts extends Page implements HasTable
 {
     use InteractsWithRecord;
-    
+    use InteractsWithTable;
+
     protected static string $resource = StorefrontCollectionResource::class;
-    
+
     protected string $view = 'filament.resources.storefront-collection-resource.pages.pick-products';
-    
+
     protected static bool $shouldRegisterNavigation = false;
-    
+
     protected static ?string $title = 'Pick Products';
-    
+
     protected ?string $heading = 'Pick Products for Collection';
-    
+
     public ?array $selectedProducts = [];
-    
-    public function mount(int $record): void
+
+    public function mount(int|string $record): void
     {
-        $this->record = StorefrontCollection::findOrFail($record);
+        $this->record = StorefrontCollection::query()
+            ->when(
+                is_numeric($record),
+                fn ($query) => $query->whereKey((int) $record),
+                fn ($query) => $query->where('slug', (string) $record)
+            )
+            ->firstOrFail();
 
         // This picker should only show products that are not already attached.
         $this->selectedProducts = [];
     }
-    
+
     protected function getHeaderActions(): array
     {
         return [
             Actions\Action::make('back_to_collection')
                 ->label('Back to Collection')
-                ->url(fn () => route('filament.admin.resources.storefront-collections.edit', ['record' => $this->record->id]))
+                ->url(fn (): string => StorefrontCollectionResource::getUrl('edit', ['record' => $this->record]))
                 ->icon('heroicon-o-arrow-left'),
-                
+
             Actions\Action::make('add_selected')
                 ->label('Add Selected Products')
                 ->icon('heroicon-o-plus')
@@ -69,7 +78,7 @@ class PickProducts extends Page
                 ->disabled(fn () => empty($this->selectedProducts)),
         ];
     }
-    
+
     public function table(Table $table): Table
     {
         return $table
@@ -96,7 +105,7 @@ class PickProducts extends Page
                             $this->selectedProducts = array_values(array_diff($this->selectedProducts, [$record->id]));
                         }
                     }),
-                    
+
                 Tables\Columns\ImageColumn::make('first_image')
                     ->label('')
                     ->square()
@@ -104,32 +113,32 @@ class PickProducts extends Page
                     ->getStateUsing(function (Product $record): ?string {
                         return $record->images->first()?->url;
                     }),
-                    
+
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Category')
                     ->toggleable()
                     ->searchable(),
-                    
+
                 Tables\Columns\TextColumn::make('selling_price')
                     ->label('Price')
                     ->money(fn ($record) => $record->currency ?? 'USD')
                     ->sortable()
                     ->toggleable(),
-                    
+
                 Tables\Columns\TextColumn::make('reviews_avg_rating')
                     ->label('Rating')
                     ->numeric(2)
                     ->sortable()
                     ->toggleable(),
-                    
+
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean()
                     ->toggleable(),
-                    
+
                 Tables\Columns\IconColumn::make('is_featured')
                     ->boolean()
                     ->toggleable(),
@@ -166,13 +175,13 @@ class PickProducts extends Page
 
                         return $query->where('products.category_id', $value);
                     }),
-                    
+
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Active'),
-                    
+
                 Tables\Filters\TernaryFilter::make('is_featured')
                     ->label('Featured'),
-                    
+
                 Tables\Filters\Filter::make('price_range')
                     ->form([
                         Forms\Components\TextInput::make('min')
@@ -185,17 +194,17 @@ class PickProducts extends Page
                     ->query(function (Builder $query, array $data): Builder {
                         $min = isset($data['min']) && $data['min'] !== '' ? (float) $data['min'] : null;
                         $max = isset($data['max']) && $data['max'] !== '' ? (float) $data['max'] : null;
-                        
+
                         if ($min !== null) {
                             $query->where('selling_price', '>=', $min);
                         }
                         if ($max !== null) {
                             $query->where('selling_price', '<=', $max);
                         }
-                        
+
                         return $query;
                     }),
-                    
+
                 Tables\Filters\Filter::make('min_rating')
                     ->form([
                         Forms\Components\Select::make('rating')
@@ -214,7 +223,7 @@ class PickProducts extends Page
                         }
                         return $query->having('reviews_avg_rating', '>=', $rating);
                     }),
-                    
+
                 Tables\Filters\SelectFilter::make('supplier')
                     ->label('Supplier')
                     ->options([
@@ -227,7 +236,7 @@ class PickProducts extends Page
                         if (!$supplier) {
                             return $query;
                         }
-                        
+
                         return match ($supplier) {
                             'cj' => $query->whereNotNull('cj_pid'),
                             'ali' => $query->whereNotNull('attributes->ali_item_id'),
@@ -236,15 +245,15 @@ class PickProducts extends Page
                         };
                     }),
             ])
-            ->actions([
-                Tables\Actions\Action::make('toggle_selection')
-                    ->label(fn (Product $record): string => 
+            ->recordActions([
+                Actions\Action::make('toggle_selection')
+                    ->label(fn (Product $record): string =>
                         in_array($record->id, $this->selectedProducts) ? 'Remove' : 'Add'
                     )
-                    ->icon(fn (Product $record): string => 
+                    ->icon(fn (Product $record): string =>
                         in_array($record->id, $this->selectedProducts) ? 'heroicon-o-minus' : 'heroicon-o-plus'
                     )
-                    ->color(fn (Product $record): string => 
+                    ->color(fn (Product $record): string =>
                         in_array($record->id, $this->selectedProducts) ? 'danger' : 'success'
                     )
                     ->action(function (Product $record): void {
@@ -256,15 +265,15 @@ class PickProducts extends Page
                         }
                     }),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('add_to_collection')
+            ->toolbarActions([
+                Actions\BulkAction::make('add_to_collection')
                     ->label('Add to Collection')
                     ->icon('heroicon-o-plus')
                     ->color('success')
                     ->action(function (Collection $records): void {
                         $newIds = $records->pluck('id')->diff($this->selectedProducts)->values()->all();
                         $this->selectedProducts = array_unique(array_merge($this->selectedProducts, $newIds));
-                        
+
                         Notification::make()
                             ->success()
                             ->title('Products Added')
@@ -272,15 +281,15 @@ class PickProducts extends Page
                             ->send();
                     })
                     ->deselectRecordsAfterCompletion(),
-                    
-                Tables\Actions\BulkAction::make('remove_from_collection')
+
+                Actions\BulkAction::make('remove_from_collection')
                     ->label('Remove from Collection')
                     ->icon('heroicon-o-minus')
                     ->color('danger')
                     ->action(function (Collection $records): void {
                         $removedIds = $records->pluck('id')->intersect($this->selectedProducts)->values()->all();
                         $this->selectedProducts = array_values(array_diff($this->selectedProducts, $removedIds));
-                        
+
                         Notification::make()
                             ->success()
                             ->title('Products Removed')
@@ -292,16 +301,16 @@ class PickProducts extends Page
             ->paginated([25, 50, 100])
             ->poll('60s');
     }
-    
-    protected function addSelectedProducts(bool $redirectAfter = false): void
+
+    public function addSelectedProducts(bool $redirectAfter = false): void
     {
         if (empty($this->selectedProducts)) {
             return;
         }
-        
+
         $currentProductIds = $this->record->products()->pluck('products.id')->toArray();
         $newProductIds = array_diff($this->selectedProducts, $currentProductIds);
-        
+
         if (empty($newProductIds)) {
             Notification::make()
                 ->warning()
@@ -310,10 +319,10 @@ class PickProducts extends Page
                 ->send();
             return;
         }
-        
+
         // Add new products with position
         $maxPosition = $this->record->products()->max('storefront_collection_products.position') ?? 0;
-        
+
         $syncData = [];
         foreach ($newProductIds as $index => $productId) {
             $syncData[$productId] = [
@@ -322,31 +331,41 @@ class PickProducts extends Page
                 'updated_at' => now(),
             ];
         }
-        
+
         $this->record->products()->syncWithoutDetaching($syncData);
-        
+
+        if (($this->record->selection_mode ?? 'rules') === 'rules') {
+            $this->record->update(['selection_mode' => 'hybrid']);
+            $this->record->refresh();
+        }
+
         Notification::make()
             ->success()
             ->title('Products Added')
-            ->body(count($newProductIds) . ' products added to collection "' . $this->record->title . '".')
+            ->body(
+                count($newProductIds) . ' products added to collection "' . $this->record->title . '".'
+                . (($this->record->selection_mode ?? null) === 'hybrid'
+                    ? ' Selection mode is now Hybrid so attached products and rules work together.'
+                    : '')
+            )
             ->send();
 
         $this->selectedProducts = [];
 
         if ($redirectAfter) {
-            $this->redirect(route('filament.admin.resources.storefront-collections.edit', ['record' => $this->record->id]));
+            $this->redirect(StorefrontCollectionResource::getUrl('edit', ['record' => $this->record]));
         }
     }
-    
+
     protected function removeSelectedProducts(): void
     {
         if (empty($this->selectedProducts)) {
             return;
         }
-        
+
         $currentProductIds = $this->record->products()->pluck('products.id')->toArray();
         $productsToRemove = array_intersect($this->selectedProducts, $currentProductIds);
-        
+
         if (empty($productsToRemove)) {
             Notification::make()
                 ->warning()
@@ -355,27 +374,27 @@ class PickProducts extends Page
                 ->send();
             return;
         }
-        
+
         $this->record->products()->detach($productsToRemove);
-        
+
         Notification::make()
             ->success()
             ->title('Products Removed')
             ->body(count($productsToRemove) . ' products removed from collection "' . $this->record->title . '".')
             ->send();
-            
+
         // Refresh the selected products list
         $this->selectedProducts = $this->record->products()
             ->orderBy('storefront_collection_products.position')
             ->pluck('products.id')
             ->toArray();
     }
-    
+
     public function getTitle(): string
     {
         return 'Pick Products for: ' . $this->record->title;
     }
-    
+
     protected function getHeaderWidgets(): array
     {
         return [
@@ -395,6 +414,12 @@ class PickProducts extends Page
 
     public function getAvailableProductsCountProperty(): int
     {
-        return (clone $this->table->getQuery())->count();
+        return (int) Product::query()
+            ->whereNotIn('products.id', function ($sub) {
+                $sub->select('product_id')
+                    ->from('storefront_collection_products')
+                    ->where('storefront_collection_id', $this->record->id);
+            })
+            ->count();
     }
 }

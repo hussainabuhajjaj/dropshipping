@@ -189,11 +189,7 @@ class StorefrontCollection extends Model
         $ruleProducts = $this->loadRuleProducts($rules, $manualIds, $limit, $locale);
 
         if ($mode === 'rules') {
-            if ($ruleProducts->isNotEmpty()) {
-                return $ruleProducts;
-            }
-
-            return $this->sliceToLimit($manualProducts, $limit);
+            return $ruleProducts;
         }
 
         // Hybrid: manual first, then fill with rules

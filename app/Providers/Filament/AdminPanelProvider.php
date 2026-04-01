@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\SupportChatCenter;
-use App\Filament\Pages\StorefrontCollectionProductPicker;
 use App\Filament\Resources\AffiliateCommissionResource;
 use App\Filament\Resources\AffiliateReferralResource;
 use App\Filament\Resources\AffiliateResource;
@@ -65,7 +64,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 SupportChatCenter::class,
-                StorefrontCollectionProductPicker::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->userMenuItems(

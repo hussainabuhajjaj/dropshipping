@@ -21,7 +21,7 @@ class EditStorefrontCollection extends EditRecord
             Actions\Action::make('pick_products')
                 ->label(fn (): string => 'Manage products (' . $this->record->products()->count() . ')')
                 ->icon('heroicon-o-plus')
-                ->url(fn () => '/admin/storefront-collections/' . $this->record->id . '/products/pick'),
+                ->url(fn (): string => static::getResource()::getUrl('pick-products', ['record' => $this->record])),
             Actions\Action::make('translate_to_fr')
                 ->label('Translate EN → FR')
                 ->icon('heroicon-o-language')

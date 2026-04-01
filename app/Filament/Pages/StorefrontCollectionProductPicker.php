@@ -76,12 +76,20 @@ class StorefrontCollectionProductPicker extends Page
 
     public static function getSlug(?Panel $panel = null): string
     {
-        return 'storefront-collections/{collection}/products/pick';
+        return 'legacy/storefront-collections/{collection}/products/pick';
     }
 
-    public function mount(int $collection): void
+    public function mount(int|string $collection): void
     {
-        $this->collectionId = $collection;
+        $record = StorefrontCollection::query()
+            ->when(
+                is_numeric($collection),
+                fn ($query) => $query->whereKey((int) $collection),
+                fn ($query) => $query->where('slug', (string) $collection)
+            )
+            ->firstOrFail();
+
+        $this->redirect(StorefrontCollectionResource::getUrl('pick-products', ['record' => $record]));
     }
 
     public function updated($name): void
