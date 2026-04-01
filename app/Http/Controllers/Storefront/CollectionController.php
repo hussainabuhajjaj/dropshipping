@@ -65,6 +65,7 @@ class CollectionController extends Controller
 
         try {
             $resolvedProducts = $collection->paginateResolvedProducts($locale, $perPage, $page);
+            $filters = $this->buildFilters(collect($resolvedProducts->items()));
             $products = $resolvedProducts
                 ->through(fn (Product $product) => $this->transformProduct($product))
                 ->withQueryString();
@@ -87,12 +88,13 @@ class CollectionController extends Controller
                 ]
             );
             $products = $resolvedProducts;
+            $filters = $this->buildFilters(collect());
         }
 
         return Inertia::render('Collections/Show', [
             'collection' => $this->transformCollectionDetail($collection, $locale),
             'products' => $products,
-            'filters' => $this->buildFilters(collect($resolvedProducts->items())),
+            'filters' => $filters,
         ]);
     }
 
@@ -150,8 +152,12 @@ class CollectionController extends Controller
     {
         $priceValues = $products
             ->map(function ($product): ?float {
-                if ($product->selling_price !== null && is_numeric($product->selling_price)) {
-                    return (float) $product->selling_price;
+                $sellingPrice = is_array($product)
+                    ? ($product['selling_price'] ?? $product['price'] ?? null)
+                    : ($product->selling_price ?? null);
+
+                if ($sellingPrice !== null && is_numeric($sellingPrice)) {
+                    return (float) $sellingPrice;
                 }
 
                 return null;
