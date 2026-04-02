@@ -3,29 +3,39 @@
     <Head :title="metaTitle">
       <meta name="description" head-key="description" :content="metaDescription" />
     </Head>
-    <div class="grid gap-10 lg:grid-cols-[1.1fr,0.9fr]">
+    <Breadcrumbs :items="breadcrumbs" class="mb-4" />
+    <div class="grid gap-10 pb-32 lg:grid-cols-[1.1fr,0.9fr] lg:pb-0">
         <div class="space-y-4">
-          <div class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+          <div
+            class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 touch-pan-y"
+            @touchstart.passive="onGalleryTouchStart"
+            @touchend.passive="onGalleryTouchEnd"
+          >
             <img
               v-if="selectedImage"
               :src="selectedImage"
               :alt="product.name"
               class="h-full w-full object-cover"
-          />
-          <div v-else class="flex aspect-[4/3] items-center justify-center text-xs text-slate-400">
-            {{ t('Image coming soon') }}
-          </div>
-          <div class="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2">
-            <button
-              v-for="(image, idx) in galleryImages"
-              :key="idx"
-              type="button"
-              class="h-2 w-2 rounded-full border border-white/60 bg-white/60 transition"
-              :class="image === selectedImage ? 'scale-110 border-slate-900 bg-slate-900' : 'hover:bg-white'"
-              @click="selectedImage = image"
             />
+            <div v-else class="flex aspect-[4/3] items-center justify-center text-xs text-slate-400">
+              {{ t('Image coming soon') }}
+            </div>
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 md:hidden" v-if="galleryImages.length > 1">
+              <div class="rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+                {{ t('Swipe') }}
+              </div>
+            </div>
+            <div class="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2">
+              <button
+                v-for="(image, idx) in galleryImages"
+                :key="idx"
+                type="button"
+                class="h-2 w-2 rounded-full border border-white/60 bg-white/60 transition"
+                :class="image === selectedImage ? 'scale-110 border-slate-900 bg-slate-900' : 'hover:bg-white'"
+                @click="selectedImage = image"
+              />
+            </div>
           </div>
-        </div>
         <div class="grid grid-cols-5 gap-3 sm:grid-cols-6">
           <button
             v-for="(image, idx) in galleryImages"
@@ -98,6 +108,8 @@
             {{ reviewSummary.average }} ({{ reviewSummary.count }})
           </span>
         </div>
+
+        <TrustBadges compact :columns="3" tone="muted" />
 
         <div class="card-muted p-4 text-xs text-slate-600">
           {{ t('Customs and duties are shown before payment. Delivery timelines begin after dispatch and local clearance.') }}
@@ -451,9 +463,9 @@
     <section class="mt-12 space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold text-slate-900">{{ t('Related products') }}</h2>
-        <Link href="/products" class="btn-ghost">{{ t('Browse all') }}</Link>
+        <Link :href="relatedBrowseHref" class="btn-ghost">{{ t('Browse all') }}</Link>
       </div>
-      <div v-if="relatedProducts.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div v-if="relatedProducts.length" class="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <ProductCard
           v-for="item in relatedProducts"
           :key="item.id"
@@ -473,6 +485,19 @@
       :message="t('Log in to add this item to your cart and continue checkout.')"
       @close="showLoginPrompt = false"
       @login="router.visit('/login')"
+    />
+
+    <ProductStickyBar
+      :title="product.name"
+      :price="displayPriceFormatted"
+      :compare-at="compareAtForDisplay ? compareAtFormatted : ''"
+      :quantity="Number(form.quantity || 1)"
+      :stock-badge="stockBadge"
+      :cta-label="stickyCtaLabel"
+      :disabled="stickyCtaDisabled"
+      @increment="incrementQty"
+      @decrement="decrementQty"
+      @submit="submit"
     />
   </StorefrontLayout>
 </template>
@@ -495,9 +520,12 @@ function productPromotionForDetails(product, promotions) {
 import { computed, ref, watch } from 'vue'
 import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
+import Breadcrumbs from '@/Components/Breadcrumbs.vue'
+import ProductStickyBar from '@/Components/ProductStickyBar.vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import LoginRequiredModal from '@/Components/LoginRequiredModal.vue'
 import ProductCard from '@/Components/ProductCard.vue'
+import TrustBadges from '@/Components/TrustBadges.vue'
 import Modal from '@/Components/Modal.vue'
 import { useTranslations } from '@/i18n'
 import { useProductCartForm } from '@/composables/useProductCartForm.js'
@@ -514,12 +542,21 @@ const props = defineProps({
   reviewHighlights: { type: Array, default: () => [] },
   relatedProducts: { type: Array, default: () => [] },
   reviewableItems: { type: Array, default: () => [] },
+  breadcrumbs: { type: Array, default: () => [] },
 })
 
 const { t, locale } = useTranslations()
 const now = usePromoNow()
 const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
+const breadcrumbs = computed(() => props.breadcrumbs ?? [])
+const stickyCtaDisabled = computed(() => form.processing || isOutOfStock.value)
+const stickyCtaLabel = computed(() => {
+  if (form.processing) return t('Adding...')
+  if (isOutOfStock.value) return t('Out of stock')
+  return t('Add to cart')
+})
+const relatedBrowseHref = computed(() => props.product.category_href || '/products')
 
 const promotionPriceDiscountable = computed(() => {
   const promo = productPromotion.value
@@ -854,6 +891,8 @@ const galleryImages = computed(() => {
 })
 
 const selectedImage = ref(null)
+const galleryTouchStartX = ref(0)
+const galleryTouchStartY = ref(0)
 const activeTab = ref('description')
 
 const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
@@ -921,6 +960,54 @@ watch(
   },
   { immediate: true },
 )
+
+const selectedImageIndex = computed(() => {
+  if (!selectedImage.value) {
+    return 0
+  }
+
+  const index = galleryImages.value.indexOf(selectedImage.value)
+  return index >= 0 ? index : 0
+})
+
+const setGalleryImageByIndex = (index) => {
+  const images = galleryImages.value
+
+  if (!images.length) {
+    selectedImage.value = null
+    return
+  }
+
+  const normalizedIndex = (index + images.length) % images.length
+  selectedImage.value = images[normalizedIndex]
+}
+
+const onGalleryTouchStart = (event) => {
+  galleryTouchStartX.value = event.changedTouches?.[0]?.clientX ?? 0
+  galleryTouchStartY.value = event.changedTouches?.[0]?.clientY ?? 0
+}
+
+const onGalleryTouchEnd = (event) => {
+  if (galleryImages.value.length < 2) {
+    return
+  }
+
+  const endX = event.changedTouches?.[0]?.clientX ?? 0
+  const endY = event.changedTouches?.[0]?.clientY ?? 0
+  const deltaX = endX - galleryTouchStartX.value
+  const deltaY = endY - galleryTouchStartY.value
+
+  if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+    return
+  }
+
+  if (deltaX < 0) {
+    setGalleryImageByIndex(selectedImageIndex.value + 1)
+    return
+  }
+
+  setGalleryImageByIndex(selectedImageIndex.value - 1)
+}
 
 const specEntries = computed(() => {
   const specs = props.product.specs ?? {}

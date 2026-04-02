@@ -135,6 +135,11 @@ class CategoryController extends Controller
             'promotions' => $promotions,
             'filters' => $filters,
             'attributes' => $attributeDefs,
+            'breadcrumbs' => [
+                ['label' => 'Home', 'href' => '/'],
+                ['label' => 'Products', 'href' => '/products'],
+                ['label' => $category->translatedValue('name', $locale), 'href' => null],
+            ],
         ]);
     }
 

@@ -67,8 +67,11 @@
                             </ul>
                         </div>
                     </div>
-                    <!--// Accept appliedPromotions as a prop (array of applied promotions)-->
-                    <!--const appliedPromotions = computed(() => Array.isArray(props.appliedPromotions) ? props.appliedPromotions : [])-->
+
+                    <div v-if="savingsTotal > 0" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                        <span class="font-semibold">{{ t('You are saving :amount', { amount: displayPrice(savingsTotal) }) }}</span>
+                        <span class="ml-1 text-emerald-700">{{ t('with discounts and item deals.') }}</span>
+                    </div>
 
                     <div class="flex items-center justify-between text-sm">
                         <span>{{ t('Subtotal') }}</span>
@@ -90,6 +93,10 @@
                         <span>{{ t('Duties & VAT') }}</span>
                         <span>{{ t('Calculated at checkout') }}</span>
                     </div>
+                    <div class="flex items-center justify-between border-t border-slate-200 pt-4 text-base">
+                        <span class="font-semibold text-slate-900">{{ t('Estimated total') }}</span>
+                        <span class="text-lg font-bold text-slate-900">{{ displayPrice(estimatedTotal) }}</span>
+                    </div>
                     <p v-if="minimumMessage && !canCheckout" class="text-sm text-rose-600">
                         {{ minimumMessage }}
                     </p>
@@ -99,7 +106,7 @@
                         :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
                         @click="$inertia.visit('/checkout')"
                     >
-                        {{ t('Proceed to checkout') }}
+                        {{ t('Secure checkout') }}
                     </button>
                     <p class="text-xs text-slate-500">
                         {{
@@ -112,6 +119,26 @@
                         <DeliveryTimeline compact />
                     </div>
                 </aside>
+            </div>
+        </div>
+
+        <div v-if="itemCount > 0" class="fixed inset-x-0 bottom-0 z-[120] border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
+            <div class="container-base pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3">
+                <div class="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_-14px_40px_rgba(15,23,42,0.12)]">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Cart') }}</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ t(':count items', { count: itemCount }) }}</p>
+                        <p class="text-lg font-bold text-slate-900">{{ displayPrice(estimatedTotal) }}</p>
+                    </div>
+                    <button
+                        :disabled="!canCheckout"
+                        class="btn-primary min-h-11 shrink-0 px-5"
+                        :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
+                        @click="$inertia.visit('/checkout')"
+                    >
+                        {{ t('Checkout') }}
+                    </button>
+                </div>
             </div>
         </div>
     </StorefrontLayout>
@@ -144,6 +171,9 @@ const props = defineProps({
     subtotal: {type: Number, default: 0},
     shipping: {type: Number, default: 0},
     discount: {type: Number, default: 0},
+    estimated_total: {type: Number, default: 0},
+    item_count: {type: Number, default: 0},
+    savings_total: {type: Number, default: 0},
     discount_label: {type: String, default: null},
     coupon: {type: Object, default: null},
     appliedPromotions: {type: Array, default: () => []},
@@ -159,6 +189,9 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const displayPromotions = computed(() =>
     props.appliedPromotions?.length ? props.appliedPromotions : props.cartPromotions
 )
+const estimatedTotal = computed(() => props.estimated_total || Math.max(0, props.subtotal - props.discount + props.shipping))
+const itemCount = computed(() => props.item_count || props.lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0))
+const savingsTotal = computed(() => props.savings_total || 0)
 const { currentCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
 

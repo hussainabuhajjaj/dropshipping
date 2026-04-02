@@ -68,6 +68,10 @@ trait TransformsProducts
         if ($product->category && method_exists($product->category, 'translatedValue')) {
             $categoryName = $product->category->translatedValue('name', $locale);
         }
+        $categorySlug = $product->category?->slug;
+        $categoryHref = $categorySlug
+            ? '/categories/' . urlencode((string) $categorySlug)
+            : ($product->category_id ? '/products?category=' . urlencode((string) $product->category_id) : '/products');
 
         $rating = $product->reviews_avg_rating !== null
             ? (float) $product->reviews_avg_rating
@@ -82,6 +86,8 @@ trait TransformsProducts
             'name' => $translation?->name ?: $product->name,
             'category' => $categoryName,
             'category_id' => $product->category_id,
+            'category_slug' => $categorySlug,
+            'category_href' => $categoryHref,
             'description' => $translation?->description ?: $product->description,
             'media' => $media,
             'image' => $media[0] ?? null,

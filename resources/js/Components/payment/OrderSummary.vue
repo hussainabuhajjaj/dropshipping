@@ -1,22 +1,22 @@
 <template>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 mb-4">{{ t('Order Summary') }}</h2>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 class="mb-4 text-lg font-semibold text-slate-900 sm:text-xl">{{ t('Order Summary') }}</h2>
 
         <div class="space-y-4" v-if="type === 'cart'">
             <!-- Order Items -->
             <div v-for="item in processedItems" :key="item.id"
-                 class="flex justify-between items-start pb-4 border-b border-slate-100 last:border-0">
-                <div class="flex items-start gap-3 flex-1">
+                 class="border-b border-slate-100 pb-4 last:border-0">
+                <div class="flex items-start gap-3">
                     <!-- Product Image -->
-                    <div class="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex-shrink-0">
+                    <div class="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:h-16 sm:w-16">
                         <img
                             v-if="item.image"
                             :src="item.image"
                             :alt="item.name"
-                            class="w-full h-full object-cover"
+                            class="h-full w-full object-cover"
                             @error="handleImageError"
                         >
-                        <div v-else class="w-full h-full flex items-center justify-center bg-slate-100">
+                        <div v-else class="flex h-full w-full items-center justify-center bg-slate-100">
                             <svg class="h-6 w-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -25,36 +25,41 @@
                     </div>
 
                     <!-- Product Details -->
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium text-slate-900 break-words">{{ item.name }}</p>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="line-clamp-2 text-sm font-medium leading-5 text-slate-900 sm:text-[0.95rem]">
+                                {{ item.name }}
+                            </p>
+
+                            <!-- Item Total -->
+                            <div class="ml-auto flex-shrink-0 text-right">
+                                <span class="whitespace-nowrap text-sm font-semibold text-slate-900 sm:text-base">
+                                    {{ formatPrice(item.price * item.quantity) }}
+                                </span>
+                            </div>
+                        </div>
 
                         <!-- Variant/SKU -->
-                        <p v-if="item.variant || item.sku" class="text-xs text-slate-500 mt-1">
+                        <p v-if="item.variant || item.sku" class="mt-1 text-[11px] text-slate-500 sm:text-xs">
                             <span v-if="item.variant">{{ item.variant }}</span>
                             <span v-if="item.variant && item.sku"> • </span>
                             <span v-if="item.sku" class="font-mono">SKU: {{ item.sku }}</span>
                         </p>
 
                         <!-- Quantity and Price -->
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-xs text-slate-500">{{ t('Qty') }}: {{ item.quantity }}</span>
-                            <span class="text-xs text-slate-300">•</span>
-                            <span class="text-xs text-slate-500">{{ formatPrice(item.price) }} {{ t('each') }}</span>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                {{ t('Qty') }}: {{ item.quantity }}
+                            </span>
+                            <span class="text-[11px] text-slate-500 sm:text-xs">{{ formatPrice(item.price) }} {{ t('each') }}</span>
                         </div>
 
                         <!-- Stock Warning -->
                         <p v-if="item.stock_on_hand !== undefined && item.stock_on_hand < 5"
-                           class="text-xs text-amber-600 mt-1">
+                           class="mt-1 text-[11px] text-amber-600 sm:text-xs">
                             {{ t('Only :stock left in stock', {stock: item.stock_on_hand}) }}
                         </p>
                     </div>
-                </div>
-
-                <!-- Item Total -->
-                <div class="text-right flex-shrink-0 ml-4">
-                    <span class="font-semibold text-slate-900 whitespace-nowrap">
-                        {{ formatPrice(item.price * item.quantity) }}
-                    </span>
                 </div>
             </div>
 

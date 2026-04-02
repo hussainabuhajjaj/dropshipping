@@ -341,11 +341,40 @@ class ProductController extends Controller
                 'average' => $reviewAverage,
                 'breakdown' => $reviewBreakdown,
             ],
+            'breadcrumbs' => $this->buildProductBreadcrumbs($product, $locale),
             'reviewHighlights' => $reviewHighlights,
             'relatedProducts' => $related,
             'personalizedProducts' => $personalized,
             'reviewableItems' => $reviewableItems,
         ]);
+    }
+
+    /**
+     * @return array<int, array{label:string, href:?string}>
+     */
+    private function buildProductBreadcrumbs(Product $product, string $locale): array
+    {
+        $items = [
+            ['label' => 'Home', 'href' => '/'],
+            ['label' => 'Products', 'href' => '/products'],
+        ];
+
+        if ($product->category) {
+            $items[] = [
+                'label' => $product->category->translatedValue('name', $locale),
+                'href' => '/categories/' . urlencode($product->category->slug ?? (string) $product->category->id),
+            ];
+        }
+
+        $translatedName = $product->translations
+            ->firstWhere('locale', $locale)?->name;
+
+        $items[] = [
+            'label' => $translatedName ?: $product->name,
+            'href' => null,
+        ];
+
+        return $items;
     }
 
     private function applyCollectionFilter(Builder $productQuery, mixed $collectionFilter, string $locale, array &$filterContext): void

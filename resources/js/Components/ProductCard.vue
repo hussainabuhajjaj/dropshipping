@@ -1,8 +1,8 @@
 <template>
   <article
     :class="dense
-      ? 'card group flex h-full flex-col gap-2 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 p-2.5'
-      : 'card group flex h-full flex-col gap-3 justify-start transition hover:-translate-y-0.5 hover:shadow-lg/40 p-3'"
+      ? 'card group flex h-full flex-col gap-2 justify-start transition hover:-translate-y-0.5 p-2.5'
+      : 'card group flex h-full flex-col gap-3 justify-start transition hover:-translate-y-0.5 p-3'"
   >
     <div
       :class="dense

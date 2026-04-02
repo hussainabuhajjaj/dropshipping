@@ -10,18 +10,6 @@
         </div>
 
         <div class="rail-surface">
-            <button
-                type="button"
-                class="rail-arrow hidden lg:flex"
-                :class="{ 'rail-arrow-disabled': !canScrollLeft }"
-                :aria-label="t('Scroll left')"
-                @click="scroll('left')"
-            >
-                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-                </svg>
-            </button>
-
             <div
                 ref="trackRef"
                 class="rail-track"
@@ -59,18 +47,6 @@
                     </button>
                 </template>
             </div>
-
-            <button
-                type="button"
-                class="rail-arrow hidden lg:flex"
-                :class="{ 'rail-arrow-disabled': !canScrollRight }"
-                :aria-label="t('Scroll right')"
-                @click="scroll('right')"
-            >
-                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-                </svg>
-            </button>
         </div>
 
         <p v-if="error" class="rail-error">{{ error }}</p>
@@ -192,10 +168,6 @@ onBeforeUnmount(() => {
 
 .rail-surface {
     position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: stretch;
-    gap: 12px;
 }
 
 .rail-track {
@@ -216,31 +188,6 @@ onBeforeUnmount(() => {
 .rail-card {
     scroll-snap-align: start;
     min-height: 100%;
-}
-
-.rail-arrow {
-    height: 56px;
-    width: 56px;
-    border-radius: 999px;
-    border: 1px solid #e2e8f0;
-    background: #ffffff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-    transition: all 150ms ease;
-    margin-top: auto;
-    margin-bottom: auto;
-}
-
-.rail-arrow:hover {
-    transform: translateY(-2px);
-}
-
-.rail-arrow-disabled {
-    opacity: 0.35;
-    pointer-events: none;
-    box-shadow: none;
 }
 
 .skeleton-card {

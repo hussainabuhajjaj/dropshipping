@@ -4,6 +4,8 @@
       <meta name="description" head-key="description" :content="metaDescription" />
     </Head>
 
+    <Breadcrumbs :items="breadcrumbs" class="mb-4" />
+
     <section
       class="mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-amber-50 via-white to-slate-50"
     >
@@ -36,6 +38,7 @@
           >
             {{ category.hero_cta_label }}
           </Link>
+          <TrustBadges compact :columns="3" tone="muted" class="mt-6" />
         </div>
         <div v-if="category.hero_image" class="flex items-center justify-center">
           <img :src="category.hero_image" :alt="category.name" class="h-56 w-full rounded-2xl object-cover shadow-lg" />
@@ -65,72 +68,21 @@
       <div v-if="products.length" class="space-y-4">
       <div class="flex flex-col lg:flex-row gap-8">
         <!-- Sidebar Filters -->
-        <aside class="card hidden h-fit space-y-4 p-5 lg:block min-w-[260px] max-w-xs">
-          <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Filters') }}</p>
-            <p class="text-sm text-slate-600">{{ t('Narrow results by category, price, rating, brand, or attributes.') }}</p>
-          </div>
-          <form class="space-y-4" @submit.prevent="applyFilters">
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                {{ t('Category') }}
-              </label>
-              <div v-if="hasCategoryTree" class="tree-container">
-                <CategoryTreeCheckbox
-                  :nodes="categoryTree"
-                  :selected="selectedCategories"
-                  :expanded="expandedCategories"
-                  @toggle="toggleCategorySelection"
-                  @toggle-expand="toggleExpand"
-                />
-              </div>
-              <p v-else class="text-xs text-slate-500">{{ t('No category filters available') }}</p>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Search') }}</label>
-              <input v-model="form.q" type="search" :placeholder="t('Search products')" class="input-base" />
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Price range') }}</label>
-              <div class="flex gap-2">
-                <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="input-base" />
-                <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
-              </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Rating') }}</label>
-              <select v-model="form.rating" class="input-base">
-                <option value="">{{ t('Any rating') }}</option>
-                <option v-for="r in [5,4,3,2,1]" :key="r" :value="r">{{ t('At least :r stars', { r }) }}</option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Stock') }}</label>
-              <select v-model="form.in_stock" class="input-base">
-                <option value="">{{ t('All') }}</option>
-                <option value="1">{{ t('In stock only') }}</option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Brand') }}</label>
-              <select v-model="form.brand" class="input-base">
-                <option value="">{{ t('All brands') }}</option>
-                <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
-              </select>
-            </div>
-            <!-- Dynamic attribute filters (example) -->
-            <div v-for="attr in attributes" :key="attr.key" class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ attr.label }}</label>
-              <select v-model="form[attr.key]" class="input-base">
-                <option value="">{{ t('Any') }}</option>
-                <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </div>
-            <div class="flex gap-2">
-              <button type="submit" class="btn-secondary flex-1">{{ t('Apply') }}</button>
-              <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
-            </div>
-          </form>
+        <aside class="hidden lg:block min-w-[260px] max-w-xs">
+          <FilterSidebar
+            :model-value="form"
+            wrapper-class="card h-fit space-y-4 p-5"
+            :brands="brands"
+            :attributes="attributes"
+            :category-tree="categoryTree"
+            :expanded-categories="expandedCategories"
+            :selected-categories="selectedCategories"
+            @update:modelValue="updateForm"
+            @apply="applyFilters"
+            @reset="resetFilters"
+            @toggle-category="toggleCategorySelection"
+            @toggle-expand="toggleExpand"
+          />
         </aside>
 
         <div class="flex-1 space-y-4">
@@ -173,7 +125,7 @@
           </div>
 
           <!-- Product grid -->
-          <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-3">
             <ProductCard
               v-for="product in products"
               :key="product.id"
@@ -212,65 +164,20 @@
             <p class="text-sm font-semibold text-slate-900">{{ t('Filters') }}</p>
             <button type="button" class="btn-ghost text-xs" @click="filtersOpen = false">{{ t('Close') }}</button>
           </div>
-          <form class="mt-4 space-y-4" @submit.prevent="applyFilters">
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                {{ t('Category') }}
-              </label>
-              <div class="tree-container">
-                <CategoryTreeCheckbox
-                  :nodes="categoryTree"
-                  :selected="selectedCategories"
-                  :expanded="expandedCategories"
-                  @toggle="toggleCategorySelection"
-                  @toggle-expand="toggleExpand"
-                />
-              </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Search') }}</label>
-              <input v-model="form.q" type="search" :placeholder="t('Search products')" class="input-base" />
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Price range') }}</label>
-              <div class="flex gap-2">
-                <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="input-base" />
-                <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
-              </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Rating') }}</label>
-              <select v-model="form.rating" class="input-base">
-                <option value="">{{ t('Any rating') }}</option>
-                <option v-for="r in [5,4,3,2,1]" :key="r" :value="r">{{ t('At least :r stars', { r }) }}</option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Stock') }}</label>
-              <select v-model="form.in_stock" class="input-base">
-                <option value="">{{ t('All') }}</option>
-                <option value="1">{{ t('In stock only') }}</option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Brand') }}</label>
-              <select v-model="form.brand" class="input-base">
-                <option value="">{{ t('All brands') }}</option>
-                <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
-              </select>
-            </div>
-            <div v-for="attr in attributes" :key="attr.key" class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ attr.label }}</label>
-              <select v-model="form[attr.key]" class="input-base">
-                <option value="">{{ t('Any') }}</option>
-                <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </div>
-            <div class="flex gap-2">
-              <button type="submit" class="btn-secondary flex-1" @click="filtersOpen = false">{{ t('Apply') }}</button>
-              <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
-            </div>
-          </form>
+          <FilterSidebar
+            :model-value="form"
+            wrapper-class="mt-4 space-y-4"
+            :brands="brands"
+            :attributes="attributes"
+            :category-tree="categoryTree"
+            :expanded-categories="expandedCategories"
+            :selected-categories="selectedCategories"
+            @update:modelValue="updateForm"
+            @apply="applyFilters"
+            @reset="resetFilters"
+            @toggle-category="toggleCategorySelection"
+            @toggle-expand="toggleExpand"
+          />
         </div>
       </Transition>
       </div>
@@ -302,12 +209,15 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import Breadcrumbs from '@/Components/Breadcrumbs.vue'
+import FilterSidebar from '@/Components/FilterSidebar.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import PaginationRail from '@/Components/PaginationRail.vue'
+import TrustBadges from '@/Components/TrustBadges.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
@@ -319,6 +229,7 @@ const props = defineProps({
   brands: { type: Array, default: () => [] },
   attributes: { type: Array, default: () => [] },
   subcategories: { type: Array, default: () => [] },
+  breadcrumbs: { type: Array, default: () => [] },
 })
 
 const { t } = useTranslations()
@@ -356,6 +267,10 @@ const form = reactive({
 
 
 const filtersOpen = ref(false)
+
+const updateForm = (next) => {
+  Object.assign(form, next)
+}
 
 const activeFilters = computed(() => {
   const items = []
@@ -406,6 +321,7 @@ const displaySubtitle = computed(() => props.category.hero_subtitle || props.cat
 
 const productsPager = computed(() => props.products ?? { data: [] })
 const products = computed(() => productsPager.value.data ?? [])
+const breadcrumbs = computed(() => props.breadcrumbs ?? [])
 const mapSubcategory = (node) => ({
   ...node,
   id: node.id ?? node.slug ?? node.name,
@@ -448,7 +364,6 @@ const categoryTree = computed(() => normalizeTree(
 
 const expandedCategories = ref(new Set())
 const selectedCategories = computed(() => Array.isArray(form.categories) ? form.categories : [])
-const hasCategoryTree = computed(() => (categoryTree.value?.length ?? 0) > 0)
 
 // Auto-expand first level when tree loads
 watch(categoryTree, (nodes) => {
@@ -473,62 +388,6 @@ const toggleExpand = (id) => {
   expandedCategories.value = set
 }
 
-const CategoryTreeCheckbox = defineComponent({
-  name: 'CategoryTreeCheckbox',
-  props: {
-    nodes: { type: Array, default: () => [] },
-    level: { type: Number, default: 0 },
-    selected: { type: Array, default: () => [] },
-    expanded: { type: Object, required: true },
-  },
-  emits: ['toggle', 'toggle-expand'],
-  setup(props, { emit }) {
-    const isExpanded = (id) => props.expanded.has(id)
-    const nodeId = (node) => node.id || node.slug || node.name
-    return {
-      isExpanded,
-      nodeId,
-      toggleSelect: (id) => emit('toggle', id),
-      toggleOpen: (id) => emit('toggle-expand', id),
-    }
-  },
-  template: `
-    <div class="space-y-1">
-      <div v-for="node in nodes" :key="nodeId(node)" class="space-y-1">
-        <div class="flex items-center gap-2" :style="{ paddingLeft: (level * 14) + 'px' }">
-          <button
-            v-if="node.children && node.children.length"
-            type="button"
-            class="tree-expander"
-            @click="toggleOpen(nodeId(node))"
-          >
-            <span v-if="isExpanded(nodeId(node))">−</span>
-            <span v-else>+</span>
-          </button>
-          <span v-else class="tree-expander placeholder"></span>
-          <input
-            type="checkbox"
-            class="tree-checkbox"
-            :value="nodeId(node)"
-            :checked="selected.includes(nodeId(node))"
-            @change="toggleSelect(nodeId(node))"
-          />
-          <span class="tree-label">{{ node.name }}</span>
-        </div>
-        <CategoryTreeCheckbox
-          v-if="node.children && node.children.length && isExpanded(nodeId(node))"
-          :nodes="node.children"
-          :level="level + 1"
-          :selected="selected"
-          :expanded="expanded"
-          @toggle="toggleSelect"
-          @toggle-expand="toggleOpen"
-        />
-      </div>
-    </div>
-  `,
-})
-
 const goToPage = (page) => {
   if (page < 1 || page > (productsPager.value.last_page ?? 1)) {
     return
@@ -539,43 +398,6 @@ const goToPage = (page) => {
 </script>
 
 <style scoped>
-.tree-container {
-  max-height: 260px;
-  overflow-y: auto;
-  padding: 6px 4px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.tree-expander {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: #f8fafc;
-  font-weight: 800;
-  color: #111827;
-  line-height: 1;
-}
-
-.tree-expander.placeholder {
-  border: none;
-  background: transparent;
-}
-
-.tree-checkbox {
-  width: 16px;
-  height: 16px;
-  border: 1px solid #cbd5e1;
-}
-
-.tree-label {
-  font-weight: 700;
-  color: #0f172a;
-  font-size: 13px;
-}
-
 .subcat-card {
   display: grid;
   gap: 6px;

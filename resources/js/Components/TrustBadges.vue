@@ -1,11 +1,12 @@
 <template>
-  <div :class="['grid gap-4', compact ? 'sm:grid-cols-2 lg:grid-cols-2' : 'sm:grid-cols-1 lg:grid-cols-1']">
+  <div :class="layoutClass">
     <div
       v-for="item in resolvedItems"
       :key="item.title"
       :class="[
-        'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm',
-        compact ? 'flex items-start gap-3' : 'flex items-start gap-4',
+        'rounded-2xl border border-slate-200 bg-white shadow-sm',
+        compact ? 'flex items-start gap-3 p-3' : 'flex items-start gap-4 p-4',
+        tone === 'muted' ? 'bg-slate-50/80' : '',
       ]"
     >
       <div :class="['flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700', compact ? 'h-9 w-9' : 'h-10 w-10']">
@@ -28,6 +29,8 @@ import { useTranslations } from '@/i18n'
 const props = defineProps({
   items: { type: Array, default: null },
   compact: { type: Boolean, default: false },
+  columns: { type: Number, default: 0 },
+  tone: { type: String, default: 'default' },
 })
 
 const { t } = useTranslations()
@@ -59,5 +62,11 @@ const resolvedItems = computed(() => {
       subtitle: t('Clear ETAs with updates to Cote d\'Ivoire'),
     },
   ]
+})
+
+const layoutClass = computed(() => {
+  if (props.columns === 3) return 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
+  if (props.columns === 2 || props.compact) return 'grid gap-4 sm:grid-cols-2 lg:grid-cols-2'
+  return 'grid gap-4'
 })
 </script>

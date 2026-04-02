@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Domain\Products\Models\Category;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 trait FormatsCategories
 {
@@ -33,6 +34,7 @@ trait FormatsCategories
             'name' => $category->translatedValue('name', $locale),
             'slug' => $category->slug,
             'is_featured' => (bool) $category->is_featured,
+            'image' => $this->resolveCategoryImage($category->hero_image ?? null),
             'children' => $children,
         ];
     }
@@ -77,5 +79,18 @@ trait FormatsCategories
                 ->values()
                 ->all();
         });
+    }
+
+    protected function resolveCategoryImage(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return url(Storage::url($path));
     }
 }

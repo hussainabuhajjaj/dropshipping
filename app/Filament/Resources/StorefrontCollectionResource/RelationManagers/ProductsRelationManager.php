@@ -46,7 +46,7 @@ class ProductsRelationManager extends RelationManager
                 Tables\Columns\ImageColumn::make('thumb')
                     ->label('')
                     ->square()
-                    ->size(44)
+                    ->imageSize(44)
                     ->getStateUsing(function ($record): ?string {
                         $homeBuilder = app(HomeBuilderService::class);
 

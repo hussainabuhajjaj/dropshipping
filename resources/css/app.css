@@ -120,6 +120,30 @@
         color: #111827;
     }
 
+    .breadcrumbs-nav {
+        @apply overflow-x-auto pb-1;
+    }
+
+    .breadcrumbs-list {
+        @apply flex min-w-max items-center gap-2 text-xs text-slate-500;
+    }
+
+    .breadcrumbs-item {
+        @apply inline-flex items-center gap-2;
+    }
+
+    .breadcrumbs-separator {
+        @apply text-slate-300;
+    }
+
+    .breadcrumbs-link {
+        @apply rounded-full bg-white px-2.5 py-1 font-semibold text-slate-500 transition hover:text-slate-900;
+    }
+
+    .breadcrumbs-current {
+        @apply rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-slate-900;
+    }
+
     .pager-bar {
         position: sticky;
         bottom: 12px;

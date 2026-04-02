@@ -19,6 +19,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class PickProducts extends Page implements HasTable
 {
@@ -36,6 +37,8 @@ class PickProducts extends Page implements HasTable
     protected ?string $heading = 'Pick Products for Collection';
 
     public ?array $selectedProducts = [];
+
+    protected ?Collection $categoryFilterCategories = null;
 
     public function mount(int|string $record): void
     {
@@ -146,26 +149,11 @@ class PickProducts extends Page implements HasTable
             ->filters([
                 Tables\Filters\SelectFilter::make('category_id')
                     ->label('Category')
-                    ->options(fn () => ['' => 'All Categories'] + Category::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(fn (): array => $this->getCategoryFilterOptions())
                     ->searchable()
                     ->preload()
-                    ->getSearchResultsUsing(function (string $search) {
-                        return Category::query()
-                            ->where(function ($query) use ($search) {
-                                $query->where('name', 'like', "%{$search}%")
-                                      ->orWhere('slug', 'like', "%{$search}%");
-                            })
-                            ->orderBy('name')
-                            ->limit(50)
-                            ->pluck('name', 'id');
-                    })
-                    ->getOptionLabelUsing(function ($value) {
-                        if (empty($value)) {
-                            return 'All Categories';
-                        }
-                        $category = Category::find($value);
-                        return $category?->name ?? $value;
-                    })
+                    ->getSearchResultsUsing(fn (string $search): array => $this->getCategoryFilterSearchResults($search))
+                    ->getOptionLabelUsing(fn ($value): string => $this->getCategoryFilterLabel($value))
                     ->query(function (Builder $query, array $data): Builder {
                         $value = $data['value'] ?? null;
 
@@ -173,7 +161,7 @@ class PickProducts extends Page implements HasTable
                             return $query;
                         }
 
-                        return $query->where('products.category_id', $value);
+                        return $query->whereIn('products.category_id', $this->resolveCategoryFilterIds((int) $value));
                     }),
 
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -300,6 +288,99 @@ class PickProducts extends Page implements HasTable
             ])
             ->paginated([25, 50, 100])
             ->poll('60s');
+    }
+
+    protected function getCategoryFilterOptions(): array
+    {
+        return $this->getCategoryFilterCategories()
+            ->mapWithKeys(fn (Category $category): array => [
+                $category->id => $this->formatCategoryFilterLabel($category),
+            ])
+            ->all();
+    }
+
+    protected function getCategoryFilterSearchResults(string $search): array
+    {
+        return $this->getCategoryFilterCategories()
+            ->filter(function (Category $category) use ($search): bool {
+                return str_contains(Str::lower($category->name ?? ''), Str::lower($search))
+                    || str_contains(Str::lower($category->slug ?? ''), Str::lower($search));
+            })
+            ->take(50)
+            ->mapWithKeys(fn (Category $category): array => [
+                $category->id => $this->formatCategoryFilterLabel($category),
+            ])
+            ->all();
+    }
+
+    protected function getCategoryFilterLabel(mixed $value): string
+    {
+        if (blank($value)) {
+            return 'All Categories';
+        }
+
+        $category = $this->getCategoryFilterCategories()->firstWhere('id', (int) $value);
+
+        return $category
+            ? $this->formatCategoryFilterLabel($category)
+            : (string) $value;
+    }
+
+    protected function formatCategoryFilterLabel(Category $category): string
+    {
+        $segments = [$category->name];
+        $categoriesById = $this->getCategoryFilterCategories()->keyBy('id');
+        $current = $categoriesById->get($category->parent_id);
+
+        while ($current) {
+            array_unshift($segments, $current->name);
+            $current = $categoriesById->get($current->parent_id);
+        }
+
+        return Str::limit(implode(' / ', $segments), 120);
+    }
+
+    /**
+     * @return array<int>
+     */
+    protected function resolveCategoryFilterIds(int $categoryId): array
+    {
+        $childrenByParent = $this->getCategoryFilterCategories()
+            ->groupBy('parent_id')
+            ->map(fn (Collection $group): array => $group->pluck('id')->map(fn ($id): int => (int) $id)->all());
+
+        $ids = [];
+        $stack = [$categoryId];
+
+        while ($stack !== []) {
+            $currentId = array_pop($stack);
+
+            if (! $currentId || in_array($currentId, $ids, true)) {
+                continue;
+            }
+
+            $ids[] = $currentId;
+
+            foreach ($childrenByParent->get($currentId, []) as $childId) {
+                if (! in_array($childId, $ids, true)) {
+                    $stack[] = $childId;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    protected function getCategoryFilterCategories(): Collection
+    {
+        if ($this->categoryFilterCategories instanceof Collection) {
+            return $this->categoryFilterCategories;
+        }
+
+        return $this->categoryFilterCategories = Category::query()
+            ->select(['id', 'name', 'slug', 'parent_id'])
+            ->orderBy('name')
+            ->get();
     }
 
     public function addSelectedProducts(bool $redirectAfter = false): void

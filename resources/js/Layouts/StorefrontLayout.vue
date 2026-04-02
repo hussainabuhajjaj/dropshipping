@@ -800,10 +800,40 @@
                 </div>
 
                 <div class="mt-6 space-y-6">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Quick access') }}</p>
+                        <div class="mt-3 grid grid-cols-2 gap-2">
+                            <Link
+                                v-for="link in mobilePrimaryLinks"
+                                :key="`${link.href}-${link.label}-mobile-primary`"
+                                :href="link.href"
+                                class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:text-slate-900"
+                                @click="mobileOpen = false"
+                            >
+                                <span class="flex items-center justify-between gap-2">
+                                    <span>{{ link.label }}</span>
+                                    <span
+                                        v-if="link.badge"
+                                        class="rounded-full bg-slate-900 px-2 py-0.5 text-[0.65rem] font-semibold text-white"
+                                    >
+                                        {{ link.badge }}
+                                    </span>
+                                </span>
+                            </Link>
+                        </div>
+                    </div>
+
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{
-                                t('Categories')
-                            }}</p>
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Shop by category') }}</p>
+                            <Link
+                                href="/products"
+                                class="text-xs font-semibold text-[#f59e0b]"
+                                @click="mobileOpen = false"
+                            >
+                                {{ t('View all') }}
+                            </Link>
+                        </div>
                         <div class="mt-3 space-y-4">
                             <div v-for="category in categories" :key="category.slug || category.name" class="space-y-2">
                                 <Link
@@ -811,12 +841,10 @@
                                     class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-semibold text-slate-800"
                                     @click="mobileOpen = false"
                                 >
-                  <span
-                      class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500"
-                  >
-                    {{ category.short }}
-                  </span>
-                                    {{ category.name }}
+                                    <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                                        {{ category.short }}
+                                    </span>
+                                    <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
                                 </Link>
 
                                 <div v-if="category.children?.length" class="space-y-2 pl-8 text-xs text-slate-600">
@@ -846,34 +874,52 @@
                         </div>
                     </div>
 
-                    <div class="space-y-2 text-sm text-slate-600">
+                    <div class="space-y-2 rounded-2xl border border-slate-200 p-4 text-sm text-slate-600">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Account') }}</p>
+
+                        <template v-if="authUser">
+                            <Link v-for="link in mobileAccountLinks" :key="`${link.href}-${link.label}-mobile-account`" :href="link.href" class="block rounded-lg px-1 py-1.5 transition hover:text-slate-900" @click="mobileOpen = false">
+                                <span class="inline-flex w-full items-center justify-between gap-2">
+                                    <span>{{ link.label }}</span>
+                                    <span v-if="link.badge" :class="link.badgeClass || 'rounded-full bg-slate-900 px-2 py-0.5 text-[0.6rem] font-semibold text-white'">
+                                        {{ link.badge }}
+                                    </span>
+                                </span>
+                            </Link>
+                        </template>
+
+                        <template v-else>
+                            <Link :href="route('login')" class="block rounded-lg px-1 py-1.5 transition hover:text-slate-900" @click="mobileOpen = false">
+                                {{ t('Sign in') }}
+                            </Link>
+                            <Link :href="route('register')" class="block rounded-lg px-1 py-1.5 font-semibold text-slate-900 transition hover:text-[#f59e0b]" @click="mobileOpen = false">
+                                {{ t('Create account') }}
+                            </Link>
+                        </template>
+                    </div>
+
+                    <div class="space-y-2 rounded-2xl border border-slate-200 p-4 text-sm text-slate-600">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Support') }}</p>
                         <Link
-                            v-for="link in headerLinks"
-                            :key="link.href + link.label + '-mobile'"
+                            v-for="link in mobileSupportLinks"
+                            :key="`${link.href}-${link.label}-mobile-support`"
                             :href="link.href"
-                            class="block hover:text-slate-900"
+                            class="block rounded-lg px-1 py-1.5 transition hover:text-slate-900"
                             @click="mobileOpen = false"
                         >
                             {{ link.label }}
                         </Link>
-                        <Link href="/cart" class="block hover:text-slate-900" @click="mobileOpen = false">{{
-                                t('Cart')
-                            }}
-                        </Link>
                     </div>
 
-                    <!-- Language & Currency Selectors (Mobile) -->
-                    <div class="space-y-4">
+                    <div class="space-y-4 rounded-2xl border border-slate-200 p-4">
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">{{
-                                t('Language')
-                            }}</p>
+                            <p class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Language') }}</p>
                             <div class="grid grid-cols-2 gap-2">
                                 <button
                                     v-for="option in getLocaleOptions"
                                     :key="option.code"
                                     type="button"
-                                    class="rounded-lg border px-3 py-2 text-xs font-medium transition"
+                                    class="rounded-lg border px-3 py-2 text-xs font-medium uppercase transition"
                                     :class="option.code === currentLanguage ? 'border-[#f59e0b] bg-[#f59e0b] text-white' : 'border-slate-200 text-slate-600 hover:border-slate-300'"
                                     @click="setLanguage(option.code); mobileOpen = false"
                                 >
@@ -883,102 +929,11 @@
                         </div>
 
                         <div v-if="displaySettings?.show_currency_selector">
-                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">{{
-                                t('Currency')
-                            }}</p>
+                            <p class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Currency') }}</p>
                             <select
                                 v-model="currentCurrency"
                                 @change="onCurrencyChange(); mobileOpen = false"
-                                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:border-[#f59e0b] focus:outline-none"
-                            >
-                                <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
-                                    {{ currency }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2 text-sm text-slate-600">
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{
-                                t('Account')
-                            }}</p>
-
-                        <template v-if="authUser">
-                            <Link href="/account" class="block hover:text-slate-900" @click="mobileOpen = false">
-                                {{ t('Overview') }}
-                            </Link>
-                            <Link href="/account/notifications" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">
-                <span class="inline-flex w-full items-center justify-between gap-2">
-                  {{ t('Notifications') }}
-                  <span v-if="unreadNotifications"
-                        class="rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
-                    {{ unreadNotifications }}
-                  </span>
-                </span>
-                            </Link>
-                            <Link href="/orders" class="block hover:text-slate-900" @click="mobileOpen = false">
-                                {{ t('Orders') }}
-                            </Link>
-                            <Link href="/account/addresses" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">{{ t('Addresses') }}
-                            </Link>
-                            <Link href="/account/payments" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">{{ t('Payments') }}
-                            </Link>
-                            <Link href="/account/refunds" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">{{ t('Refunds') }}
-                            </Link>
-                            <Link href="/account/wishlist" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">
-                <span class="inline-flex items-center gap-2">
-                  {{ t('Wishlist') }}
-                  <span v-if="wishlistCount"
-                        class="rounded-full bg-slate-900 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
-                    {{ wishlistCount }}
-                  </span>
-                </span>
-                            </Link>
-                            <Link href="/account/wallet" class="block hover:text-slate-900" @click="mobileOpen = false">
-                                {{ t('Wallet') }}
-                            </Link>
-                        </template>
-
-                        <template v-else>
-                            <Link :href="route('login')" class="block hover:text-slate-900" @click="mobileOpen = false">
-                                {{ t('Sign in') }}
-                            </Link>
-                            <Link :href="route('register')" class="block hover:text-slate-900"
-                                  @click="mobileOpen = false">{{ t('Create account') }}
-                            </Link>
-                        </template>
-                    </div>
-
-                    <div class="space-y-2 text-sm text-slate-600">
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{
-                                t('Language')
-                            }}</p>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-for="option in getLocaleOptions"
-                                :key="option.code"
-                                type="button"
-                                class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold uppercase text-slate-700 transition"
-                                :class="option.code === currentLanguage ? 'bg-slate-900 text-white' : 'hover:border-slate-300'"
-                                @click="setLanguage(option.code)"
-                            >
-                                {{ option.code }}
-                            </button>
-                        </div>
-
-                        <div class="mt-4">
-                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{
-                                    t('Currency')
-                                }}</p>
-                            <select
-                                v-model="currentCurrency"
-                                @change="onCurrencyChange"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#f59e0b] focus:outline-none"
+                                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#f59e0b] focus:outline-none"
                             >
                                 <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
                                     {{ currency }}
@@ -1199,6 +1154,32 @@ const deliveryNotice = computed(() => storefront.value.delivery_notice ?? t("Del
 const copyrightText = computed(() => storefront.value.copyright_text ?? brandName.value)
 const headerLinks = computed(() => storefront.value.header_links ?? fallbackHeaderLinks)
 const footerColumns = computed(() => storefront.value.footer_columns ?? fallbackFooterColumns)
+const mobilePrimaryLinks = computed(() => [
+    { label: t('Shop'), href: '/products' },
+    { label: t('Collections'), href: '/collections' },
+    { label: t('Promotions'), href: '/promotions' },
+    { label: t('Cart'), href: '/cart', badge: cartCount.value ? (cartCount.value > 99 ? '99+' : cartCount.value) : null },
+])
+const mobileSupportLinks = computed(() => [
+    { label: t('Track order'), href: '/orders/track' },
+    { label: t('Support'), href: '/support' },
+    { label: t('FAQ'), href: '/faq' },
+])
+const mobileAccountLinks = computed(() => [
+    { label: t('Overview'), href: '/account' },
+    {
+        label: t('Notifications'),
+        href: '/account/notifications',
+        badge: unreadNotifications.value ? (unreadNotifications.value > 99 ? '99+' : unreadNotifications.value) : null,
+        badgeClass: 'rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white',
+    },
+    { label: t('Orders'), href: '/orders' },
+    { label: t('Wishlist'), href: '/account/wishlist', badge: wishlistCount.value ? (wishlistCount.value > 99 ? '99+' : wishlistCount.value) : null },
+    { label: t('Addresses'), href: '/account/addresses' },
+    { label: t('Payments'), href: '/account/payments' },
+    { label: t('Wallet'), href: '/account/wallet' },
+    { label: t('Refunds'), href: '/account/refunds' },
+])
 
 // --- Theme colors ---
 const themeColors = computed(() => {
@@ -1345,6 +1326,7 @@ const normalizeCategory = (entry) => {
         name,
         slug: entry?.slug ?? null,
         short: entry?.short ?? makeShort(name),
+        image: entry?.image ?? entry?.hero_image ?? null,
         children: Array.isArray(entry?.children) ? entry.children.map(normalizeCategory) : [],
         sections: Array.isArray(entry?.sections) ? entry.sections : [],
         promo: entry?.promo ?? null,

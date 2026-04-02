@@ -63,6 +63,19 @@ class CartController extends Controller
         }
 
         $shipping = $cart->calculateShippingFees();
+        $itemCount = (int) collect($cartPayload)->sum(fn ($line) => (int) ($line['quantity'] ?? 0));
+        $estimatedTotal = max(0, round((float) $subtotal - (float) $discount + (float) $shipping, 2));
+        $savingsTotal = max(0, round((float) collect($cartPayload)->sum(function (array $line) {
+            $compareAt = (float) ($line['compare_at_price'] ?? 0);
+            $price = (float) ($line['price'] ?? 0);
+            $quantity = (int) ($line['quantity'] ?? 0);
+
+            if ($compareAt <= $price || $quantity <= 0) {
+                return 0;
+            }
+
+            return ($compareAt - $price) * $quantity;
+        }) + (float) $discount, 2));
         
         // Get applied promotions (not just coupon)
         $promotionEngine = app(PromotionEngine::class);
@@ -98,6 +111,9 @@ class CartController extends Controller
             'subtotal' => $subtotal,
             'shipping' => $shipping,
             'discount' => $discount,
+            'estimated_total' => $estimatedTotal,
+            'item_count' => $itemCount,
+            'savings_total' => $savingsTotal,
             'discount_label' => $discountLabel ?? null,
             'coupon' => $coupon,
             'appliedPromotions' => $appliedPromotions,

@@ -63,25 +63,28 @@
 
         <div class="flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-6 sm:py-4">
           <div class="mx-auto grid w-full max-w-xl gap-4 sm:grid-cols-[180px,1fr] sm:gap-5">
-            <div class="mx-auto w-full max-w-[11rem] sm:mx-0 sm:max-w-none">
-              <div class="overflow-hidden rounded-2xl bg-slate-100">
+            <div class="mx-auto w-full max-w-[15rem] sm:mx-0 sm:max-w-none">
+              <div class="aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100 sm:aspect-[4/5]">
                 <img
                   v-if="selectedImage"
                   :src="selectedImage"
                   :alt="product.name"
-                  class="h-36 w-full object-cover sm:aspect-[4/5] sm:h-full"
+                  class="h-full w-full object-contain p-2 sm:object-cover sm:p-0"
                 />
-                <div class="flex h-36 items-center justify-center text-xs text-slate-400 sm:aspect-[4/5] sm:h-full">
+                <div class="flex h-full items-center justify-center text-xs text-slate-400">
                   {{ t('Image coming soon') }}
                 </div>
               </div>
 
-              <div v-if="product.media?.length > 1" class="mt-2 flex justify-center gap-2 overflow-x-auto pb-1 sm:justify-start">
+              <div
+                v-if="product.media?.length > 1"
+                class="mt-2 grid grid-cols-4 gap-2 sm:flex sm:flex-wrap sm:justify-start"
+              >
                 <button
                   v-for="(image, index) in product.media"
                   :key="`${product.id}-media-${index}`"
                   type="button"
-                  class="h-12 w-12 shrink-0 overflow-hidden rounded-xl border transition sm:h-14 sm:w-14"
+                  class="aspect-square min-w-0 overflow-hidden rounded-xl border transition sm:h-14 sm:w-14"
                   :class="image === selectedImage ? 'border-slate-900' : 'border-slate-200 hover:border-slate-300'"
                   @click="selectedImage = image"
                 >
@@ -110,16 +113,16 @@
 
               <div v-if="product.variants?.length" class="space-y-3">
                 <label class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ t('Variant') }}</label>
-                <div class="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap">
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                   <button
                     v-for="variant in product.variants"
                     :key="variant.id"
                     type="button"
-                    class="min-h-10 shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition"
+                    class="min-h-10 min-w-0 rounded-2xl border px-3 py-2 text-center text-xs font-semibold leading-4 transition"
                     :class="variant.id === selectedVariantId ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-800 hover:border-slate-300'"
                     @click="selectVariant(variant.id)"
                   >
-                    {{ variant.title }}
+                    <span class="block truncate sm:whitespace-nowrap">{{ variant.title }}</span>
                   </button>
                 </div>
                 <p v-if="requiresVariantSelection && !selectedVariantId" class="text-xs text-amber-700">
@@ -132,8 +135,8 @@
 
         <div class="sticky bottom-0 border-t border-slate-100 bg-white/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6">
           <div class="mx-auto flex w-full max-w-xl flex-col gap-3">
-            <div class="flex items-center gap-3">
-              <div class="inline-flex min-w-0 items-center rounded-full border border-slate-200 px-2 py-1">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div class="inline-flex min-w-0 items-center self-start rounded-full border border-slate-200 px-2 py-1 sm:self-auto">
                 <button
                   type="button"
                   class="h-9 w-9 rounded-full text-slate-600 transition hover:bg-slate-100"
@@ -158,7 +161,7 @@
 
               <button
                 type="button"
-                class="btn-primary min-h-11 flex-1"
+                class="btn-primary min-h-11 w-full flex-1"
                 :disabled="!canSubmit"
                 @click="submit"
               >
