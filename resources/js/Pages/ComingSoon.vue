@@ -25,9 +25,10 @@
               type="email"
               required
               :placeholder="t('Email address')"
+              :disabled="submitting"
               class="coming-input"
             />
-            <button type="submit" class="coming-submit">{{ ctaLabel }}</button>
+            <button type="submit" class="coming-submit" :disabled="submitting">{{ submitting ? t('Submitting...') : ctaLabel }}</button>
           </form>
           <p v-if="notice" class="coming-notice">{{ notice }}</p>
           <Link v-if="ctaUrl" :href="ctaUrl" class="coming-link">
@@ -55,6 +56,7 @@ const props = defineProps({
 const { t } = useTranslations()
 const email = ref('')
 const notice = ref('')
+const submitting = ref(false)
 
 const resolvedTitle = computed(() => props.title || t('We are opening soon'))
 const resolvedMessage = computed(() => props.message || t('We are preparing the best drops and delivery experience.'))
@@ -71,16 +73,23 @@ const ctaLabel = computed(() => props.cta_label || t('Notify me'))
 const ctaUrl = computed(() => props.cta_url || null)
 
 const submit = async () => {
-  if (!email.value) return
+  const normalizedEmail = email.value.trim().toLowerCase()
+
+  if (!normalizedEmail || submitting.value) return
+
+  submitting.value = true
+  notice.value = ''
+
   try {
     const response = await fetch('/newsletter/subscribe', {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
       },
-      body: JSON.stringify({ email: email.value, source: 'coming_soon' }),
+      body: JSON.stringify({ email: normalizedEmail, source: 'coming_soon' }),
     })
     if (response.ok) {
       notice.value = t('Thanks! We will be in touch.')
@@ -90,6 +99,8 @@ const submit = async () => {
     }
   } catch {
     notice.value = t('Unable to subscribe right now.')
+  } finally {
+    submitting.value = false
   }
 }
 </script>

@@ -21,7 +21,7 @@ export const useTranslations = () => {
   const page = usePage()
 
   const translations = computed(() => page.props.translations ?? {})
-  const locale = computed(() => page.props.locale ?? 'en')
+  const locale = computed(() => page.props.locale ?? 'fr')
   const availableLocales = computed(() => page.props.availableLocales ?? { en: 'English', fr: 'Français' })
   
   // Convert availableLocales to localeOptions format for template

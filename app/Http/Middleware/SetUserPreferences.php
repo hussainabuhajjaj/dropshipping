@@ -37,7 +37,7 @@ class SetUserPreferences
         view()->share('current_currency', $currency);
 
         // Set language from session or user preferences
-        $language = session('locale', 'en');
+        $language = session('locale', 'fr');
 
         if (auth('customer')->check()) {
             $user = auth('customer')->user();

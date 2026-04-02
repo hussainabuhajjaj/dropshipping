@@ -10,7 +10,7 @@ return [
     | You can change this value in your .env file.
     |
     */
-    'default' => env('APP_LOCALE', 'en'),
+    'default' => env('APP_LOCALE', 'fr'),
 
     /*
     |--------------------------------------------------------------------------
@@ -37,7 +37,7 @@ return [
     | to any of the language files that are available.
     |
     */
-    'fallback' => 'en',
+    'fallback' => 'fr',
 
     /*
     |--------------------------------------------------------------------------
