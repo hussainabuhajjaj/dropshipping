@@ -105,15 +105,22 @@ class VisitAnalyticsService
 
     private function topSources(int $limit): array
     {
-        return VisitorSession::query()
+        $normalizedSources = VisitorSession::query()
+            ->selectRaw('COALESCE(NULLIF(utm_source, ""), NULLIF(source_host, ""), NULLIF(source_type, ""), "direct") as source_label')
+            ->selectRaw('COALESCE(NULLIF(source_type, ""), "direct") as normalized_source_type')
+            ->selectRaw('NULLIF(utm_medium, "") as normalized_utm_medium')
+            ->where('channel', 'website')
+            ->toBase();
+
+        return DB::query()
+            ->fromSub($normalizedSources, 'sources')
             ->select(
-                DB::raw('COALESCE(NULLIF(utm_source, ""), NULLIF(source_host, ""), NULLIF(source_type, ""), "direct") as source_label'),
-                DB::raw('MAX(source_type) as source_type'),
-                DB::raw('MAX(utm_medium) as utm_medium'),
+                'source_label',
+                DB::raw('MAX(normalized_source_type) as source_type'),
+                DB::raw('MAX(normalized_utm_medium) as utm_medium'),
                 DB::raw('COUNT(*) as sessions')
             )
-            ->where('channel', 'website')
-            ->groupByRaw('COALESCE(NULLIF(utm_source, ""), NULLIF(source_host, ""), NULLIF(source_type, ""), "direct")')
+            ->groupBy('source_label')
             ->orderByDesc('sessions')
             ->limit($limit)
             ->get()
