@@ -165,6 +165,7 @@ class StorefrontCollection extends Model
         }
 
         return $this->products()
+            ->orderBy('storefront_collection_products.position')
             ->pluck('products.id')
             ->map(fn ($id) => (int) $id)
             ->values()
@@ -212,24 +213,18 @@ class StorefrontCollection extends Model
         $manualIds = $this->manualProductIds();
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
-            $manualProducts = $this->sliceToLimit($this->loadProductsByIds($manualIds), $limit);
-
-            return $this->paginateCollection($manualProducts, $perPage, $page);
+            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit);
         }
 
         if ($mode === 'rules') {
             return $this->paginateRuleProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
         }
 
-        $manualProducts = empty($manualIds)
-            ? collect()
-            : $this->sliceToLimit($this->loadProductsByIds($manualIds), $limit);
-
         if ($mode === 'manual') {
-            return $this->paginateCollection($manualProducts, $perPage, $page);
+            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit);
         }
 
-        return $this->paginateHybridProducts($rules, $manualIds, $manualProducts, $locale, $perPage, $page, $limit);
+        return $this->paginateHybridProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
     }
 
     private function loadRuleProducts(array $rules, array $excludeIds, ?int $limit, ?string $locale)
@@ -456,14 +451,13 @@ class StorefrontCollection extends Model
     private function paginateHybridProducts(
         array $rules,
         array $manualIds,
-        $manualProducts,
         ?string $locale,
         int $perPage,
         int $page,
         ?int $limit
     ): LengthAwarePaginator {
         $ruleQuery = $this->buildRuleQuery($rules, $manualIds, $locale);
-        $manualCount = $manualProducts->count();
+        $manualCount = $limit !== null ? min(count($manualIds), $limit) : count($manualIds);
         $ruleCount = (clone $ruleQuery)->count();
         $total = $manualCount + $ruleCount;
 
@@ -479,7 +473,7 @@ class StorefrontCollection extends Model
         $items = collect();
 
         if ($offset < $manualCount) {
-            $items = $manualProducts->slice($offset, $perPage)->values();
+            $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit);
         }
 
         $remaining = $perPage - $items->count();
@@ -496,6 +490,39 @@ class StorefrontCollection extends Model
         }
 
         return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    private function paginateManualProducts(array $manualIds, int $perPage, int $page, ?int $limit = null): LengthAwarePaginator
+    {
+        $total = $limit !== null ? min(count($manualIds), $limit) : count($manualIds);
+        $offset = max(0, ($page - 1) * $perPage);
+
+        if ($offset >= $total) {
+            return $this->paginateCollection(collect(), $perPage, $page, $total);
+        }
+
+        $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit);
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    private function loadProductsPageByIds(array $ids, int $offset, int $perPage, ?int $limit = null)
+    {
+        if ($limit !== null) {
+            $ids = array_slice($ids, 0, $limit);
+        }
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        $pageIds = array_slice($ids, $offset, $perPage);
+
+        if ($pageIds === []) {
+            return collect();
+        }
+
+        return $this->loadProductsByIds($pageIds);
     }
 
     private function paginateCollection($items, int $perPage, int $page, ?int $total = null): LengthAwarePaginator
