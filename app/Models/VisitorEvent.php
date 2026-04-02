@@ -19,6 +19,7 @@ class VisitorEvent extends Model
         'entity_id',
         'entity_slug',
         'referrer',
+        'referrer_host',
         'metadata',
         'occurred_at',
     ];

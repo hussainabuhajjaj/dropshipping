@@ -16,6 +16,7 @@ class VisitAnalyticsService
     public function summary(int $activeWindowMinutes = 5, int $topLimit = 10): array
     {
         $since = now()->subMinutes($activeWindowMinutes);
+        $windowStart = now()->subDay();
 
         return [
             'active' => [
@@ -29,9 +30,36 @@ class VisitAnalyticsService
                     })
                     ->count(),
             ],
+            'engagement' => $this->engagement($windowStart),
+            'acquisition' => [
+                'top_sources' => $this->topSources($topLimit),
+                'top_landing_pages' => $this->topLandingPages($topLimit),
+                'top_campaigns' => $this->topCampaigns($topLimit),
+                'device_breakdown' => $this->deviceBreakdown(),
+            ],
             'top_products' => $this->topEntities('product', Product::class, 'name', $topLimit),
             'top_categories' => $this->topEntities('category', Category::class, 'name', $topLimit),
             'top_pages' => $this->topPages($topLimit),
+        ];
+    }
+
+    private function engagement(Carbon $windowStart): array
+    {
+        $websiteSessions = VisitorSession::query()
+            ->where('channel', 'website')
+            ->where('started_at', '>=', $windowStart);
+
+        $sessionsCount = (clone $websiteSessions)->count();
+        $pageViews = (clone $websiteSessions)->sum('hits_count');
+        $uniqueVisitors = (clone $websiteSessions)->distinct('visitor_key')->count('visitor_key');
+        $bounces = (clone $websiteSessions)->where('hits_count', '<=', 1)->count();
+
+        return [
+            'page_views_24h' => (int) $pageViews,
+            'sessions_24h' => (int) $sessionsCount,
+            'unique_visitors_24h' => (int) $uniqueVisitors,
+            'avg_pages_per_session_24h' => $sessionsCount > 0 ? round($pageViews / $sessionsCount, 2) : 0.0,
+            'bounce_rate_24h' => $sessionsCount > 0 ? round(($bounces / $sessionsCount) * 100, 1) : 0.0,
         ];
     }
 
@@ -71,6 +99,87 @@ class VisitAnalyticsService
                 'page_key' => $row->page_key,
                 'path' => $row->path,
                 'views' => (int) $row->views,
+            ])
+            ->all();
+    }
+
+    private function topSources(int $limit): array
+    {
+        return VisitorSession::query()
+            ->select(
+                DB::raw('COALESCE(NULLIF(utm_source, ""), NULLIF(source_host, ""), NULLIF(source_type, ""), "direct") as source_label'),
+                DB::raw('MAX(source_type) as source_type'),
+                DB::raw('MAX(utm_medium) as utm_medium'),
+                DB::raw('COUNT(*) as sessions')
+            )
+            ->where('channel', 'website')
+            ->groupByRaw('COALESCE(NULLIF(utm_source, ""), NULLIF(source_host, ""), NULLIF(source_type, ""), "direct")')
+            ->orderByDesc('sessions')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'source' => (string) $row->source_label,
+                'source_type' => $row->source_type,
+                'utm_medium' => $row->utm_medium,
+                'sessions' => (int) $row->sessions,
+            ])
+            ->all();
+    }
+
+    private function topLandingPages(int $limit): array
+    {
+        return VisitorSession::query()
+            ->select(
+                DB::raw('COALESCE(MAX(landing_page_key), MAX(landing_path)) as page_key'),
+                DB::raw('MAX(landing_path) as path'),
+                DB::raw('COUNT(*) as sessions')
+            )
+            ->where('channel', 'website')
+            ->where(function ($query): void {
+                $query->whereNotNull('landing_page_key')->orWhereNotNull('landing_path');
+            })
+            ->groupByRaw('COALESCE(landing_page_key, landing_path)')
+            ->orderByDesc('sessions')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'page_key' => $row->page_key,
+                'path' => $row->path,
+                'sessions' => (int) $row->sessions,
+            ])
+            ->all();
+    }
+
+    private function topCampaigns(int $limit): array
+    {
+        return VisitorSession::query()
+            ->select('utm_campaign', DB::raw('MAX(utm_source) as utm_source'), DB::raw('MAX(utm_medium) as utm_medium'), DB::raw('COUNT(*) as sessions'))
+            ->where('channel', 'website')
+            ->whereNotNull('utm_campaign')
+            ->groupBy('utm_campaign')
+            ->orderByDesc('sessions')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => [
+                'campaign' => $row->utm_campaign,
+                'utm_source' => $row->utm_source,
+                'utm_medium' => $row->utm_medium,
+                'sessions' => (int) $row->sessions,
+            ])
+            ->all();
+    }
+
+    private function deviceBreakdown(): array
+    {
+        return VisitorSession::query()
+            ->select(DB::raw('COALESCE(device_type, "unknown") as device_type'), DB::raw('COUNT(*) as sessions'))
+            ->where('channel', 'website')
+            ->groupByRaw('COALESCE(device_type, "unknown")')
+            ->orderByDesc('sessions')
+            ->get()
+            ->map(fn ($row) => [
+                'device_type' => $row->device_type,
+                'sessions' => (int) $row->sessions,
             ])
             ->all();
     }
