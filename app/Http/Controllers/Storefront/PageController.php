@@ -139,6 +139,71 @@ class PageController extends Controller
         ]);
     }
 
+    public function userDataDeletion(): Response
+    {
+        $locale = app()->getLocale();
+        $settings = SiteSetting::first();
+        $supportEmail = $settings?->support_email ?: config('mail.from.address') ?: 'support@simbazu.net';
+
+        if ($locale === 'fr') {
+            $content = <<<HTML
+<p>Cette page explique comment demander la suppression de votre compte et de vos donnees personnelles associees a Simbazu.</p>
+<h2>Supprimer vos donnees depuis l'application</h2>
+<ol>
+  <li>Connectez-vous a votre compte dans l'application Simbazu.</li>
+  <li>Ouvrez <strong>Parametres</strong>.</li>
+  <li>Choisissez <strong>Supprimer le compte</strong> et confirmez la demande.</li>
+</ol>
+<h2>Si vous ne pouvez pas vous connecter</h2>
+<p>Envoyez une demande de suppression de donnees a <a href="mailto:{$supportEmail}">{$supportEmail}</a> depuis l'adresse e-mail liee a votre compte ou en mentionnant cette adresse e-mail dans votre message.</p>
+<h2>Ce qui est supprime</h2>
+<ul>
+  <li>Votre profil client et vos donnees personnelles de compte.</li>
+  <li>Les jetons de connexion et l'acces a l'application.</li>
+  <li>Les donnees marketing non obligatoires liees a votre compte, lorsque cela est applicable.</li>
+</ul>
+<h2>Ce qui peut etre conserve</h2>
+<p>Certaines donnees de commande, de paiement, de prevention de fraude ou de support peuvent etre conservees pendant la duree imposee par la loi, la comptabilite, les litiges ou la securite.</p>
+<h2>Delai de traitement</h2>
+<p>Nous traitons generalement les demandes de suppression dans un delai de 7 jours ouvrables, sous reserve d'une verification raisonnable de la propriete du compte.</p>
+HTML;
+
+            return Inertia::render('Legal/Policy', [
+                'content' => $content,
+                'pageTitle' => __('Suppression des donnees utilisateur'),
+                'pageDescription' => __("Comment supprimer votre compte Simbazu et demander l'effacement de vos donnees personnelles."),
+            ]);
+        }
+
+        $content = <<<HTML
+<p>This page explains how you can request deletion of your Simbazu account and associated personal data.</p>
+<h2>Delete your data from the app</h2>
+<ol>
+  <li>Sign in to your account in the Simbazu app.</li>
+  <li>Open <strong>Settings</strong>.</li>
+  <li>Select <strong>Delete account</strong> and confirm the request.</li>
+</ol>
+<h2>If you cannot sign in</h2>
+<p>Send a deletion request to <a href="mailto:{$supportEmail}">{$supportEmail}</a> from the email address linked to your account, or mention that email address in your message.</p>
+<h2>What gets deleted</h2>
+<ul>
+  <li>Your customer profile and account personal data.</li>
+  <li>Your active login tokens and access to the app.</li>
+  <li>Non-essential marketing data linked to your account, where applicable.</li>
+</ul>
+<h2>What may be retained</h2>
+<p>Some order, payment, fraud-prevention, and support records may be retained for legal, accounting, dispute-resolution, or security obligations.</p>
+<h2>Processing time</h2>
+<p>We generally process deletion requests within 7 business days, subject to reasonable account ownership verification.</p>
+HTML;
+
+        return Inertia::render('Legal/Policy', [
+            'content' => $content,
+            'pageTitle' => __('User Data Deletion'),
+            'pageDescription' => __('How to delete your Simbazu account and request erasure of your personal data.'),
+        ]);
+    }
+
     public function customsDisclaimer(): Response
     {
         $locale = app()->getLocale();

@@ -225,6 +225,7 @@ Route::get('/legal/privacy-policy', [PageController::class, 'privacyPolicy'])->n
 Route::get('/legal/cookie-policy', [PageController::class, 'cookiePolicy'])->name('legal.cookies');
 Route::get('/legal/terms-of-service', [PageController::class, 'termsOfService'])->name('legal.terms');
 Route::get('/legal/customs-disclaimer', [PageController::class, 'customsDisclaimer'])->name('legal.customs');
+Route::get('/legal/user-data-deletion', [PageController::class, 'userDataDeletion'])->name('legal.data-deletion');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [PageController::class, 'submitContact'])->name('contact.submit');
@@ -248,6 +249,7 @@ Route::redirect('/policies/refund', '/legal/refund-policy', 301);
 Route::redirect('/policies/terms', '/legal/terms-of-service', 301);
 Route::redirect('/policies/privacy', '/legal/privacy-policy', 301);
 Route::redirect('/policies/cookies', '/legal/cookie-policy', 301);
+Route::redirect('/policies/data-deletion', '/legal/user-data-deletion', 301);
 Route::redirect('/policies/about', '/about', 301);
 
 Route::middleware(['auth:customer', 'verified'])->group(function () {

@@ -1138,6 +1138,7 @@ const fallbackFooterColumns = [
             {label: t('Terms of service'), href: '/legal/terms-of-service'},
             {label: t('Privacy policy'), href: '/legal/privacy-policy'},
             {label: t('Cookie policy'), href: '/legal/cookie-policy'},
+            {label: t('User data deletion'), href: '/legal/user-data-deletion'},
         ],
     },
 ]

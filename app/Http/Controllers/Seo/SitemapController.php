@@ -26,6 +26,7 @@ class SitemapController
             '/legal/terms-of-service',
             '/legal/privacy-policy',
             '/legal/customs-disclaimer',
+            '/legal/user-data-deletion',
         ];
 
         $urls = collect($staticPaths)->map(fn (string $path) => [

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Products\Services\PricingService;
 use App\Domain\Products\Services\ProductActivationValidator;
 use App\Infrastructure\Fulfillment\Clients\CJ\CjAlertService;
 use App\Jobs\GenerateProductCompareAtJob;
+use App\Filament\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,7 @@ class RepriceProductsByCategoryTiers extends Command
 
     public function handle(): int
     {
+        $useNewPricingEngine = PricingService::usesNewEngine();
         $tiers = $this->normalizeTiers(config('pricing.category_margin_tiers', []));
         if ($tiers === []) {
             $this->warn('No category margin tiers configured. Set PRICING_CATEGORY_MARGIN_TIERS.');
@@ -47,6 +50,10 @@ class RepriceProductsByCategoryTiers extends Command
         $totalActivationQualitySkipped = 0;
         $totalScanned = 0;
         $tierSummary = [];
+
+        $this->info($useNewPricingEngine
+            ? 'pricing.use_new_engine is enabled. Repricing with the dynamic engine and using category tiers only as the product scope.'
+            : 'pricing.use_new_engine is disabled. Repricing with legacy category margin multipliers.');
 
         foreach ($tiers as $tier) {
             $categoryIds = $tier['category_ids'];
@@ -87,6 +94,7 @@ class RepriceProductsByCategoryTiers extends Command
                 $queueCompareAt,
                 $activateIfValid,
                 $minQualityScore,
+                $useNewPricingEngine,
                 $factorSql,
                 &$scanned,
                 &$updatedProducts,
@@ -114,21 +122,48 @@ class RepriceProductsByCategoryTiers extends Command
                     return;
                 }
 
-                $updatedProducts += Product::query()
-                    ->whereIn('id', $affectedIds)
-                    ->update([
-                        'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
-                        'updated_at' => now(),
-                    ]);
+                if ($useNewPricingEngine) {
+                    $productsToReprice = Product::query()
+                        ->whereIn('id', $affectedIds)
+                        ->with(['localWarehouse', 'variants'])
+                        ->get();
 
-                if ($applyVariants) {
-                    $updatedVariants += DB::table('product_variants')
-                        ->whereIn('product_id', $affectedIds)
-                        ->whereNotNull('cost_price')
+                    foreach ($productsToReprice as $product) {
+                        $result = ProductResource::repriceProductWithCurrentEngine($product, [
+                            'apply_to_variants' => $applyVariants,
+                            'activate_if_valid' => false,
+                            'reason' => 'Console repricing via products:reprice-by-category-tiers',
+                        ]);
+
+                        if (! ($result['success'] ?? false)) {
+                            continue;
+                        }
+
+                        $updatedProducts++;
+
+                        if ($applyVariants) {
+                            $updatedVariants += $product->variants
+                                ->filter(fn ($variant) => is_numeric($variant->cost_price) && (float) $variant->cost_price > 0)
+                                ->count();
+                        }
+                    }
+                } else {
+                    $updatedProducts += Product::query()
+                        ->whereIn('id', $affectedIds)
                         ->update([
-                            'price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
+                            'selling_price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
                             'updated_at' => now(),
                         ]);
+
+                    if ($applyVariants) {
+                        $updatedVariants += DB::table('product_variants')
+                            ->whereIn('product_id', $affectedIds)
+                            ->whereNotNull('cost_price')
+                            ->update([
+                                'price' => DB::raw("ROUND(cost_price * {$factorSql}, 2)"),
+                                'updated_at' => now(),
+                            ]);
+                    }
                 }
 
                 if ($queueCompareAt) {
