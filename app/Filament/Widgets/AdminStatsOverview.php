@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Models\Order;
-use App\Models\Payment;
 use App\Models\ProductReview;
 use App\Models\ReturnRequest;
 use Filament\Widgets\StatsOverviewWidget;
@@ -16,9 +15,9 @@ class AdminStatsOverview extends StatsOverviewWidget
     protected function getStats(): array
     {
         $orders = Order::query();
-        $payments = Payment::query();
-
-        $gross = (float) $payments->where('status', 'paid')->sum('amount');
+        $gross = (float) Order::query()
+            ->where('payment_status', 'paid')
+            ->sum('grand_total');
         $pendingReviews = ProductReview::query()->where('status', 'pending')->count();
         $openReturns = ReturnRequest::query()->whereIn('status', ['requested', 'approved', 'received'])->count();
 
@@ -28,9 +27,9 @@ class AdminStatsOverview extends StatsOverviewWidget
                 ->color('primary')
                 ->url(\App\Filament\Resources\OrderResource::getUrl()),
             Stat::make('Revenue', '$' . number_format($gross, 2))
-                ->description('Paid payments')
+                ->description('Paid orders')
                 ->color('success')
-                ->url(\App\Filament\Resources\PaymentResource::getUrl()),
+                ->url(\App\Filament\Resources\OrderResource::getUrl()),
             Stat::make('Pending reviews', (string) $pendingReviews)
                 ->description('Awaiting approval')
                 ->color('warning')

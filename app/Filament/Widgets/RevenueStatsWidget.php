@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Models\Order;
-use App\Models\Payment;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Illuminate\Support\Facades\DB;
 
 class RevenueStatsWidget extends BaseWidget
 {
@@ -24,45 +22,45 @@ class RevenueStatsWidget extends BaseWidget
         $lastMonthStart = now()->subMonth()->startOfMonth();
 
         // Today's revenue
-        $todayRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->whereDate('paid_at', $today)
-            ->sum('amount');
+        $todayRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', $today)
+            ->sum('grand_total');
 
-        $yesterdayRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->whereDate('paid_at', $yesterday)
-            ->sum('amount');
+        $yesterdayRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->whereDate('created_at', $yesterday)
+            ->sum('grand_total');
 
         $todayChange = $yesterdayRevenue > 0 
             ? round((($todayRevenue - $yesterdayRevenue) / $yesterdayRevenue) * 100, 1)
             : 0;
 
         // This week's revenue
-        $thisWeekRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->where('paid_at', '>=', $thisWeekStart)
-            ->sum('amount');
+        $thisWeekRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->where('created_at', '>=', $thisWeekStart)
+            ->sum('grand_total');
 
-        $lastWeekRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$lastWeekStart, $thisWeekStart])
-            ->sum('amount');
+        $lastWeekRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$lastWeekStart, $thisWeekStart])
+            ->sum('grand_total');
 
         $weekChange = $lastWeekRevenue > 0
             ? round((($thisWeekRevenue - $lastWeekRevenue) / $lastWeekRevenue) * 100, 1)
             : 0;
 
         // This month's revenue
-        $thisMonthRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->where('paid_at', '>=', $thisMonthStart)
-            ->sum('amount');
+        $thisMonthRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->where('created_at', '>=', $thisMonthStart)
+            ->sum('grand_total');
 
-        $lastMonthRevenue = Payment::query()
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$lastMonthStart, $thisMonthStart])
-            ->sum('amount');
+        $lastMonthRevenue = Order::query()
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$lastMonthStart, $thisMonthStart])
+            ->sum('grand_total');
 
         $monthChange = $lastMonthRevenue > 0
             ? round((($thisMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
@@ -103,10 +101,10 @@ class RevenueStatsWidget extends BaseWidget
         $data = [];
         for ($i = $days - 1; $i >= 0; $i--) {
             $date = now()->subDays($i)->startOfDay();
-            $revenue = Payment::query()
-                ->where('status', 'paid')
-                ->whereDate('paid_at', $date)
-                ->sum('amount');
+            $revenue = Order::query()
+                ->where('payment_status', 'paid')
+                ->whereDate('created_at', $date)
+                ->sum('grand_total');
             $data[] = (float) $revenue;
         }
         return $data;

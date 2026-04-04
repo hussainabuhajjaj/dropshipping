@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Models\Order;
-use App\Models\Payment;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -17,33 +16,33 @@ class OrderStatsWidget extends BaseWidget
     {
         // Today's stats
         $todayOrders = Order::whereDate('created_at', today())->count();
-        $todayRevenue = Payment::where('status', 'paid')
-            ->whereDate('paid_at', today())
-            ->sum('amount');
+        $todayRevenue = Order::where('payment_status', 'paid')
+            ->whereDate('created_at', today())
+            ->sum('grand_total');
 
         // Yesterday's stats for comparison
         $yesterdayOrders = Order::whereDate('created_at', today()->subDay())->count();
-        $yesterdayRevenue = Payment::where('status', 'paid')
-            ->whereDate('paid_at', today()->subDay())
-            ->sum('amount');
+        $yesterdayRevenue = Order::where('payment_status', 'paid')
+            ->whereDate('created_at', today()->subDay())
+            ->sum('grand_total');
 
         // This month
         $monthOrders = Order::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-        $monthRevenue = Payment::where('status', 'paid')
-            ->whereMonth('paid_at', now()->month)
-            ->whereYear('paid_at', now()->year)
-            ->sum('amount');
+        $monthRevenue = Order::where('payment_status', 'paid')
+            ->whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->sum('grand_total');
 
         // Last month for comparison
         $lastMonthOrders = Order::whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
             ->count();
-        $lastMonthRevenue = Payment::where('status', 'paid')
-            ->whereMonth('paid_at', now()->subMonth()->month)
-            ->whereYear('paid_at', now()->subMonth()->year)
-            ->sum('amount');
+        $lastMonthRevenue = Order::where('payment_status', 'paid')
+            ->whereMonth('created_at', now()->subMonth()->month)
+            ->whereYear('created_at', now()->subMonth()->year)
+            ->sum('grand_total');
 
         // Pending orders
         $pendingOrders = Order::where('status', 'pending')->count();

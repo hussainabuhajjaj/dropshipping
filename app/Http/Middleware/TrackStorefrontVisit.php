@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\StorefrontSetting;
 use App\Services\Analytics\VisitTrackingService;
 use Closure;
 use Illuminate\Http\Request;
@@ -62,7 +63,7 @@ class TrackStorefrontVisit
             return false;
         }
 
-        if (! $this->hasAnalyticsConsent($request)) {
+        if (! $this->hasAnalyticsConsent($request) && ! $this->shouldTrackWithoutConsent($request)) {
             return false;
         }
 
@@ -101,5 +102,23 @@ class TrackStorefrontVisit
         $decoded = json_decode($raw, true);
 
         return is_array($decoded) && (bool) ($decoded['analytics'] ?? false);
+    }
+
+    private function shouldTrackWithoutConsent(Request $request): bool
+    {
+        if ($request->is(['*admin*', '*livewire*'])) {
+            return false;
+        }
+
+        $settings = StorefrontSetting::latestForLocale(app()->getLocale());
+
+        if (! $settings) {
+            return false;
+        }
+
+        $siteEnabled = filter_var(env('SITE_ENABLED', true), FILTER_VALIDATE_BOOL);
+        $comingSoonEnabled = (bool) $settings->coming_soon_enabled || ! $siteEnabled;
+
+        return $comingSoonEnabled && ! session('is_developer', false);
     }
 }

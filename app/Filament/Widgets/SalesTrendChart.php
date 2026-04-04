@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
-use App\Models\Payment;
+use App\Models\Order;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
 
@@ -16,11 +16,10 @@ class SalesTrendChart extends ChartWidget
     {
         $start = Carbon::now()->subDays(29)->startOfDay();
 
-        $rows = Payment::query()
-            ->selectRaw('DATE(paid_at) as day, SUM(amount) as total')
-            ->where('status', 'paid')
-            ->whereNotNull('paid_at')
-            ->where('paid_at', '>=', $start)
+        $rows = Order::query()
+            ->selectRaw('DATE(created_at) as day, SUM(grand_total) as total')
+            ->where('payment_status', 'paid')
+            ->where('created_at', '>=', $start)
             ->groupBy('day')
             ->orderBy('day')
             ->get();

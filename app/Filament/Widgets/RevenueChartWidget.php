@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Models\Order;
-use App\Models\Payment;
 use Filament\Widgets\ChartWidget;
 
 class RevenueChartWidget extends ChartWidget
@@ -22,10 +21,10 @@ class RevenueChartWidget extends ChartWidget
             $date = now()->subDays($i);
             $labels[] = $date->format('M d');
             
-            $dailyRevenue = Payment::query()
-                ->where('status', 'paid')
-                ->whereDate('paid_at', $date)
-                ->sum('amount');
+            $dailyRevenue = Order::query()
+                ->where('payment_status', 'paid')
+                ->whereDate('created_at', $date)
+                ->sum('grand_total');
             
             $data[] = (float) $dailyRevenue;
         }

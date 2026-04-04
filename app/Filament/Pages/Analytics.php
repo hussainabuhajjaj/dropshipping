@@ -7,7 +7,6 @@ namespace App\Filament\Pages;
 use BackedEnum;
 use UnitEnum;
 use App\Models\Order;
-use App\Models\Payment;
 use Carbon\Carbon;
 use Filament\Pages\Dashboard;
 
@@ -41,27 +40,27 @@ class Analytics extends Dashboard
 
         // Today
         $todayOrders = Order::whereDate('created_at', $today)->count();
-        $todayRevenue = Payment::where('status', 'paid')
-            ->whereDate('paid_at', $today)
-            ->sum('amount');
+        $todayRevenue = Order::where('payment_status', 'paid')
+            ->whereDate('created_at', $today)
+            ->sum('grand_total');
 
         // Yesterday
         $yesterdayOrders = Order::whereDate('created_at', $yesterday)->count();
-        $yesterdayRevenue = Payment::where('status', 'paid')
-            ->whereDate('paid_at', $yesterday)
-            ->sum('amount');
+        $yesterdayRevenue = Order::where('payment_status', 'paid')
+            ->whereDate('created_at', $yesterday)
+            ->sum('grand_total');
 
         // This month
         $monthOrders = Order::whereBetween('created_at', [$thisMonth, now()])->count();
-        $monthRevenue = Payment::where('status', 'paid')
-            ->whereBetween('paid_at', [$thisMonth, now()])
-            ->sum('amount');
+        $monthRevenue = Order::where('payment_status', 'paid')
+            ->whereBetween('created_at', [$thisMonth, now()])
+            ->sum('grand_total');
 
         // Last month
         $lastMonthOrders = Order::whereBetween('created_at', [$lastMonth, $lastMonth->clone()->endOfMonth()])->count();
-        $lastMonthRevenue = Payment::where('status', 'paid')
-            ->whereBetween('paid_at', [$lastMonth, $lastMonth->clone()->endOfMonth()])
-            ->sum('amount');
+        $lastMonthRevenue = Order::where('payment_status', 'paid')
+            ->whereBetween('created_at', [$lastMonth, $lastMonth->clone()->endOfMonth()])
+            ->sum('grand_total');
 
         // Payment success rate
         $totalPayments = Payment::count();

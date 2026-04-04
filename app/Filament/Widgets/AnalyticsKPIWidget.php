@@ -21,32 +21,33 @@ class AnalyticsKPIWidget extends BaseWidget
         $yesterday = today()->subDay();
         $thisMonth = now()->startOfMonth();
         $lastMonth = now()->subMonth()->startOfMonth();
+        $now = now();
+        $lastMonthEnd = $thisMonth->copy()->subSecond();
 
         // Today's metrics
         $todayOrders = Order::whereDate('created_at', $today)->count();
-        $todayRevenue = (float) Payment::where('status', 'paid')
-            ->whereDate('paid_at', $today)
-            ->sum('amount');
+        $todayRevenue = (float) Order::where('payment_status', 'paid')
+            ->whereDate('created_at', $today)
+            ->sum('grand_total');
 
         // Yesterday comparison
         $yesterdayOrders = Order::whereDate('created_at', $yesterday)->count();
-        $yesterdayRevenue = (float) Payment::where('status', 'paid')
-            ->whereDate('paid_at', $yesterday)
-            ->sum('amount');
+        $yesterdayRevenue = (float) Order::where('payment_status', 'paid')
+            ->whereDate('created_at', $yesterday)
+            ->sum('grand_total');
 
         // This month
-        $monthOrders = Order::whereBetween('created_at', [$thisMonth, now()])->count();
-        $monthRevenue = (float) Payment::where('status', 'paid')
-            ->whereBetween('paid_at', [$thisMonth, now()])
-            ->sum('amount');
+        $monthOrders = Order::whereBetween('created_at', [$thisMonth, $now])->count();
+        $monthRevenue = (float) Order::where('payment_status', 'paid')
+            ->whereBetween('created_at', [$thisMonth, $now])
+            ->sum('grand_total');
 
         // Last month
-        $lastMonthEnd = $thisMonth->copy()->subDay();
         $lastMonthStart = $lastMonth;
         $prevMonthOrders = Order::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->count();
-        $prevMonthRevenue = (float) Payment::where('status', 'paid')
-            ->whereBetween('paid_at', [$lastMonthStart, $lastMonthEnd])
-            ->sum('amount');
+        $prevMonthRevenue = (float) Order::where('payment_status', 'paid')
+            ->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])
+            ->sum('grand_total');
 
         // Payment success/failure
         $paidPayments = Payment::where('status', 'paid')->count();
@@ -55,7 +56,8 @@ class AnalyticsKPIWidget extends BaseWidget
         $paymentSuccessRate = $totalPayments > 0 ? round(($paidPayments / $totalPayments) * 100, 1) : 0;
 
         // AOV (Average Order Value)
-        $totalSales = (float) Payment::where('status', 'paid')->sum('amount');
+        $paidOrders = Order::where('payment_status', 'paid')->count();
+        $totalSales = (float) Order::where('payment_status', 'paid')->sum('grand_total');
         $totalOrders = Order::count();
         $aov = $totalOrders > 0 ? round($totalSales / $totalOrders, 2) : 0;
 
@@ -74,7 +76,7 @@ class AnalyticsKPIWidget extends BaseWidget
         $refundRate = $totalSales > 0 ? round(($refundedAmount / $totalSales) * 100, 1) : 0;
 
         // Conversion rate (estimate: paid orders / total orders)
-        $conversionRate = $totalOrders > 0 ? round(($paidPayments / $totalOrders) * 100, 1) : 0;
+        $conversionRate = $totalOrders > 0 ? round(($paidOrders / $totalOrders) * 100, 1) : 0;
 
         return [
             Stat::make('Today\'s Revenue', '$' . number_format($todayRevenue, 2))
