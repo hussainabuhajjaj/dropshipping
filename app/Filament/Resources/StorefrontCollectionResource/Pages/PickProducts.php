@@ -270,8 +270,8 @@ class PickProducts extends Page implements HasTable
                     })
                     ->deselectRecordsAfterCompletion(),
 
-                Actions\BulkAction::make('remove_from_collection')
-                    ->label('Remove from Collection')
+                Actions\BulkAction::make('remove_from_selection')
+                    ->label('Remove from Selection')
                     ->icon('heroicon-o-minus')
                     ->color('danger')
                     ->action(function (Collection $records): void {

@@ -30,6 +30,7 @@ class VisitAnalyticsService
                     })
                     ->count(),
             ],
+            'periods' => $this->periods(),
             'engagement' => $this->engagement($windowStart),
             'acquisition' => [
                 'top_sources' => $this->topSources($topLimit),
@@ -40,6 +41,28 @@ class VisitAnalyticsService
             'top_products' => $this->topEntities('product', Product::class, 'name', $topLimit),
             'top_categories' => $this->topEntities('category', Category::class, 'name', $topLimit),
             'top_pages' => $this->topPages($topLimit),
+        ];
+    }
+
+    private function periods(): array
+    {
+        return [
+            'today' => $this->periodStats(now()->startOfDay()),
+            'week' => $this->periodStats(now()->startOfWeek()),
+            'month' => $this->periodStats(now()->startOfMonth()),
+        ];
+    }
+
+    private function periodStats(Carbon $start): array
+    {
+        $websiteSessions = VisitorSession::query()
+            ->where('channel', 'website')
+            ->where('started_at', '>=', $start);
+
+        return [
+            'sessions' => (int) (clone $websiteSessions)->count(),
+            'unique_visitors' => (int) (clone $websiteSessions)->distinct('visitor_key')->count('visitor_key'),
+            'page_views' => (int) (clone $websiteSessions)->sum('hits_count'),
         ];
     }
 

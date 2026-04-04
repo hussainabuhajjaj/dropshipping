@@ -11,7 +11,6 @@ use App\Jobs\ApplyProductMarginChunkJob;
 use App\Models\Product;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DetachBulkAction;
 use Filament\Actions\BulkAction;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -292,10 +291,26 @@ class ProductsRelationManager extends RelationManager
                     ->url(fn (): string => StorefrontCollectionResource::getUrl('pick-products', ['record' => $this->ownerRecord]))
                     ->color('success'),
 
-                DetachBulkAction::make('remove_from_collection')
+                BulkAction::make('remove_from_collection')
                     ->label('Remove from Collection')
                     ->icon('heroicon-o-trash')
-                    ->color('danger'),
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(function ($records): void {
+                        $ids = $records->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+
+                        if ($ids === []) {
+                            return;
+                        }
+
+                        $removed = (int) $this->ownerRecord->products()->detach($ids);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Products Removed')
+                            ->body(($removed > 0 ? $removed : count($ids)) . ' products removed from this collection.')
+                            ->send();
+                    }),
 
                 BulkActionGroup::make([
                     BulkAction::make('activate')

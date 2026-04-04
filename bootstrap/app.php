@@ -52,6 +52,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Session\Middleware\StartSession::class,
             \App\Http\Middleware\ApiSetLocale::class,
         ]);
+
+        $middleware->alias([
+            'mobile.email.verified' => \App\Http\Middleware\EnsureMobileEmailVerified::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $exception, $request) {

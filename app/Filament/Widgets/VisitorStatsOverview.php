@@ -16,19 +16,23 @@ class VisitorStatsOverview extends StatsOverviewWidget
     {
         $summary = app(VisitAnalyticsService::class)->summary();
         $active = $summary['active'] ?? [];
+        $periods = $summary['periods'] ?? [];
+        $today = $periods['today'] ?? [];
+        $week = $periods['week'] ?? [];
+        $month = $periods['month'] ?? [];
 
         return [
             Stat::make('Active Visitors', (string) ($active['total'] ?? 0))
                 ->description('Last 5 minutes')
                 ->color('primary'),
-            Stat::make('Website Visitors', (string) ($active['website'] ?? 0))
-                ->description('Live on storefront')
+            Stat::make('Daily Visitors', (string) ($today['unique_visitors'] ?? 0))
+                ->description(($today['sessions'] ?? 0) . ' sessions today')
                 ->color('info'),
-            Stat::make('App Visitors', (string) ($active['app'] ?? 0))
-                ->description('Live in mobile app')
+            Stat::make('Weekly Visitors', (string) ($week['unique_visitors'] ?? 0))
+                ->description(($week['sessions'] ?? 0) . ' sessions this week')
                 ->color('success'),
-            Stat::make('Signed-in Visitors', (string) ($active['signed_in'] ?? 0))
-                ->description('Authenticated sessions')
+            Stat::make('Monthly Visitors', (string) ($month['unique_visitors'] ?? 0))
+                ->description(($month['sessions'] ?? 0) . ' sessions this month')
                 ->color('warning'),
         ];
     }
