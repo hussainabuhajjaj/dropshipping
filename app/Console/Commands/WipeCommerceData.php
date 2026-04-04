@@ -12,7 +12,7 @@ class WipeCommerceData extends Command
 {
     protected $signature = 'commerce:wipe-data
         {--force : Execute the wipe without an interactive confirmation}
-        {--keep-reviews : Keep product reviews}
+        {--wipe-reviews : Also wipe product reviews}
         {--keep-returns : Keep return requests}';
 
     protected $description = 'Wipe order-driven commerce data and reset admin stats tables.';
@@ -48,7 +48,7 @@ class WipeCommerceData extends Command
             array_unshift($tables, 'return_requests');
         }
 
-        if (! $this->option('keep-reviews')) {
+        if ($this->option('wipe-reviews')) {
             array_unshift($tables, 'product_reviews');
         }
 
