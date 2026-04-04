@@ -478,7 +478,6 @@ class ProductsRelationManager extends RelationManager
                                 ->body(count($records) . ' products reordered successfully.')
                                 ->send();
                         }),
-                    DetachBulkAction::make(),
                 ]),
             ]);
     }
