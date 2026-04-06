@@ -186,4 +186,8 @@ return [
     'translation_locales' => explode(',', (string) env('TRANSLATION_LOCALES', 'en,fr')),
     'translation_source_locale' => env('TRANSLATION_SOURCE_LOCALE', 'en'),
 
+    'tiktok' => [
+        'pixel_id' => env('TIKTOK_PIXEL_ID'),
+    ],
+
 ];
