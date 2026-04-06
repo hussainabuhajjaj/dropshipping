@@ -180,8 +180,7 @@ class ExpressCheckoutController extends Controller
                     $customer->update(['locale' => $locale]);
                 }
 
-                $order = Order::create([
-                    'number' => $this->generateNumber(),
+                $order = Order::createWithGeneratedNumber([
                     'user_id' => $customer?->id,
                     'customer_id' => $customer?->id,
                     'guest_name' => null,
@@ -239,6 +238,8 @@ class ExpressCheckoutController extends Controller
                         ],
                     ]);
                 }
+
+                app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
 
                 // Create payment record
                 $payment = Payment::create([
@@ -539,8 +540,4 @@ class ExpressCheckoutController extends Controller
         return $taxableAmount * ($settings->tax_rate / 100);
     }
 
-    private function generateNumber(): string
-    {
-        return 'AZR' . strtoupper(Str::random(10));
-    }
 }

@@ -5,15 +5,12 @@ declare(strict_types=1);
 namespace App\Notifications\Orders;
 
 use App\Domain\Orders\Models\Order;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
-class OrderPendingPaymentNotification extends Notification implements ShouldQueue
+class OrderPendingPaymentNotification extends Notification
 {
-    use Queueable;
 
     public function __construct(public Order $order)
     {

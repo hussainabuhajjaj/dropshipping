@@ -50,9 +50,9 @@ class PaymentResource extends BaseResource
                 Tables\Columns\TextColumn::make('amount')->money(fn ($record) => $record->currency)->sortable(),
                 Tables\Columns\TextColumn::make('refunded_amount')
                     ->label('Refunded')
-                    ->money(fn ($record) => $record->currency)
+                    ->money(fn ($record) => $record?->currency)
                     ->toggleable()
-                    ->visible(fn ($record) => $record->refunded_amount > 0),
+                    ->visible(fn ($record) => $record && $record->refunded_amount > 0),
                 Tables\Columns\TextColumn::make('refund_status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -173,7 +173,7 @@ class PaymentResource extends BaseResource
                         ->dateTime(),
                 ])
                 ->columns(3)
-                ->visible(fn ($record) => $record->refunded_amount > 0),
+                ->visible(fn ($record) => $record && $record->refunded_amount > 0),
         ]);
     }
 

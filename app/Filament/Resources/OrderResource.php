@@ -422,6 +422,18 @@ class OrderResource extends Resource
                 ])
                 ->columns(4),
 
+            ComponentsSection::make('Profit Breakdown')
+                ->schema([
+                    TextEntry::make('supplier_product_cost_total')->label('Product Cost')->money(fn(Order $record) => $record->currency),
+                    TextEntry::make('supplier_external_shipping_total')->label('External Warehouse Shipping')->money(fn(Order $record) => $record->currency),
+                    TextEntry::make('supplier_cj_shipping_total')->label('CJ Shipping')->money(fn(Order $record) => $record->currency),
+                    TextEntry::make('supplier_total_cost')->label('Supplier Total Cost')->money(fn(Order $record) => $record->currency),
+                    TextEntry::make('gross_profit_amount')->label('Gross Profit')->money(fn(Order $record) => $record->currency),
+                    TextEntry::make('gross_margin_percent')->label('Gross Margin')->suffix('%'),
+                    TextEntry::make('cost_calculated_at')->label('Cost Calculated')->dateTime(),
+                ])
+                ->columns(4),
+
             ComponentsSection::make('Order Items Summary')
                 ->schema([
                     TextEntry::make('order_items_summary')

@@ -15,9 +15,11 @@ class AdminStatsOverview extends StatsOverviewWidget
     protected function getStats(): array
     {
         $orders = Order::query();
-        $gross = (float) Order::query()
-            ->where('payment_status', 'paid')
-            ->sum('grand_total');
+        $paidOrders = Order::query()->where('payment_status', 'paid');
+
+        $revenue = (float) (clone $paidOrders)->sum('grand_total');
+        $grossProfit = (float) (clone $paidOrders)->sum('gross_profit_amount');
+        $grossMargin = $revenue > 0 ? round(($grossProfit / $revenue) * 100, 1) : 0.0;
         $pendingReviews = ProductReview::query()->where('status', 'pending')->count();
         $openReturns = ReturnRequest::query()->whereIn('status', ['requested', 'approved', 'received'])->count();
 
@@ -26,10 +28,17 @@ class AdminStatsOverview extends StatsOverviewWidget
                 ->description('Total orders')
                 ->color('primary')
                 ->url(\App\Filament\Resources\OrderResource::getUrl()),
-            Stat::make('Revenue', '$' . number_format($gross, 2))
-                ->description('Paid orders')
+            Stat::make('Revenue', '$' . number_format($revenue, 2))
+                ->description('Paid customer revenue')
                 ->color('success')
                 ->url(\App\Filament\Resources\OrderResource::getUrl()),
+            Stat::make('Gross Profit', '$' . number_format($grossProfit, 2))
+                ->description('Revenue minus supplier costs')
+                ->color($grossProfit >= 0 ? 'success' : 'danger')
+                ->url(\App\Filament\Resources\OrderResource::getUrl()),
+            Stat::make('Gross Margin', number_format($grossMargin, 1) . '%')
+                ->description('Profit / revenue')
+                ->color($grossMargin >= 20 ? 'success' : ($grossMargin >= 10 ? 'warning' : 'danger')),
             Stat::make('Pending reviews', (string) $pendingReviews)
                 ->description('Awaiting approval')
                 ->color('warning')

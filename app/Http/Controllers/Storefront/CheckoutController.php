@@ -152,7 +152,7 @@ class CheckoutController extends Controller
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
             'total' => $total,
-            'currency' => $cart[0]['currency'] ?? 'USD',
+            'currency' => app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF',
             'shipping_method' => $selectedMethod,
             'stripeKey' => config('services.stripe.key'),
             'paystackKey' => config('services.paystack.public_key'),
@@ -279,8 +279,7 @@ class CheckoutController extends Controller
             ]);
 
             // Create order
-            $order = Order::query()->create([
-                'number' => Order::generateOrderNumber(),
+            $order = Order::createWithGeneratedNumber([
                 'user_id' => $customer?->id,
                 'customer_id' => $customer?->id,
                 'guest_name' => null,
@@ -290,7 +289,7 @@ class CheckoutController extends Controller
                 'locale' => $locale,
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
-                'currency' => $cart[0]['currency'] ?? 'USD',
+                'currency' => app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF',
                 'subtotal' => $subtotal,
                 'shipping_total' => $shippingTotal,
                 'shipping_total_estimated' => $shippingTotal,
@@ -310,12 +309,21 @@ class CheckoutController extends Controller
             // Create order items
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
 
+            // Get currency conversion service
+            $currencyConverter = app(\App\Services\Currency\CurrencyConversionService::class);
+            $userCurrency = app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
+
             foreach ($cart_items as $line) {
                 $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
                 $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
                     ->where('product_variant_id', $line['variant_id'])
                     ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
                     ->first();
+
+                // Convert prices from USD to user's currency (XOF)
+                $unitPriceInUsd = $line->getSinglePrice();
+                $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -324,8 +332,8 @@ class CheckoutController extends Controller
                     'supplier_product_id' => $supplierProduct?->id,
                     'fulfillment_status' => 'pending',
                     'quantity' => $line['quantity'],
-                    'unit_price' => $line->getSinglePrice(),
-                    'total' => $line->getSinglePrice() * $line['quantity'],
+                    'unit_price' => $unitPriceInUserCurrency,
+                    'total' => $totalInUserCurrency,
                     'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
                     'snapshot' => [
                         'name' => @$line?->product['name'],
@@ -341,6 +349,7 @@ class CheckoutController extends Controller
                         'supplier_product_id' => $supplierProduct?->id,
                         'external_product_id' => $supplierProduct?->external_product_id,
                         'external_sku' => $supplierProduct?->external_sku,
+                        'original_usd_price' => $unitPriceInUsd, // Store original USD for reference
                     ],
                 ]);
             }
@@ -352,6 +361,8 @@ class CheckoutController extends Controller
                 $shipping['price'] = $shipping['logistic_price'];
                 OrderShipping::query()->create($shipping);
             }
+
+            app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
 
             $this->recordPromotionUsage($order, $promotionDiscounts, $subtotal, $discountSource);
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);

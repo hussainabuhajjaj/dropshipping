@@ -9,7 +9,6 @@ use App\Filament\Resources\AffiliateCommissionResource;
 use App\Filament\Resources\AffiliateReferralResource;
 use App\Filament\Resources\AffiliateResource;
 use App\Filament\Resources\AffiliateWithdrawalResource;
-use App\Filament\Livewire\AdminDatabaseNotifications;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -48,8 +47,7 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::SCRIPTS_BEFORE,
                 fn (): string => view('filament.partials.support-chat-echo')->render()
             )
-            ->databaseNotifications(livewireComponent: AdminDatabaseNotifications::class)
-            ->databaseNotificationsPolling('10s')
+            ->databaseNotifications()
             ->databaseTransactions() //optional
             ->sidebarCollapsibleOnDesktop()
 

@@ -13,6 +13,7 @@ use App\Notifications\RefundApproved;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -41,6 +42,14 @@ class Order extends Model
         'shipping_total_actual',
         'shipping_reconciled_at',
         'shipping_variance',
+        'supplier_product_cost_total',
+        'supplier_external_shipping_total',
+        'supplier_cj_shipping_total',
+        'supplier_total_cost',
+        'gross_profit_amount',
+        'gross_margin_percent',
+        'cost_breakdown',
+        'cost_calculated_at',
         'tax_total',
         'discount_total',
         'discount_snapshot',
@@ -84,6 +93,14 @@ class Order extends Model
         'shipping_total_estimated' => 'decimal:2',
         'shipping_total_actual' => 'decimal:2',
         'shipping_variance' => 'decimal:2',
+        'supplier_product_cost_total' => 'decimal:2',
+        'supplier_external_shipping_total' => 'decimal:2',
+        'supplier_cj_shipping_total' => 'decimal:2',
+        'supplier_total_cost' => 'decimal:2',
+        'gross_profit_amount' => 'decimal:2',
+        'gross_margin_percent' => 'decimal:2',
+        'cost_breakdown' => 'array',
+        'cost_calculated_at' => 'datetime',
         'refund_amount' => 'decimal:2',
         'refund_reason' => RefundReasonEnum::class,
         'discount_snapshot' => 'array',
@@ -292,24 +309,40 @@ class Order extends Model
 
     public static function generateOrderNumber(): string
     {
-        $max = self::query()->selectRaw("
-                MAX(
-                    CAST(
-                        SUBSTRING_INDEX(number, '-', -1) AS UNSIGNED
-                    )
-                ) as max_number
-            ")
-            ->value('max_number');
+        return 'DS-' . Str::upper(Str::random(12));
+    }
 
+    public static function createWithGeneratedNumber(array $attributes, int $maxAttempts = 5): static
+    {
+        unset($attributes['number']);
 
-        $next = ($max ?? 0) + 1;
-        return 'DS-' . str_pad((string)$next, 10, '0', STR_PAD_LEFT);
-//
-//        do {
-//            $number = 'DS-' . Str::upper(Str::random(8));
-//        } while (self::where('number', $number)->exists());
-//
-//        return $number;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                return static::query()->create([
+                    ...$attributes,
+                    'number' => static::generateOrderNumber(),
+                ]);
+            } catch (QueryException $exception) {
+                if (! static::isDuplicateOrderNumberException($exception) || $attempt === $maxAttempts) {
+                    throw $exception;
+                }
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique order number.');
+    }
+
+    private static function isDuplicateOrderNumberException(QueryException $exception): bool
+    {
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+        $driverCode = (string) ($exception->errorInfo[1] ?? '');
+        $message = strtolower($exception->getMessage());
+
+        if (in_array($sqlState, ['23000', '23505'], true) || $driverCode === '1062') {
+            return str_contains($message, 'number') || str_contains($message, 'orders_number_unique');
+        }
+
+        return str_contains($message, 'duplicate') && str_contains($message, 'number');
     }
 
     public function recordPromotionUsage(array $promotionDiscounts, float $subtotal, ?string $campaignSource): void

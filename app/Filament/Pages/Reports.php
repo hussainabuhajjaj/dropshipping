@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CouponUsageChart;
+use App\Filament\Widgets\HighestMarginProductsTable;
 use App\Filament\Widgets\LowStockProductsTable;
 use App\Filament\Widgets\OrderStatusChart;
 use App\Filament\Widgets\PaymentStatusChart;
+use App\Filament\Widgets\ProfitPeriodComparisonChart;
+use App\Filament\Widgets\ProfitPeriodOverview;
 use App\Filament\Widgets\ReturnRequestsTable;
 use App\Filament\Widgets\ReviewTrendChart;
 use App\Filament\Widgets\SalesTrendChart;
@@ -27,12 +30,15 @@ class Reports extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            ProfitPeriodOverview::class,
+            ProfitPeriodComparisonChart::class,
             SalesTrendChart::class,
+            TopSellersTable::class,
+            HighestMarginProductsTable::class,
             OrderStatusChart::class,
             PaymentStatusChart::class,
             CouponUsageChart::class,
             ReturnRequestsTable::class,
-            TopSellersTable::class,
             ReviewTrendChart::class,
             LowStockProductsTable::class,
         ];

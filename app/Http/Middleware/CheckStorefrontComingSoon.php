@@ -55,6 +55,10 @@ class CheckStorefrontComingSoon
             'image' => $settings->coming_soon_image,
             'cta_label' => $settings->coming_soon_cta_label,
             'cta_url' => $settings->coming_soon_cta_url,
+            'storefront' => [
+                'social_links' => $settings->social_links,
+                'brand_name' => $settings->brand_name,
+            ],
         ])->toResponse($request)->setStatusCode(503);
 
         return $next($request);

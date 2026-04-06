@@ -157,6 +157,10 @@ Schedule::command('cj:webhooks-cleanup')->dailyAt('03:15');
 Schedule::command('categories:translate --locales=en,fr --source=en --queue')->dailyAt('01:30');
 Schedule::command('products:translate --locales=en,fr --source=en --queue')->dailyAt('03:40');
 Schedule::command('reviews:auto-approve')->dailyAt('04:30');
+Schedule::command('stock:notify-low --cooldown-hours=6 --limit=100')
+    ->hourly()
+    ->withoutOverlapping(55)
+    ->runInBackground();
 Schedule::command('mobile:translations:translate --from=en --to=fr --limit=500')->weeklyOn(0, '03:00');
 
 if (filter_var(env('PRODUCT_CATEGORY_REPRICING_ENABLED', false), FILTER_VALIDATE_BOOL)) {

@@ -12,11 +12,11 @@ use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
-class TopSellersTable extends BaseWidget
+class HighestMarginProductsTable extends BaseWidget
 {
-    protected static ?string $heading = 'Best Selling Products';
+    protected static ?string $heading = 'Highest Margin Products';
     protected int|string|array $columnSpan = 'full';
-    protected ?string $defaultSortColumn = 'units';
+    protected ?string $defaultSortColumn = 'gross_margin_percent';
     protected ?string $defaultSortDirection = 'desc';
 
     public function table(Table $table): Table
@@ -38,21 +38,15 @@ class TopSellersTable extends BaseWidget
             ->where('orders.payment_status', 'paid')
             ->whereNotNull('order_items.product_variant_id')
             ->groupBy('order_items.product_variant_id')
+            ->havingRaw('SUM(order_items.total) > 0')
             ->with('productVariant.product')
-            ->orderByDesc('units');
+            ->orderByDesc('gross_margin_percent')
+            ->orderByDesc('gross_profit');
     }
 
     public function getTableRecordKey($record): string
     {
-        if (! empty($record->product_variant_id)) {
-            return (string) $record->product_variant_id;
-        }
-
-        return md5(json_encode([
-            $record->productVariant?->product_id,
-            $record->units,
-            $record->revenue,
-        ]));
+        return (string) ($record->product_variant_id ?? md5((string) $record->revenue . ':' . (string) $record->gross_margin_percent));
     }
 
     protected function getTableRecordUrl($record): ?string

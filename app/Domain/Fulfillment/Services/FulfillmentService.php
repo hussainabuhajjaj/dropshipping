@@ -33,6 +33,8 @@ class FulfillmentService
 
     public function dispatchOrderItem(OrderItem $orderItem): FulfillmentJob
     {
+        $this->assertOrderIsPaid($orderItem->order);
+
         $provider = $this->resolveProvider($orderItem);
         $strategy = $this->selector->resolveForOrderItem($orderItem);
         $requestData = new FulfillmentRequestData(
@@ -88,6 +90,8 @@ class FulfillmentService
 
     public function dispatchOrderV2(Order $order, $product_items, $provider): FulfillmentJob
     {
+        $this->assertOrderIsPaid($order);
+
         $first_item = $product_items->first();
         $strategy = $this->selector->resolveForOrderItem($first_item);
 
@@ -120,7 +124,7 @@ class FulfillmentService
             $this->updateJobStatus($job, $result);
             $this->updateOrderItemsStatus($product_items, $result);
 
-            $fulfillment_status = null;
+            $fulfillment_status = $product_items->first()?->fresh()?->fulfillment_status;
             foreach ($product_items as $orderItem) {
                 $this->logger->fulfillment(
                     $orderItem,
@@ -129,9 +133,6 @@ class FulfillmentService
                     $result->rawResponse['error'] ?? null,
                     $result->rawResponse
                 );
-
-                $fulfillment_status = $orderItem->fulfillment_status;
-                $orderItem->update(['fulfillment_status' => 'fulfilling']);
             }
 
             if ($result->trackingNumber || $result->trackingUrl) {
@@ -149,6 +150,13 @@ class FulfillmentService
     }
 
 
+
+    private function assertOrderIsPaid(?Order $order): void
+    {
+        if ($order?->payment_status !== 'paid') {
+            throw new FulfillmentException('Cannot dispatch fulfillment before payment is confirmed.');
+        }
+    }
 
     private function resolveProvider(OrderItem $orderItem): FulfillmentProvider
     {
@@ -179,6 +187,7 @@ class FulfillmentService
     {
         return [
             'order_id' => $requestData->order_id,
+            'order_item_ids' => collect($requestData->order_items ?? [])->pluck('id')->map(static fn ($id) => (int) $id)->values()->all(),
             'provider_code' => $requestData->provider->code,
             'supplier_product_id' => $requestData->supplierProduct?->id,
             'shipping_address' => $requestData->shippingAddress?->toArray(),
@@ -305,6 +314,8 @@ class FulfillmentService
             'shipping_variance' => $variance,
             'shipping_reconciled_at' => now(),
         ]);
+
+        app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
     }
 
     private function notifyAdminsIssue(OrderItem $orderItem, string $message): void

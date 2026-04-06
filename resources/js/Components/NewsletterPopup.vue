@@ -41,6 +41,36 @@
           <span>{{ t('Local delivery updates') }}</span>
           <span>{{ t('Exclusive coupons') }}</span>
         </div>
+        
+        <!-- Social Media Links -->
+        <div v-if="socialLinks.length" class="newsletter-social">
+          <p class="newsletter-social-title">{{ t('Follow us') }}</p>
+          <div class="newsletter-social-links">
+            <a
+              v-for="link in socialLinks"
+              :key="link.href"
+              :href="link.href"
+              :aria-label="link.label"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="newsletter-social-link"
+            >
+              <svg v-if="link.icon === 'facebook'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <svg v-else-if="link.icon === 'twitter'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M23.953 4.57a10 10 0 01-2.825.748 4.958 4.958 0 00-8.343 2.488A4.958 4.958 0 003.031 9.75a4.958 4.958 0 002.632-2.917 4.958 4.958 0 01-2.212-.085 4.958 4.958 0 004.631 3.414 9.917 9.917 0 01-6.107 2.107 4.958 4.958 0 003.414-4.631 9.917 9.917 0 01-2.107 6.107 4.958 4.958 0 004.631-3.414 9.917 9.917 0 016.107-2.107 4.958 4.958 0 00-3.414 4.631z"/>
+              </svg>
+              <svg v-else-if="link.icon === 'instagram'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.85 0 3.204-.012 3.584-.069 4.85-.148 3.252-1.691 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.85-.069-3.252-.148-4.771-1.691-4.919-4.919-.058-1.265-.07-1.644-.07-4.85 0-3.204.012-3.583.069-4.849.148-3.252 1.691-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zM5.838 12a6.162 6.162 0 1112.324 0 6.162 6.162 0 01-12.324 0zM12 16a4 4 0 110-8 4 4 0 010 8zm4.965-10.405a1.44 1.44 0 112.881.001 1.44 1.44 0 01-2.881-.001z"/>
+              </svg>
+              <svg v-else-if="link.icon === 'youtube'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-11.376.405a3.016 3.016 0 00-2.122 2.136C3.505 6.186 1.545 8.827 1.545 12c0 3.173 1.96 5.814 5.957 6.414a3.016 3.016 0 002.122 2.136c.878.347 3.87.405 11.376.405 7.505 0 10.498-.058 11.376-.405 1.498-1.082 2.136-2.122 2.136-3.173 0-5.814-1.96-8.827-5.957-6.414z"/>
+              </svg>
+              <span v-else class="text-slate-600">{{ link.label }}</span>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </Modal>
@@ -50,15 +80,20 @@
 import { computed, onMounted, ref } from 'vue'
 import Modal from '@/Components/Modal.vue'
 import { useTranslations } from '@/i18n'
+import { usePage } from '@inertiajs/vue3'
 
 const props = defineProps({
   settings: { type: Object, default: () => ({}) },
 })
 
 const { t } = useTranslations()
+const page = usePage()
 const visible = ref(false)
 const email = ref('')
 const notice = ref('')
+
+// Get social links from storefront settings
+const socialLinks = computed(() => page.props.storefront?.social_links ?? [])
 
 const resolveImage = (path) => {
   if (!path) return null
@@ -270,6 +305,45 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 999px;
   padding: 4px 10px;
+}
+
+.newsletter-social {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.newsletter-social-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.newsletter-social-links {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.newsletter-social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.newsletter-social-link:hover {
+  background: #f1f5f9;
+  color: #334155;
+  transform: translateY(-1px);
 }
 
 @media (min-width: 900px) {

@@ -115,8 +115,7 @@ class PaymentResultService
             );
 
             // Create order
-            $order = Order::query()->create([
-                'number' => Order::generateOrderNumber(),
+            $order = Order::createWithGeneratedNumber([
                 'user_id' => $customer->id,
                 'customer_id' => $customer->id,
                 'guest_name' => null,
@@ -178,6 +177,8 @@ class PaymentResultService
                     ],
                 ]);
             }
+
+            app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
 
             foreach ($cart->shippings as $shipping) {
                 $shipping = $shipping->toArray();
@@ -316,6 +317,8 @@ class PaymentResultService
 //                ]);
 //            }
 //
+//            app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
+
 //            foreach ($cart->shippings as $shipping) {
 //                $shipping = $shipping->toArray();
 //                $shipping['order_id'] = $order->id;

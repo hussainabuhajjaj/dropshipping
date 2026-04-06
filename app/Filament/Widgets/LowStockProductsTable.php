@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
-use App\Domain\Products\Models\Product;
+use App\Models\ProductVariant;
 use Filament\Tables;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,18 +27,23 @@ class LowStockProductsTable extends BaseWidget
 
     protected function getTableQuery(): Builder|Relation|null
     {
-        return Product::query()
-            ->where('is_active', true)
+        return ProductVariant::query()
+            ->with('product')
             ->whereNotNull('stock_on_hand')
-            ->where('stock_on_hand', '<=', 5)
+            ->whereNotNull('low_stock_threshold')
+            ->whereColumn('stock_on_hand', '<=', 'low_stock_threshold')
+            ->whereHas('product', fn (Builder $query) => $query->where('is_active', true))
             ->orderBy('stock_on_hand');
     }
 
     protected function getTableColumns(): array
     {
         return [
-            Tables\Columns\TextColumn::make('name')->label('Product')->searchable()->limit(40),
+            Tables\Columns\TextColumn::make('product.name')->label('Product')->searchable()->limit(40),
+            Tables\Columns\TextColumn::make('title')->label('Variant')->searchable()->placeholder('-'),
+            Tables\Columns\TextColumn::make('sku')->label('SKU')->searchable()->toggleable(),
             Tables\Columns\TextColumn::make('stock_on_hand')->label('Stock')->sortable(),
+            Tables\Columns\TextColumn::make('low_stock_threshold')->label('Threshold')->sortable(),
             Tables\Columns\TextColumn::make('updated_at')->since()->label('Updated'),
         ];
     }

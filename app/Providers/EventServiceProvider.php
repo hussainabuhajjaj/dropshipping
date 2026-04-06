@@ -54,10 +54,10 @@ class EventServiceProvider extends ServiceProvider
         ],
         OrderPlaced::class => [
             SendOrderConfirmedNotification::class,
-            ProcessAffiliateOrderReferral::class,
         ],
         OrderPaid::class => [
             SendOrderConfirmedNotification::class,
+            ProcessAffiliateOrderReferral::class,
         ],
         OrderShipped::class => [
             SendOrderShippedNotification::class,

@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace App\Notifications\Orders;
 
-use App\Models\Order;
-use App\Models\Payment;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use App\Domain\Orders\Models\Order;
+use App\Domain\Payments\Models\Payment;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class PaymentReceiptNotification extends Notification implements ShouldQueue
+class PaymentReceiptNotification extends Notification
 {
-    use Queueable;
 
     public function __construct(
         public Order $order,

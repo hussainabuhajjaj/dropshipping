@@ -136,8 +136,7 @@ class CheckoutController extends ApiController
                 'type' => 'shipping',
             ]);
 
-            $order = Order::query()->create([
-                'number' => Order::generateOrderNumber(),
+            $order = Order::createWithGeneratedNumber([
                 'user_id' => $customer?->id,
                 'customer_id' => $customer?->id,
                 'guest_name' => null,
@@ -214,6 +213,8 @@ class CheckoutController extends ApiController
                     'aging' => $shippingEntry['aging'] ?? null,
                 ]);
             }
+
+            app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
 
             $this->recordPromotionUsage($order, $promotionDiscounts, $subtotal, $discountSource);
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);

@@ -7,6 +7,7 @@ namespace App\Listeners\Affiliates;
 use App\Domain\Affiliates\Models\AffiliateCommission;
 use App\Domain\Affiliates\Models\AffiliateReferral;
 use App\Domain\Affiliates\Services\AffiliateCommissionService;
+use App\Events\Orders\OrderPaid;
 use App\Events\Orders\OrderPlaced;
 use App\Mail\AffiliateCommissionEarned;
 use Illuminate\Support\Facades\Cookie;
@@ -21,7 +22,7 @@ class ProcessAffiliateOrderReferral
     ) {
     }
 
-    public function handle(OrderPlaced $event): void
+    public function handle(OrderPlaced|OrderPaid $event): void
     {
         $order = $event->order->loadMissing('orderItems');
 

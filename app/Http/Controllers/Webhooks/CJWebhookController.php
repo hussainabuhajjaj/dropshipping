@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
 use App\Domain\Fulfillment\Strategies\CJDropshippingFulfillmentStrategy;
 use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Http\Controllers\Controller;
@@ -179,22 +180,52 @@ class CJWebhookController extends Controller
         }
 
         if ($trackingNumber) {
-            Shipment::updateOrCreate(
-                ['order_item_id' => $job->order_item_id, 'tracking_number' => $trackingNumber],
-                [
-                    'carrier' => $carrier,
-                    'tracking_url' => $trackingUrl,
-                    'logistic_name' => $logisticName,
-                    'cj_order_id' => $externalId ?: $order?->cj_order_id,
-                    'shipment_order_id' => $shipmentOrderId,
-                    'postage_amount' => $postageAmount,
-                    'currency' => $currency,
-                    'shipped_at' => $this->extractValue($payload, ['params.shippedAt', 'shippedAt']) ?? now(),
-                    'raw_events' => $rawEvents,
-                ]
-            );
+            $orderItemIds = $job->orderItemIds();
+            $orderItems = OrderItem::query()->whereIn('id', $orderItemIds)->get()->keyBy('id');
 
-            // Reconcile order-level shipping totals based on shipment postage amounts
+            if ($job->order_item_id || count($orderItemIds) <= 1) {
+                $orderItemId = $job->order_item_id ?: $orderItemIds[0] ?? null;
+
+                if ($orderItemId) {
+                    Shipment::updateOrCreate(
+                        ['order_item_id' => $orderItemId, 'tracking_number' => $trackingNumber],
+                        [
+                            'carrier' => $carrier,
+                            'tracking_url' => $trackingUrl,
+                            'logistic_name' => $logisticName,
+                            'cj_order_id' => $externalId ?: $order?->cj_order_id,
+                            'shipment_order_id' => $shipmentOrderId,
+                            'postage_amount' => $postageAmount,
+                            'currency' => $currency ?: $orderItems->get($orderItemId)?->order?->currency ?: $order?->currency,
+                            'shipped_at' => $this->extractValue($payload, ['params.shippedAt', 'shippedAt']) ?? now(),
+                            'raw_events' => $rawEvents,
+                        ]
+                    );
+                }
+            } elseif ($order) {
+                $shipment = Shipment::updateOrCreate(
+                    ['order_id' => $order->id, 'tracking_number' => $trackingNumber],
+                    [
+                        'carrier' => $carrier,
+                        'tracking_url' => $trackingUrl,
+                        'logistic_name' => $logisticName,
+                        'cj_order_id' => $externalId ?: $order->cj_order_id,
+                        'shipment_order_id' => $shipmentOrderId,
+                        'postage_amount' => $postageAmount,
+                        'currency' => $currency ?: $order->currency,
+                        'shipped_at' => $this->extractValue($payload, ['params.shippedAt', 'shippedAt']) ?? now(),
+                        'raw_events' => $rawEvents,
+                    ]
+                );
+
+                $shipment->items()->delete();
+                foreach ($orderItemIds as $orderItemId) {
+                    if ($orderItems->has($orderItemId)) {
+                        $shipment->items()->create(['order_item_id' => $orderItemId]);
+                    }
+                }
+            }
+
             if ($order) {
                 $actual = (float) ($order->shipments()->sum('postage_amount') ?? 0);
                 $estimated = (float) ($order->shipping_total_estimated ?? $order->shipping_total ?? 0);
@@ -203,6 +234,8 @@ class CJWebhookController extends Controller
                     'shipping_variance' => round($actual - $estimated, 2),
                     'shipping_reconciled_at' => now(),
                 ]);
+
+                app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
 
                 // If we have tracking, mark as in_transit
                 $order->updateCustomerStatus('in_transit');

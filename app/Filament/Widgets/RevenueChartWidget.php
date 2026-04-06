@@ -9,33 +9,46 @@ use Filament\Widgets\ChartWidget;
 
 class RevenueChartWidget extends ChartWidget
 {
-    protected ?string $heading = 'Revenue (Last 30 Days)';
+    protected ?string $heading = 'Revenue vs Profit (Last 30 Days)';
     protected static ?int $sort = 2;
 
     protected function getData(): array
     {
-        $data = [];
+        $revenue = [];
+        $profit = [];
         $labels = [];
 
         for ($i = 29; $i >= 0; $i--) {
             $date = now()->subDays($i);
             $labels[] = $date->format('M d');
-            
-            $dailyRevenue = Order::query()
+
+            $dailyRevenue = (float) Order::query()
                 ->where('payment_status', 'paid')
                 ->whereDate('created_at', $date)
                 ->sum('grand_total');
-            
-            $data[] = (float) $dailyRevenue;
+            $dailyProfit = (float) Order::query()
+                ->where('payment_status', 'paid')
+                ->whereDate('created_at', $date)
+                ->sum('gross_profit_amount');
+
+            $revenue[] = $dailyRevenue;
+            $profit[] = $dailyProfit;
         }
 
         return [
             'datasets' => [
                 [
                     'label' => 'Revenue ($)',
-                    'data' => $data,
+                    'data' => $revenue,
                     'borderColor' => 'rgb(59, 130, 246)',
-                    'backgroundColor' => 'rgba(59, 130, 246, 0.1)',
+                    'backgroundColor' => 'rgba(59, 130, 246, 0.12)',
+                    'fill' => true,
+                ],
+                [
+                    'label' => 'Gross Profit ($)',
+                    'data' => $profit,
+                    'borderColor' => 'rgb(22, 163, 74)',
+                    'backgroundColor' => 'rgba(22, 163, 74, 0.12)',
                     'fill' => true,
                 ],
             ],

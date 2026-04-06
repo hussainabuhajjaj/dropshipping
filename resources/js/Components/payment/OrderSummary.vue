@@ -176,13 +176,12 @@ const total = computed(() => {
     return props.items?.total || (subtotal.value + Number(props.shipping) + props.tax - props.discount)
 })
 
-// Format price with proper currency conversion
+// Format price with proper currency
 const formatPrice = (amount) => {
     if (amount === null || amount === undefined) return ''
 
-    // Convert from USD to user's preferred currency, then format
-    const convertedAmount = convertCurrency(Number(amount || 0), 'USD', currentCurrency.value || 'USD')
-    return formatCurrency(convertedAmount, currentCurrency.value || 'USD')
+    // Display the amount directly in the order/cart currency (no conversion needed)
+    return formatCurrency(Number(amount || 0), props.currency || currentCurrency.value)
 }
 
 // Handle image load error

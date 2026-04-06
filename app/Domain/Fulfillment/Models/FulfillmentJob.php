@@ -48,6 +48,21 @@ class FulfillmentJob extends Model
         return $this->belongsTo(Order::class);
     }
 
+
+    public function orderItemIds(): array
+    {
+        $payloadItemIds = collect($this->payload['order_item_ids'] ?? [])
+            ->map(static fn ($id) => (int) $id)
+            ->filter(static fn (int $id) => $id > 0)
+            ->values();
+
+        if ($payloadItemIds->isNotEmpty()) {
+            return $payloadItemIds->all();
+        }
+
+        return $this->order_item_id ? [$this->order_item_id] : [];
+    }
+
     public function attempts(): HasMany
     {
         return $this->hasMany(FulfillmentAttempt::class, 'fulfillment_job_id');

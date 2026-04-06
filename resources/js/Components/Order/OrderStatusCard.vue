@@ -53,10 +53,10 @@
 <script setup>
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
-const { formatCurrency, convertCurrency } = useUserPreferences()
+const { formatCurrency } = useUserPreferences()
 const displayRefundAmount = computed(() => {
-  // Assume refund is in USD unless a currency prop is added
-  return formatCurrency(convertCurrency(props.refundAmount ?? 0, 'USD', 'USD'), 'USD')
+  // Display refund amount directly in USD (no conversion needed)
+  return formatCurrency(props.refundAmount ?? 0, 'USD')
 })
 import { computed } from 'vue'
 

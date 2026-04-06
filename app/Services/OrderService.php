@@ -80,8 +80,7 @@ class OrderService
     public function create(array $data, ?array $items = null): Order
     {
         return $this->db->transaction(function () use ($data, $items) {
-            $order = Order::create([
-                'order_number' => $data['order_number'] ?? Order::generateOrderNumber(),
+            $order = Order::createWithGeneratedNumber([
                 'customer_id' => $data['customer_id'] ?? null,
                 'status' => $data['status'] ?? 'pending',
                 'payment_status' => $data['payment_status'] ?? 'unpaid',

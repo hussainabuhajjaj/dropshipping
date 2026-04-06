@@ -6,14 +6,11 @@ namespace App\Notifications\Orders;
 
 use App\Domain\Orders\Models\Order;
 use App\Notifications\Channels\WhatsAppChannel;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class OrderConfirmedNotification extends Notification implements ShouldQueue
+class OrderConfirmedNotification extends Notification
 {
-    use Queueable;
 
     public function __construct(public Order $order, public ?string $trackingUrl = null)
     {

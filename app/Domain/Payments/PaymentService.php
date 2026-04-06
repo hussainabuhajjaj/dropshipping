@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Payments;
 
-use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Payments\Models\Payment;
 use App\Domain\Payments\Models\PaymentWebhook;
@@ -21,7 +20,6 @@ class PaymentService
 {
     public function __construct(
         private readonly EventLogger $logger,
-        private readonly FulfillmentDispatchService $fulfillmentDispatchService,
     )
     {
     }
@@ -84,7 +82,6 @@ class PaymentService
                 $order->status = 'paid';
             }
             $order->save();
-            $this->dispatchFulfillmentForOrder($order);
 
             if (! $wasPaid) {
                 event(new OrderPaid($order));
@@ -185,10 +182,6 @@ class PaymentService
         }
     }
 
-    private function dispatchFulfillmentForOrder(Order $order): void
-    {
-        $this->fulfillmentDispatchService->dispatchForOrder($order);
-    }
 
     public function initializeKorapay(
         Order $order,

@@ -59,6 +59,7 @@ class OrderController extends Controller
             'orderItems.returnRequest',
             'orderItems.shipments.trackingEvents',
             'payments',
+            'customer',
         ]);
 
         return Inertia::render('Orders/Show', [
@@ -75,6 +76,7 @@ class OrderController extends Controller
                 'grand_total' => $order->grand_total,
                 'placed_at' => $order->placed_at,
                 'delivery_notes' => $order->delivery_notes,
+
                 'shippingAddress' => $order->shippingAddress ? [
                     'name' => $order->shippingAddress->name,
                     'line1' => $order->shippingAddress->line1,
@@ -85,6 +87,7 @@ class OrderController extends Controller
                     'country' => $order->shippingAddress->country,
                     'phone' => $order->shippingAddress->phone,
                 ] : null,
+
                 'billingAddress' => $order->billingAddress ? [
                     'name' => $order->billingAddress->name,
                     'line1' => $order->billingAddress->line1,
@@ -94,8 +97,11 @@ class OrderController extends Controller
                     'postal_code' => $order->billingAddress->postal_code,
                     'country' => $order->billingAddress->country,
                 ] : null,
-                'items' => $order->orderItems->map(function ($item) {
+
+                // ✅ FIXED HERE
+                'items' => $order->orderItems->map(function ($item) use ($order) {
                     $product = $item->productVariant?->product;
+
                     return [
                         'id' => $item->id,
                         'name' => $item->snapshot['name'] ?? 'Item',
@@ -105,7 +111,10 @@ class OrderController extends Controller
                         'quantity' => $item->quantity,
                         'unit_price' => $item->unit_price,
                         'total' => $item->total,
+                        'currency' => $order->currency, // now works
+                        'media' => $item->snapshot['media'] ?? null,
                         'fulfillment_status' => $item->fulfillment_status,
+
                         'review' => $item->review ? [
                             'id' => $item->review->id,
                             'rating' => $item->review->rating,
@@ -114,6 +123,7 @@ class OrderController extends Controller
                             'status' => $item->review->status,
                             'created_at' => $item->review->created_at,
                         ] : null,
+
                         'return_request' => $item->returnRequest ? [
                             'id' => $item->returnRequest->id,
                             'status' => $item->returnRequest->status,
@@ -122,6 +132,7 @@ class OrderController extends Controller
                             'return_label_url' => $item->returnRequest->return_label_url,
                             'created_at' => $item->returnRequest->created_at,
                         ] : null,
+
                         'shipments' => $item->shipments->map(function ($shipment) {
                             return [
                                 'id' => $shipment->id,
@@ -141,6 +152,7 @@ class OrderController extends Controller
                         }),
                     ];
                 }),
+
                 'payments' => $order->payments->map(fn ($payment) => [
                     'id' => $payment->id,
                     'provider' => $payment->provider,
@@ -150,10 +162,13 @@ class OrderController extends Controller
                     'provider_reference' => $payment->provider_reference,
                     'paid_at' => $payment->paid_at,
                 ]),
+                'customer' => $order->customer ? [
+                    'name' => $order->customer->name,
+                    'email' => $order->customer->email,
+                ] : null,
             ],
         ]);
     }
-
     public function cancel(Request $request, Order $order): JsonResponse
     {
         $customer = $request->user('customer');

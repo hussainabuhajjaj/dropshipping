@@ -19,6 +19,16 @@ class FulfillmentDispatchService
      */
     public function dispatchForOrder(Order $order): int
     {
+        if (! $this->orderIsPaid($order)) {
+            Log::info('Skipping fulfillment dispatch for unpaid order.', [
+                'order_id' => $order->id,
+                'order_number' => $order->number,
+                'payment_status' => $order->payment_status,
+            ]);
+
+            return 0;
+        }
+
         $order->loadMissing([
             'orderItems.fulfillmentProvider',
             'orderItems.supplierProduct.fulfillmentProvider',
@@ -74,6 +84,18 @@ class FulfillmentDispatchService
      */
     public function dispatchForOrderItem(OrderItem $item): bool
     {
+        $item->loadMissing('order');
+
+        if (! $item->order || ! $this->orderIsPaid($item->order)) {
+            Log::info('Skipping fulfillment dispatch for unpaid order item.', [
+                'order_id' => $item->order_id,
+                'order_item_id' => $item->id,
+                'payment_status' => $item->order?->payment_status,
+            ]);
+
+            return false;
+        }
+
         if (! $this->claimForDispatch($item)) {
             return false;
         }
@@ -111,6 +133,10 @@ class FulfillmentDispatchService
                 ->find($item->id);
 
             if (! $fresh) {
+                return false;
+            }
+
+            if (! $fresh->order || ! $this->orderIsPaid($fresh->order)) {
                 return false;
             }
 
@@ -153,6 +179,7 @@ class FulfillmentDispatchService
             $items = OrderItem::query()
                 ->lockForUpdate()
                 ->with([
+                    'order',
                     'fulfillmentProvider',
                     'supplierProduct.fulfillmentProvider',
                     'productVariant.product.defaultFulfillmentProvider',
@@ -167,8 +194,16 @@ class FulfillmentDispatchService
 
             $claimableIds = [];
 
+            if (! $this->orderIsPaid($order)) {
+                return [];
+            }
+
             foreach ($items as $item) {
                 if ($this->resolveProviderId($item) !== $providerId) {
+                    continue;
+                }
+
+                if (! $item->order || ! $this->orderIsPaid($item->order)) {
                     continue;
                 }
 
@@ -204,4 +239,10 @@ class FulfillmentDispatchService
             ?? $item->supplierProduct?->fulfillmentProvider?->id
             ?? $item->productVariant?->product?->defaultFulfillmentProvider?->id;
     }
+
+    private function orderIsPaid(?Order $order): bool
+    {
+        return $order?->payment_status === 'paid';
+    }
 }
+
