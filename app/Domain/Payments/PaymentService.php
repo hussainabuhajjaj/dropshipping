@@ -329,23 +329,6 @@ class PaymentService
                 'payment_method' => $method,
             ],
         ];
-dd([
-    'order' => [
-        'id' => $order->id,
-        'number' => $order->number,
-        'grand_total' => $order->grand_total,
-        'currency' => $order->currency,
-    ],
-    'payment' => [
-        'id' => $payment->id,
-        'provider_reference' => $payment->provider_reference,
-        'amount' => $payment->amount,
-        'currency' => $payment->currency,
-        'meta' => $payment->meta,
-    ],
-    'method' => $method,
-    'payload_to_korapay' => $payload,
-]);
 
         $response = $client->initialize($payload);
         $data = is_array($response->data) ? $response->data : [];
