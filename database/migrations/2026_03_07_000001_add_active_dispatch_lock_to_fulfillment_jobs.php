@@ -86,6 +86,31 @@ return new class extends Migration
 
     private function indexExists(string $indexName): bool
     {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            // SQLite has no information_schema; use PRAGMA.
+            $rows = DB::select("PRAGMA index_list('" . self::TABLE . "')");
+            foreach ($rows as $row) {
+                $name = is_object($row) ? ($row->name ?? null) : ($row['name'] ?? null);
+                if ((string) $name === $indexName) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if ($driver === 'pgsql') {
+            $rows = DB::select(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = ? AND indexname = ?",
+                [self::TABLE, $indexName]
+            );
+
+            return ! empty($rows);
+        }
+
+        // MySQL/MariaDB (default)
         return DB::table('information_schema.statistics')
             ->whereRaw('table_schema = database()')
             ->where('table_name', self::TABLE)

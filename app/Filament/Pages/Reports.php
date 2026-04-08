@@ -25,7 +25,7 @@ class Reports extends BaseDashboard
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-chart-bar-square';
     protected static UnitEnum|string|null $navigationGroup = 'Reports';
     protected static ?int $navigationSort = 10;
-    protected static bool $shouldRegisterNavigation = false;
+    protected static bool $shouldRegisterNavigation = true;
 
     public function getWidgets(): array
     {

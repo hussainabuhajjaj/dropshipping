@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/cj',
             'webhooks/cj/order-status',
+            'webhooks/payments/*',
         ]);
 
         $middleware->web(append: [

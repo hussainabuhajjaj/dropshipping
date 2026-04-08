@@ -23,6 +23,17 @@ return new class extends Migration
         DB::table('products')
             ->whereNull('supplier_type')
             ->where(function ($query): void {
+                $driver = DB::connection()->getDriverName();
+
+                if ($driver === 'sqlite') {
+                    // SQLite json_extract returns scalar SQL values; no json_unquote() function exists.
+                    $query->whereNotNull(DB::raw("json_extract(attributes, '$.ali_item_id')"))
+                        ->orWhereRaw("json_extract(attributes, '$.supplier_code') in ('ae', 'aliexpress')");
+
+                    return;
+                }
+
+                // MySQL/MariaDB
                 $query->whereNotNull(DB::raw("json_unquote(json_extract(attributes, '$.ali_item_id'))"))
                     ->orWhereRaw("json_unquote(json_extract(attributes, '$.supplier_code')) in ('ae', 'aliexpress')");
             })

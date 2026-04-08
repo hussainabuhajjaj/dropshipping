@@ -265,7 +265,8 @@ class CheckoutController extends Controller
 
             // Create shipping address
             $shippingAddress = Address::create([
-                'user_id' => $customer?->id,
+                // user_id references internal users; storefront customers should only set customer_id.
+                'user_id' => null,
                 'customer_id' => $customer?->id,
                 'name' => trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')),
                 'phone' => $validatedData['phone'],
@@ -280,7 +281,8 @@ class CheckoutController extends Controller
 
             // Create order
             $order = Order::createWithGeneratedNumber([
-                'user_id' => $customer?->id,
+                // user_id references internal users; storefront customers should only set customer_id.
+                'user_id' => null,
                 'customer_id' => $customer?->id,
                 'guest_name' => null,
                 'guest_phone' => null,

@@ -17,9 +17,15 @@ class PaymentWebhookController extends Controller
     public function __invoke(string $provider, Request $request, PaymentService $paymentService): JsonResponse
     {
         $payload = $request->all();
+
         if ($provider === 'paystack') {
             $payload = $this->normalizePaystackPayload($payload);
         }
+
+        if ($provider === 'korapay') {
+            $payload = $this->normalizeKorapayPayload($payload);
+        }
+
         $eventId = $payload['event_id'] ?? $payload['id'] ?? $request->header('X-Event-Id');
 
         if (! $eventId) {
@@ -27,7 +33,7 @@ class PaymentWebhookController extends Controller
         }
 
         try {
-            $payment = $paymentService->handleWebhook($provider, $eventId, $payload);
+            $payment = $paymentService->handleWebhook($provider, (string) $eventId, $payload);
         } catch (Throwable $e) {
             return response()->json(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -65,6 +71,39 @@ class PaymentWebhookController extends Controller
             'currency' => $data['currency'] ?? null,
             'status' => $data['status'] ?? null,
             'paystack' => $payload,
+        ]);
+    }
+
+    private function normalizeKorapayPayload(array $payload): array
+    {
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $reference = $data['reference'] ?? null;
+        $event = (string) ($payload['event'] ?? 'charge');
+
+        $orderNumber = $data['metadata']['order_number']
+            ?? $data['meta']['order_number']
+            ?? null;
+
+        if (! $orderNumber && $reference) {
+            $payment = Payment::query()
+                ->where('provider', 'korapay')
+                ->where('provider_reference', $reference)
+                ->with('order')
+                ->first();
+            $orderNumber = $payment?->order?->number;
+        }
+
+        $eventId = $data['id'] ?? ($reference ? ($event . ':' . $reference) : null);
+
+        return array_merge($payload, [
+            'event_id' => $eventId,
+            'provider_reference' => $reference,
+            'transaction_id' => $data['id'] ?? null,
+            'order_number' => $orderNumber,
+            'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
+            'currency' => $data['currency'] ?? null,
+            'status' => $data['status'] ?? null,
+            'korapay' => $payload,
         ]);
     }
 }

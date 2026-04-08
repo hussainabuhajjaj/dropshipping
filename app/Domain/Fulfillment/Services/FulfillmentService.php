@@ -81,7 +81,10 @@ class FulfillmentService
             }
 
             if ($result->failed()) {
-                $this->notifyAdminsIssue($orderItem, $result->rawResponse['error'] ?? 'Fulfillment failed');
+                $firstItem = $product_items->first();
+                if ($firstItem) {
+                    $this->notifyAdminsIssue($firstItem, $result->rawResponse['error'] ?? 'Fulfillment failed');
+                }
             }
 
             return $job->refresh();

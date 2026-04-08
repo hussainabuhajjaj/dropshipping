@@ -4,46 +4,47 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Domain\Common\Models\Address;
+use App\Domain\Orders\Services\OrderCostBreakdownService;
+use App\Domain\Payments\PaymentService as DomainPaymentService;
+use App\Domain\Products\Models\SupplierProduct;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\Storefront\Payment\CardResource;
 use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderShipping;
 use App\Models\Payment;
-use App\Models\PaymentMethod;
 use App\Models\SiteSetting;
-use App\Services\Payments\KorapayService;
-use App\Services\Payments\PaymentResultService;
+use App\Services\AbandonedCartService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
-use function PHPUnit\Framework\isNumeric;
+use RuntimeException;
+use Throwable;
 
 class PaymentController extends Controller
 {
-    protected $korapayService;
-
-    public function __construct(KorapayService $korapayService)
-    {
-        $this->korapayService = $korapayService;
+    public function __construct(
+        protected DomainPaymentService $paymentService,
+    ) {
     }
 
     public function index($type, $id = null)
     {
-
         $customer = auth('customer')->user();
         if (! $customer) {
             return redirect()->route('login');
         }
+
         $item = $this->getItem($type, $id);
-        if (!$item) {
-            if ($type == "cart") {
-                if (!isset($item) || !isset($item->items) || !$item->items->count()) {
-                    return redirect()->route('products.index');
-                }
-            } else {
-                abort(404);
+        if (! $item) {
+            if ($type === 'cart') {
+                return redirect()->route('products.index');
             }
+
+            abort(404);
         }
 
         $summery = [];
@@ -53,23 +54,22 @@ class PaymentController extends Controller
             $items = (CartResource::collection($item->items))->jsonSerialize();
         }
 
-        $final_total = @$summery['total'] ?? 0;
+        $finalTotal = $summery['total'] ?? 0;
 
-        $defaultAddress = isset($customer) ? $customer?->addresses()
+        $defaultAddress = $customer->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
-            ->first() : null;
+            ->first();
 
-        $addresses = isset($customer) ? $customer?->addresses()
+        $addresses = $customer->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
-            ->get() : collect();
-
+            ->get();
 
         return Inertia::render('Payments/Index', [
             'customer' => $customer,
             'defaultAddress' => $defaultAddress,
-            'addresses' => $addresses->map(fn($address) => [
+            'addresses' => $addresses->map(fn ($address) => [
                 'id' => $address->id,
                 'name' => $address->name,
                 'phone' => $address->phone,
@@ -84,158 +84,309 @@ class PaymentController extends Controller
             'type' => $type,
             'id' => $id,
             'summery' => $summery,
-            'final_total' => $final_total,
+            'final_total' => $finalTotal,
             'items' => $items,
             'successMessage' => session('success'),
             'errorMessage' => session('error'),
-            'errors' => session('errors') ? session('errors')->toArray() : (object)[]
+            'errors' => session('errors') ? session('errors')->toArray() : (object) [],
         ]);
-
     }
 
     public function checkout(Request $request, $type, $id = null)
     {
-        $item = $this->getItem($type, $id);
-        if (!$item) {
-            if ($type == "cart") {
-                if (!$item || !$item || !$item->count()) {
-                    return redirect()->route('products.index');
-                }
-            } else {
-                return response()->json([
-                    'status' => false,
-                    'message' => "Item not found",
-                ]);
-            }
+        $customer = auth('customer')->user();
+        if (! $customer) {
+            return redirect()->route('login');
         }
 
-        $summery = [];
-        if ($item instanceof Cart) {
-            $summery = $item->getSummery();
+        $cart = $this->getItem($type, $id);
+        if (! ($cart instanceof Cart)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unsupported payment type',
+            ], 422);
         }
 
+        if (! $cart->items || ! $cart->items->count()) {
+            return redirect()->route('products.index');
+        }
 
-        $extra_validation_rules = $this->getItemValidationArray($type);
+        $summery = $cart->getSummery();
+
+        $extraValidationRules = $this->getItemValidationArray('cart');
         $request->validate(array_merge([
             'method' => 'required|in:mobile_money',
-        ], $extra_validation_rules));
+        ], $extraValidationRules));
 
-        $final_total = @$summery['total'] ?? 0;
+        $method = (string) $request->input('method');
 
-        $method = $request->input('method');
+        session()->put('request_body', $request->all());
 
-        if ($method === 'mobile_money') {
-            session()->put('request_body', $request->all());
-            $checkout = $this->korapayService->initializePayment($final_total, $method);
+        try {
+            $order = null;
+            $payment = null;
+            $init = null;
 
-            if (isset($checkout['data'])) {
-                session()->put('reference', $checkout['data']['reference']);
-                return response()->json([
-                    'status' => true,
-                    'data' => [
-                        'redirect' => $checkout['data']['checkout_url']
-                    ]
+            DB::transaction(function () use ($customer, $cart, $summery, $request, $method, &$order, &$payment, &$init): void {
+                $requestBody = (array) session()->get('request_body', []);
+
+                $fallbackAddress = $customer->addresses()
+                    ->orderByDesc('is_default')
+                    ->orderBy('id')
+                    ->first();
+
+                $firstName = (string) ($requestBody['first_name'] ?? $customer->first_name ?? $customer->name ?? '');
+                $lastName = (string) ($requestBody['last_name'] ?? $customer->last_name ?? '');
+                $phone = (string) ($requestBody['phone'] ?? $customer->phone ?? $fallbackAddress?->phone ?? '');
+                $line1 = (string) ($requestBody['line1'] ?? $fallbackAddress?->line1 ?? '');
+                $line2 = (string) ($requestBody['line2'] ?? $fallbackAddress?->line2 ?? '');
+                $city = (string) ($requestBody['city'] ?? $fallbackAddress?->city ?? '');
+                $state = (string) ($requestBody['state'] ?? $fallbackAddress?->state ?? '');
+                $postalCode = (string) ($requestBody['postal_code'] ?? $fallbackAddress?->postal_code ?? '');
+                $country = strtoupper((string) ($requestBody['country'] ?? $fallbackAddress?->country ?? 'US'));
+                $email = (string) ($requestBody['email'] ?? $customer->email ?? '');
+
+                if ($email === '') {
+                    throw new RuntimeException('Customer email missing for checkout.');
+                }
+
+                $addressId = $request->input('address_id');
+                $shippingAddress = null;
+                if (is_numeric($addressId)) {
+                    $shippingAddress = Address::query()
+                        ->where('customer_id', $customer->id)
+                        ->find((int) $addressId);
+                }
+
+                if (! $shippingAddress) {
+                    $shippingAddress = Address::query()->create([
+                        'user_id' => null,
+                        'customer_id' => $customer->id,
+                        'name' => trim($firstName . ' ' . $lastName),
+                        'phone' => $phone,
+                        'line1' => $line1,
+                        'line2' => $line2 !== '' ? $line2 : null,
+                        'city' => $city,
+                        'state' => $state !== '' ? $state : null,
+                        'postal_code' => $postalCode !== '' ? $postalCode : null,
+                        'country' => $country,
+                        'type' => 'shipping',
+                    ]);
+                }
+
+                $coupon = $summery['coupon'] ?? null;
+                $discountSnapshot = buildDiscountSnapshot(
+                    $summery['discount'] ?? null,
+                    $summery['discount_label'] ?? null,
+                    $summery['discount_source'] ?? null,
+                    $coupon ? $coupon->serializeCoupon() : null,
+                    $summery['promotionDiscounts'] ?? null,
+                    $cart[0]['currency'] ?? 'USD'
+                );
+
+                $order = Order::createWithGeneratedNumber([
+                    'user_id' => null,
+                    'customer_id' => $customer->id,
+                    'is_guest' => false,
+                    'email' => $email,
+                    'locale' => app()->getLocale(),
+                    'status' => 'pending',
+                    'payment_status' => 'pending',
+                    'currency' => $cart[0]['currency'] ?? 'USD',
+                    'subtotal' => $summery['subtotal'] ?? null,
+                    'shipping_total' => $summery['shippingTotal'] ?? null,
+                    'shipping_total_estimated' => $summery['shippingTotal'] ?? null,
+                    'tax_total' => $summery['tax_total'] ?? null,
+                    'discount_total' => $summery['discount'] ?? null,
+                    'grand_total' => $summery['total'] ?? null,
+                    'discount_snapshot' => $discountSnapshot,
+                    'discount_source' => $summery['discount_source'] ?? null,
+                    'shipping_address_id' => $shippingAddress->id,
+                    'billing_address_id' => $shippingAddress->id,
+                    'shipping_method' => 'standard',
+                    'delivery_notes' => $requestBody['delivery_notes'] ?? null,
+                    'coupon_code' => is_array($coupon) ? ($coupon['code'] ?? null) : ($coupon?->code ?? null),
+                    'placed_at' => now(),
                 ]);
-            }
-        }
 
+                $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
+
+                foreach ($cart->items as $line) {
+                    $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+
+                    $supplierProduct = SupplierProduct::query()
+                        ->where('product_variant_id', $line['variant_id'])
+                        ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                        ->first();
+
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_variant_id' => $line['variant_id'],
+                        'fulfillment_provider_id' => $providerId,
+                        'supplier_product_id' => $supplierProduct?->id,
+                        'fulfillment_status' => 'pending',
+                        'quantity' => $line['quantity'],
+                        'unit_price' => $line->getSinglePrice(),
+                        'total' => $line->getSinglePrice() * $line['quantity'],
+                        'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
+                        'snapshot' => [
+                            'name' => $line?->product['name'] ?? null,
+                            'variant' => $line?->variant['title'] ?? null,
+                            'supplier_type' => $line->product?->supplier_type,
+                        ],
+                        'meta' => [
+                            'media' => $line['media'] ?? null,
+                            'coupon_code' => is_array($coupon) ? ($coupon['code'] ?? null) : ($coupon?->code ?? null),
+                            'supplier_type' => $line->product?->supplier_type,
+                            'supplier_product_id' => $supplierProduct?->id,
+                            'external_product_id' => $supplierProduct?->external_product_id,
+                            'external_sku' => $supplierProduct?->external_sku,
+                        ],
+                    ]);
+                }
+
+                app(OrderCostBreakdownService::class)->recalculate($order);
+
+                foreach ($cart->shippings as $shipping) {
+                    $shippingArr = $shipping->toArray();
+                    $shippingArr['order_id'] = $order->id;
+                    $shippingArr['name'] = $shippingArr['logistic_name'] ?? null;
+                    $shippingArr['price'] = $shippingArr['logistic_price'] ?? null;
+                    OrderShipping::query()->create($shippingArr);
+                }
+
+                $payment = Payment::query()->create([
+                    'order_id' => $order->id,
+                    'provider' => 'korapay',
+                    'status' => 'pending',
+                    'provider_reference' => null,
+                    'amount' => (float) ($order->grand_total ?? 0),
+                    'currency' => (string) ($order->currency ?? 'USD'),
+                    'meta' => [
+                        'storefront' => true,
+                        'request' => $requestBody,
+                    ],
+                ]);
+
+                $returnUrl = route('pay.redirect.with-id', ['type' => 'order', 'id' => $order->id]);
+
+                $init = $this->paymentService->initializeKorapay(
+                    order: $order,
+                    payment: $payment,
+                    customer: [
+                        'email' => $customer->email,
+                        'name' => $customer->name,
+                    ],
+                    method: $method,
+                    returnUrl: $returnUrl,
+                );
+            });
+
+            return response()->json([
+                'status' => true,
+                'data' => [
+                    'redirect' => $init['checkout_url'] ?? null,
+                    'reference' => $init['reference'] ?? null,
+                    'order_id' => $order?->id,
+                    'order_number' => $order?->number,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Storefront checkout failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Checkout failed: ' . $e->getMessage(),
+            ], 422);
+        }
     }
 
-    public function redirect(PaymentResultService $paymentResultService, Request $request, $type, $id = null)
+    public function redirect(Request $request, $type, $id = null)
     {
-        $item = $this->getItem($type, $id);
-
-        $reference = (string)($request->input('reference')
+        $reference = (string) ($request->input('reference')
             ?? $request->input('payment_reference')
             ?? $request->input('transaction_reference')
             ?? $request->query('trxref')
             ?? '');
 
-        if (!$reference) {
+        if (! $reference) {
             abort(404);
         }
-        $verify_result = $this->korapayService->checkStatus($reference);
 
-        if (isset($verify_result) && $verify_result['status']) {
+        $existing = Payment::query()
+            ->where('provider', 'korapay')
+            ->where('provider_reference', $reference)
+            ->with('order')
+            ->latest('id')
+            ->first();
 
-            $payment_result = strtolower((string)($verify_result['data']['status'] ?? ''));
-
-            if ($payment_result == "success") {
-                $existingPayment = Payment::query()
-                    ->where('provider', 'korapay')
-                    ->where('provider_reference', $reference)
-                    ->with('order')
-                    ->latest('id')
-                    ->first();
-
-                if ($existingPayment?->order) {
-                    return redirect()->route('orders.confirmation', ['number' => $existingPayment->order->number]);
-                }
-
-                if (!$item) {
-                    if ($type === "cart") {
-                        return redirect()->route('products.index');
-                    }
-
-                    return redirect('/')->withErrors([
-                        "Item not found"
-                    ]);
-                }
-
-                // do register payment
-                $result =  $paymentResultService->registerCompletePayment($item, $verify_result);
-                Log::info('result : ' . json_encode($result));
-                return redirect()->away($result);
-                return redirect($result);
-            } else {
-                return $paymentResultService->registerFailedPayment($type, $id, $verify_result);
-                // do failed payment
-            }
-        } else {
-            return $paymentResultService->registerFailedPayment($type, $id, $verify_result);
+        if ($existing?->status === 'paid' && $existing?->order) {
+            return redirect()->route('orders.confirmation', ['number' => $existing->order->number]);
         }
 
-    }
+        $payment = $this->paymentService->verifyKorapay($reference);
+        $order = $payment->order()->first();
 
+        if ($payment->status === 'paid' && $order) {
+            $customer = auth('customer')->user();
+            if ($customer && (int) $order->customer_id === (int) $customer->id) {
+                $cart = Cart::query()->where('user_id', $customer->id)->first();
+                $cart?->emptyCart();
+                app(AbandonedCartService::class)->markRecovered();
+            }
+
+            return redirect()->route('orders.confirmation', ['number' => $order->number]);
+        }
+
+        return redirect()->route('pay.index', ['type' => 'cart'])->with('error', 'Payment could not be confirmed.');
+    }
 
     private function getItem($type, $id)
     {
-        if ($type == "order") {
-            return Order::query()->findOrFail($id);
-        } elseif ($type == "cart") {
+        if ($type === 'cart') {
+            $customer = auth('customer')->user();
+            if (! $customer) {
+                return null;
+            }
+
             return Cart::query()
-                ->where('user_id', auth('customer')->id())
+                ->where('user_id', $customer->id)
                 ->with('items')
                 ->first();
         }
+
+        if ($type === 'order') {
+            return Order::query()->findOrFail($id);
+        }
+
+        return null;
     }
 
-    private function getItemValidationArray($type)
+    private function getItemValidationArray(string $type): array
     {
-        if ($type == "order") {
+        if ($type !== 'cart') {
             return [];
-        } elseif ($type == "cart") {
-            $address_id = \request()->get('address_id');
-            if (isset($address_id) && isnumeric($address_id)) {
-                return [
-                    'address_id' => 'required|numeric|exists:addresses,id',
-                ];
-            } else {
-                return [
-                    'email' => ['required', 'email'],
-                    'phone' => ['required', 'string', 'max:30'],
-                    'first_name' => ['required', 'string', 'max:120'],
-                    'last_name' => ['nullable', 'string', 'max:120'],
-                    'line1' => ['required', 'string', 'max:255'],
-                    'line2' => ['nullable', 'string', 'max:255'],
-                    'city' => ['required', 'string', 'max:120'],
-                    'state' => ['nullable', 'string', 'max:120'],
-                    'postal_code' => ['nullable', 'string', 'max:30'],
-                    'country' => ['required', 'string', 'max:2'],
-                    'delivery_notes' => ['nullable', 'string', 'max:500'],
-                ];
-            }
-
         }
+
+        $addressId = request()->get('address_id');
+        if (isset($addressId) && is_numeric($addressId)) {
+            return [
+                'address_id' => 'required|numeric|exists:addresses,id',
+            ];
+        }
+
+        return [
+            'email' => ['required', 'email'],
+            'phone' => ['required', 'string', 'max:30'],
+            'first_name' => ['required', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:120'],
+            'line1' => ['required', 'string', 'max:255'],
+            'line2' => ['nullable', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:120'],
+            'state' => ['nullable', 'string', 'max:120'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'country' => ['required', 'string', 'max:2'],
+            'delivery_notes' => ['nullable', 'string', 'max:500'],
+        ];
     }
 }

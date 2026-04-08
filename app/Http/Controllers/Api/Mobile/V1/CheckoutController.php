@@ -137,7 +137,8 @@ class CheckoutController extends ApiController
             ]);
 
             $order = Order::createWithGeneratedNumber([
-                'user_id' => $customer?->id,
+                // user_id references internal users; storefront/mobile customers should only set customer_id.
+                'user_id' => null,
                 'customer_id' => $customer?->id,
                 'guest_name' => null,
                 'guest_phone' => null,

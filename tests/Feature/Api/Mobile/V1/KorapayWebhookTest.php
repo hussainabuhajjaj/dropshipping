@@ -66,8 +66,8 @@ class KorapayWebhookTest extends TestCase
             ],
         ];
 
-        $body = json_encode($payload);
-        $signature = hash_hmac('sha256', $body, 'test-secret');
+        $dataJson = json_encode($payload['data'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $signature = hash_hmac('sha256', (string) $dataJson, 'test-secret');
 
         $response = $this->withHeader('x-korapay-signature', $signature)
             ->postJson('/api/webhooks/korapay', $payload);

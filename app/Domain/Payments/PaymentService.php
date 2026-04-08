@@ -10,6 +10,7 @@ use App\Domain\Payments\Models\PaymentWebhook;
 use App\Domain\Observability\EventLogger;
 use App\Events\Orders\OrderPaid;
 use App\Infrastructure\Payments\Clients\KorapayClient;
+use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -106,7 +107,23 @@ class PaymentService
         /** @var Order $order */
         $order = Order::where('number', $orderNumber)->firstOrFail();
 
-        $this->assertTotalsMatch($order, $amount, $currency);
+        $method = $this->extractPaymentMethodFromPayload($payload);
+
+        /** @var Payment|null $existing */
+        $existing = Payment::query()
+            ->where('provider', $provider)
+            ->where('provider_reference', $providerReference)
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            $this->assertPaymentTotalsMatch($existing, $amount, $currency);
+        } elseif ($method === 'mobile_money') {
+            $expected = $this->resolveChargeForKorapay($order, $method);
+            $this->assertNumericTotalsMatch($expected['amount'], $expected['currency'], $amount, $currency);
+        } else {
+            $this->assertTotalsMatch($order, $amount, $currency);
+        }
 
         $payment = Payment::firstOrCreate(
             [
@@ -182,6 +199,85 @@ class PaymentService
         }
     }
 
+    private function assertPaymentTotalsMatch(Payment $payment, float|string|null $amount, ?string $currency): void
+    {
+        $expectedAmount = (float) ($payment->amount ?? 0);
+        $expectedCurrency = (string) ($payment->currency ?? '');
+
+        if ($expectedAmount <= 0 || $expectedCurrency === '') {
+            // If payment is missing charged totals, fall back to order-level checks elsewhere.
+            return;
+        }
+
+        $this->assertNumericTotalsMatch($expectedAmount, $expectedCurrency, $amount, $currency);
+    }
+
+    private function assertNumericTotalsMatch(float $expectedAmount, string $expectedCurrency, float|string|null $amount, ?string $currency): void
+    {
+        $numericAmount = (float) $amount;
+        if ($numericAmount <= 0) {
+            throw new InvalidArgumentException('Amount must be positive.');
+        }
+
+        if (strcasecmp((string) $currency, $expectedCurrency) !== 0) {
+            throw new InvalidArgumentException('Currency mismatch for payment.');
+        }
+
+        // Compare loosely for minor rounding differences; XOF is integer, USD is 2 decimals.
+        if (abs($numericAmount - $expectedAmount) > 0.01) {
+            throw new InvalidArgumentException('Amount does not match expected charged total.');
+        }
+    }
+
+    private function extractPaymentMethodFromPayload(array $payload): ?string
+    {
+        $method = data_get($payload, 'payment_method')
+            ?? data_get($payload, 'metadata.payment_method')
+            ?? data_get($payload, 'korapay.data.metadata.payment_method')
+            ?? data_get($payload, 'korapay.metadata.payment_method');
+
+        $method = is_string($method) ? strtolower(trim($method)) : null;
+
+        return $method !== '' ? $method : null;
+    }
+
+    /**
+     * Resolve the exact amount/currency we should charge Korapay for this order + method.
+     *
+     * @return array{amount: float, currency: string, fx_rate_used: float|null}
+     */
+    private function resolveChargeForKorapay(Order $order, string $method): array
+    {
+        $baseCurrency = (string) ($order->currency ?? config('currency.base', 'USD'));
+        $baseAmount = (float) ($order->grand_total ?? 0);
+
+        if ($method !== 'mobile_money') {
+            return [
+                'amount' => $baseAmount,
+                'currency' => $baseCurrency,
+                'fx_rate_used' => null,
+            ];
+        }
+
+        $chargeCurrency = 'XOF';
+        $converter = app(CurrencyConversionService::class);
+
+        // Use the configured FX rate (FX_USD_XOF) and currency decimals (XOF => 0)
+        $chargeAmount = (float) $converter->convertAmount($baseAmount, $baseCurrency, $chargeCurrency);
+        $fxRate = null;
+        try {
+            $fxRate = $converter->rate($converter->normalize($baseCurrency), $converter->normalize($chargeCurrency));
+        } catch (\Throwable) {
+            // Leave as null; conversion already validated rate existence.
+        }
+
+        return [
+            'amount' => $chargeAmount,
+            'currency' => $chargeCurrency,
+            'fx_rate_used' => $fxRate,
+        ];
+    }
+
 
     public function initializeKorapay(
         Order $order,
@@ -197,18 +293,27 @@ class PaymentService
             $payment->update(['provider_reference' => $this->buildKorapayReference($order)]);
         }
 
-        // Handle currency conversion for mobile money (same as storefront)
-        $currency = $order->currency ?? 'USD';
-        $amount = (float) $order->grand_total;
-        
-        if ($method === 'mobile_money') {
-            $currency = 'XOF'; // Convert to West African CFA for mobile money
-            // Note: You might need to implement currency conversion here if needed
-        }
+        $charge = $this->resolveChargeForKorapay($order, $method);
+        $chargedAmount = $charge['amount'];
+        $chargedCurrency = $charge['currency'];
+
+        // Persist provider-facing charged totals for reconciliation and webhook validation.
+        $existingMeta = is_array($payment->meta) ? $payment->meta : [];
+        $payment->forceFill([
+            'amount' => $chargedAmount,
+            'currency' => $chargedCurrency,
+            'meta' => array_merge($existingMeta, [
+                'order_amount' => (float) ($order->grand_total ?? 0),
+                'order_currency' => (string) ($order->currency ?? config('currency.base', 'USD')),
+                'fx_rate_used' => $charge['fx_rate_used'],
+                'charged_amount' => $chargedAmount,
+                'charged_currency' => $chargedCurrency,
+            ]),
+        ])->save();
 
         $payload = [
-            'amount' => $amount,
-            'currency' => $currency,
+            'amount' => $chargedAmount,
+            'currency' => $chargedCurrency,
             'reference' => $payment->provider_reference,
             'redirect_url' => $returnUrl ?: url('/api/mobile/v1/payments/redirect'),
             'customer' => [
@@ -224,6 +329,23 @@ class PaymentService
                 'payment_method' => $method,
             ],
         ];
+dd([
+    'order' => [
+        'id' => $order->id,
+        'number' => $order->number,
+        'grand_total' => $order->grand_total,
+        'currency' => $order->currency,
+    ],
+    'payment' => [
+        'id' => $payment->id,
+        'provider_reference' => $payment->provider_reference,
+        'amount' => $payment->amount,
+        'currency' => $payment->currency,
+        'meta' => $payment->meta,
+    ],
+    'method' => $method,
+    'payload_to_korapay' => $payload,
+]);
 
         $response = $client->initialize($payload);
         $data = is_array($response->data) ? $response->data : [];
