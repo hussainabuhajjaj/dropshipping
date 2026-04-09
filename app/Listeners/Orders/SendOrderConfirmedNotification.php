@@ -34,11 +34,15 @@ class SendOrderConfirmedNotification
             return;
         }
 
-        // Get the payment for receipt
-        $payment = $order->payments()->where('status', 'completed')->latest()->first();
+        // Get the provider-facing payment for receipt/confirmation.
+        // Our PaymentService marks paid as `paid` (not `completed`).
+        $payment = $order->payments()
+            ->whereIn('status', ['paid', 'success', 'succeeded', 'captured'])
+            ->latest()
+            ->first();
 
         if ($notifiable) {
-            Notification::send($notifiable, (new OrderConfirmedNotification($order))->locale($locale));
+            Notification::send($notifiable, (new OrderConfirmedNotification($order, payment: $payment))->locale($locale));
             if ($payment) {
                 Notification::send($notifiable, (new PaymentReceiptNotification($order, $payment))->locale($locale));
             }
@@ -46,7 +50,7 @@ class SendOrderConfirmedNotification
 
         if (! $notifiable) {
             Notification::route('mail', $order->email)
-                ->notify((new OrderConfirmedNotification($order))->locale($locale));
+                ->notify((new OrderConfirmedNotification($order, payment: $payment))->locale($locale));
             if ($payment) {
                 Notification::route('mail', $order->email)
                     ->notify((new PaymentReceiptNotification($order, $payment))->locale($locale));
