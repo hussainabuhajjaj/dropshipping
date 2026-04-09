@@ -377,6 +377,25 @@ class PaymentService
         $response = $client->verify($reference);
         $data = is_array($response->data) ? $response->data : [];
 
+        // Persist the raw verify response for debugging/reconciliation even when redirect fails.
+        // This helps diagnose "dashboard says success but API says pending" cases.
+        $existingForRef = Payment::query()
+            ->where('provider', 'korapay')
+            ->where('provider_reference', $reference)
+            ->latest('id')
+            ->first();
+
+        if ($existingForRef) {
+            $existingMeta = is_array($existingForRef->meta) ? $existingForRef->meta : [];
+            $existingForRef->update([
+                'meta' => array_merge($existingMeta, [
+                    'korapay_verify' => $data,
+                    'korapay_verify_raw' => $response->raw,
+                    'korapay_verify_at' => now()->toISOString(),
+                ]),
+            ]);
+        }
+
         $payload = $this->normalizeKorapayPayload($data, $reference);
         $eventId = $payload['event_id'] ?? ('verify:' . $reference);
 
