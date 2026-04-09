@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simbazu-shell-v2';
+const CACHE_NAME = 'simbazu-shell-v3';
 const CORE_ASSETS = ['/manifest.webmanifest', '/images/category-default.png'];
 
 self.addEventListener('install', (event) => {
@@ -28,13 +28,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   const accept = event.request.headers.get('accept') || '';
-  const isHtmlRequest =
-    event.request.mode === 'navigate' ||
-    accept.includes('text/html');
+  const isHtmlRequest = event.request.mode === 'navigate' || accept.includes('text/html');
 
-  // Never cache dynamic HTML/Inertia documents. They carry CSRF tokens and session-coupled state.
+  // Never intercept dynamic HTML/Inertia documents.
+  // If we respondWith(fetch()) and it fails, it turns navigations into opaque network errors.
+  // Let the browser handle navigations normally.
   if (isHtmlRequest) {
-    event.respondWith(fetch(event.request));
     return;
   }
 
@@ -49,8 +48,9 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => null);
         return response;
       })
-      .catch(() =>
-        caches.match(event.request)
-      )
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || new Response('', { status: 504, statusText: 'Offline' });
+      })
   );
 });
