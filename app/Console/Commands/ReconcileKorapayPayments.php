@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 class ReconcileKorapayPayments extends Command
 {
     protected $signature = 'payments:reconcile-korapay
+        {reference? : Optional Korapay reference to verify (skips DB scan)}
         {--limit=50 : Max payments to verify per run}
         {--min-age=3 : Only verify payments older than N minutes}
         {--max-age=4320 : Only verify payments newer than N minutes (default 3 days)}
@@ -20,6 +21,7 @@ class ReconcileKorapayPayments extends Command
 
     public function handle(PaymentService $paymentService): int
     {
+        $singleReference = (string) ($this->argument('reference') ?? '');
         $limit = max(1, (int) $this->option('limit'));
         $minAgeMinutes = max(0, (int) $this->option('min-age'));
         $maxAgeMinutes = max(1, (int) $this->option('max-age'));
@@ -27,6 +29,31 @@ class ReconcileKorapayPayments extends Command
 
         $minAge = now()->subMinutes($minAgeMinutes);
         $maxAge = now()->subMinutes($maxAgeMinutes);
+
+        if ($singleReference !== '') {
+            if ($dryRun) {
+                $this->line('[DRY-RUN] Would verify reference=' . $singleReference);
+                return self::SUCCESS;
+            }
+
+            $existing = Payment::query()
+                ->where('provider', 'korapay')
+                ->where('provider_reference', $singleReference)
+                ->latest('id')
+                ->first();
+
+            $old = $existing?->status;
+            $this->line(sprintf('Verifying reference=%s (current_status=%s)', $singleReference, $old ?? 'null'));
+
+            try {
+                $result = $paymentService->verifyKorapay($singleReference);
+                $this->line(sprintf('Result reference=%s new_status=%s paid_at=%s', $singleReference, (string) $result->status, (string) ($result->paid_at ?? 'null')));
+                return $result->status === 'paid' ? self::SUCCESS : self::FAILURE;
+            } catch (\Throwable $e) {
+                $this->error(sprintf('Failed verify reference=%s: %s', $singleReference, $e->getMessage()));
+                return self::FAILURE;
+            }
+        }
 
         $query = Payment::query()
             ->where('provider', 'korapay')
@@ -67,7 +94,14 @@ class ReconcileKorapayPayments extends Command
 
             try {
                 $verified++;
+                $oldStatus = (string) $payment->status;
                 $result = $paymentService->verifyKorapay($reference);
+                $this->line(sprintf(
+                    'Verified reference=%s old_status=%s new_status=%s',
+                    $reference,
+                    $oldStatus,
+                    (string) $result->status
+                ));
                 if ($result->status === 'paid') {
                     $paid++;
                 }
@@ -92,4 +126,3 @@ class ReconcileKorapayPayments extends Command
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 }
-
