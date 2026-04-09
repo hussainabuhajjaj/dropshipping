@@ -53,6 +53,7 @@ class Kernel extends ConsoleKernel
         FixDefaultCategories::class,
         FixDefaultVariants::class,
         ResyncCheckVariants::class,
+        \App\Console\Commands\PushStorefrontAnnouncement::class,
     ];
 
     protected function schedule(Schedule $schedule): void

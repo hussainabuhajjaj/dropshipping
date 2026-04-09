@@ -101,6 +101,18 @@ class HandleInertiaRequests extends Middleware
             'wss_port' => (int) env('PUSHER_WSS_PORT', 443),
             'force_tls' => (bool) config('broadcasting.connections.pusher.options.useTLS', true),
         ];
+
+        $storefrontRealtime = [
+            'enabled' => (string) config('broadcasting.default', 'log') === 'pusher'
+                && (string) config('broadcasting.connections.pusher.key', '') !== '',
+            'driver' => (string) config('broadcasting.default', 'log'),
+            'key' => (string) config('broadcasting.connections.pusher.key', ''),
+            'cluster' => (string) config('broadcasting.connections.pusher.options.cluster', ''),
+            'ws_host' => trim((string) env('PUSHER_WS_HOST', '')),
+            'ws_port' => (int) env('PUSHER_PORT', 443),
+            'wss_port' => (int) env('PUSHER_WSS_PORT', 443),
+            'force_tls' => (bool) config('broadcasting.connections.pusher.options.useTLS', true),
+        ];
 //dd(parent::share($request));
         return [
             ...parent::share($request),
@@ -136,6 +148,7 @@ class HandleInertiaRequests extends Middleware
             'user_preferences' => $userPreferences,
             'translations' => $translations,
             'supportChatRealtime' => $supportChatRealtime,
+            'storefrontRealtime' => $storefrontRealtime,
             'seo' => [
                 'title' => $site?->localizedValue('meta_title', $locale) ?? $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Simbazu'),
                 'description' => $site?->localizedValue('meta_description', $locale) ?? $site?->meta_description ?? $site?->site_description ?? null,
