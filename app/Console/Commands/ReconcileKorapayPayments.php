@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Domain\Payments\Models\Payment;
 use App\Domain\Payments\PaymentService;
+use App\Infrastructure\Payments\Clients\KorapayClient;
 use Illuminate\Console\Command;
 
 class ReconcileKorapayPayments extends Command
@@ -15,6 +16,7 @@ class ReconcileKorapayPayments extends Command
         {--limit=50 : Max payments to verify per run}
         {--min-age=3 : Only verify payments older than N minutes}
         {--max-age=4320 : Only verify payments newer than N minutes (default 3 days)}
+        {--debug : Print Korapay verify response fields for each reference}
         {--dry-run : Show which references would be verified without calling Korapay}';
 
     protected $description = 'Verify pending Korapay payments so successful payments do not rely on browser/app redirects';
@@ -26,6 +28,7 @@ class ReconcileKorapayPayments extends Command
         $minAgeMinutes = max(0, (int) $this->option('min-age'));
         $maxAgeMinutes = max(1, (int) $this->option('max-age'));
         $dryRun = (bool) $this->option('dry-run');
+        $debug = (bool) $this->option('debug');
 
         $minAge = now()->subMinutes($minAgeMinutes);
         $maxAge = now()->subMinutes($maxAgeMinutes);
@@ -46,6 +49,23 @@ class ReconcileKorapayPayments extends Command
             $this->line(sprintf('Verifying reference=%s (current_status=%s)', $singleReference, $old ?? 'null'));
 
             try {
+                if ($debug) {
+                    $client = app(KorapayClient::class);
+                    $resp = $client->verify($singleReference);
+                    $data = is_array($resp->data) ? $resp->data : [];
+                    $this->line('Korapay verify snapshot: ' . json_encode([
+                        'status' => $data['status'] ?? null,
+                        'reference' => $data['reference'] ?? null,
+                        'payment_reference' => $data['payment_reference'] ?? null,
+                        'transaction_reference' => $data['transaction_reference'] ?? null,
+                        'amount' => $data['amount'] ?? null,
+                        'amount_paid' => $data['amount_paid'] ?? null,
+                        'currency' => $data['currency'] ?? null,
+                        'channel' => $data['payment_method'] ?? ($data['channel'] ?? null),
+                        'message' => $data['message'] ?? null,
+                    ], JSON_UNESCAPED_SLASHES));
+                }
+
                 $result = $paymentService->verifyKorapay($singleReference);
                 $this->line(sprintf('Result reference=%s new_status=%s paid_at=%s', $singleReference, (string) $result->status, (string) ($result->paid_at ?? 'null')));
                 return $result->status === 'paid' ? self::SUCCESS : self::FAILURE;
@@ -95,6 +115,23 @@ class ReconcileKorapayPayments extends Command
             try {
                 $verified++;
                 $oldStatus = (string) $payment->status;
+
+                if ($debug) {
+                    try {
+                        $client = app(KorapayClient::class);
+                        $resp = $client->verify($reference);
+                        $data = is_array($resp->data) ? $resp->data : [];
+                        $this->line('Korapay verify snapshot: ' . json_encode([
+                            'reference' => $reference,
+                            'status' => $data['status'] ?? null,
+                            'amount' => $data['amount'] ?? null,
+                            'currency' => $data['currency'] ?? null,
+                        ], JSON_UNESCAPED_SLASHES));
+                    } catch (\Throwable $e) {
+                        $this->line('Korapay verify snapshot failed: ' . $e->getMessage());
+                    }
+                }
+
                 $result = $paymentService->verifyKorapay($reference);
                 $this->line(sprintf(
                     'Verified reference=%s old_status=%s new_status=%s',
