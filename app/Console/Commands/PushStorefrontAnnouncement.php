@@ -24,6 +24,11 @@ class PushStorefrontAnnouncement extends Command
         if ($driver !== 'pusher') {
             $this->warn("Broadcast driver is '{$driver}'. Set BROADCAST_CONNECTION=pusher on production for realtime.");
         }
+        if ($driver === 'pusher' && ! class_exists(\Pusher\Pusher::class)) {
+            $this->error('Broadcast driver is pusher, but the PHP Pusher SDK is not installed (Class "Pusher\\Pusher" not found).');
+            $this->line('Fix on server: run `composer install --no-dev --optimize-autoloader` in the Laravel app root, then `php artisan optimize:clear`.');
+            return self::FAILURE;
+        }
 
         $message = trim((string) $this->argument('message'));
         if ($message === '') {
@@ -68,4 +73,3 @@ class PushStorefrontAnnouncement extends Command
         return self::SUCCESS;
     }
 }
-
