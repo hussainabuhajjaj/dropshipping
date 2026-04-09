@@ -6,52 +6,65 @@
     <Breadcrumbs :items="breadcrumbs" class="mb-4" />
     <div class="grid gap-10 pb-32 lg:grid-cols-[1.1fr,0.9fr] lg:pb-0">
         <div class="space-y-4">
-          <div
-            class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 touch-pan-y"
-            @touchstart.passive="onGalleryTouchStart"
-            @touchend.passive="onGalleryTouchEnd"
-          >
-            <img
-              v-if="selectedImage"
-              :src="selectedImage"
-              :alt="product.name"
-              class="h-full w-full object-cover"
-            />
+	          <div
+	            class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 touch-pan-y select-none cursor-grab active:cursor-grabbing"
+	            @pointerdown="onGalleryPointerDown"
+	            @pointerup="onGalleryPointerUp"
+	            @pointercancel="onGalleryPointerCancel"
+	          >
+	            <img
+	              v-if="selectedImage"
+	              :src="selectedImage"
+	              :alt="product.name"
+	              class="h-full w-full object-cover"
+	              draggable="false"
+	              @dragstart.prevent
+	            />
             <div v-else class="flex aspect-[4/3] items-center justify-center text-xs text-slate-400">
               {{ t('Image coming soon') }}
             </div>
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 md:hidden" v-if="galleryImages.length > 1">
-              <div class="rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                {{ t('Swipe') }}
-              </div>
-            </div>
-            <div class="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2">
-              <button
-                v-for="(image, idx) in galleryImages"
-                :key="idx"
+	            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 md:hidden" v-if="galleryImages.length > 1">
+	              <div class="rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
+	                {{ t('Swipe') }}
+	              </div>
+	            </div>
+	            <div v-if="galleryImages.length > 1" class="absolute inset-y-0 left-0 right-0 hidden items-center justify-between px-3 md:flex">
+	              <button
+	                type="button"
+	                class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+	                @click.stop="setGalleryImageByIndex(selectedImageIndex - 1)"
+	              >
+	                <span class="sr-only">{{ t('Previous image') }}</span>
+	                <svg viewBox="0 0 20 20" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+	                  <path fill-rule="evenodd" d="M12.78 15.53a.75.75 0 01-1.06 0l-5-5a.75.75 0 010-1.06l5-5a.75.75 0 111.06 1.06L8.31 10l4.47 4.47a.75.75 0 010 1.06z" clip-rule="evenodd"/>
+	                </svg>
+	              </button>
+	              <button
+	                type="button"
+	                class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+	                @click.stop="setGalleryImageByIndex(selectedImageIndex + 1)"
+	              >
+	                <span class="sr-only">{{ t('Next image') }}</span>
+	                <svg viewBox="0 0 20 20" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+	                  <path fill-rule="evenodd" d="M7.22 4.47a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L11.69 10 7.22 5.53a.75.75 0 010-1.06z" clip-rule="evenodd"/>
+	                </svg>
+	              </button>
+	            </div>
+	            <div class="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2">
+	              <button
+	                v-for="(image, idx) in galleryImages"
+	                :key="idx"
                 type="button"
                 class="h-2 w-2 rounded-full border border-white/60 bg-white/60 transition"
                 :class="image === selectedImage ? 'scale-110 border-slate-900 bg-slate-900' : 'hover:bg-white'"
                 @click="selectedImage = image"
-              />
-            </div>
-          </div>
-        <div class="grid grid-cols-5 gap-3 sm:grid-cols-6">
-          <button
-            v-for="(image, idx) in galleryImages"
-            :key="idx"
-            type="button"
-            class="aspect-square overflow-hidden rounded-xl border border-transparent bg-slate-50 transition"
-            :class="image === selectedImage ? 'border-slate-900 ring-2 ring-slate-200' : 'hover:border-slate-300'"
-            @click="selectedImage = image"
-          >
-            <img :src="image" :alt="product.name" class="h-full w-full object-cover" />
-          </button>
-        </div>
+	              />
+	            </div>
+	          </div>
 
-        <div v-if="productVideos.length" class="space-y-3">
-          <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{{ t('Videos') }}</h2>
-          <div class="grid gap-3">
+	        <div v-if="productVideos.length" class="space-y-3">
+	          <h2 class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{{ t('Videos') }}</h2>
+	          <div class="grid gap-3">
             <video
               v-for="(video, idx) in productVideos"
               :key="idx"
@@ -881,19 +894,20 @@ const updateOptionSelection = (groupKey, value) => {
   }
 }
 
-const galleryImages = computed(() => {
-  const images = [
-    selectedVariant.value?.variant_image ?? null,
-    ...(Array.isArray(props.product.media) ? props.product.media : []),
-  ].filter(Boolean)
+	const galleryImages = computed(() => {
+	  const images = [
+	    selectedVariant.value?.variant_image ?? null,
+	    ...(Array.isArray(props.product.media) ? props.product.media : []),
+	  ].filter(Boolean)
 
-  return [...new Set(images)]
-})
+	  return [...new Set(images)]
+	})
 
-const selectedImage = ref(null)
-const galleryTouchStartX = ref(0)
-const galleryTouchStartY = ref(0)
-const activeTab = ref('description')
+	const selectedImage = ref(null)
+	const galleryPointerStartX = ref(0)
+	const galleryPointerStartY = ref(0)
+	const galleryPointerId = ref(null)
+	const activeTab = ref('description')
 
 const activePromotions = computed(() => page.props.promotions || page.props.homepagePromotions || [])
 const productPromotion = computed(() => productPromotionForDetails(props.product, activePromotions.value))
@@ -970,44 +984,68 @@ const selectedImageIndex = computed(() => {
   return index >= 0 ? index : 0
 })
 
-const setGalleryImageByIndex = (index) => {
-  const images = galleryImages.value
+	const setGalleryImageByIndex = (index) => {
+	  const images = galleryImages.value
 
-  if (!images.length) {
-    selectedImage.value = null
-    return
-  }
+	  if (!images.length) {
+	    selectedImage.value = null
+	    return
+	  }
 
-  const normalizedIndex = (index + images.length) % images.length
-  selectedImage.value = images[normalizedIndex]
-}
+	  const normalizedIndex = (index + images.length) % images.length
+	  selectedImage.value = images[normalizedIndex]
+	}
 
-const onGalleryTouchStart = (event) => {
-  galleryTouchStartX.value = event.changedTouches?.[0]?.clientX ?? 0
-  galleryTouchStartY.value = event.changedTouches?.[0]?.clientY ?? 0
-}
+	const onGalleryPointerDown = (event) => {
+	  if (galleryImages.value.length < 2) {
+	    return
+	  }
+	  if (!event.isPrimary) {
+	    return
+	  }
 
-const onGalleryTouchEnd = (event) => {
-  if (galleryImages.value.length < 2) {
-    return
-  }
+	  galleryPointerId.value = event.pointerId
+	  galleryPointerStartX.value = event.clientX ?? 0
+	  galleryPointerStartY.value = event.clientY ?? 0
 
-  const endX = event.changedTouches?.[0]?.clientX ?? 0
-  const endY = event.changedTouches?.[0]?.clientY ?? 0
-  const deltaX = endX - galleryTouchStartX.value
-  const deltaY = endY - galleryTouchStartY.value
+	  try {
+	    event.currentTarget?.setPointerCapture?.(event.pointerId)
+	  } catch {
+	    // ignore
+	  }
+	}
 
-  if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) {
-    return
-  }
+	const onGalleryPointerUp = (event) => {
+	  if (galleryImages.value.length < 2) {
+	    return
+	  }
+	  if (galleryPointerId.value !== null && event.pointerId !== galleryPointerId.value) {
+	    return
+	  }
 
-  if (deltaX < 0) {
-    setGalleryImageByIndex(selectedImageIndex.value + 1)
-    return
-  }
+	  const endX = event.clientX ?? 0
+	  const endY = event.clientY ?? 0
+	  const deltaX = endX - galleryPointerStartX.value
+	  const deltaY = endY - galleryPointerStartY.value
 
-  setGalleryImageByIndex(selectedImageIndex.value - 1)
-}
+	  galleryPointerId.value = null
+
+	  // Only treat as a swipe/drag when horizontal movement is dominant.
+	  if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+	    return
+	  }
+
+	  if (deltaX < 0) {
+	    setGalleryImageByIndex(selectedImageIndex.value + 1)
+	    return
+	  }
+
+	  setGalleryImageByIndex(selectedImageIndex.value - 1)
+	}
+
+	const onGalleryPointerCancel = () => {
+	  galleryPointerId.value = null
+	}
 
 const specEntries = computed(() => {
   const specs = props.product.specs ?? {}

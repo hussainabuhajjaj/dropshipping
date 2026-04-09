@@ -48,10 +48,16 @@
             <meta v-if="seoImage" name="twitter:image" :content="seoImage"/>
         </Head>
 
+        <div aria-hidden="true" class="storefront-header-spacer" :style="headerSpacerStyle"></div>
+
         <!-- Marketplace Header -->
         <header
-            class="sticky top-0 z-[100] shadow-md bg-slate-950 text-white transition-all duration-200"
-            :class="mobileHeaderCompact ? 'mobile-header-compact' : ''"
+            ref="headerRef"
+            class="storefront-header fixed top-0 inset-x-0 z-[100] shadow-md bg-slate-950 text-white"
+            :class="[
+                mobileHeaderCompact ? 'mobile-header-compact' : '',
+                headerHidden ? 'storefront-header--hidden' : '',
+            ]"
         >
             <!-- Global announcement bar -->
             <div
@@ -1009,7 +1015,7 @@
 <script setup>
 
 // ,
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchEffect } from 'vue'
 
 import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
@@ -1072,7 +1078,19 @@ const cartRef = ref(null)
 const desktopSearchRef = ref(null)
 const mobileSearchRef = ref(null)
 const isNavigating = ref(false)
-const mobileHeaderCompact = ref(false)
+	const mobileHeaderCompact = ref(false)
+
+	// --- Header (hide on scroll) ---
+	const headerRef = ref(null)
+	// Start with a reasonable default to reduce initial layout shift before measuring.
+	const headerHeight = ref(88)
+	const headerHidden = ref(false)
+	const headerSpacerStyle = computed(() => ({
+	    height: `${headerHeight.value}px`,
+	}))
+let headerVisibilityRaf = null
+let headerLastScrollY = 0
+let headerResizeObserver = null
 const isSearchFocused = ref(false)
 const isFetchingSuggestions = ref(false)
 const selectedSuggestionIndex = ref(-1)
@@ -1927,6 +1945,55 @@ const scheduleMobileHeaderStateUpdate = () => {
     })
 }
 
+// --- Header hide on scroll ---
+const measureHeaderHeight = () => {
+    if (typeof window === 'undefined') return
+    const el = headerRef.value
+    if (!el) return
+    const h = Math.round(el.getBoundingClientRect().height || 0)
+    if (h > 0) headerHeight.value = h
+}
+
+const updateHeaderVisibility = () => {
+    if (typeof window === 'undefined') return
+    const y = window.scrollY || 0
+    const dy = y - headerLastScrollY
+
+    if (mobileOpen.value || megaMenuOpen.value || accountOpen.value || cartOpen.value || locationOpen.value) {
+        headerHidden.value = false
+        headerLastScrollY = y
+        return
+    }
+
+    const hideAfter = Math.max(80, headerHeight.value + 24)
+
+    if (y <= 8) {
+        headerHidden.value = false
+    } else if (dy > 10 && y > hideAfter) {
+        headerHidden.value = true
+    } else if (dy < -10) {
+        headerHidden.value = false
+    }
+
+    headerLastScrollY = y
+}
+
+const scheduleHeaderVisibilityUpdate = () => {
+    if (typeof window === 'undefined') return
+    if (headerVisibilityRaf) return
+    headerVisibilityRaf = window.requestAnimationFrame(() => {
+        headerVisibilityRaf = null
+        updateHeaderVisibility()
+    })
+}
+
+watch([mobileOpen, megaMenuOpen, accountOpen, cartOpen, locationOpen], (vals) => {
+    if (Array.isArray(vals) && vals.some(Boolean)) {
+        headerHidden.value = false
+    }
+})
+
+
 
 
 // --- Router loader ---
@@ -2008,6 +2075,22 @@ onMounted(() => {
     requestAnimationFrame(updateScrollArrows)
     window.addEventListener('resize', updateScrollArrows)
 
+    window.addEventListener('scroll', scheduleHeaderVisibilityUpdate, {passive: true})
+    window.addEventListener('resize', measureHeaderHeight)
+
+    nextTick(() => {
+        measureHeaderHeight()
+        headerLastScrollY = typeof window !== 'undefined' ? (window.scrollY || 0) : 0
+        scheduleHeaderVisibilityUpdate()
+
+        if (typeof window !== 'undefined' && 'ResizeObserver' in window && headerRef.value) {
+            headerResizeObserver = new ResizeObserver(() => {
+                measureHeaderHeight()
+            })
+            headerResizeObserver.observe(headerRef.value)
+        }
+    })
+
     if (enableMobileHeaderCompact) {
         window.addEventListener('scroll', scheduleMobileHeaderStateUpdate, {passive: true})
         window.addEventListener('resize', updateMobileHeaderState)
@@ -2018,6 +2101,22 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick)
     window.removeEventListener('resize', updateScrollArrows)
+    window.removeEventListener('scroll', scheduleHeaderVisibilityUpdate)
+    window.removeEventListener('resize', measureHeaderHeight)
+
+    if (headerResizeObserver) {
+        try {
+            headerResizeObserver.disconnect()
+        } catch {
+            // ignore
+        }
+        headerResizeObserver = null
+    }
+
+    if (headerVisibilityRaf) {
+        window.cancelAnimationFrame(headerVisibilityRaf)
+        headerVisibilityRaf = null
+    }
 
     if (enableMobileHeaderCompact) {
         window.removeEventListener('scroll', scheduleMobileHeaderStateUpdate)
@@ -2050,6 +2149,26 @@ const categoryHref = (category) => {
 </script>
 
 <style scoped>
+/* Header hide-on-scroll animation */
+.storefront-header {
+    will-change: transform;
+    transform: translateY(0);
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.storefront-header--hidden {
+    transform: translateY(calc(-100% - 10px));
+    pointer-events: none;
+}
+.storefront-header-spacer {
+    transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .storefront-header,
+    .storefront-header-spacer {
+        transition: none;
+    }
+}
+
 .brand-theme {
     --brand-primary: #f59e0b;
     --brand-primary-2: #2563eb;
