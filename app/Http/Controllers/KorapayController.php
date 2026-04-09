@@ -2,42 +2,91 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Payments\PaymentService;
+use App\Models\Order;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
 class KorapayController extends Controller
 {
     /**
      * Initialize Korapay payment
      */
-    public function initialize(Request $request)
+    public function initialize(Request $request, PaymentService $paymentService)
     {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:1',
-            'order_id' => 'required|string',
-            'metadata' => 'nullable|array'
+            // Prefer order_number; order_id is kept for backward compatibility.
+            'order_number' => 'nullable|string|max:64',
+            'order_id' => 'nullable|integer',
+            'method' => 'nullable|in:card,mobile_money',
+            'metadata' => 'nullable|array',
         ]);
 
-        // Generate unique reference
-        $reference = 'KPY-' . Str::upper(Str::random(12)) . '-' . time();
+        $order = null;
+        if (! empty($validated['order_number'] ?? null)) {
+            $order = Order::query()->where('number', (string) $validated['order_number'])->first();
+        } elseif (! empty($validated['order_id'] ?? null)) {
+            $order = Order::query()->find((int) $validated['order_id']);
+        }
+
+        if (! $order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found.',
+            ], 404);
+        }
 
         $customer = auth('customer')->user();
+
+        // Create a real Payment record so webhook/verify/redirect can always reconcile.
+        $payment = Payment::query()->create([
+            'order_id' => $order->id,
+            'provider' => 'korapay',
+            'status' => 'pending',
+            'provider_reference' => null,
+            'amount' => (float) ($order->grand_total ?? 0),
+            'currency' => (string) ($order->currency ?? 'USD'),
+            'meta' => [
+                'source' => 'korapay_controller_initialize',
+                'request' => $validated,
+                'metadata' => $validated['metadata'] ?? null,
+            ],
+        ]);
+
+        $method = (string) ($validated['method'] ?? 'card');
+        $returnUrl = route('pay.redirect.with-id', ['type' => 'order', 'id' => $order->id]);
+        $checkout = $paymentService->initializeKorapay(
+            order: $order,
+            payment: $payment,
+            customer: [
+                'name' => $customer?->name ?? trim(($customer?->first_name ?? '') . ' ' . ($customer?->last_name ?? '')) ?: 'Customer',
+                'email' => $customer?->email ?? (string) ($order->email ?? 'no-reply@simbazu.com'),
+            ],
+            method: $method,
+            returnUrl: $returnUrl,
+        );
+
         return response()->json([
             'success' => true,
             'data' => [
-                'reference' => $reference,
-                'public_key' => config('services.korapay.public_key'), // Get from config
-                'amount' => $validated['amount'],
-                'currency' => "USD",
+                'reference' => $checkout['reference'] ?? $payment->provider_reference,
+                'public_key' => config('services.korapay.public_key'),
+                'checkout_url' => $checkout['checkout_url'] ?? null,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
                 'customer' => [
-                    'name' => $customer->first_name,
-                    'email' => $customer->email,
+                    'name' => $customer?->first_name ?? $customer?->name,
+                    'email' => $customer?->email,
                 ],
-                'notification_url' => route('korapay.webhook'),
+                // Korapay webhook should be configured in Korapay dashboard.
+                // This is returned for visibility only.
+                'webhook_url' => url('/api/webhooks/korapay'),
+                'redirect_url' => $returnUrl,
                 'metadata' => array_merge($validated['metadata'] ?? [], [
-                    'order_id' => $validated['order_id']
-                ])
+                    'order_number' => $order->number,
+                    'payment_id' => $payment->id,
+                ]),
             ]
         ]);
     }
@@ -47,36 +96,13 @@ class KorapayController extends Controller
      */
     public function webhook(Request $request)
     {
-        $payload = $request->all();
-
-        // Verify webhook signature (optional but recommended)
-        $signature = $request->header('x-korapay-signature');
-        // Verify signature using your secret key
-
-        if ($payload['event'] === 'charge.success') {
-            $data = $payload['data'];
-
-            // Update transaction status
-            $reference = $data['payment_reference'];
-            $status = $data['status'];
-            $amount = $data['amount'];
-            $transactionStatus = $data['transaction_status'];
-
-            // Find and update order/transaction
-            // $order = Order::where('reference', $reference)->first();
-            // if ($order) {
-            //     $order->update(['payment_status' => 'paid']);
-            //     // Additional logic here
-            // }
-
-            // You can also access metadata
-            $metadata = $data['metadata'] ?? [];
-            $orderId = $metadata['order_id'] ?? null;
-
-            \Log::info('Korapay webhook received', $payload);
-        }
-
-        return response()->json(['status' => 'success']);
+        // Legacy endpoint: keep returning 200 so Korapay doesn't retry, but do not process payments here.
+        // The supported webhook is `POST /api/webhooks/korapay`.
+        return response()->json([
+            'success' => true,
+            'ignored' => true,
+            'message' => 'Use /api/webhooks/korapay for Korapay webhook processing.',
+        ]);
     }
 
     /**

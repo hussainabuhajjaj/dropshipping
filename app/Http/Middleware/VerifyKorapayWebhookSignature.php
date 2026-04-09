@@ -20,7 +20,8 @@ class VerifyKorapayWebhookSignature
 
         $signature = $request->header('x-korapay-signature');
         if (! $signature) {
-            abort(Response::HTTP_UNAUTHORIZED, 'Missing Korapay webhook signature.');
+            // Per Korapay docs best-practice: respond 200 to stop retries; do not process.
+            return response()->json(['success' => true, 'ignored' => true, 'reason' => 'missing_signature'], Response::HTTP_OK);
         }
 
         // Korapay signs ONLY the `data` object:
@@ -30,20 +31,26 @@ class VerifyKorapayWebhookSignature
         $data = is_array($decoded) ? ($decoded['data'] ?? null) : null;
 
         if (! is_array($data)) {
-            abort(Response::HTTP_BAD_REQUEST, 'Invalid Korapay webhook payload.');
+            return response()->json(['success' => true, 'ignored' => true, 'reason' => 'invalid_payload'], Response::HTTP_OK);
         }
+
+        // Korapay recommends forcing serialize_precision to -1 to avoid float encoding issues.
+        // This makes json_encode mirror JavaScript JSON.stringify more consistently.
+        // (This is process-wide; safe for a webhook request.)
+        @ini_set('serialize_precision', '-1');
 
         // Match Korapay docs: JSON.stringify does not escape slashes.
         // Preserve key order from the original JSON decode.
         $dataJson = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (! is_string($dataJson)) {
-            abort(Response::HTTP_BAD_REQUEST, 'Invalid Korapay webhook payload.');
+            return response()->json(['success' => true, 'ignored' => true, 'reason' => 'invalid_payload'], Response::HTTP_OK);
         }
 
         $computed = hash_hmac('sha256', $dataJson, (string) $secret);
 
         if (! hash_equals($computed, (string) $signature)) {
-            abort(Response::HTTP_UNAUTHORIZED, 'Invalid Korapay webhook signature.');
+            // Per Korapay docs best-practice: respond 200 to stop retries; do not process.
+            return response()->json(['success' => true, 'ignored' => true, 'reason' => 'invalid_signature'], Response::HTTP_OK);
         }
 
         return $next($request);

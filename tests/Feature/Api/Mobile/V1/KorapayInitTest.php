@@ -33,7 +33,9 @@ class KorapayInitTest extends TestCase
             ], 200),
         ]);
 
-        $customer = Customer::factory()->create();
+        $customer = Customer::factory()->create([
+            'email_verified_at' => now(),
+        ]);
         Sanctum::actingAs($customer);
 
         $address = Address::create([
@@ -64,6 +66,7 @@ class KorapayInitTest extends TestCase
 
         $response = $this->postJson('/api/mobile/v1/payments/korapay/init', [
             'order_number' => $order->number,
+            'method' => 'card',
         ]);
 
         $response->assertOk()

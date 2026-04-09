@@ -16,11 +16,29 @@ class KorapayWebhookController extends Controller
     public function __invoke(Request $request, PaymentService $paymentService): JsonResponse
     {
         $payload = $request->all();
+        $event = (string) ($payload['event'] ?? '');
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : $payload;
-        $eventId = $payload['event_id'] ?? $payload['id'] ?? $data['id'] ?? $data['reference'] ?? $request->header('X-Event-Id');
+        $eventId = $payload['event_id']
+            ?? $payload['id']
+            ?? $data['id']
+            ?? $request->header('X-Event-Id')
+            // Fallback: some events don't include an explicit id; make a stable-ish id from event+reference
+            ?? (($event !== '' && ! empty($data['reference'] ?? null)) ? ($event . ':' . (string) $data['reference']) : null);
 
         if (! $eventId) {
-            return response()->json(['error' => 'Missing event id'], Response::HTTP_BAD_REQUEST);
+            // Last resort: hash the raw content so Korapay retries don't fan out into duplicates.
+            $eventId = 'hash:' . hash('sha256', (string) $request->getContent());
+        }
+
+        // If you're using this endpoint for multiple Korapay features, you might get events that
+        // are not order payments (e.g., transfers/refunds). Ignore safely with 200 so Korapay stops retrying.
+        if ($event !== '' && ! str_starts_with($event, 'charge.')) {
+            return response()->json([
+                'success' => true,
+                'ignored' => true,
+                'event' => $event,
+                'event_id' => $eventId,
+            ]);
         }
 
         $normalized = [
