@@ -39,7 +39,7 @@ class PaymentReceiptNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
-        $items = $this->order->items()->with('productVariant.product')->get();
+        $items = $this->order->orderItems()->with('productVariant.product')->get();
 
         $itemsList = $items->map(function ($item) {
             $productName = $item->snapshot['name'] ?? $item->productVariant?->product?->name ?? 'Product';
@@ -47,9 +47,15 @@ class PaymentReceiptNotification extends Notification
             $variantText = $variant ? " ({$variant})" : '';
             $qty = $item->quantity;
             $price = number_format((float) $item->unit_price, 2);
-            $total = number_format((float) $item->total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2));
-            return "{$productName}{$variantText} × {$qty} — {$this->order->currency} {$total}";
+            $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
+            $total = number_format((float) $item->total, $orderCurrency === 'USD' ? 3 : ($orderCurrency === 'XOF' || $orderCurrency === 'XAF' ? 0 : 2));
+            return "{$productName}{$variantText} × {$qty} — {$orderCurrency} {$total}";
         })->implode("\n");
+
+        $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
+        $paidCurrency = strtoupper((string) ($this->payment->currency ?? $orderCurrency));
+        $paidAmount = is_numeric($this->payment->amount) ? (float) $this->payment->amount : (float) ($this->order->grand_total ?? 0);
+        $paidDecimals = (int) (config('currency.decimals.' . $paidCurrency) ?? ($paidCurrency === 'XOF' || $paidCurrency === 'XAF' ? 0 : 2));
 
         return (new MailMessage)
             ->subject("Payment Receipt — Order #{$this->order->number}")
@@ -59,15 +65,18 @@ class PaymentReceiptNotification extends Notification
             ->line('**Order Items:**')
             ->line($itemsList)
             ->line('')
-            ->line("**Subtotal:** {$this->order->currency} " . number_format((float) $this->order->subtotal, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
-            ->line("**Shipping:** {$this->order->currency} " . number_format((float) $this->order->shipping_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
+            ->line("**Subtotal:** {$orderCurrency} " . number_format((float) $this->order->subtotal, $orderCurrency === 'USD' ? 3 : ($orderCurrency === 'XOF' || $orderCurrency === 'XAF' ? 0 : 2)))
+            ->line("**Shipping:** {$orderCurrency} " . number_format((float) $this->order->shipping_total, $orderCurrency === 'USD' ? 3 : ($orderCurrency === 'XOF' || $orderCurrency === 'XAF' ? 0 : 2)))
             ->when($this->order->discount_total > 0, function ($mail) {
-                return $mail->line("**Discount:** -{$this->order->currency} " . number_format((float) $this->order->discount_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)));
+                $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
+                return $mail->line("**Discount:** -{$orderCurrency} " . number_format((float) $this->order->discount_total, $orderCurrency === 'USD' ? 3 : ($orderCurrency === 'XOF' || $orderCurrency === 'XAF' ? 0 : 2)));
             })
             ->when($this->order->tax_total > 0, function ($mail) {
-                return $mail->line("**Tax:** {$this->order->currency} " . number_format((float) $this->order->tax_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)));
+                $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
+                return $mail->line("**Tax:** {$orderCurrency} " . number_format((float) $this->order->tax_total, $orderCurrency === 'USD' ? 3 : ($orderCurrency === 'XOF' || $orderCurrency === 'XAF' ? 0 : 2)));
             })
-            ->line("**Total Paid:** {$this->order->currency} " . number_format((float) $this->order->grand_total, $this->order->currency === 'USD' ? 3 : ($this->order->currency === 'XOF' || $this->order->currency === 'XAF' ? 0 : 2)))
+            // Always show what the provider actually charged (XOF/XAF for mobile_money).
+            ->line("**Total Paid:** {$paidCurrency} " . number_format($paidAmount, $paidDecimals, '.', ','))
             ->line('')
             ->line("**Payment Method:** " . ucfirst(str_replace('_', ' ', $this->payment->method ?? 'card')))
             ->line("**Payment ID:** {$this->payment->gateway_transaction_id}")
