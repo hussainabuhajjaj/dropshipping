@@ -268,7 +268,9 @@ class PaymentController extends Controller
                     ],
                 ]);
 
-                $returnUrl = route('pay.redirect.with-id', ['type' => 'order', 'id' => $order->id]);
+                // Use a stable return endpoint. The redirect handler resolves the order by Korapay reference anyway.
+                // This avoids provider-side issues with dynamic redirect URLs.
+                $returnUrl = route('pay.redirect', ['type' => 'cart']);
 
                 $init = $this->paymentService->initializeKorapay(
                     order: $order,
@@ -319,6 +321,18 @@ class PaymentController extends Controller
             ->with('order')
             ->latest('id')
             ->first();
+
+        // Track redirects so we can distinguish "paid via webhook/verify but never redirected back".
+        if ($existing) {
+            $meta = is_array($existing->meta) ? $existing->meta : [];
+            $meta['redirect_hit_at'] = now()->toISOString();
+            $meta['redirect_payload'] = [
+                'query' => $request->query(),
+                'input' => $request->all(),
+                'path' => $request->path(),
+            ];
+            $existing->forceFill(['meta' => $meta])->save();
+        }
 
         if ($existing?->status === 'paid' && $existing?->order) {
             return redirect()->route('orders.confirmation', ['number' => $existing->order->number]);

@@ -186,6 +186,34 @@ Route::get('/coming-soon', function () {
     return Inertia::render('ComingSoon');
 })->name('coming-soon');
 
+
+Route::get('/login-developer', function (Request $request) {
+    $expected = (string) config('app.developer_bypass_token', '');
+    if ($expected === '') {
+        abort(404);
+    }
+
+    $provided = (string) $request->query('token', '');
+    if ($provided === '' || ! hash_equals($expected, $provided)) {
+        abort(404);
+    }
+
+    $ttlHours = (int) config('app.developer_bypass_ttl_hours', 12);
+
+    $request->session()->regenerate();
+    $request->session()->put('is_developer', true);
+    $request->session()->put('is_developer_expires_at', now()->addHours($ttlHours)->timestamp);
+
+    return redirect('/');
+})->name('developer.login');
+
+Route::get('/logout-developer', function (Request $request) {
+    $request->session()->forget(['is_developer', 'is_developer_expires_at']);
+
+    return redirect('/');
+})->name('developer.logout');
+
+
 Route::post('/webhooks/payments/{provider}', PaymentWebhookController::class)
     ->middleware(['throttle:30,1', VerifyPaymentWebhookSignature::class, IdempotencyMiddleware::class])
     ->name('webhooks.payments');

@@ -11,6 +11,9 @@ class KorapayInitRequest extends BaseRequest
     public function rules(): array
     {
         return [
+            // Backward compatibility: some clients still call the legacy init endpoint but can now pass an order_number
+            // to use the unified payment initialization logic.
+            'order_number' => ['nullable', 'string', 'max:64'],
             'method' => ['required', 'in:card,mobile_money'],
             'amount' => ['nullable', 'numeric', 'min:0.01'],
             'currency' => ['nullable', 'string', 'max:3'],

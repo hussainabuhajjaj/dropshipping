@@ -156,4 +156,8 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+
+    // Coming-soon bypass (developer access)
+    'developer_bypass_token' => env('DEVELOPER_BYPASS_TOKEN'),
+    'developer_bypass_ttl_hours' => (int) env('DEVELOPER_BYPASS_TTL_HOURS', 12),
 ];

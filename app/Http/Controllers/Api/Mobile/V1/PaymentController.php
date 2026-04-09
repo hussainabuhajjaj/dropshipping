@@ -22,87 +22,19 @@ use Illuminate\Support\Facades\Validator;
 
 class PaymentController extends ApiController
 {
-    public function init(KorapayInitRequest $request, KorapayService $korapayService): JsonResponse
+    public function init(KorapayInitRequest $request, PaymentService $paymentService): JsonResponse
     {
-        // Debug: Log the incoming request data
-        \Log::info('Payment request received', [
-            'all_data' => $request->all(),
-            'validated' => $request->validated(),
-        ]);
-        
-        $data = $request->validated();
-        session()->put('request_body', $data);
-
-        // Use exact storefront logic - getItem and getSummery
-        $item = $this->getItem($request);
-        if (!$item) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-        if ($item->items->isEmpty()) {
-            return $this->error('Cart is empty', 422);
+        // Legacy endpoint: previously initialized Korapay without creating an Order/Payment record,
+        // which means we cannot reconcile successful payments if redirect/webview close happens.
+        // Prefer the unified flow: `POST /api/mobile/v1/checkout/confirm` then `POST /api/mobile/v1/payments/initialize`.
+        if ($request->filled('order_number')) {
+            return $this->initialize($request, $paymentService);
         }
 
-        // Use exact storefront summery calculation
-        $summery = [];
-        if ($item instanceof Cart) {
-            $summery = $item->getSummery();
-        }
-
-        $final_total = $summery['total'] ?? 0;
-        if ((float) $final_total <= 0) {
-            return $this->error('Cart total must be greater than zero', 422);
-        }
-        
-        // Debug logging
-        \Log::info('Payment initialization debug', [
-            'cart_id' => $item->id,
-            'cart_items_count' => $item->items->count(),
-            'cart_items' => $item->items->map(function($item) {
-                return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'line_total' => $item->line_total,
-                    'price' => $item->price,
-                ];
-            })->toArray(),
-            'summery' => $summery,
-            'final_total' => $final_total,
-            'cart_subtotal' => $item->subTotal(),
-        ]);
-
-        // Note: Minimum cart validation should be handled in cart/checkout UI, not during payment
-        // The mobile cart API already returns minimum_cart_requirement for UI validation
-
-        // Validate method (same as storefront)
-        $method = $data['method'] ?? 'card';
-        if (!in_array($method, ['card', 'mobile_money'])) {
-            return $this->error('Invalid payment method');
-        }
-
-        \Log::info('Payment method selected', [
-            'method' => $method,
-            'amount' => $final_total,
-        ]);
-
-        // Use KorapayService directly like storefront
-        $checkout = $korapayService->initializePayment($final_total, $method);
-
-        if (isset($checkout['data'])) {
-            // Store reference for verification (like storefront)
-            session()->put('reference', $checkout['data']['reference']);
-
-            return $this->success([
-                'reference' => $checkout['data']['reference'],
-                'redirect' => $checkout['data']['checkout_url'],
-                'checkout_url' => $checkout['data']['checkout_url'],
-                'amount' => (float) $final_total,
-                'currency' => $method === 'mobile_money' ? 'XOF' : 'USD',
-                'method' => $method,
-            ]);
-        }
-
-        return $this->error('Payment initialization failed');
+        return $this->error(
+            'Deprecated endpoint. Please use checkout/confirm then payments/initialize (redirect is optional; webhook/verify will confirm).',
+            410
+        );
     }
 
     public function verify(KorapayVerifyRequest $request, PaymentService $paymentService): JsonResponse
@@ -279,6 +211,24 @@ class PaymentController extends ApiController
         }
 
         try {
+            // Track redirects so we can distinguish "paid via webhook/verify but never redirected back".
+            $existing = Payment::query()
+                ->where('provider', 'korapay')
+                ->where('provider_reference', $reference)
+                ->latest('id')
+                ->first();
+
+            if ($existing) {
+                $meta = is_array($existing->meta) ? $existing->meta : [];
+                $meta['redirect_hit_at'] = now()->toISOString();
+                $meta['redirect_payload'] = [
+                    'query' => $request->query(),
+                    'input' => $request->all(),
+                    'path' => $request->path(),
+                ];
+                $existing->forceFill(['meta' => $meta])->save();
+            }
+
             $korapayService = app(KorapayService::class);
             $verifyResult = $korapayService->checkStatus($reference);
 

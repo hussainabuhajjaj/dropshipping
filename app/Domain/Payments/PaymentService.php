@@ -31,7 +31,7 @@ class PaymentService
     public function handleWebhook(string $provider, string $eventId, array $payload): Payment
     {
         return DB::transaction(function () use ($provider, $eventId, $payload) {
-            $this->assertPayloadHasBasics($payload);
+            $this->assertPayloadHasBasics($payload, $provider);
 
             $webhook = PaymentWebhook::firstOrCreate(
                 ['external_event_id' => $eventId],
@@ -102,7 +102,28 @@ class PaymentService
         $currency = $payload['currency'] ?? null;
         $idempotencyKey = $payload['idempotency_key'] ?? $payload['event_id'] ?? null;
 
-        $this->assertPayloadHasBasics($payload);
+        $this->assertPayloadHasBasics($payload, $provider);
+
+        // Some Korapay events (and some verify responses) can omit merchant metadata.
+        // In that case, resolve by provider reference and update the existing payment.
+        if (($orderNumber === null || $orderNumber === '') && $provider === 'korapay') {
+            if (! $providerReference) {
+                throw new RuntimeException('Provider reference missing in Korapay payload');
+            }
+
+            $existing = Payment::query()
+                ->where('provider', $provider)
+                ->where('provider_reference', $providerReference)
+                ->latest('id')
+                ->first();
+
+            if (! $existing) {
+                throw new RuntimeException('Order number missing in Korapay payload and no payment found for reference');
+            }
+
+            $this->assertPaymentTotalsMatch($existing, $amount, $currency);
+            return $existing;
+        }
 
         /** @var Order $order */
         $order = Order::where('number', $orderNumber)->firstOrFail();
@@ -168,12 +189,8 @@ class PaymentService
         }
     }
 
-    private function assertPayloadHasBasics(array $payload): void
+    private function assertPayloadHasBasics(array $payload, ?string $provider = null): void
     {
-        if (empty($payload['order_number'])) {
-            throw new RuntimeException('Order number missing in webhook payload');
-        }
-
         if (! isset($payload['amount']) || ! is_numeric($payload['amount'])) {
             throw new RuntimeException('Amount missing or invalid in webhook payload');
         }
@@ -181,6 +198,17 @@ class PaymentService
         if (empty($payload['currency'])) {
             throw new RuntimeException('Currency missing in webhook payload');
         }
+
+        if (! empty($payload['order_number'])) {
+            return;
+        }
+
+        // Korapay can send some events without merchant metadata. If we have a reference, we can still resolve.
+        if ($provider === 'korapay' && ! empty($payload['provider_reference'] ?? null)) {
+            return;
+        }
+
+        throw new RuntimeException('Order number missing in webhook payload');
     }
 
     private function assertTotalsMatch(Order $order, float|string|null $amount, ?string $currency): void

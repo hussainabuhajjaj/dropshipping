@@ -27,7 +27,11 @@ class KorapayWebhookController extends Controller
             'event_id' => $eventId,
             'provider_reference' => $data['reference'] ?? null,
             'transaction_id' => $data['id'] ?? null,
-            'order_number' => $data['metadata']['order_number'] ?? $payload['order_number'] ?? null,
+            // Korapay may return merchant metadata under `metadata` or `meta` depending on channel/version.
+            'order_number' => $data['metadata']['order_number']
+                ?? $data['meta']['order_number']
+                ?? $payload['order_number']
+                ?? null,
             'amount' => isset($data['amount']) ? (float) $data['amount'] : null,
             'currency' => $data['currency'] ?? null,
             'status' => $data['status'] ?? null,

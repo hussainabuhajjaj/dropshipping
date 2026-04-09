@@ -119,6 +119,11 @@ class Kernel extends ConsoleKernel
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
         $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
+        $schedule->command('payments:reconcile-korapay --limit=50 --min-age=3 --max-age=4320')
+            ->everyFiveMinutes()
+            ->name('payments-reconcile-korapay')
+            ->withoutOverlapping()
+            ->description('Reconcile pending Korapay payments (redirect-independent)');
         $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
         $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
     }
