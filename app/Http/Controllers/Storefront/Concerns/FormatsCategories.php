@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Domain\Products\Models\Category;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 trait FormatsCategories
 {
@@ -45,40 +47,49 @@ trait FormatsCategories
         $version = \App\Domain\Products\Models\Category::max('updated_at');
         $cacheKey = 'categories-tree:active-products:' . md5(json_encode([$load, $locale, $version]));
 
-        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($load, $locale) {
-            $query = Category::query()
-                ->whereNull('parent_id')
-                ->orderBy('name')
-                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
-                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+        try {
+            return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($load, $locale) {
+                $query = Category::query()
+                    ->whereNull('parent_id')
+                    ->orderBy('name')
+                    ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                    ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
 
-            $loadChildren = in_array('children', $load, true) || in_array('children.children', $load, true);
-            $loadGrandchildren = in_array('children.children', $load, true);
+                $loadChildren = in_array('children', $load, true) || in_array('children.children', $load, true);
+                $loadGrandchildren = in_array('children.children', $load, true);
 
-            if ($loadChildren) {
-                $query->with(['children' => function ($childQuery) use ($loadGrandchildren, $locale) {
-                    $childQuery
-                        ->orderBy('name')
-                        ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
-                        ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+                if ($loadChildren) {
+                    $query->with(['children' => function ($childQuery) use ($loadGrandchildren, $locale) {
+                        $childQuery
+                            ->orderBy('name')
+                            ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                            ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
 
-                    if ($loadGrandchildren) {
-                        $childQuery->with(['children' => function ($grandQuery) use ($locale) {
-                            $grandQuery
-                                ->orderBy('name')
-                                ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
-                                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
-                        }]);
-                    }
-                }]);
-            }
+                        if ($loadGrandchildren) {
+                            $childQuery->with(['children' => function ($grandQuery) use ($locale) {
+                                $grandQuery
+                                    ->orderBy('name')
+                                    ->withCount(['products as active_products_count' => fn ($q) => $q->where('is_active', true)])
+                                    ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+                            }]);
+                        }
+                    }]);
+                }
 
-            return $query->get()
-                ->map(fn (Category $category) => $this->categoryTree($category))
-                ->filter()
-                ->values()
-                ->all();
-        });
+                return $query->get()
+                    ->map(fn (Category $category) => $this->categoryTree($category))
+                    ->filter()
+                    ->values()
+                    ->all();
+            });
+        } catch (QueryException $e) {
+            // If the products table is unhealthy (e.g. corrupted index), do not take down the entire storefront.
+            report($e);
+            return [];
+        } catch (Throwable $e) {
+            report($e);
+            return [];
+        }
     }
 
     protected function resolveCategoryImage(?string $path): ?string
