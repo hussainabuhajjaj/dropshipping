@@ -156,6 +156,25 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Storefront Announcement Bar
+    |--------------------------------------------------------------------------
+    |
+    | A simple, deploy-safe global banner for the storefront (Inertia pages).
+    | Useful for outages, delays, and operational messages.
+    |
+    */
+    'storefront_announcement' => [
+        'enabled' => (bool) env('STOREFRONT_ANNOUNCEMENT_ENABLED', false),
+        'message' => (string) env('STOREFRONT_ANNOUNCEMENT_MESSAGE', ''),
+        // warning | info | success | danger
+        'level' => (string) env('STOREFRONT_ANNOUNCEMENT_LEVEL', 'warning'),
+        'dismissible' => (bool) env('STOREFRONT_ANNOUNCEMENT_DISMISSIBLE', true),
+        // Optional identifier so you can rotate announcements without users keeping old dismiss state.
+        'id' => env('STOREFRONT_ANNOUNCEMENT_ID'),
+    ],
+
 
     // Coming-soon bypass (developer access)
     'developer_bypass_token' => env('DEVELOPER_BYPASS_TOKEN'),

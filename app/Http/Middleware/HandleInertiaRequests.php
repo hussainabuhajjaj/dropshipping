@@ -107,6 +107,7 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $authUser,
             ],
+            'announcement' => $this->storefrontAnnouncement(),
             'flash' => [
                 'cart_notice' => $request->session()->get('cart_notice'),
                 'review_notice' => $request->session()->get('review_notice'),
@@ -143,6 +144,27 @@ class HandleInertiaRequests extends Middleware
             'categories' => $this->rootCategoriesTree(['children', 'children.children']),
             'homepagePromotions' => app(PromotionHomepageService::class)->getHomepagePromotions(),
             'popupBanners' => $this->popupBanners(),
+        ];
+    }
+
+    private function storefrontAnnouncement(): array
+    {
+        $cfg = (array) config('app.storefront_announcement', []);
+
+        $enabled = (bool) ($cfg['enabled'] ?? false);
+        $message = trim((string) ($cfg['message'] ?? ''));
+
+        // If enabled but message isn't set, don't show a blank bar.
+        if (! $enabled || $message === '') {
+            return ['enabled' => false];
+        }
+
+        return [
+            'enabled' => true,
+            'message' => $message,
+            'level' => (string) ($cfg['level'] ?? 'warning'),
+            'dismissible' => (bool) ($cfg['dismissible'] ?? true),
+            'id' => $cfg['id'] ?? null,
         ];
     }
 

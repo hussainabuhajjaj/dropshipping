@@ -53,6 +53,28 @@
             class="sticky top-0 z-[100] shadow-md bg-slate-950 text-white transition-all duration-200"
             :class="mobileHeaderCompact ? 'mobile-header-compact' : ''"
         >
+            <!-- Global announcement bar -->
+            <div
+                v-if="announcementVisible"
+                class="border-b border-black/10"
+                :class="announcementBarClass"
+            >
+                <div class="container-base flex items-start gap-3 py-2.5 text-sm">
+                    <div class="mt-0.5 h-2.5 w-2.5 flex-none rounded-full bg-white/90"></div>
+                    <p class="min-w-0 flex-1 leading-snug text-white">
+                        {{ announcementMessage }}
+                    </p>
+                    <button
+                        v-if="announcementDismissible"
+                        type="button"
+                        class="flex-none rounded-md px-2 py-1 text-xs font-semibold text-white/95 hover:bg-white/10"
+                        @click="dismissAnnouncement"
+                    >
+                        {{ t('Dismiss') }}
+                    </button>
+                </div>
+            </div>
+
             <!-- Top row -->
             <div class="container-base">
                 <div class="flex items-center gap-3 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
@@ -1091,12 +1113,73 @@ const scrollCategories = (dir) => {
     window.setTimeout(updateScrollArrows, 200)
 }
 
-// --- Auth / storefront / cart ---
-const authUser = computed(() => page.props.auth?.user ?? null)
-const storefront = computed(() => page.props.storefront ?? {})
-const cartSummary = computed(() => page.props.cart ?? {lines: [], count: 0, subtotal: 0})
+	// --- Auth / storefront / cart ---
+	const authUser = computed(() => page.props.auth?.user ?? null)
+	const storefront = computed(() => page.props.storefront ?? {})
+	const cartSummary = computed(() => page.props.cart ?? {lines: [], count: 0, subtotal: 0})
 
-const cartLines = computed(() => cartSummary.value.lines ?? [])
+    // --- Announcement ---
+    const announcement = computed(() => page.props.announcement ?? { enabled: false })
+    const announcementVisible = ref(false)
+    const announcementMessage = computed(() => String(announcement.value?.message ?? '').trim())
+    const announcementDismissible = computed(() => Boolean(announcement.value?.dismissible ?? true))
+    const announcementLevel = computed(() => String(announcement.value?.level ?? 'warning'))
+    const announcementId = computed(() => String(announcement.value?.id ?? '').trim())
+
+    const announcementStorageKey = computed(() => {
+        const id = announcementId.value
+        if (id) return `simbazu_announcement_dismissed_${id}`
+        const msg = announcementMessage.value
+        const slug = msg
+            .toLowerCase()
+            .slice(0, 60)
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+        return `simbazu_announcement_dismissed_${slug || 'default'}`
+    })
+
+    const announcementBarClass = computed(() => {
+        const level = announcementLevel.value
+        if (level === 'danger') return 'bg-gradient-to-r from-rose-700 via-rose-600 to-orange-600'
+        if (level === 'success') return 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600'
+        if (level === 'info') return 'bg-gradient-to-r from-sky-700 via-sky-600 to-indigo-600'
+        return 'bg-gradient-to-r from-amber-700 via-orange-600 to-rose-600'
+    })
+
+    const readAnnouncementDismissed = () => {
+        try {
+            return typeof window !== 'undefined' && window.localStorage.getItem(announcementStorageKey.value) === '1'
+        } catch {
+            return false
+        }
+    }
+
+    const dismissAnnouncement = () => {
+        announcementVisible.value = false
+        try {
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem(announcementStorageKey.value, '1')
+            }
+        } catch {
+            // ignore
+        }
+    }
+
+    watchEffect(() => {
+        const enabled = Boolean(announcement.value?.enabled)
+        if (!enabled || announcementMessage.value === '') {
+            announcementVisible.value = false
+            return
+        }
+        // If dismissible and previously dismissed, keep hidden.
+        if (announcementDismissible.value && readAnnouncementDismissed()) {
+            announcementVisible.value = false
+            return
+        }
+        announcementVisible.value = true
+    })
+
+	const cartLines = computed(() => cartSummary.value.lines ?? [])
 const cartCount = computed(() => cartSummary.value.count ?? 0)
 const cartSubtotal = computed(() => Number(cartSummary.value.subtotal ?? 0))
 
