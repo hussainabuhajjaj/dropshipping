@@ -107,6 +107,19 @@ return [
         'max_markup_multiplier' => env('CJ_MAX_MARKUP_MULTIPLIER', 15.0), // Maximum allowed markup (15x = corruption)
         'reasonable_markup_multiplier' => env('CJ_REASONABLE_MARKUP_MULTIPLIER', 10.0), // Maximum reasonable markup (10x)
         'default_fulfillment_provider_id' => env('CJ_DEFAULT_FULFILLMENT_PROVIDER_ID', 1),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment Monitoring Configuration
+        |--------------------------------------------------------------------------
+        */
+        'payment_monitoring' => [
+            'alerts_email' => env('PAYMENT_ALERTS_EMAIL', 'admin@example.com'),
+            'failed_webhook_threshold_minutes' => env('FAILED_WEBHOOK_THRESHOLD_MINUTES', 60),
+            'redirect_timeout_minutes' => env('REDIRECT_TIMEOUT_MINUTES', 30),
+            'slow_completion_threshold_minutes' => env('SLOW_COMPLETION_THRESHOLD_MINUTES', 30),
+            'data_capture_rate_threshold' => env('DATA_CAPTURE_RATE_THRESHOLD', 80),
+        ],
     ],
 
     'queue_reporting' => [

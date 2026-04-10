@@ -126,6 +126,7 @@ use App\Http\Controllers\Api\Mobile\V1\OnboardingController as MobileOnboardingC
 use App\Http\Controllers\Api\Mobile\V1\AnnouncementController as MobileAnnouncementController;
 use App\Http\Controllers\Api\Mobile\V1\ChatController as MobileChatController;
 use App\Http\Controllers\Api\Mobile\V1\CollectionController as MobileCollectionController;
+use App\Http\Controllers\Api\Mobile\V1\PaymentDebugController;
 use App\Http\Controllers\Api\Mobile\V1\LegalController as MobileLegalController;
 use App\Http\Controllers\Api\Mobile\V1\StoryController as MobileStoryController;
 use App\Http\Controllers\Api\Mobile\V1\VisitAnalyticsController as MobileVisitAnalyticsController;
@@ -315,6 +316,16 @@ Route::prefix('mobile/v1')->group(function () {
             // Mobile payment callback routes (matching storefront pattern)
             Route::post('payments/callback', [MobilePaymentCallbackController::class, 'handle']);
             Route::post('payments/cancel', [MobilePaymentCallbackController::class, 'cancel']);
+
+            // Payment debug routes for testing
+            Route::get('payments/debug/redirect-url', [PaymentDebugController::class, 'testRedirectUrl']);
+            Route::post('payments/debug/simulate-redirect', [PaymentDebugController::class, 'simulateRedirect']);
+            Route::get('payments/debug/data', [PaymentDebugController::class, 'getPaymentData']);
+
+            // Payment monitoring routes
+            Route::get('payments/monitoring/dashboard', [PaymentMonitoringController::class, 'dashboard']);
+            Route::get('payments/monitoring/health', [PaymentMonitoringController::class, 'healthCheck']);
+            Route::get('payments/monitoring/statistics', [PaymentMonitoringController::class, 'statistics']);
 
             Route::post('chat/start', [MobileChatController::class, 'start']);
             Route::post('chat/respond', [MobileChatController::class, 'respond']);
