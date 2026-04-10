@@ -48,6 +48,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ReconcileAffiliateCommissionsCommand::class,
         \App\Console\Commands\CjSyncStockByVid::class,
         \App\Console\Commands\MonitorPaymentHealth::class,
+        \App\Console\Commands\SetupPaymentMonitoring::class,
         \App\Console\Commands\ServerFixStockZero::class,
         \App\Console\Commands\CjSyncMedia::class,
         UpdateStockFromMetadata::class,
