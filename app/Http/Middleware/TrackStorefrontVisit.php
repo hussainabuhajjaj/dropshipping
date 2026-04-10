@@ -89,7 +89,9 @@ class TrackStorefrontVisit
             return false;
         }
 
-        if (! $this->hasAnalyticsConsent($request) && ! $this->shouldTrackWithoutConsent($request)) {
+        // Visitor tracking is treated as "necessary/essential" for storefront health metrics and fraud/debugging.
+        // This keeps visit counters working even when the user chooses "Essential only" (analytics = false).
+        if (! $this->hasNecessaryConsent($request) && ! $this->shouldTrackWithoutConsent($request)) {
             return false;
         }
 
@@ -132,6 +134,21 @@ class TrackStorefrontVisit
         $decoded = json_decode($raw, true);
 
         return is_array($decoded) && (bool) ($decoded['analytics'] ?? false);
+    }
+
+    private function hasNecessaryConsent(Request $request): bool
+    {
+        $raw = $request->cookie(self::CONSENT_COOKIE);
+
+        // Essential cookies are allowed for basic storefront operation. If the user hasn't set preferences yet,
+        // treat necessary as enabled.
+        if (! is_string($raw) || trim($raw) === '') {
+            return true;
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) && (bool) ($decoded['necessary'] ?? true);
     }
 
     private function shouldTrackWithoutConsent(Request $request): bool
