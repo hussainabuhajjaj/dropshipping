@@ -67,7 +67,10 @@ class TrackStorefrontVisit
             return false;
         }
 
-        if ($request->expectsJson() || $request->isXmlHttpRequest()) {
+        // Storefront uses Inertia (XHR + JSON). Those navigations are real page views and should be tracked.
+        // Still ignore other JSON/XHR requests (API, webhooks, etc).
+        $isInertia = (bool) $request->header('X-Inertia');
+        if (($request->expectsJson() || $request->isXmlHttpRequest()) && ! $isInertia) {
             return false;
         }
 
@@ -89,7 +92,8 @@ class TrackStorefrontVisit
     {
         $contentType = (string) $response->headers->get('Content-Type', '');
 
-        return str_contains($contentType, 'text/html');
+        // Normal storefront page loads are HTML. Inertia navigations are JSON and include the X-Inertia header.
+        return str_contains($contentType, 'text/html') || $response->headers->has('X-Inertia');
     }
 
     private function hasAnalyticsConsent(Request $request): bool

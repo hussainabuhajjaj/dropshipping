@@ -57,7 +57,7 @@ class VisitAnalyticsService
     {
         $websiteSessions = VisitorSession::query()
             ->where('channel', 'website')
-            ->where('started_at', '>=', $start);
+            ->where('last_seen_at', '>=', $start);
 
         return [
             'sessions' => (int) (clone $websiteSessions)->count(),
@@ -70,7 +70,7 @@ class VisitAnalyticsService
     {
         $websiteSessions = VisitorSession::query()
             ->where('channel', 'website')
-            ->where('started_at', '>=', $windowStart);
+            ->where('last_seen_at', '>=', $windowStart);
 
         $sessionsCount = (clone $websiteSessions)->count();
         $pageViews = (clone $websiteSessions)->sum('hits_count');

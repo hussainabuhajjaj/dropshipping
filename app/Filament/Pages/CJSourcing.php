@@ -9,8 +9,10 @@ use App\Domain\Products\Models\Product;
 use App\Domain\Products\Services\CjProductMediaService;
 use App\Domain\Products\Services\CjProductImportService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Models\Category;
 use App\Services\Api\ApiException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Filament\Notifications\Notification;
@@ -44,6 +46,8 @@ class CJSourcing extends BasePage
     public bool $importQueueSeo = true;
     public bool $importForceReprice = false;
     public ?int $importDefaultCategoryId = null;
+    /** @var array<int, string> */
+    public array $categoryOptions = [];
     public int $importBatchSize = 10;
     public ?string $previewPid = null;
     public ?array $previewProduct = null;
@@ -57,10 +61,23 @@ class CJSourcing extends BasePage
     public ?string $importPreviewError = null;
     public int $pageNum = 1;
     public int $pageSize = 20;
+    public ?string $statusFilter = null;
 
     public function mount(): void
     {
+        $this->loadCategoryOptions();
         $this->refreshList();
+    }
+
+    public function loadCategoryOptions(): void
+    {
+        // Avoid a full categories query inside the Blade render on every request.
+        $this->categoryOptions = Cache::remember('admin:cj_sourcing:category_options_v1', now()->addMinutes(30), function (): array {
+            return Category::query()
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->toArray();
+        });
     }
 
     public function createRequest(): void
@@ -94,8 +111,11 @@ class CJSourcing extends BasePage
         $this->resetValidation();
 
         try {
-            $resp = app(CJDropshippingClient::class)->querySourcing(null, $this->pageNum, $this->pageSize);
-            $this->results = $resp->data ?? null;
+            $cacheKey = 'admin:cj_sourcing:list_v1:' . $this->pageNum . ':' . $this->pageSize;
+            $this->results = Cache::remember($cacheKey, now()->addSeconds(20), function () {
+                $resp = app(CJDropshippingClient::class)->querySourcing(null, $this->pageNum, $this->pageSize);
+                return $resp->data ?? null;
+            });
         } catch (ApiException $e) {
             $this->results = null;
             Notification::make()->title('CJ error')->body($e->getMessage())->danger()->send();
@@ -109,6 +129,53 @@ class CJSourcing extends BasePage
     {
         $this->sourceIdsInput = $sourceIds;
         $this->fetchSourceProducts();
+    }
+
+    public function normalizeSourceIdsInput(): void
+    {
+        $raw = (string) ($this->sourceIdsInput ?? '');
+        $parts = preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $beforeCount = count($parts);
+        $removedControlChars = 0;
+        $normalized = [];
+
+        foreach ($parts as $part) {
+            $id = trim((string) $part);
+            if ($id === '') {
+                continue;
+            }
+
+            // Strip control chars (often copied from CJ/WhatsApp/Sheets).
+            $clean = preg_replace('/[\x00-\x1F\x7F]/', '', $id);
+            if ($clean !== $id) {
+                $removedControlChars++;
+            }
+
+            $clean = trim((string) $clean);
+            if ($clean === '') {
+                continue;
+            }
+
+            $normalized[] = $clean;
+        }
+
+        $unique = array_values(array_unique($normalized));
+        $afterCount = count($unique);
+
+        $this->sourceIdsInput = implode("\n", $unique);
+
+        Notification::make()
+            ->title('Source IDs normalized')
+            ->body("Items: {$beforeCount} → {$afterCount}. Removed control chars: {$removedControlChars}.")
+            ->success()
+            ->send();
+    }
+
+    public function setStatusFilter(?string $status): void
+    {
+        $status = $status !== null ? trim($status) : null;
+        $this->statusFilter = $status !== '' ? $status : null;
     }
 
     public function fetchSourceProducts(): void
@@ -639,53 +706,57 @@ class CJSourcing extends BasePage
     protected function querySourceProductsWithFallback(array $sourceIds): array
     {
         $client = app(CJDropshippingClient::class);
-        $resolved = [];
-        $notFound = [];
+        $cacheKey = 'admin:cj_sourcing:lookup_v1:' . md5(implode('|', $sourceIds));
 
-        foreach (array_chunk($sourceIds, 10) as $chunk) {
-            try {
-                $resp = $client->querySourcingBySourceIds($chunk);
+        return Cache::remember($cacheKey, now()->addSeconds(45), function () use ($sourceIds, $client): array {
+            $resolved = [];
+            $notFound = [];
 
-                Log::info('CJ sourcing bulk lookup response', [
-                    'source_ids' => $chunk,
-                    'ok' => $resp->ok,
-                    'status' => $resp->status,
-                    'message' => $resp->message,
-                    'data' => $resp->data,
-                    'raw' => $resp->raw,
-                ]);
+            foreach (array_chunk($sourceIds, 10) as $chunk) {
+                try {
+                    $resp = $client->querySourcingBySourceIds($chunk);
 
-                $items = $this->normalizeSourceProductsResponse($resp->data);
+                    Log::info('CJ sourcing bulk lookup response', [
+                        'source_ids' => $chunk,
+                        'ok' => $resp->ok,
+                        'status' => $resp->status,
+                        'message' => $resp->message,
+                        'data' => $resp->data,
+                        'raw' => $resp->raw,
+                    ]);
 
-                if ($items === []) {
-                    $notFound = array_merge($notFound, $chunk);
-                    continue;
+                    $items = $this->normalizeSourceProductsResponse($resp->data);
+
+                    if ($items === []) {
+                        $notFound = array_merge($notFound, $chunk);
+                        continue;
+                    }
+
+                    $resolved = array_merge($resolved, $items);
+                } catch (ApiException $e) {
+                    Log::warning('CJ sourcing chunk lookup failed, retrying per id', [
+                        'source_ids' => $chunk,
+                        'message' => $e->getMessage(),
+                        'status' => $e->status,
+                        'code' => $e->codeString,
+                        'body' => $e->body,
+                        'request_id' => $e->requestId,
+                    ]);
+
+                    [$singleResolved, $singleNotFound] = $this->querySingleSourceIdsConcurrently($chunk, $client);
+                    $resolved = array_merge($resolved, $singleResolved);
+                    $notFound = array_merge($notFound, $singleNotFound);
                 }
-
-                $resolved = array_merge($resolved, $items);
-            } catch (ApiException $e) {
-                Log::warning('CJ sourcing chunk lookup failed, retrying per id', [
-                    'source_ids' => $chunk,
-                    'message' => $e->getMessage(),
-                    'status' => $e->status,
-                    'code' => $e->codeString,
-                    'body' => $e->body,
-                    'request_id' => $e->requestId,
-                ]);
-
-                [$singleResolved, $singleNotFound] = $this->querySingleSourceIdsConcurrently($chunk, $client);
-                $resolved = array_merge($resolved, $singleResolved);
-                $notFound = array_merge($notFound, $singleNotFound);
             }
-        }
 
-        $resolvedBySourceId = collect($resolved)
-            ->filter(fn ($item) => is_array($item))
-            ->keyBy(fn (array $item) => (string) ($item['sourceId'] ?? spl_object_id((object) $item)))
-            ->values()
-            ->all();
+            $resolvedBySourceId = collect($resolved)
+                ->filter(fn ($item) => is_array($item))
+                ->keyBy(fn (array $item) => (string) ($item['sourceId'] ?? spl_object_id((object) $item)))
+                ->values()
+                ->all();
 
-        return [$resolvedBySourceId, array_values(array_unique($notFound))];
+            return [$resolvedBySourceId, array_values(array_unique($notFound))];
+        });
     }
 
     protected function normalizeSourceProductsResponse(mixed $data): array

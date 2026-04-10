@@ -28,6 +28,8 @@
     $selectedResolvedProductIds = collect($selectedResolvedProductIds ?? []);
     $importPreviewProductsList = collect($importPreviewProducts ?? [])->filter(fn ($item) => is_array($item))->values();
     $importPreviewFailedPidsList = collect($importPreviewFailedPids ?? [])->filter()->values();
+    $categoryOptions = is_array($categoryOptions ?? null) ? $categoryOptions : [];
+    $statusFilter = filled($statusFilter ?? null) ? (string) $statusFilter : null;
 
     $matchedCjProducts = $sourceProductsList
         ->filter(fn (array $item) => filled($item['cjProductId'] ?? null))
@@ -41,6 +43,12 @@
         ->groupBy(fn (array $item) => trim((string) ($item['sourceStatusStr'] ?? $item['sourceStatus'] ?? 'Unknown')))
         ->map(fn ($items) => $items->count())
         ->sortDesc();
+
+    $filteredSourceProductsList = $statusFilter
+        ? $sourceProductsList
+            ->filter(fn (array $item) => trim((string) ($item['sourceStatusStr'] ?? $item['sourceStatus'] ?? 'Unknown')) === $statusFilter)
+            ->values()
+        : $sourceProductsList;
 
     $recentRows = $list->isNotEmpty()
         ? $list->map(fn (array $item) => [
@@ -208,21 +216,32 @@
                             ></textarea>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
-                            <x-filament::badge color="success">Bulk lookup</x-filament::badge>
-                            <x-filament::badge color="gray">{{ $manualSourceIds->isNotEmpty() ? 'Manual mode' : 'Using request list IDs' }}</x-filament::badge>
-                            <x-filament::badge color="primary">{{ $resolvedSourceIds->count() }} ready</x-filament::badge>
-                            @if ($invalidLookupIds->isNotEmpty())
-                                <x-filament::badge color="danger">{{ $invalidLookupIds->count() }} invalid</x-filament::badge>
-                            @endif
-                            @if ($notFoundLookupIds->isNotEmpty())
-                                <x-filament::badge color="warning">{{ $notFoundLookupIds->count() }} not found</x-filament::badge>
-                            @endif
-                        </div>
+	                        <div class="flex flex-wrap gap-2">
+	                            <x-filament::badge color="success">Bulk lookup</x-filament::badge>
+	                            <x-filament::badge color="gray">{{ $manualSourceIds->isNotEmpty() ? 'Manual mode' : 'Using request list IDs' }}</x-filament::badge>
+	                            <x-filament::badge color="primary">{{ $resolvedSourceIds->count() }} ready</x-filament::badge>
+	                            @if ($invalidLookupIds->isNotEmpty())
+	                                <x-filament::badge color="danger">{{ $invalidLookupIds->count() }} invalid</x-filament::badge>
+	                            @endif
+	                            @if ($notFoundLookupIds->isNotEmpty())
+	                                <x-filament::badge color="warning">{{ $notFoundLookupIds->count() }} not found</x-filament::badge>
+	                            @endif
+	                        </div>
 
-                        <x-filament::fieldset label="Lookup rules">
-                            <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                                <p>Paste the sourcing ids exactly as CJ gives them, including alphanumeric ids like <span class="font-mono">CJSPU...</span>.</p>
+	                        <div class="flex flex-wrap items-center gap-2">
+	                            <x-filament::button
+	                                type="button"
+	                                color="gray"
+	                                size="sm"
+	                                wire:click="normalizeSourceIdsInput"
+	                            >
+	                                Normalize IDs
+	                            </x-filament::button>
+	                        </div>
+
+	                        <x-filament::fieldset label="Lookup rules">
+	                            <div class="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+	                                <p>Paste the sourcing ids exactly as CJ gives them, including alphanumeric ids like <span class="font-mono">CJSPU...</span>.</p>
                                 <p>If a bulk request fails, the page retries ids individually and keeps partial results.</p>
                             </div>
                         </x-filament::fieldset>
@@ -240,14 +259,14 @@
                                 </div>
 
                                 <div class="space-y-2 lg:col-span-2">
-                                    <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Default category (optional)</label>
-                                    <select wire:model.live="importDefaultCategoryId" class="fi-input block w-full">
-                                        <option value="">No default category</option>
-                                        @foreach (\App\Models\Category::orderBy('name')->pluck('name', 'id') as $categoryId => $categoryName)
-                                            <option value="{{ $categoryId }}">{{ $categoryName }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
+	                                    <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Default category (optional)</label>
+	                                    <select wire:model.live="importDefaultCategoryId" class="fi-input block w-full">
+	                                        <option value="">No default category</option>
+	                                        @foreach ($categoryOptions as $categoryId => $categoryName)
+	                                            <option value="{{ $categoryId }}">{{ $categoryName }}</option>
+	                                        @endforeach
+	                                    </select>
+	                                </div>
                             </div>
 
                             <div class="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -522,24 +541,35 @@
                 icon="heroicon-o-link"
             >
                 <div class="space-y-4">
-                    @if ($statusSummary->isNotEmpty())
-                        <x-filament::card>
-                            <div class="flex flex-wrap gap-2">
-                                @foreach ($statusSummary as $status => $count)
-                                    <x-filament::badge :color="$badgeColor($status)">
-                                        {{ $status }} · {{ $count }}
-                                    </x-filament::badge>
-                                @endforeach
-                            </div>
-                        </x-filament::card>
-                    @endif
+	                    @if ($statusSummary->isNotEmpty())
+	                        <x-filament::card>
+	                            <div class="flex flex-wrap gap-2">
+	                                @foreach ($statusSummary as $status => $count)
+	                                    <x-filament::badge
+	                                        :color="$badgeColor($status)"
+	                                        class="cursor-pointer"
+	                                        wire:click="setStatusFilter('{{ addslashes((string) $status) }}')"
+	                                        title="Filter by this status"
+	                                    >
+	                                        {{ $status }} · {{ $count }}
+	                                    </x-filament::badge>
+	                                @endforeach
+	                                @if ($statusFilter)
+	                                    <x-filament::badge color="warning">Filter: {{ $statusFilter }}</x-filament::badge>
+	                                    <x-filament::button type="button" color="gray" size="sm" wire:click="setStatusFilter(null)">
+	                                        Clear filter
+	                                    </x-filament::button>
+	                                @endif
+	                            </div>
+	                        </x-filament::card>
+	                    @endif
 
-                    <div class="grid gap-4">
-                        @forelse ($sourceProductsList as $item)
-                            @php
-                                $status = trim((string) ($item['sourceStatusStr'] ?? $item['sourceStatus'] ?? 'Unknown'));
-                                $displayCode = $item['sourceNumber'] ?? $item['sourceId'] ?? '—';
-                                $internalId = $item['sourceId'] ?? null;
+	                    <div class="grid gap-4">
+	                        @forelse ($filteredSourceProductsList as $item)
+	                            @php
+	                                $status = trim((string) ($item['sourceStatusStr'] ?? $item['sourceStatus'] ?? 'Unknown'));
+	                                $displayCode = $item['sourceNumber'] ?? $item['sourceId'] ?? '—';
+	                                $internalId = $item['sourceId'] ?? null;
                                 $cjProductId = $item['cjProductId'] ?? null;
                                 $cjVariantSku = $item['cjVariantSku'] ?? null;
                                 $isImported = $cjProductId ? $importedResolvedProductIds->contains((string) $cjProductId) : false;

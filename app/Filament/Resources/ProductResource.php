@@ -1894,6 +1894,27 @@ class ProductResource extends BaseResource
                                 ->success()
                                 ->send();
                         }),
+                    BulkAction::make('deactivate')
+                        ->label('Deactivate')
+                        ->icon('heroicon-o-power')
+                        ->requiresConfirmation()
+                        ->action(function (Collection $records): void {
+                            $ids = $records->pluck('id')->filter()->all();
+                            if ($ids === []) {
+                                return;
+                            }
+
+                            $deactivated = Product::query()
+                                ->whereKey($ids)
+                                ->where('is_active', true)
+                                ->update(['is_active' => false]);
+
+                            Notification::make()
+                                ->title('Products deactivated')
+                                ->body("Deactivated {$deactivated} product(s).")
+                                ->success()
+                                ->send();
+                        }),
                     BulkAction::make('translate')
                         ->label('Translate')
                         ->icon('heroicon-o-language')
