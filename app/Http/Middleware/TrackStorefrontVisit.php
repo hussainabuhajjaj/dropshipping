@@ -21,7 +21,9 @@ class TrackStorefrontVisit
 
     public function handle(Request $request, Closure $next): Response
     {
-        if ($this->shouldTrack($request)) {
+        $shouldTrack = $this->shouldTrack($request);
+
+        if ($shouldTrack) {
             $visitorKey = (string) ($request->cookie(VisitTrackingService::WEBSITE_COOKIE) ?: $this->visitTrackingService->generateVisitorKey());
             $request->attributes->set('analytics_visitor_key', $visitorKey);
 
@@ -40,11 +42,35 @@ class TrackStorefrontVisit
             }
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        // Track immediately instead of relying solely on terminate(), which may not run in some production setups.
+        // This does add a small DB write to the request, but makes analytics reliable.
+        if ($shouldTrack && $this->isTrackableResponse($response)) {
+            $visitorKey = $request->attributes->get('analytics_visitor_key');
+            if (is_string($visitorKey) && $visitorKey !== '') {
+                try {
+                    $this->visitTrackingService->trackWebsiteRequest($request, $visitorKey);
+                    $request->attributes->set('analytics_tracked', true);
+                } catch (\Throwable $e) {
+                    // Never break storefront traffic due to analytics failures.
+                    \Log::warning('Website analytics tracking failed', [
+                        'path' => $request->path(),
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        return $response;
     }
 
     public function terminate(Request $request, Response $response): void
     {
+        if ((bool) $request->attributes->get('analytics_tracked', false)) {
+            return;
+        }
+
         if (! $this->shouldTrack($request) || ! $this->isTrackableResponse($response)) {
             return;
         }
