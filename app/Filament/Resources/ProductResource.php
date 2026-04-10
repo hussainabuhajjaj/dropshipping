@@ -41,6 +41,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 use App\Services\ProductMarginLogger;
 
 class ProductResource extends BaseResource
@@ -900,6 +901,56 @@ class ProductResource extends BaseResource
                                 'is_active' => (bool) ($data['is_active'] ?? $record->is_active),
                                 'is_featured' => (bool) ($data['is_featured'] ?? $record->is_featured),
                             ]);
+                        }),
+                    Action::make('downloadImages')
+                        ->label('Download images')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->modalHeading(fn (Product $record) => 'Download images: ' . $record->name)
+                        ->modalSubmitActionLabel('Download selected')
+                        ->schema([
+                            \Filament\Forms\Components\ViewField::make('image_ids')
+                                ->label('')
+                                ->default(fn (Product $record) => $record->images()->pluck('id')->map(fn ($id) => (string) $id)->all())
+                                ->view('filament.forms.product-image-selector')
+                                ->viewData(fn (Product $record) => [
+                                    'images' => $record
+                                        ->images()
+                                        ->orderBy('position')
+                                        ->get(['id', 'url', 'position'])
+                                        ->map(fn ($img) => [
+                                            'id' => $img->id,
+                                            'url' => $img->url,
+                                            'position' => $img->position,
+                                        ])
+                                        ->all(),
+                                ]),
+                        ])
+                        ->action(function (Product $record, array $data) {
+                            $ids = collect($data['image_ids'] ?? [])
+                                ->map(fn ($id) => (int) trim((string) $id))
+                                ->filter(fn (int $id) => $id > 0)
+                                ->unique()
+                                ->values()
+                                ->all();
+
+                            if ($ids === []) {
+                                Notification::make()
+                                    ->title('No images selected')
+                                    ->warning()
+                                    ->send();
+                                return null;
+                            }
+
+                            $url = URL::temporarySignedRoute(
+                                'admin.exports.product-images',
+                                now()->addMinutes(5),
+                                [
+                                    'product' => $record->id,
+                                    'ids' => implode(',', $ids),
+                                ]
+                            );
+
+                            return redirect()->to($url);
                         }),
                     Action::make('setMargin')
                         ->label(fn (): string => config('pricing.use_new_engine') ? 'Recalculate pricing' : 'Set margin')

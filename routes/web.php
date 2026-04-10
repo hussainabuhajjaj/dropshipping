@@ -245,6 +245,9 @@ Route::middleware('auth:admin')
     ->group(function () {
         Route::get('/products', [ExportController::class, 'products'])->name('products');
         Route::get('/customers', [ExportController::class, 'customers'])->name('customers');
+        Route::get('/products/{product}/images', [ExportController::class, 'productImages'])
+            ->middleware('signed')
+            ->name('product-images');
     });
 
 Route::get('/legal/shipping-policy', [PageController::class, 'shippingPolicy'])->name('legal.shipping');
