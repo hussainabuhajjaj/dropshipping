@@ -801,7 +801,16 @@ class CJSourcing extends BasePage
             return $data;
         }
 
+        // CJ often returns a paginated shape like: { list: [...], total: n, pageNum, pageSize }
+        if (is_array($data) && isset($data['list']) && is_array($data['list'])) {
+            return array_is_list($data['list']) ? $data['list'] : [$data['list']];
+        }
+
         if (is_array($data) && isset($data['data']) && is_array($data['data'])) {
+            if (isset($data['data']['list']) && is_array($data['data']['list'])) {
+                return array_is_list($data['data']['list']) ? $data['data']['list'] : [$data['data']['list']];
+            }
+
             return array_is_list($data['data']) ? $data['data'] : [$data['data']];
         }
 
@@ -860,6 +869,8 @@ class CJSourcing extends BasePage
                         ->acceptJson()
                         ->post($baseUrl . '/v1/product/sourcing/query', [
                             'sourceIds' => [$id],
+                            'pageNum' => 1,
+                            'pageSize' => 20,
                         ]);
 
                     $requests[] = $request;

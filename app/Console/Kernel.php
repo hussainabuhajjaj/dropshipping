@@ -51,6 +51,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\SetupPaymentMonitoring::class,
         \App\Console\Commands\ServerFixStockZero::class,
         \App\Console\Commands\CjSyncMedia::class,
+        \App\Console\Commands\CjInspectOrder::class,
+        \App\Console\Commands\CjReconnectOrder::class,
         UpdateStockFromMetadata::class,
         FixDefaultCategories::class,
         FixDefaultVariants::class,

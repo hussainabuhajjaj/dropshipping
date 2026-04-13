@@ -60,6 +60,8 @@ class ApiClient
 
         $request = Http::timeout($this->timeout)
             ->baseUrl($this->baseUrl)
+            // Important: don't let Laravel throw RequestException for 4xx/5xx responses.
+            // We normalize provider errors (CJ/Korapay/etc.) in buildResponse().
             ->retry($this->retryTimes, $this->retryDelayMs, function ($exception, $request) {
                 if ($exception instanceof ConnectionException) {
                     return true;
@@ -75,7 +77,7 @@ class ApiClient
                     return true;
                 }
                 return $status === null; // transient network errors
-            })
+            }, throw: false)
             ->withHeaders($this->defaultHeaders);
 
         if (isset($options['form_params'])) {

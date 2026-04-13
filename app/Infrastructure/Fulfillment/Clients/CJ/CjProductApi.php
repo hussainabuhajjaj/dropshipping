@@ -278,11 +278,18 @@ class CjProductApi extends CjBaseApi
 
     public function querySourcingBySourceIds(array $sourceIds): ApiResponse
     {
+        $cleanIds = array_values(array_filter(
+            array_map(static fn ($id) => is_scalar($id) ? trim((string) $id) : '', $sourceIds),
+            static fn (string $id) => $id !== ''
+        ));
+
+        // CJ's `/v1/product/sourcing/query` is paginated. If pageNum/pageSize are omitted it may
+        // default to a very small page size (often ~5), which looks like "only a few ids returned"
+        // even though we provided many `sourceIds`.
         $payload = [
-            'sourceIds' => array_values(array_filter(
-                array_map(static fn ($id) => is_scalar($id) ? trim((string) $id) : '', $sourceIds),
-                static fn (string $id) => $id !== ''
-            )),
+            'sourceIds' => $cleanIds,
+            'pageNum' => 1,
+            'pageSize' => max(20, count($cleanIds)),
         ];
 
         return $this->client()->post('/v1/product/sourcing/query', $payload);
