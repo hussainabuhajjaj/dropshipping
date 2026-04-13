@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Domain\Products\Models\Category;
 use App\Models\StorefrontCollection;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
@@ -47,6 +48,12 @@ class InspectStorefrontCollection extends Command
             : $collection->resolveProducts($locale, $limit);
 
         // Ensure we have category loaded for root-path output.
+        // `resolveProducts()` returns an Eloquent collection, but `paginateResolvedProducts()->getCollection()`
+        // can be a base Support\Collection. Normalize to Eloquent collection so we can call loadMissing().
+        if (! $products instanceof EloquentCollection) {
+            $products = new EloquentCollection($products->all());
+        }
+
         $products->loadMissing(['category', 'category.parent']);
 
         $rows = $products->map(function ($product) use ($allowedSlugs, $excludedSlugs) {
