@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\Category;
+use App\Domain\Products\Models\Category;
 use App\Models\StorefrontCollection;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
@@ -176,4 +176,3 @@ class InspectStorefrontCollection extends Command
             ->all();
     }
 }
-
