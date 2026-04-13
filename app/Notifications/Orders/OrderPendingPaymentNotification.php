@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Notifications\Orders;
 
 use App\Domain\Orders\Models\Order;
+use App\Services\Currency\CustomerMoneyPresenter;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
@@ -28,18 +29,19 @@ class OrderPendingPaymentNotification extends Notification
         $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
         $items = $this->order->orderItems ?? collect();
 
-        $formatMoney = static fn ($value) => number_format((float) $value, 2);
-        $currency = $this->order->currency ?? 'USD';
+        $presenter = app(CustomerMoneyPresenter::class);
+        $currency = $presenter->displayCurrency(); // Always XOF for customers
+        $fromCurrency = (string) ($this->order->currency ?? config('currency.base', 'USD'));
         $paymentUrl = route('orders.confirmation', ['number' => $this->order->number]);
 
-        $lines = $items->map(function ($item) use ($formatMoney, $currency) {
+        $lines = $items->map(function ($item) use ($presenter, $fromCurrency) {
             $snapshot = $item->snapshot ?? [];
             $meta = $item->meta ?? [];
             $name = $snapshot['name'] ?? 'Item';
             $variant = $snapshot['variant'] ?? null;
             $qty = (int) ($item->quantity ?? 1);
-            $unit = (float) ($item->unit_price ?? 0);
-            $total = (float) ($item->total ?? 0);
+            $unitPresented = $presenter->present((float) ($item->unit_price ?? 0), $fromCurrency);
+            $totalPresented = $presenter->present((float) ($item->total ?? 0), $fromCurrency);
 
             $media = is_array($meta['media'] ?? null) ? $meta['media'] : [];
             $image = $media[0] ?? null;
@@ -51,18 +53,20 @@ class OrderPendingPaymentNotification extends Notification
                 'name' => $name,
                 'variant' => $variant,
                 'qty' => $qty,
-                'unit' => $formatMoney($unit),
-                'total' => $formatMoney($total),
+                // Pass numeric amounts; the Blade view formats based on currency decimals (XOF => 0).
+                'unit' => (float) $unitPresented['amount'],
+                'total' => (float) $totalPresented['amount'],
                 'image' => $image,
             ];
         })->values()->all();
 
+        $totals = $presenter->presentOrderTotals($this->order);
         $summary = [
-            'subtotal' => $formatMoney($this->order->subtotal),
-            'shipping' => $formatMoney($this->order->shipping_total),
-            'tax' => $formatMoney($this->order->tax_total),
-            'discount' => $formatMoney($this->order->discount_total),
-            'grand_total' => $formatMoney($this->order->grand_total),
+            'subtotal' => (float) $totals['subtotal'],
+            'shipping' => (float) $totals['shipping'],
+            'tax' => (float) $totals['tax'],
+            'discount' => (float) $totals['discount'],
+            'grand_total' => (float) $totals['total'],
         ];
 
         $preheader = "Complete payment to confirm order #{$this->order->number}.";

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Notifications\Orders;
 
 use App\Models\Order;
+use App\Services\Currency\CustomerMoneyPresenter;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -44,7 +45,17 @@ class OrderCancellationConfirmedNotification extends Notification implements Sho
             ->greeting("Hi {$name},")
             ->line("Your order #{$this->order->number} has been successfully cancelled.")
             ->when($this->refundAmount, function ($mail) {
-                return $mail->line("A refund of {$this->order->currency} {$this->refundAmount} will be processed to your original payment method.")
+                $presenter = app(CustomerMoneyPresenter::class);
+                $xof = $presenter->displayCurrency();
+                $fromCurrency = (string) ($this->order->currency ?? config('currency.base', 'USD'));
+                $raw = trim((string) $this->refundAmount);
+                $numeric = is_numeric($raw) ? (float) $raw : (float) str_replace([',', ' '], '', $raw);
+
+                $presented = $presenter->present($numeric, $fromCurrency);
+
+                return $mail
+                    ->line("A refund of {$xof} {$presented['formatted']} will be processed to your original payment method.")
+                    ->when(! $presented['ok'], fn (MailMessage $m) => $m->line('Note: FX conversion was unavailable; displayed totals may be inaccurate.'))
                     ->line('Depending on your bank, the refund may take 3-5 business days to appear.');
             })
             ->action('View order', url("/orders/track?number={$this->order->number}&email={$this->order->email}"))

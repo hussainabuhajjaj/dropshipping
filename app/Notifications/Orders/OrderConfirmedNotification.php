@@ -7,6 +7,7 @@ namespace App\Notifications\Orders;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Payments\Models\Payment;
 use App\Notifications\Channels\WhatsAppChannel;
+use App\Services\Currency\CustomerMoneyPresenter;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -28,7 +29,7 @@ class OrderConfirmedNotification extends Notification
 
     public function toArray(object $notifiable): array
     {
-        $presented = $this->presentedTotal();
+        $presented = $this->presentedTotalXof();
 
         return [
             'order_number' => $this->order->number,
@@ -38,6 +39,8 @@ class OrderConfirmedNotification extends Notification
             'currency' => $presented['currency'],
             'order_total' => $this->order->grand_total,
             'order_currency' => $this->order->currency,
+            'total_xof' => $presented['amount'],
+            'currency_xof' => 'XOF',
             'tracking_url' => $this->trackingLink(),
         ];
     }
@@ -45,28 +48,22 @@ class OrderConfirmedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
-        $presented = $this->presentedTotal();
+        $presented = $this->presentedTotalXof();
         $line = "Total: {$presented['currency']} {$presented['formatted']}";
-
-        $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
-        $presentedCurrency = strtoupper((string) $presented['currency']);
-
-        if ($presentedCurrency !== '' && $presentedCurrency !== $orderCurrency) {
-            $line .= " (Order total: {$orderCurrency} " . $this->formatMoney((float) ($this->order->grand_total ?? 0), $orderCurrency) . ')';
-        }
         
         return (new MailMessage)
             ->subject("We've received your order #{$this->order->number}")
             ->greeting("Hi {$name},")
             ->line("Order #{$this->order->number} is confirmed.")
             ->line($line)
+            ->when(! $presented['ok'], fn (MailMessage $mail) => $mail->line('Note: FX conversion was unavailable; displayed totals may be inaccurate.'))
             ->action('Track order', $this->trackingLink())
             ->line('We’ll send tracking once the supplier ships. Duties and VAT were shown at checkout.');
     }
 
     public function toWhatsApp(object $notifiable): string
     {
-        $presented = $this->presentedTotal();
+        $presented = $this->presentedTotalXof();
         $line = "Total: {$presented['currency']} {$presented['formatted']}";
         return "Hi {$notifiable->name}, order #{$this->order->number} is confirmed. {$line}. Track: {$this->trackingLink()}";
     }
@@ -77,37 +74,36 @@ class OrderConfirmedNotification extends Notification
     }
 
     /**
-     * Prefer the provider-facing charged amount/currency (payment) when available.
+     * Customer-facing totals are always XOF.
      *
-     * @return array{amount: float, currency: string, formatted: string}
+     * @return array{amount: float, currency: string, formatted: string, ok: bool}
      */
-    private function presentedTotal(): array
+    private function presentedTotalXof(): array
     {
+        $presenter = app(CustomerMoneyPresenter::class);
+
+        // Prefer exact charged XOF when available.
         $paymentCurrency = strtoupper((string) ($this->payment?->currency ?? ''));
         $paymentAmount = is_numeric($this->payment?->amount) ? (float) $this->payment->amount : null;
 
-        if ($paymentCurrency !== '' && $paymentAmount !== null && $paymentAmount > 0) {
+        if ($paymentCurrency === 'XOF' && $paymentAmount !== null && $paymentAmount > 0) {
             return [
                 'amount' => $paymentAmount,
-                'currency' => $paymentCurrency,
-                'formatted' => $this->formatMoney($paymentAmount, $paymentCurrency),
+                'currency' => 'XOF',
+                'formatted' => $presenter->format($paymentAmount, 'XOF'),
+                'ok' => true,
             ];
         }
 
-        $orderCurrency = strtoupper((string) ($this->order->currency ?? 'USD'));
+        $orderCurrency = (string) ($this->order->currency ?? config('currency.base', 'USD'));
         $orderAmount = (float) ($this->order->grand_total ?? 0);
+        $presented = $presenter->present($orderAmount, $orderCurrency, $this->payment);
 
         return [
-            'amount' => $orderAmount,
-            'currency' => $orderCurrency,
-            'formatted' => $this->formatMoney($orderAmount, $orderCurrency),
+            'amount' => (float) $presented['amount'],
+            'currency' => (string) $presented['currency'],
+            'formatted' => (string) $presented['formatted'],
+            'ok' => (bool) $presented['ok'],
         ];
-    }
-
-    private function formatMoney(float $amount, string $currency): string
-    {
-        $currency = strtoupper($currency);
-        $decimals = (int) (config('currency.decimals.' . $currency) ?? ($currency === 'XOF' || $currency === 'XAF' ? 0 : 2));
-        return number_format($amount, $decimals, '.', ',');
     }
 }
