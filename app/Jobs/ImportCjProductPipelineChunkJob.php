@@ -74,10 +74,15 @@ class ImportCjProductPipelineChunkJob implements ShouldQueue
 
             // Apply default category if specified
             if (!empty($this->options['default_category_id'])) {
-                DB::table('products')
-                    ->whereIn('cj_pid', $this->pids)
-                    ->whereNull('category_id')
-                    ->update(['category_id' => $this->options['default_category_id']]);
+                $query = DB::table('products')
+                    ->whereIn('cj_pid', $this->pids);
+
+                $assignAll = (bool) ($this->options['assign_category_id'] ?? false);
+                if (! $assignAll) {
+                    $query->whereNull('category_id');
+                }
+
+                $query->update(['category_id' => (int) $this->options['default_category_id']]);
             }
 
             // Update tracking progress

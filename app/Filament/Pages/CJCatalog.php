@@ -31,6 +31,7 @@ use Filament\Support\ArrayRecord;
 use Filament\Support\Contracts\TranslatableContentDriver;
 use App\Filament\Pages\BasePage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use UnitEnum;
@@ -293,6 +294,13 @@ class CJCatalog extends BasePage implements HasTable
                 ->icon('heroicon-o-rocket-launch')
                 ->color('success')
                 ->form([
+                    \Filament\Forms\Components\Select::make('default_category_id')
+                        ->label('Category (Required)')
+                        ->options(fn () => $this->localCategoryOptions())
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->helperText('Imported product will be assigned to this category.'),
                     Toggle::make('force_reprice')
                         ->label('Force reprice existing product')
                         ->default(false)
@@ -388,12 +396,14 @@ class CJCatalog extends BasePage implements HasTable
                     Section::make('Category & Organization')
                         ->schema([
                             \Filament\Forms\Components\Select::make('default_category_id')
-                                ->label('Default Category (Optional)')
+                                ->label('Category (Required)')
                                 ->options(function () {
-                                    return \App\Models\Category::pluck('name', 'id')->toArray();
+                                    return $this->localCategoryOptions();
                                 })
                                 ->searchable()
-                                ->helperText('Assign products to this category if CJ category mapping fails'),
+                                ->preload()
+                                ->required()
+                                ->helperText('All imported products will be assigned to this category.'),
                         ]),
 
                     Section::make('Translation & SEO')
@@ -920,6 +930,19 @@ class CJCatalog extends BasePage implements HasTable
         $mode = $this->importPreviewMode ?? 'pipeline';
         $options = $this->importPreviewOptions;
 
+        // For pipeline imports from CJ Catalog we require an explicit category selection.
+        if (in_array($mode, ['pipeline', 'bulk_pipeline'], true)) {
+            $categoryId = isset($options['default_category_id']) ? (int) $options['default_category_id'] : 0;
+            if ($categoryId <= 0) {
+                Notification::make()
+                    ->title('Select a category')
+                    ->body('Choose a category before confirming the import.')
+                    ->warning()
+                    ->send();
+                return;
+            }
+        }
+
         $this->dispatch('close-modal', id: $this->getImportPreviewModalId());
 
         if ($mode === 'legacy') {
@@ -1011,6 +1034,21 @@ class CJCatalog extends BasePage implements HasTable
         }
 
         return $options;
+    }
+
+    /**
+     * Local (storefront) categories for assigning imported CJ products.
+     *
+     * @return array<int,string>
+     */
+    private function localCategoryOptions(): array
+    {
+        return Cache::remember('admin:cj_catalog:local_category_options_v1', now()->addMinutes(30), function (): array {
+            return \App\Models\Category::query()
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->toArray();
+        });
     }
 
     public function getImagePreviewModalId(): string
@@ -1261,7 +1299,15 @@ class CJCatalog extends BasePage implements HasTable
                 'enrich' => (bool) ($options['enrich'] ?? true),
                 'force_activate' => (bool) ($options['auto_activate'] ?? true),
                 'force_reprice' => (bool) ($options['force_reprice'] ?? false),
+                'default_category_id' => $options['default_category_id'] ?? null,
             ]);
+
+            // Force category assignment (user explicitly chose a category in the UI).
+            if (! empty($options['default_category_id'])) {
+                \App\Models\Product::query()
+                    ->where('cj_pid', $pid)
+                    ->update(['category_id' => (int) $options['default_category_id']]);
+            }
 
             if ($result['activated'] > 0) {
                 $this->notifySuccess('Product imported and activated with weight-based pricing');
@@ -1363,6 +1409,7 @@ class CJCatalog extends BasePage implements HasTable
                     'skip_translations' => !(bool) ($options['queue_translations'] ?? true),
                     'skip_seo' => !(bool) ($options['queue_seo'] ?? true),
                     'default_category_id' => $options['default_category_id'] ?? null,
+                    'assign_category_id' => true,
                     'force_reprice' => (bool) ($options['force_reprice'] ?? false),
                     'tracking_key' => $trackingKey,
                     'chunk_index' => $index,

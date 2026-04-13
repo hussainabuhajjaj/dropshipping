@@ -87,6 +87,9 @@ return [
         'base_url' => env('CJ_BASE_URL', 'https://developers.cjdropshipping.com/api2.0'),
         'warehouse_list_endpoint' => env('CJ_WAREHOUSE_LIST_ENDPOINT', '/v1/product/globalWarehouse/list'),
         'timeout' => env('CJ_TIMEOUT', 10),
+        // CJ frequently enforces very low QPS limits (sometimes 1 request/second). We throttle
+        // some admin bulk actions (sourcing/product lookups) to avoid code 1600200.
+        'qps_delay_ms' => (int) env('CJ_QPS_DELAY_MS', 1100),
         'webhook_secret' => env('CJ_WEBHOOK_SECRET'),
         'platform_token' => env('CJ_PLATFORM_TOKEN'),
         'alerts_email' => env('CJ_ALERTS_EMAIL'),

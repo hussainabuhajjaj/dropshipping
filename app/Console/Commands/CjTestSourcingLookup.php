@@ -16,7 +16,8 @@ class CjTestSourcingLookup extends Command
                             {--ids= : IDs/SKUs separated by spaces/commas/newlines}
                             {--file= : Path to a file containing one ID/SKU per line}
                             {--json : Dump raw per-id results as JSON}
-                            {--limit=0 : Only test the first N ids (0 = all)}';
+                            {--limit=0 : Only test the first N ids (0 = all)}
+                            {--scan-pages=20 : When a CJSPU... lookup fails, scan this many sourcing pages and match sourceNumber}';
 
     protected $description = 'Debug CJ sourcing lookup: resolves sourcing IDs via /product/sourcing/query and CJSPU SKUs via /product/query, printing codes/messages per id.';
 
@@ -181,13 +182,7 @@ class CjTestSourcingLookup extends Command
                 continue;
             }
 
-            $items = $payload['data'] ?? null;
-            $list = [];
-            if (is_array($items) && array_is_list($items)) {
-                $list = $items;
-            } elseif (is_array($items)) {
-                $list = [$items];
-            }
+            $list = $this->normalizeItems($payload['data'] ?? null);
 
             $bySourceId = [];
             foreach ($list as $row) {
@@ -226,64 +221,175 @@ class CjTestSourcingLookup extends Command
         $baseUrl = rtrim((string) config('services.cj.base_url'), '/');
         $token = $client->withToken();
         $platformToken = (string) config('services.cj.platform_token', '');
+        $scanPages = max(0, (int) $this->option('scan-pages'));
 
         $out = [];
 
-        foreach (array_chunk($skus, 8) as $group) {
-            /** @var array<string, Response> $responses */
-            $responses = Http::pool(function ($pool) use ($group, $baseUrl, $token, $platformToken) {
-                $requests = [];
-                foreach ($group as $sku) {
-                    $requests[] = $pool
-                        ->as($sku)
-                        ->withHeaders(array_filter([
-                            'CJ-Access-Token' => $token,
-                            'CJ-Platform-Token' => $platformToken !== '' ? $platformToken : null,
-                            'Accept' => 'application/json',
-                        ]))
-                        ->timeout((int) config('services.cj.timeout', 10))
-                        ->acceptJson()
-                        ->get($baseUrl . '/v1/product/query', [
-                            'productSku' => $sku,
-                            'features' => 'enable_inventory',
-                            'countryCode' => env('CJ_DEFAULT_WAREHOUSE', 'CN'),
-                        ]);
-                }
-                return $requests;
-            });
+        $delayMs = max(0, (int) config('services.cj.qps_delay_ms', 1100));
 
-            foreach ($group as $sku) {
-                $resp = $responses[$sku] ?? null;
-                $payload = $resp instanceof Response ? $resp->json() : null;
+        // CJ enforces very low QPS (commonly 1 req/sec). Do NOT run these lookups concurrently.
+        foreach (array_values($skus) as $idx => $sku) {
+            if ($idx > 0 && $delayMs > 0) {
+                usleep($delayMs * 1000);
+            }
 
-                if (! is_array($payload)) {
-                    $out[] = [
-                        'id' => $sku,
-                        'type' => 'productSku',
-                        'ok' => false,
-                        'cj_code' => null,
-                        'cj_message' => $resp instanceof Response ? ('http_' . $resp->status()) : 'no_response',
-                        'requestId' => null,
-                    ];
-                    continue;
-                }
+            $payload = $this->cjGetJsonWithRetry(
+                $baseUrl . '/v1/product/query',
+                [
+                    'productSku' => $sku,
+                    'features' => 'enable_inventory',
+                ],
+                $token,
+                $platformToken,
+                4
+            );
 
+            $pid = '';
+            $code = null;
+            $message = null;
+            $requestId = null;
+
+            if (is_array($payload)) {
+                $code = $payload['code'] ?? null;
+                $message = $payload['message'] ?? null;
+                $requestId = $payload['requestId'] ?? null;
                 $data = $payload['data'] ?? null;
                 $pid = is_array($data) ? trim((string) ($data['pid'] ?? $data['productId'] ?? $data['id'] ?? '')) : '';
-
-                $out[] = [
-                    'id' => $sku,
-                    'type' => 'productSku',
-                    'ok' => (bool) (($payload['result'] ?? null) === true && (int) ($payload['code'] ?? 0) === 200 && $pid !== ''),
-                    'cj_code' => $payload['code'] ?? null,
-                    'cj_message' => $payload['message'] ?? null,
-                    'cj_pid' => $pid !== '' ? $pid : null,
-                    'requestId' => $payload['requestId'] ?? null,
-                ];
             }
+
+            // Fallback 1: /v1/product/list (sometimes finds SKUs that /query doesn't).
+            if ($pid === '') {
+                $listPayload = $this->cjGetJsonWithRetry(
+                    $baseUrl . '/v1/product/list',
+                    [
+                        'pageNum' => 1,
+                        'pageSize' => 1,
+                        'productSku' => $sku,
+                    ],
+                    $token,
+                    $platformToken,
+                    4
+                );
+
+                if (is_array($listPayload) && ($listPayload['result'] ?? null) === true && (int) ($listPayload['code'] ?? 0) === 200) {
+                    $data = $listPayload['data'] ?? null;
+                    $list = is_array($data) ? ($data['list'] ?? null) : null;
+                    $first = is_array($list) && isset($list[0]) && is_array($list[0]) ? $list[0] : null;
+                    if (is_array($first)) {
+                        $pid = trim((string) ($first['pid'] ?? ''));
+                    }
+                }
+            }
+
+            // Fallback 2: interpret the value as a sourcing `sourceNumber` and scan recent pages.
+            if ($pid === '' && $scanPages > 0) {
+                $fallback = $this->findSourcingBySourceNumber($client, $sku, $scanPages);
+                if ($fallback) {
+                    $pid = trim((string) ($fallback['cjProductId'] ?? ''));
+                }
+            }
+
+            $out[] = [
+                'id' => $sku,
+                'type' => 'productSku',
+                'ok' => (bool) ($pid !== ''),
+                'cj_code' => $code,
+                'cj_message' => $message,
+                'cj_pid' => $pid !== '' ? $pid : null,
+                'requestId' => $requestId,
+            ];
         }
 
         return $out;
     }
-}
 
+    /**
+     * @return array<int, array>
+     */
+    private function normalizeItems(mixed $data): array
+    {
+        if (is_array($data) && array_is_list($data)) {
+            return $data;
+        }
+
+        if (is_array($data) && isset($data['list']) && is_array($data['list'])) {
+            return array_is_list($data['list']) ? $data['list'] : [$data['list']];
+        }
+
+        if (is_array($data)) {
+            return [$data];
+        }
+
+        return [];
+    }
+
+    private function findSourcingBySourceNumber(CJDropshippingClient $client, string $sourceNumber, int $scanPages): ?array
+    {
+        $sourceNumber = trim($sourceNumber);
+        if ($sourceNumber === '') {
+            return null;
+        }
+
+        // Scan a limited number of pages to reduce rate-limit risk.
+        $pageSize = 50;
+
+        for ($pageNum = 1; $pageNum <= $scanPages; $pageNum++) {
+            try {
+                $resp = $client->querySourcing(null, $pageNum, $pageSize);
+                $items = $this->normalizeItems($resp->data ?? null);
+                if ($items === []) {
+                    return null;
+                }
+
+                foreach ($items as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $num = trim((string) ($row['sourceNumber'] ?? ''));
+                    if ($num !== '' && $num === $sourceNumber) {
+                        return $row;
+                    }
+                }
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * CJ often rate limits at QPS=1 and returns code=1600200 even with HTTP 200.
+     * Retry on that specific case.
+     */
+    private function cjGetJsonWithRetry(string $url, array $query, string $token, string $platformToken, int $attempts = 4): ?array
+    {
+        $delayMs = max(200, (int) config('services.cj.qps_delay_ms', 1100));
+
+        for ($i = 1; $i <= $attempts; $i++) {
+            $response = Http::withHeaders(array_filter([
+                    'CJ-Access-Token' => $token,
+                    'CJ-Platform-Token' => $platformToken !== '' ? $platformToken : null,
+                    'Accept' => 'application/json',
+                ]))
+                ->timeout((int) config('services.cj.timeout', 10))
+                ->acceptJson()
+                ->get($url, $query);
+
+            $payload = $response->json();
+            if (! is_array($payload)) {
+                return null;
+            }
+
+            $code = (int) ($payload['code'] ?? 0);
+            if ($code === 1600200 && $i < $attempts) {
+                usleep($delayMs * 1000);
+                continue;
+            }
+
+            return $payload;
+        }
+
+        return null;
+    }
+}
