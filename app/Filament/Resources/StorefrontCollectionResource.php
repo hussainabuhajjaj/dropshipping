@@ -203,6 +203,12 @@ class StorefrontCollectionResource extends BaseResource
                                 ->multiple()
                                 ->options(fn () => Category::query()->orderBy('name')->pluck('name', 'id'))
                                 ->searchable(),
+                            Forms\Components\TagsInput::make('category_slugs')
+                                ->helperText('Optional: treat these as root category slugs (includes descendants). Example: women, kids, men.')
+                                ->placeholder('women, men'),
+                            Forms\Components\TagsInput::make('exclude_category_slugs')
+                                ->helperText('Optional: exclude these root category slugs (and their descendants).')
+                                ->placeholder('kids, baby'),
                             Forms\Components\TextInput::make('min_price')
                                 ->numeric()
                                 ->label('Min price'),

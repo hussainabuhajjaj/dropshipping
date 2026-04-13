@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection as SupportCollection;
 
 class StorefrontCollection extends Model
 {
@@ -276,6 +277,7 @@ class StorefrontCollection extends Model
             $query->where('is_active', (bool) $isActive);
         }
 
+        // Category scoping (supports both exact category_id lists and subtree filtering by slug).
         $categoryIds = Arr::get($rules, 'category_ids');
         if (is_array($categoryIds) && count($categoryIds) > 0) {
             $query->whereIn('category_id', $categoryIds);
@@ -283,9 +285,40 @@ class StorefrontCollection extends Model
 
         $categorySlugs = Arr::get($rules, 'category_slugs');
         if (is_array($categorySlugs) && count($categorySlugs) > 0) {
-            $query->whereHas('category', function (Builder $builder) use ($categorySlugs) {
-                $builder->whereIn('slug', $categorySlugs);
-            });
+            // Treat category_slugs as "root categories" and include their descendants. This prevents
+            // "mixed collections" caused by relying on keyword search alone, and matches how users
+            // expect category-based collections to behave.
+            $rootIds = Category::query()
+                ->whereIn('slug', $categorySlugs)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $treeIds = $this->descendantCategoryIds($rootIds);
+            if ($treeIds !== []) {
+                $query->whereIn('category_id', $treeIds);
+            } else {
+                // Fallback to the old behavior if slugs didn't match.
+                $query->whereHas('category', function (Builder $builder) use ($categorySlugs) {
+                    $builder->whereIn('slug', $categorySlugs);
+                });
+            }
+        }
+
+        $excludeCategorySlugs = Arr::get($rules, 'exclude_category_slugs');
+        if (is_array($excludeCategorySlugs) && count($excludeCategorySlugs) > 0) {
+            $excludeRootIds = Category::query()
+                ->whereIn('slug', $excludeCategorySlugs)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $excludeTreeIds = $this->descendantCategoryIds($excludeRootIds);
+            if ($excludeTreeIds !== []) {
+                $query->whereNotIn('category_id', $excludeTreeIds);
+            }
         }
 
         $minPrice = Arr::get($rules, 'min_price');
@@ -324,6 +357,25 @@ class StorefrontCollection extends Model
             });
         }
 
+        $excludeTerms = Arr::get($rules, 'exclude_terms');
+        if (is_array($excludeTerms) && count($excludeTerms) > 0) {
+            $terms = collect($excludeTerms)
+                ->map(fn ($t) => trim((string) $t))
+                ->filter()
+                ->take(20)
+                ->values()
+                ->all();
+
+            if ($terms !== []) {
+                $query->where(function (Builder $builder) use ($terms) {
+                    foreach ($terms as $term) {
+                        $builder->where('name', 'not like', '%' . $term . '%')
+                            ->where('description', 'not like', '%' . $term . '%');
+                    }
+                });
+            }
+        }
+
         $includeIds = Arr::get($rules, 'include_product_ids');
         if (is_array($includeIds) && count($includeIds) > 0) {
             $query->whereIn('id', $includeIds);
@@ -357,6 +409,41 @@ class StorefrontCollection extends Model
         }
 
         return $query;
+    }
+
+    /**
+     * @param array<int,int> $rootIds
+     * @return array<int,int>
+     */
+    private function descendantCategoryIds(array $rootIds): array
+    {
+        $rootIds = collect($rootIds)->map(fn ($id) => (int) $id)->filter()->values()->all();
+        if ($rootIds === []) {
+            return [];
+        }
+
+        $all = $rootIds;
+        $frontier = $rootIds;
+
+        // BFS over parent_id until we stop finding children.
+        for ($i = 0; $i < 12; $i++) {
+            $children = Category::query()
+                ->whereIn('parent_id', $frontier)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $children = array_values(array_diff($children, $all));
+            if ($children === []) {
+                break;
+            }
+
+            $all = array_merge($all, $children);
+            $frontier = $children;
+        }
+
+        return array_values(array_unique($all));
     }
 
     private function parseScheduleDate($value, string $timezone): ?Carbon

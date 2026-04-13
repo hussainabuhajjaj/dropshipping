@@ -15,6 +15,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Filament\Notifications\Notification;
 use App\Filament\Pages\BasePage;
 use UnitEnum;
@@ -216,7 +217,16 @@ class CJSourcing extends BasePage
                 'manual_input' => $this->sourceIdsInput,
             ]);
 
-            [$resolvedProducts, $notFoundIds] = $this->querySourceProductsWithFallback($sourceIds);
+            [$sourcingIds, $productSkus] = $this->splitLookupIds($sourceIds);
+
+            [$resolvedProducts, $notFoundIds] = $this->querySourceProductsWithFallback($sourcingIds);
+
+            if ($productSkus !== []) {
+                [$skuResolved, $skuNotFound] = $this->queryProductsBySkuWithFallback($productSkus);
+                $resolvedProducts = array_merge($resolvedProducts, $skuResolved);
+                $notFoundIds = array_merge($notFoundIds, $skuNotFound);
+            }
+
             $this->sourceProducts = $resolvedProducts;
             $this->notFoundLookupIds = $notFoundIds;
             $this->syncImportedResolvedProductIds();
@@ -232,13 +242,13 @@ class CJSourcing extends BasePage
             if ($this->sourceProducts === []) {
                 Notification::make()
                     ->title('No data returned')
-                    ->body('CJ returned no sourcing records for the provided source ids.')
+                    ->body('CJ returned no records for the provided IDs/SKUs.')
                     ->warning()
                     ->send();
             } else {
                 Notification::make()
                     ->title('Source products loaded')
-                    ->body('Loaded ' . count($this->sourceProducts) . ' sourcing records from CJ.')
+                    ->body('Loaded ' . count($this->sourceProducts) . ' record(s) from CJ.')
                     ->success()
                     ->send();
             }
@@ -265,6 +275,38 @@ class CJSourcing extends BasePage
             ]);
             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
         }
+    }
+
+    /**
+     * CJ sourcing query expects CJ sourcing IDs (cjSourcingId), which are often numeric.
+     * Many operators paste CJ product SKUs like CJSPU..., which are NOT sourcing ids.
+     * Split so we can resolve product SKUs via product query instead of returning "not found".
+     *
+     * @return array{0: array<int,string>, 1: array<int,string>} [sourcingIds, productSkus]
+     */
+    protected function splitLookupIds(array $ids): array
+    {
+        $sourcingIds = [];
+        $productSkus = [];
+
+        foreach ($ids as $id) {
+            $clean = trim((string) $id);
+            if ($clean === '') {
+                continue;
+            }
+
+            if (Str::startsWith(Str::upper($clean), 'CJSPU')) {
+                $productSkus[] = $clean;
+                continue;
+            }
+
+            $sourcingIds[] = $clean;
+        }
+
+        return [
+            array_values(array_unique($sourcingIds)),
+            array_values(array_unique($productSkus)),
+        ];
     }
 
     protected function resolveSourceIds(): array
@@ -708,7 +750,8 @@ class CJSourcing extends BasePage
         $client = app(CJDropshippingClient::class);
         $cacheIds = $sourceIds;
         sort($cacheIds);
-        $cacheKey = 'admin:cj_sourcing:lookup_v1:' . md5(implode('|', $cacheIds));
+        // Bump version when lookup behavior changes to avoid sticky cached empties.
+        $cacheKey = 'admin:cj_sourcing:lookup_v2:' . md5(implode('|', $cacheIds));
 
         return Cache::remember($cacheKey, now()->addSeconds(45), function () use ($sourceIds, $client): array {
             $resolved = [];
@@ -793,6 +836,213 @@ class CJSourcing extends BasePage
 
             return [$resolvedBySourceId, array_values(array_unique($notFound))];
         });
+    }
+
+    /**
+     * Resolve CJ product SKUs (often pasted as CJSPU...) into a pseudo "sourcing" record
+     * that contains cjProductId so the import flow can proceed.
+     *
+     * @return array{0: array<int,array>, 1: array<int,string>}
+     */
+    protected function queryProductsBySkuWithFallback(array $productSkus): array
+    {
+        $cacheIds = $productSkus;
+        sort($cacheIds);
+        // Bump version when lookup behavior changes to avoid sticky cached empties.
+        $cacheKey = 'admin:cj_sourcing:lookup_sku_v3:' . md5(implode('|', $cacheIds));
+
+        return Cache::remember($cacheKey, now()->addSeconds(60), function () use ($productSkus): array {
+            $client = app(CJDropshippingClient::class);
+            return $this->queryProductsBySkuConcurrently($productSkus, $client);
+        });
+    }
+
+    /**
+     * @return array{0: array<int,array>, 1: array<int,string>}
+     */
+    protected function queryProductsBySkuConcurrently(array $skus, CJDropshippingClient $client): array
+    {
+        $resolved = [];
+        $notFound = [];
+
+        $baseUrl = rtrim((string) config('services.cj.base_url'), '/');
+        $token = $client->withToken();
+        $platformToken = (string) config('services.cj.platform_token', '');
+
+        foreach (array_chunk($skus, 8) as $group) {
+            $responses = Http::pool(function ($pool) use ($group, $baseUrl, $token, $platformToken) {
+                $requests = [];
+
+                foreach ($group as $sku) {
+                    $request = $pool
+                        ->as($sku)
+                        ->withHeaders(array_filter([
+                            'CJ-Access-Token' => $token,
+                            'CJ-Platform-Token' => $platformToken !== '' ? $platformToken : null,
+                            'Accept' => 'application/json',
+                        ]))
+                        ->timeout((int) config('services.cj.timeout', 10))
+                        ->acceptJson()
+                        ->get($baseUrl . '/v1/product/query', [
+                            'productSku' => $sku,
+                            'features' => 'enable_inventory',
+                            // Do not restrict by countryCode here: that can make valid CJSPU SKUs look "missing".
+                        ]);
+
+                    $requests[] = $request;
+                }
+
+                return $requests;
+            });
+
+            foreach ($group as $sku) {
+                $response = $responses[$sku] ?? null;
+
+                if (! $response instanceof Response) {
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                if (! $response->successful()) {
+                    Log::warning('CJ productSku lookup failed', [
+                        'productSku' => $sku,
+                        'http_status' => $response->status(),
+                        'body' => $response->json() ?? $response->body(),
+                    ]);
+                    $fallback = $this->queryProductPidBySkuViaList($sku, $baseUrl, $token, $platformToken);
+                    if ($fallback) {
+                        $resolved[] = $fallback;
+                        continue;
+                    }
+
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                $payload = $response->json();
+                if (! is_array($payload)) {
+                    $fallback = $this->queryProductPidBySkuViaList($sku, $baseUrl, $token, $platformToken);
+                    if ($fallback) {
+                        $resolved[] = $fallback;
+                        continue;
+                    }
+
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                if (($payload['result'] ?? null) !== true || (int) ($payload['code'] ?? 0) !== 200) {
+                    Log::info('CJ productSku lookup returned non-success', [
+                        'productSku' => $sku,
+                        'code' => $payload['code'] ?? null,
+                        'message' => $payload['message'] ?? null,
+                        'requestId' => $payload['requestId'] ?? null,
+                    ]);
+                    $fallback = $this->queryProductPidBySkuViaList($sku, $baseUrl, $token, $platformToken);
+                    if ($fallback) {
+                        $resolved[] = $fallback;
+                        continue;
+                    }
+
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                $data = $payload['data'] ?? null;
+                if (! is_array($data)) {
+                    $fallback = $this->queryProductPidBySkuViaList($sku, $baseUrl, $token, $platformToken);
+                    if ($fallback) {
+                        $resolved[] = $fallback;
+                        continue;
+                    }
+
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                $pid = trim((string) ($data['pid'] ?? $data['productId'] ?? $data['id'] ?? ''));
+                if ($pid === '') {
+                    $fallback = $this->queryProductPidBySkuViaList($sku, $baseUrl, $token, $platformToken);
+                    if ($fallback) {
+                        $resolved[] = $fallback;
+                        continue;
+                    }
+
+                    $notFound[] = $sku;
+                    continue;
+                }
+
+                // Match the sourcing UI expectations: it looks for `cjProductId`.
+                $resolved[] = [
+                    'sourceId' => $sku,
+                    'sourceNumber' => $sku,
+                    'sourceStatus' => null,
+                    'sourceStatusStr' => 'Resolved via productSku lookup',
+                    'cjProductId' => $pid,
+                    'cjVariantSku' => null,
+                    'meta' => [
+                        'lookup_type' => 'productSku',
+                        'cj_product' => $data,
+                    ],
+                ];
+            }
+        }
+
+        return [$resolved, array_values(array_unique($notFound))];
+    }
+
+    private function queryProductPidBySkuViaList(string $sku, string $baseUrl, string $token, string $platformToken): ?array
+    {
+        try {
+            $response = Http::withHeaders(array_filter([
+                    'CJ-Access-Token' => $token,
+                    'CJ-Platform-Token' => $platformToken !== '' ? $platformToken : null,
+                    'Accept' => 'application/json',
+                ]))
+                ->timeout((int) config('services.cj.timeout', 10))
+                ->acceptJson()
+                ->get($baseUrl . '/v1/product/list', [
+                    'pageNum' => 1,
+                    'pageSize' => 1,
+                    'productSku' => $sku,
+                ]);
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $payload = $response->json();
+            if (! is_array($payload) || ($payload['result'] ?? null) !== true || (int) ($payload['code'] ?? 0) !== 200) {
+                return null;
+            }
+
+            $data = $payload['data'] ?? null;
+            $list = is_array($data) ? ($data['list'] ?? null) : null;
+            $first = is_array($list) && isset($list[0]) && is_array($list[0]) ? $list[0] : null;
+            if (! is_array($first)) {
+                return null;
+            }
+
+            $pid = trim((string) ($first['pid'] ?? ''));
+            if ($pid === '') {
+                return null;
+            }
+
+            return [
+                'sourceId' => $sku,
+                'sourceNumber' => $sku,
+                'sourceStatus' => null,
+                'sourceStatusStr' => 'Resolved via product/list fallback',
+                'cjProductId' => $pid,
+                'cjVariantSku' => null,
+                'meta' => [
+                    'lookup_type' => 'productSku:list_fallback',
+                    'cj_product_list_item' => $first,
+                ],
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     protected function normalizeSourceProductsResponse(mixed $data): array

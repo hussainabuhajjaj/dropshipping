@@ -53,6 +53,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\CjSyncMedia::class,
         \App\Console\Commands\CjInspectOrder::class,
         \App\Console\Commands\CjReconnectOrder::class,
+        \App\Console\Commands\CjTestSourcingLookup::class,
+        \App\Console\Commands\InspectStorefrontCollection::class,
         UpdateStockFromMetadata::class,
         FixDefaultCategories::class,
         FixDefaultVariants::class,
