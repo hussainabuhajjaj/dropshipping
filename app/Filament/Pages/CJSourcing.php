@@ -706,7 +706,9 @@ class CJSourcing extends BasePage
     protected function querySourceProductsWithFallback(array $sourceIds): array
     {
         $client = app(CJDropshippingClient::class);
-        $cacheKey = 'admin:cj_sourcing:lookup_v1:' . md5(implode('|', $sourceIds));
+        $cacheIds = $sourceIds;
+        sort($cacheIds);
+        $cacheKey = 'admin:cj_sourcing:lookup_v1:' . md5(implode('|', $cacheIds));
 
         return Cache::remember($cacheKey, now()->addSeconds(45), function () use ($sourceIds, $client): array {
             $resolved = [];
@@ -727,12 +729,38 @@ class CJSourcing extends BasePage
 
                     $items = $this->normalizeSourceProductsResponse($resp->data);
 
-                    if ($items === []) {
-                        $notFound = array_merge($notFound, $chunk);
-                        continue;
+                    // CJ sometimes returns only a subset of requested source IDs in batch mode.
+                    // When that happens, backfill the missing IDs via per-ID queries.
+                    if ($items !== []) {
+                        $resolved = array_merge($resolved, $items);
                     }
 
-                    $resolved = array_merge($resolved, $items);
+                    $resolvedIds = collect($items)
+                        ->filter(fn ($row) => is_array($row))
+                        ->map(function (array $row): ?string {
+                            $id = $row['sourceId']
+                                ?? $row['cjSourcingId']
+                                ?? $row['sourcingId']
+                                ?? null;
+
+                            $id = is_scalar($id) ? trim((string) $id) : '';
+                            return $id !== '' ? $id : null;
+                        })
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    $missing = array_values(array_diff($chunk, $resolvedIds));
+
+                    if ($missing !== []) {
+                        [$singleResolved, $singleNotFound] = $this->querySingleSourceIdsConcurrently($missing, $client);
+                        $resolved = array_merge($resolved, $singleResolved);
+                        $notFound = array_merge($notFound, $singleNotFound);
+                    } elseif ($items === []) {
+                        // True empty response.
+                        $notFound = array_merge($notFound, $chunk);
+                    }
                 } catch (ApiException $e) {
                     Log::warning('CJ sourcing chunk lookup failed, retrying per id', [
                         'source_ids' => $chunk,
@@ -751,7 +779,15 @@ class CJSourcing extends BasePage
 
             $resolvedBySourceId = collect($resolved)
                 ->filter(fn ($item) => is_array($item))
-                ->keyBy(fn (array $item) => (string) ($item['sourceId'] ?? spl_object_id((object) $item)))
+                ->keyBy(function (array $item): string {
+                    $id = $item['sourceId']
+                        ?? $item['cjSourcingId']
+                        ?? $item['sourcingId']
+                        ?? null;
+
+                    $id = is_scalar($id) ? trim((string) $id) : '';
+                    return $id !== '' ? $id : (string) spl_object_id((object) $item);
+                })
                 ->values()
                 ->all();
 
