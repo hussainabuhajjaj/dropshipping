@@ -219,15 +219,14 @@ class CjReconnectOrder extends Command
                 'unit_price' => $unit,
                 'total' => round($unit * $qty, 2),
                 'source_sku' => null,
-                'snapshot' => [
-                    'cj' => $row,
-                ],
-                'meta' => [
+                // Bulk inserts bypass Eloquent casts, so JSON columns must be pre-encoded.
+                'snapshot' => json_encode(['cj' => $row], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'meta' => json_encode([
                     'cj_vid' => $vid,
                     'cj_order_code' => $cj['cjOrderCode'] ?? null,
                     'cj_line_item_id' => $row['lineItemId'] ?? null,
                     'store_line_item_id' => $row['storeLineItemId'] ?? null,
-                ],
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -247,4 +246,3 @@ class CjReconnectOrder extends Command
         $this->line('Created ' . count($rows) . ' order_items.');
     }
 }
-
