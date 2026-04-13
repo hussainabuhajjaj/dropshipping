@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Domain\Products\Models\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Services\ImageWatermarkService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
@@ -145,6 +146,9 @@ class ExportController extends Controller
             abort(500, 'Failed to create zip.');
         }
 
+        // Initialize watermark service
+        $watermarkService = app(ImageWatermarkService::class);
+        $watermarkApplied = $watermarkService->isWatermarkAvailable();
         $errors = [];
         $usedNames = [];
         $i = 0;
@@ -171,6 +175,11 @@ class ExportController extends Controller
                     continue;
                 }
 
+                // Apply watermark if available
+                if ($watermarkApplied) {
+                    $bytes = $watermarkService->addWatermark($bytes);
+                }
+
                 $path = parse_url($url, PHP_URL_PATH);
                 $base = is_string($path) ? basename($path) : '';
                 $base = $base !== '' ? $base : ('image-' . $image->id . '.jpg');
@@ -191,10 +200,21 @@ class ExportController extends Controller
             $zip->addFromString('errors.txt', implode("\n", $errors) . "\n");
         }
 
+        // Add watermark info to the zip
+        if ($watermarkApplied) {
+            $watermarkInfo = $watermarkService->getWatermarkInfo();
+            $zip->addFromString('watermark-info.txt',
+                "Watermark applied to all images.\n" .
+                "Logo Path: {$watermarkInfo['logo_path']}\n" .
+                "Position: {$watermarkInfo['position']}\n" .
+                "Opacity: {$watermarkInfo['opacity']}%\n" .
+                "Margin: {$watermarkInfo['margin']}px\n"
+            );
+        }
+
         $zip->close();
 
         return response()
             ->download($zipPath, $downloadName, ['Content-Type' => 'application/zip'])
             ->deleteFileAfterSend(true);
-    }
-}
+    }}

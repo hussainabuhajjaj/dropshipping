@@ -7,7 +7,7 @@
       <div
         v-for="badge in badges"
         :key="badge.key"
-        class="flex h-10 w-16 items-center justify-center rounded-xl border border-slate-200 bg-white px-2 shadow-sm"
+        class="flex h-auto w-auto items-center justify-center border-slate-200 bg-white px-2 shadow-sm"
       >
         <img
           v-if="badge.src"
@@ -38,18 +38,18 @@ const { t } = useTranslations()
 const badges = computed(() => {
   const items = []
 
-  if (props.showCard) {
-    items.push({ key: 'visa', label: 'Visa', src: '/images/payments/visa.svg' })
-    items.push({ key: 'mastercard', label: 'Mastercard', src: '/images/payments/mastercard.svg' })
-  }
+  // if (props.showCard) {
+  //   items.push({ key: 'visa', label: 'Visa', src: '/images/payments/visa.svg' })
+  //   items.push({ key: 'mastercard', label: 'Mastercard', src: '/images/payments/mastercard.svg' })
+  // }
 
-  if (props.showStripe) {
-    items.push({ key: 'stripe', label: 'Stripe', src: '/images/payments/stripe.svg' })
-  }
+  // if (props.showStripe) {
+  //   items.push({ key: 'stripe', label: 'Stripe', src: '/images/payments/stripe.svg' })
+  // }
 
   if (props.showMobileMoney) {
-    items.push({ key: 'orange-money', label: 'Orange Money', src: '/images/payments/orange-money.svg' })
-    items.push({ key: 'wave', label: 'Wave', src: '/images/payments/wave.svg' })
+    items.push({ key: 'orange-money', label: 'Orange Money', src: '/images/payments/payment.png' })
+    // items.push({ key: 'wave', label: 'Wave', src: '/images/payments/wave.svg' })
   }
 
   return items

@@ -18,6 +18,7 @@ class CjBackfillWarehousePricing extends Command
                             {--chunk=100 : Chunk size for DB reads}
                             {--all : Process all CJ products, not only missing warehouse/pricing data}
                             {--refresh-from-api : Force refresh by PID instead of using stored payload first}
+                            {--sync-variants : Also sync variants (slower; may queue compare-at generation)}
                             {--dry-run : Show affected products without updating}';
 
     protected $description = 'Backfill local warehouse, pricing_meta, cost_price, and selling_price for already imported CJ products.';
@@ -34,6 +35,7 @@ class CjBackfillWarehousePricing extends Command
         $specificPid = trim((string) ($this->option('pid') ?? ''));
         $processAll = (bool) $this->option('all');
         $refreshFromApi = (bool) $this->option('refresh-from-api');
+        $syncVariants = (bool) $this->option('sync-variants');
         $dryRun = (bool) $this->option('dry-run');
 
         $query = Product::query()
@@ -99,36 +101,40 @@ class CjBackfillWarehousePricing extends Command
                         $updated++;
                     } else {
                         $result = null;
+                        $needsPricingBackfill =
+                            $processAll
+                            || $product->local_warehouse_id === null
+                            || ! is_array($product->pricing_meta)
+                            || $product->pricing_meta === []
+                            || (float) ($product->selling_price ?? 0) <= 0;
+
+                        $importOptions = [
+                            'updateExisting' => true,
+                            'respectSyncFlag' => false,
+                            'defaultSyncEnabled' => true,
+                            'respectLocks' => false,
+                            // Backfill should not create lots of side effects by default.
+                            'syncVariants' => $syncVariants,
+                            'syncImages' => false,
+                            'syncReviews' => false,
+                            'translate' => false,
+                            'generateSeo' => false,
+                            // This is the key: existing products only get dynamic warehouse pricing when forced.
+                            'force_reprice' => $needsPricingBackfill,
+                            'skipWhenFresh' => false,
+                        ];
 
                         if (! $refreshFromApi && is_array($product->cj_last_payload) && $product->cj_last_payload !== []) {
                             $variants = data_get($product->attributes, 'cj_variants');
                             $result = $importer->importFromPayload(
                                 $product->cj_last_payload,
                                 is_array($variants) ? $variants : null,
-                                [
-                                    'updateExisting' => true,
-                                    'respectSyncFlag' => false,
-                                    'defaultSyncEnabled' => true,
-                                    'respectLocks' => false,
-                                    'syncVariants' => true,
-                                    'syncImages' => false,
-                                    'syncReviews' => false,
-                                    'skipWhenFresh' => false,
-                                ],
+                                $importOptions,
                             );
                         }
 
                         if (! $result) {
-                            $result = $importer->importByPid((string) $product->cj_pid, [
-                                'updateExisting' => true,
-                                'respectSyncFlag' => false,
-                                'defaultSyncEnabled' => true,
-                                'respectLocks' => false,
-                                'syncVariants' => true,
-                                'syncImages' => false,
-                                'syncReviews' => false,
-                                'skipWhenFresh' => false,
-                            ]);
+                            $result = $importer->importByPid((string) $product->cj_pid, $importOptions);
                         }
 
                         $result ? $updated++ : $skipped++;

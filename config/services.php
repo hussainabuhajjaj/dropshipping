@@ -121,7 +121,12 @@ return [
             'data_capture_rate_threshold' => env('DATA_CAPTURE_RATE_THRESHOLD', 80),
         ],
     ],
-
+    'watermark' => [
+        'logo_path' => 'public/images/category-default.png',  // Path to your logo in storage
+        'opacity' => 50,                   // 0-100, 50 is semi-transparent
+        'position' => 'top-right',      // top-left, top-right, bottom-left, bottom-right, center
+        'margin' => 20,                    // Pixels from edges
+    ],
     'queue_reporting' => [
         'enabled' => env('QUEUE_REPORTING_ENABLED', false),
         'emails' => array_values(array_filter(array_map(
