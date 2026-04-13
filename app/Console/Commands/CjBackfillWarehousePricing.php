@@ -76,6 +76,8 @@ class CjBackfillWarehousePricing extends Command
             $limit,
             $refreshFromApi,
             $dryRun,
+            $processAll,
+            $syncVariants,
             &$updated,
             &$skipped,
             &$errors,
