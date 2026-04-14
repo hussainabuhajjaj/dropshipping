@@ -1504,8 +1504,8 @@ const websiteSchema = computed(() => {
   })
 })
 
-// Inject JSON-LD schemas
-useMultipleJsonLd([organizationSchema, websiteSchema])
+// Inject JSON-LD schemas (temporarily disabled due to initialization error)
+// useMultipleJsonLd([organizationSchema, websiteSchema])
 
 // --- Categories (mega menu needs sections/promo) ---
 const fallbackCategories = computed(() => ([

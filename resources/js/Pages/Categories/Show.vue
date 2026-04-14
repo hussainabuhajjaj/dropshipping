@@ -354,8 +354,8 @@ const categorySchema = computed(() => {
   return JSON.stringify(schema)
 })
 
-// Inject JSON-LD schema
-useJsonLd(categorySchema)
+// Inject JSON-LD schema (temporarily disabled due to initialization error)
+// useJsonLd(categorySchema)
 
 const productsPager = computed(() => props.products ?? { data: [] })
 const products = computed(() => productsPager.value.data ?? [])

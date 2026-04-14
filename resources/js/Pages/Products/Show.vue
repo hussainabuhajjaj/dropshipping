@@ -1304,8 +1304,8 @@ const breadcrumbSchema = computed(() => {
   })
 })
 
-// Inject JSON-LD schemas
-useMultipleJsonLd([productSchema, breadcrumbSchema])
+// Inject JSON-LD schemas (temporarily disabled due to initialization error)
+// useMultipleJsonLd([productSchema, breadcrumbSchema])
 
 const imageAltText = computed(() => {
   const parts = [props.product.name]
