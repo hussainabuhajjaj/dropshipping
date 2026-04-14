@@ -172,6 +172,9 @@ class ProductController extends Controller
         $categoryIds = $products->getCollection()->pluck('category_id')->filter()->unique()->values()->all();
         $promotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('product', $productIds, $categoryIds);
 
+        // Determine if page should be noindexed (has filters applied)
+        $hasFilters = $category || $minPrice !== null || $maxPrice !== null || $query || $sort || $rating !== null || $inStock || $featured !== null || $collectionFilter || $campaignFilter || $promotionFilter || $promotionTypeFilter;
+
         return Inertia::render('Products/Index', [
             'products' => $products,
             'currency' => 'USD',
@@ -193,6 +196,7 @@ class ProductController extends Controller
                 'is_featured' => $featured,
                 'page' => $products->currentPage(),
             ],
+            'shouldNoindex' => $hasFilters,
         ]);
     }
 

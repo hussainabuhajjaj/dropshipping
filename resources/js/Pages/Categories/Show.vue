@@ -217,6 +217,7 @@ import FilterSidebar from '@/Components/FilterSidebar.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import PaginationRail from '@/Components/PaginationRail.vue'
+import { useJsonLd } from '@/composables/useJsonLd.js'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
@@ -318,6 +319,43 @@ const metaTitle = computed(() => props.category.meta_title || `${props.category.
 const metaDescription = computed(() => props.category.meta_description || '')
 const displayTitle = computed(() => props.category.hero_title || props.category.name)
 const displaySubtitle = computed(() => props.category.hero_subtitle || props.category.description || '')
+
+const categorySchema = computed(() => {
+  const baseUrl = window.location.origin
+  const schema = {
+    '@context': 'https://schema.org/',
+    '@type': 'CollectionPage',
+    name: props.category.name,
+    description: metaDescription.value || displaySubtitle.value,
+    url: `${baseUrl}/categories/${props.category.slug}`,
+  }
+  
+  if (props.category.hero_image) {
+    schema.image = props.category.hero_image
+  }
+  
+  if (products.value.length > 0) {
+    schema.mainEntity = {
+      '@type': 'ItemList',
+      itemListElement: products.value.slice(0, 10).map((product, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'Product',
+          name: product.name,
+          url: product.url || `${baseUrl}/products/${product.slug}`,
+          image: product.image,
+          price: product.price ? `${props.currency} ${product.price}` : undefined,
+        },
+      })),
+    }
+  }
+  
+  return JSON.stringify(schema)
+})
+
+// Inject JSON-LD schema
+useJsonLd(categorySchema)
 
 const productsPager = computed(() => props.products ?? { data: [] })
 const products = computed(() => productsPager.value.data ?? [])

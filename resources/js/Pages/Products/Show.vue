@@ -2,6 +2,17 @@
   <StorefrontLayout>
     <Head :title="metaTitle">
       <meta name="description" head-key="description" :content="metaDescription" />
+      <link rel="canonical" head-key="canonical" :href="productUrl" />
+      <meta property="og:title" head-key="og:title" :content="metaTitle" />
+      <meta property="og:description" head-key="og:description" :content="metaDescription" />
+      <meta property="og:image" head-key="og:image" :content="productImage" />
+      <meta property="og:url" head-key="og:url" :content="productUrl" />
+      <meta property="og:type" head-key="og:type" content="product" />
+      <meta property="og:site_name" head-key="og:site_name" content="Simbazu" />
+      <meta name="twitter:card" head-key="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" head-key="twitter:title" :content="metaTitle" />
+      <meta name="twitter:description" head-key="twitter:description" :content="metaDescription" />
+      <meta name="twitter:image" head-key="twitter:image" :content="productImage" />
     </Head>
     <Breadcrumbs :items="breadcrumbs" class="mb-4" />
     <div class="grid gap-10 pb-32 lg:grid-cols-[1.1fr,0.9fr] lg:pb-0">
@@ -15,7 +26,7 @@
 	            <img
 	              v-if="selectedImage"
 	              :src="selectedImage"
-	              :alt="product.name"
+	              :alt="imageAltText"
 	              class="h-full w-full object-cover"
 	              draggable="false"
 	              @dragstart.prevent
@@ -241,14 +252,7 @@
             <button type="submit" class="btn-primary" :disabled="isOutOfStock">
               {{ form.processing ? t('Adding...') : isOutOfStock ? t('Out of stock') : t('Add to cart') }}
             </button>
-            <a
-              :href="whatsappLink"
-              class="btn-secondary"
-              target="_blank"
-              rel="noreferrer"
-            >
-              {{ t('WhatsApp to buy') }}
-            </a>
+            <ShareButton :product="product" />
           </div>
           <p v-if="successMessage" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
             {{ successMessage }}
@@ -533,6 +537,7 @@ function productPromotionForDetails(product, promotions) {
 import { computed, ref, watch } from 'vue'
 import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import axios from 'axios'
+import { useMultipleJsonLd } from '@/composables/useJsonLd.js'
 import Breadcrumbs from '@/Components/Breadcrumbs.vue'
 import ProductStickyBar from '@/Components/ProductStickyBar.vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
@@ -540,6 +545,7 @@ import LoginRequiredModal from '@/Components/LoginRequiredModal.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import Modal from '@/Components/Modal.vue'
+import ShareButton from '@/Components/ShareButton.vue'
 import { useTranslations } from '@/i18n'
 import { useProductCartForm } from '@/composables/useProductCartForm.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
@@ -1215,8 +1221,102 @@ const whatsappLink = computed(() => {
   return `https://wa.me/${sanitized}?text=${text}`
 })
 
-const metaTitle = computed(() => props.product.meta_title || props.product.name)
-const metaDescription = computed(() => props.product.meta_description || descriptionText.value || '')
+const metaTitle = computed(() => {
+  if (props.product.meta_title) return props.product.meta_title
+  
+  const parts = [props.product.name]
+  if (props.product.category) parts.push(props.product.category)
+  if (displayPrice.value) parts.push(formatCurrency(displayPrice.value, props.currency))
+  
+  return parts.join(' | ')
+})
+
+const metaDescription = computed(() => {
+  if (props.product.meta_description) return props.product.meta_description
+  
+  const parts = []
+  if (descriptionText.value) {
+    parts.push(descriptionText.value.substring(0, 150))
+  }
+  if (props.product.category) parts.push(`Category: ${props.product.category}`)
+  if (displayPrice.value) parts.push(`Price: ${formatCurrency(displayPrice.value, props.currency)}`)
+  
+  return parts.join('. ') || t('Shop this quality product on Simbazu')
+})
+const productImage = computed(() => props.product.image || (Array.isArray(props.product.media) && props.product.media[0]) || null)
+const productUrl = computed(() => props.product.url || props.product.href || window.location.href)
+
+const productSchema = computed(() => {
+  if (!props.product.name) return '{}'
+  
+  const schema = {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    name: props.product.name,
+    description: metaDescription.value,
+    url: productUrl.value,
+  }
+  
+  if (productImage.value) {
+    schema.image = Array.isArray(props.product.media) ? props.product.media : [productImage.value]
+  }
+  
+  if (props.product.price) {
+    schema.offers = {
+      '@type': 'Offer',
+      price: props.product.price,
+      priceCurrency: props.currency || 'USD',
+      availability: props.product.stock_on_hand > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: productUrl.value,
+    }
+  }
+  
+  if (props.reviewSummary.count > 0) {
+    schema.aggregateRating = {
+      '@type': 'AggregateRating',
+      ratingValue: props.reviewSummary.average,
+      reviewCount: props.reviewSummary.count,
+      bestRating: 5,
+      worstRating: 1,
+    }
+  }
+  
+  if (props.product.category) {
+    schema.category = props.product.category
+  }
+  
+  return JSON.stringify(schema)
+})
+
+const breadcrumbSchema = computed(() => {
+  const baseUrl = window.location.origin
+  const items = breadcrumbs.value.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.label,
+    item: crumb.href ? `${baseUrl}${crumb.href}` : productUrl.value,
+  }))
+  
+  return JSON.stringify({
+    '@context': 'https://schema.org/',
+    '@type': 'BreadcrumbList',
+    itemListElement: items,
+  })
+})
+
+// Inject JSON-LD schemas
+useMultipleJsonLd([productSchema, breadcrumbSchema])
+
+const imageAltText = computed(() => {
+  const parts = [props.product.name]
+  if (props.product.category) {
+    parts.push(props.product.category)
+  }
+  if (selectedVariant.value?.title && selectedVariant.value.title !== props.product.name) {
+    parts.push(selectedVariant.value.title)
+  }
+  return parts.join(' - ')
+})
 
 const formatSpecKey = (value) => {
   return String(value).replace(/_/g, ' ')

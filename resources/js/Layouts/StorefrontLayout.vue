@@ -46,6 +46,9 @@
             <meta name="twitter:title" :content="seoTitle"/>
             <meta name="twitter:description" :content="seoDescription"/>
             <meta v-if="seoImage" name="twitter:image" :content="seoImage"/>
+            <link rel="alternate" hreflang="en" :href="canonicalUrl" />
+            <link rel="alternate" hreflang="fr" :href="canonicalUrl.replace(/\/$/, '') + '?locale=fr'" />
+            <link rel="alternate" hreflang="x-default" :href="canonicalUrl" />
         </Head>
 
         <div aria-hidden="true" class="storefront-header-spacer" :style="headerSpacerStyle"></div>
@@ -1021,6 +1024,7 @@ import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
+import {useMultipleJsonLd} from '@/composables/useJsonLd.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
@@ -1460,6 +1464,48 @@ const seoTitle = computed(() => page.props.seo?.title ?? `Discover Quality Essen
 const seoDescription = computed(() => page.props.seo?.description ?? t('Curated global essentials, delivered with clarity.'))
 const seoImage = computed(() => resolveAssetUrl(page.props.seo?.image))
 const canonicalUrl = computed(() => (appUrl.value ? `${appUrl.value}${currentPath.value || ''}` : null))
+
+const organizationSchema = computed(() => {
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: brandName.value,
+    url: appUrl.value,
+    logo: logoUrl.value,
+  }
+  
+  const site = page.props.site
+  if (site?.support_email) {
+    schema.contactPoint = {
+      '@type': 'ContactPoint',
+      email: site.support_email,
+      contactType: 'customer service',
+    }
+  }
+  
+  if (site?.support_whatsapp) {
+    schema.sameAs = [`https://wa.me/${site.support_whatsapp.replace(/[^\d]/g, '')}`]
+  }
+  
+  return JSON.stringify(schema)
+})
+
+const websiteSchema = computed(() => {
+  return JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: brandName.value,
+    url: appUrl.value,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${appUrl.value}/products?q={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  })
+})
+
+// Inject JSON-LD schemas
+useMultipleJsonLd([organizationSchema, websiteSchema])
 
 // --- Categories (mega menu needs sections/promo) ---
 const fallbackCategories = computed(() => ([

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Mobile\V1\ProductController as MobileProductControl
 use App\Http\Controllers\Api\Mobile\V1\ProductReviewController as MobileProductReviewController;
 use App\Http\Controllers\Api\Mobile\V1\CartController as MobileCartController;
 use App\Http\Controllers\Api\Mobile\V1\CheckoutController as MobileCheckoutController;
+use App\Http\Controllers\Api\Mobile\V1\PaymentMonitoringController;
 use Illuminate\Support\Facades\Route;
 
 if (app()->environment('local')) {

@@ -45,13 +45,30 @@ class SitemapController
 
         $products = Product::query()
             ->where('is_active', true)
-            ->select(['slug', 'updated_at'])
+            ->with('images')
+            ->select(['id', 'slug', 'updated_at'])
             ->whereNotNull('slug')
             ->get()
-            ->map(fn (Product $product) => [
-                'loc' => $baseUrl . '/products/' . $product->slug,
-                'lastmod' => $product->updated_at?->toAtomString(),
-            ]);
+            ->map(function (Product $product) use ($baseUrl) {
+                $entry = [
+                    'loc' => $baseUrl . '/products/' . $product->slug,
+                    'lastmod' => $product->updated_at?->toAtomString(),
+                ];
+
+                if ($product->images && $product->images->isNotEmpty()) {
+                    $entry['image'] = $product->images
+                        ->sortBy('position')
+                        ->take(5)
+                        ->map(fn ($image) => [
+                            'loc' => $image->url,
+                            'title' => $product->name,
+                        ])
+                        ->values()
+                        ->all();
+                }
+
+                return $entry;
+            });
 
         $xml = view('seo.sitemap', [
             'urls' => $urls->merge($categories)->merge($products)->values()->all(),

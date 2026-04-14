@@ -4,19 +4,18 @@
       v-for="item in resolvedItems"
       :key="item.title"
       :class="[
-        'rounded-2xl border border-slate-200 bg-white shadow-sm',
-        compact ? 'flex items-start gap-3 p-3' : 'flex items-start gap-4 p-4',
+        'rounded-lg border border-slate-200 bg-white',
+        compact ? 'flex items-center gap-2 p-2' : 'flex items-center gap-2 p-2',
         tone === 'muted' ? 'bg-slate-50/80' : '',
       ]"
     >
-      <div :class="['flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700', compact ? 'h-9 w-9' : 'h-10 w-10']">
-        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8">
+      <div :class="['flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700', compact ? 'h-6 w-6' : 'h-7 w-7']">
+        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8">
           <path stroke-linecap="round" stroke-linejoin="round" :d="icons[item.icon] || icons.shield" />
         </svg>
       </div>
       <div>
-        <p :class="['font-semibold text-slate-900', compact ? 'text-sm' : 'text-base']">{{ item.title }}</p>
-        <p :class="['text-slate-500', compact ? 'text-xs' : 'text-sm']">{{ item.subtitle }}</p>
+        <p :class="['font-medium text-slate-900', compact ? 'text-xs' : 'text-xs']">{{ item.title }}</p>
       </div>
     </div>
   </div>

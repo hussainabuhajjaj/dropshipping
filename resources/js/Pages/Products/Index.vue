@@ -1,5 +1,10 @@
 <template>
   <StorefrontLayout>
+    <Head>
+      <meta name="robots" head-key="robots" :content="shouldNoindex ? 'noindex, nofollow' : 'index, follow'" />
+      <link v-if="prevPageUrl" rel="prev" :href="prevPageUrl" />
+      <link v-if="nextPageUrl" rel="next" :href="nextPageUrl" />
+    </Head>
     <section class="space-y-8">
       <div class="space-y-3">
         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Collection') }}</p>
@@ -240,11 +245,27 @@ const props = defineProps({
   currency: { type: String, default: 'USD' },
   categories: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
+  shouldNoindex: { type: Boolean, default: false },
 })
 
 const page = usePage ? usePage() : null;
 
 const { t } = useTranslations()
+
+const currentPage = props.filters.page || 1
+const prevPageUrl = computed(() => {
+  if (currentPage <= 1) return null
+  const params = new URLSearchParams(window.location.search)
+  params.set('page', currentPage - 1)
+  return `${window.location.pathname}?${params.toString()}`
+})
+
+const nextPageUrl = computed(() => {
+  if (props.products.length === 0) return null
+  const params = new URLSearchParams(window.location.search)
+  params.set('page', currentPage + 1)
+  return `${window.location.pathname}?${params.toString()}`
+})
 
 const form = reactive({
   q: props.filters.q ?? '',

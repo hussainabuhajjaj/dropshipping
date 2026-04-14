@@ -45,6 +45,7 @@ use App\Http\Controllers\Seo\SitemapController;
 use App\Http\Controllers\Seo\RobotsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AliExpressOAuthController;
+use App\Http\Controllers\ShortUrlController;
 
 // --- Middleware ---
 use App\Http\Middleware\VerifyPaymentWebhookSignature;
@@ -70,6 +71,11 @@ Route::get('/locale/{locale}', function (string $locale, Request $request) {
 })->name('locale.set');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+
+// Short URL routes
+Route::get('/s/{code}', [ShortUrlController::class, 'redirect'])->name('short-url.redirect')->where('code', '.*');
+Route::post('/api/short-url', [ShortUrlController::class, 'create'])->name('short-url.create');
+Route::get('/api/short-url/product/{product}', [ShortUrlController::class, 'forProduct'])->name('short-url.product');
 Route::get('/.well-known/apple-app-site-association', function () {
     $teamId = (string) config('mobile_app_links.ios.team_id', '');
     $bundleId = (string) config('mobile_app_links.ios.bundle_id', '');
