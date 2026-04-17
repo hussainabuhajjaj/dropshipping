@@ -28,7 +28,27 @@ const submit = () => {
     <GuestLayout>
         <Head :title="t('Register')" />
 
-        <form @submit.prevent="submit">
+        <div class="space-y-6">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900">{{ t('Create your account') }}</h1>
+                <p class="text-sm text-slate-500">{{ t('Sign up to track orders, save favorites, and checkout faster.') }}</p>
+            </div>
+
+            <!-- OAuth must be a full-page redirect (not an Inertia/XHR visit), otherwise the browser blocks it (CORS). -->
+            <a
+                :href="route('social.redirect', { provider: 'google' })"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+            >
+                {{ t('Continue with Google') }}
+            </a>
+
+            <div class="flex items-center gap-3 text-xs text-slate-400">
+                <span class="h-px flex-1 bg-slate-200" />
+                {{ t('Or register with email') }}
+                <span class="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <form class="space-y-4" @submit.prevent="submit">
             <div>
                 <InputLabel for="name" :value="t('Name')" />
 
@@ -45,7 +65,7 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.name" />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <InputLabel for="email" :value="t('Email')" />
 
                 <TextInput
@@ -60,7 +80,7 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.email" />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <InputLabel for="password" :value="t('Password')" />
 
                 <TextInput
@@ -75,7 +95,7 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.password" />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <InputLabel
                     for="password_confirmation"
                     :value="t('Confirm Password')"
@@ -96,7 +116,7 @@ const submit = () => {
                 />
             </div>
 
-            <div class="mt-4">
+            <div>
                 <label class="flex items-start gap-3 text-sm text-slate-600">
                     <input
                         v-model="form.accept_terms"
@@ -115,22 +135,23 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.accept_terms" />
             </div>
 
-            <div class="mt-4 flex items-center justify-end">
+            <div class="flex flex-wrap items-center justify-between gap-2">
                 <Link
                     :href="route('login')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    class="text-sm text-slate-600 hover:text-slate-900"
                 >
                     {{ t('Already registered?') }}
                 </Link>
 
                 <PrimaryButton
-                    class="ms-4"
+                    class="w-full sm:w-auto"
                     :class="{ 'opacity-25': form.processing }"
                     :disabled="form.processing"
                 >
                     {{ t('Register') }}
                 </PrimaryButton>
             </div>
-        </form>
+            </form>
+        </div>
     </GuestLayout>
 </template>

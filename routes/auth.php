@@ -52,11 +52,11 @@ Route::middleware('guest:customer')->group(function () {
         ->name('password.store');
 });
 
-// Google OAuth routes
-Route::get('/auth/google/redirect', [GoogleOAuthController::class, 'redirect'])
+// Google Calendar OAuth routes (admin/integration). Kept separate from customer social login.
+Route::get('/integrations/google/redirect', [GoogleOAuthController::class, 'redirect'])
     ->name('auth.google.redirect');
 
-Route::get('/auth/google/callback', [GoogleOAuthController::class, 'callback'])
+Route::get('/integrations/google/callback', [GoogleOAuthController::class, 'callback'])
     ->name('auth.google.callback');
 
 Route::middleware('auth:customer')->group(function () {
@@ -82,12 +82,12 @@ Route::middleware('auth:customer')->group(function () {
         ->name('logout');
 
     // Google OAuth authenticated routes
-    Route::get('/auth/google/refresh', [GoogleOAuthController::class, 'refresh'])
+    Route::get('/integrations/google/refresh', [GoogleOAuthController::class, 'refresh'])
         ->name('auth.google.refresh');
 
     Route::get('/api/calendar/events', [GoogleOAuthController::class, 'getCalendarEvents'])
         ->name('api.calendar.events');
 
-    Route::post('/auth/google/logout', [GoogleOAuthController::class, 'logout'])
+    Route::post('/integrations/google/logout', [GoogleOAuthController::class, 'logout'])
         ->name('auth.google.logout');
 });

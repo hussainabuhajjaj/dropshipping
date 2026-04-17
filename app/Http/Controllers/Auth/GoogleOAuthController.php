@@ -25,6 +25,7 @@ class GoogleOAuthController extends Controller
     public function redirect(): RedirectResponse
     {
         return Socialite::driver('google')
+            ->redirectUrl(route('auth.google.callback'))
             ->scopes([
                 'https://www.googleapis.com/auth/calendar',
                 'https://www.googleapis.com/auth/userinfo.email',
@@ -40,7 +41,9 @@ class GoogleOAuthController extends Controller
     public function callback(): RedirectResponse
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl(route('auth.google.callback'))
+                ->user();
 
             // Store tokens
             $this->oauthService->storeTokens([

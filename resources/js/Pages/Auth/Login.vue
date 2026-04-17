@@ -86,19 +86,14 @@ const submit = () => {
         <span class="h-px flex-1 bg-slate-200" />
       </div>
 
-      <div class="grid gap-2 sm:grid-cols-2">
-        <Link
+      <div class="grid gap-2">
+        <!-- OAuth must be a full-page redirect (not an Inertia/XHR visit), otherwise the browser blocks it (CORS). -->
+        <a
           :href="route('social.redirect', { provider: 'google' })"
           class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
         >
           Google
-        </Link>
-        <Link
-          :href="route('social.redirect', { provider: 'facebook' })"
-          class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-        >
-          Facebook
-        </Link>
+        </a>
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
