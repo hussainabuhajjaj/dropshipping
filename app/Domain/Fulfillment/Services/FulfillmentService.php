@@ -12,6 +12,7 @@ use App\Domain\Fulfillment\Models\FulfillmentProvider;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
+use App\Domain\Orders\Services\LinehaulShipmentService;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Notifications\CustomerShipmentOrderNotification;
 use Illuminate\Support\Facades\DB;
@@ -75,9 +76,12 @@ class FulfillmentService
                 $result->rawResponse
             );
 
-            if ($result->trackingNumber || $result->trackingUrl) {
+            if ($result->succeeded() || $result->trackingNumber || $result->trackingUrl) {
+                $this->syncLinehaulFromResult($orderItem->order, $result);
                 $this->recordShipment($orderItem, $result);
-                $this->notifyCustomerShipment($orderItem);
+                if ($result->trackingNumber || $result->trackingUrl) {
+                    $this->notifyCustomerShipment($orderItem);
+                }
             }
 
             if ($result->failed()) {
@@ -138,10 +142,13 @@ class FulfillmentService
                 );
             }
 
-            if ($result->trackingNumber || $result->trackingUrl) {
+            if ($result->succeeded() || $result->trackingNumber || $result->trackingUrl) {
+                $this->syncLinehaulFromResult($order, $result);
                 $shipment = $this->recordShipmentForOrder($order, $product_items, $result);
-                $customer = $order->customer;
-                $this->notifyCustomerShipmentOrder($customer, $shipment, $fulfillment_status);
+                if ($result->trackingNumber || $result->trackingUrl) {
+                    $customer = $order->customer;
+                    $this->notifyCustomerShipmentOrder($customer, $shipment, $fulfillment_status);
+                }
             }
 
             if ($result->failed()) {
@@ -246,9 +253,16 @@ class FulfillmentService
     private function recordShipment(OrderItem $orderItem, FulfillmentResult $result): void
     {
         Shipment::query()->updateOrCreate(
-            ['order_item_id' => $orderItem->id, 'tracking_number' => $result->trackingNumber],
+            Shipment::matchAttributesForOrderItem(
+                $orderItem,
+                $result->trackingNumber,
+                $result->shipmentOrderId,
+                $result->cjOrderId
+            ),
             [
+                'order_id' => $orderItem->order_id,
                 'carrier' => $orderItem->meta['carrier'] ?? null,
+                'tracking_number' => $result->trackingNumber,
                 'tracking_url' => $result->trackingUrl,
                 'logistic_name' => $result->logisticName,
                 'cj_order_id' => $result->cjOrderId,
@@ -275,9 +289,15 @@ class FulfillmentService
         $primaryOrderItem = $order_items->first();
 
         $shipment = Shipment::query()->updateOrCreate(
-            ['order_id' => $order->id, 'tracking_number' => $result->trackingNumber],
+            Shipment::matchAttributesForOrder(
+                $order,
+                $result->trackingNumber,
+                $result->shipmentOrderId,
+                $result->cjOrderId
+            ),
             [
                 'carrier' => $primaryOrderItem?->meta['carrier'] ?? null,
+                'tracking_number' => $result->trackingNumber,
                 'tracking_url' => $result->trackingUrl,
                 'logistic_name' => $result->logisticName,
                 'cj_order_id' => $result->cjOrderId,
@@ -319,6 +339,15 @@ class FulfillmentService
         ]);
 
         app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
+    }
+
+    private function syncLinehaulFromResult(?Order $order, FulfillmentResult $result): void
+    {
+        if (! $order || $result->rawResponse === []) {
+            return;
+        }
+
+        app(LinehaulShipmentService::class)->createOrUpdateFromCjOrder($order, $result->rawResponse);
     }
 
     private function notifyAdminsIssue(OrderItem $orderItem, string $message): void

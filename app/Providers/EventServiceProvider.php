@@ -18,6 +18,7 @@ use App\Events\Customers\CustomerRegistered;
 use App\Listeners\Affiliates\ProcessAffiliateOrderReferral;
 use App\Listeners\Orders\SendOrderConfirmedNotification;
 use App\Listeners\Orders\ClearCustomerCartOnOrderPaid;
+use App\Listeners\Orders\MaterializeLinehaulShipment;
 use App\Listeners\Orders\SendOrderShippedNotification;
 use App\Listeners\Orders\SendShippingDelayNotification;
 use App\Listeners\Orders\SendCustomsInfoNotification;
@@ -54,9 +55,11 @@ class EventServiceProvider extends ServiceProvider
             SendEmailVerificationNotification::class,
         ],
         OrderPlaced::class => [
+            MaterializeLinehaulShipment::class,
             SendOrderConfirmedNotification::class,
         ],
         OrderPaid::class => [
+            MaterializeLinehaulShipment::class,
             SendOrderConfirmedNotification::class,
             ProcessAffiliateOrderReferral::class,
             ClearCustomerCartOnOrderPaid::class,

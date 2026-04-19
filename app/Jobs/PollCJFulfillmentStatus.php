@@ -8,6 +8,7 @@ use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Domain\Fulfillment\Models\FulfillmentJob;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
+use App\Domain\Orders\Services\LinehaulShipmentService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -63,24 +64,38 @@ class PollCJFulfillmentStatus implements ShouldQueue
         $job->fulfilled_at = $job->status === 'succeeded' ? now() : $job->fulfilled_at;
         $job->save();
 
-        if ($trackingNumber) {
-            $orderItemIds = $job->orderItemIds();
-            $orderItems = OrderItem::query()->whereIn('id', $orderItemIds)->get()->keyBy('id');
-            $order = $job->order ?? $job->orderItem?->order;
+        $orderItemIds = $job->orderItemIds();
+        $orderItems = OrderItem::query()->whereIn('id', $orderItemIds)->get()->keyBy('id');
+        $order = $job->order ?? $job->orderItem?->order;
+
+        if ($order && (is_array($data) && $data !== [])) {
+            app(LinehaulShipmentService::class)->createOrUpdateFromCjOrder($order, $data);
+        }
+
+        if ($trackingNumber || $job->external_reference || ! empty($data['shipmentOrderId'] ?? null)) {
 
             if ($job->order_item_id || count($orderItemIds) <= 1) {
                 $orderItemId = $job->order_item_id ?: $orderItemIds[0] ?? null;
+                $orderItem = $orderItemId ? $orderItems->get($orderItemId) : null;
 
-                if ($orderItemId) {
+                if ($orderItem) {
                     Shipment::updateOrCreate(
-                        ['order_item_id' => $orderItemId, 'tracking_number' => $trackingNumber],
+                        Shipment::matchAttributesForOrderItem(
+                            $orderItem,
+                            $trackingNumber,
+                            $data['shipmentOrderId'] ?? null,
+                            $job->external_reference
+                        ),
                         [
+                            'order_id' => $orderItem->order_id,
+                            'tracking_number' => $trackingNumber,
                             'carrier' => $data['carrier'] ?? null,
                             'tracking_url' => $trackingUrl,
                             'cj_order_id' => $job->external_reference,
+                            'shipment_order_id' => $data['shipmentOrderId'] ?? null,
                             'logistic_name' => $data['logisticName'] ?? null,
                             'postage_amount' => is_numeric($data['postageAmount'] ?? null) ? (float) $data['postageAmount'] : null,
-                            'currency' => $orderItems->get($orderItemId)?->order?->currency ?? $order?->currency,
+                            'currency' => $orderItem->order?->currency ?? $order?->currency,
                             'shipped_at' => $data['shippedAt'] ?? now(),
                             'raw_events' => $data['events'] ?? null,
                         ]
@@ -88,11 +103,18 @@ class PollCJFulfillmentStatus implements ShouldQueue
                 }
             } elseif ($order) {
                 $shipment = Shipment::updateOrCreate(
-                    ['order_id' => $order->id, 'tracking_number' => $trackingNumber],
+                    Shipment::matchAttributesForOrder(
+                        $order,
+                        $trackingNumber,
+                        $data['shipmentOrderId'] ?? null,
+                        $job->external_reference
+                    ),
                     [
+                        'tracking_number' => $trackingNumber,
                         'carrier' => $data['carrier'] ?? null,
                         'tracking_url' => $trackingUrl,
                         'cj_order_id' => $job->external_reference,
+                        'shipment_order_id' => $data['shipmentOrderId'] ?? null,
                         'logistic_name' => $data['logisticName'] ?? null,
                         'postage_amount' => is_numeric($data['postageAmount'] ?? null) ? (float) $data['postageAmount'] : null,
                         'currency' => $order->currency,

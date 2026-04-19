@@ -29,9 +29,17 @@ class ShipmentResource extends BaseResource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('orderItem.order.number')->label('Order #')->searchable(),
+                Tables\Columns\TextColumn::make('order_number')
+                    ->label('Order #')
+                    ->getStateUsing(fn (Shipment $record): ?string => $record->order?->number ?? $record->orderItem?->order?->number)
+                    ->searchable(query: function ($query, string $search) {
+                        $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('number', 'like', "%{$search}%"))
+                            ->orWhereHas('orderItem.order', fn ($orderQuery) => $orderQuery->where('number', 'like', "%{$search}%"));
+                    }),
                 Tables\Columns\TextColumn::make('order_item_id')->label('Item ID')->sortable(),
-                Tables\Columns\TextColumn::make('tracking_number')->label('Tracking')->searchable(),
+                Tables\Columns\TextColumn::make('tracking_number')->label('Tracking')->searchable()->placeholder('Pending'),
+                Tables\Columns\TextColumn::make('shipment_order_id')->label('Shipment Order')->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('cj_order_id')->label('CJ Order')->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('carrier')->sortable(),
                 Tables\Columns\TextColumn::make('shipped_at')->dateTime()->sortable(),
                 Tables\Columns\TextColumn::make('delivered_at')->dateTime()->sortable(),
@@ -54,8 +62,10 @@ class ShipmentResource extends BaseResource
         return $schema->schema([
             Section::make('Shipment')
                 ->schema([
-                    TextEntry::make('orderItem.order.number')->label('Order #'),
-                    TextEntry::make('tracking_number')->label('Tracking'),
+                    TextEntry::make('order.number')->label('Order #'),
+                    TextEntry::make('tracking_number')->label('Tracking')->placeholder('Pending'),
+                    TextEntry::make('shipment_order_id')->label('Shipment Order'),
+                    TextEntry::make('cj_order_id')->label('CJ Order'),
                     TextEntry::make('carrier'),
                     TextEntry::make('shipped_at')->dateTime(),
                     TextEntry::make('delivered_at')->dateTime(),

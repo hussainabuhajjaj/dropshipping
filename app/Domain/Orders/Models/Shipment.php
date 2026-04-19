@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Order as AppOrder;
+use App\Domain\Orders\Models\Order as DomainOrder;
+use App\Domain\Orders\Models\OrderItem as DomainOrderItem;
 
 class Shipment extends Model
 {
@@ -196,6 +198,60 @@ class Shipment extends Model
     public function scopeAtRisk($query)
     {
         return $query->where('is_at_risk', true);
+    }
+
+    /**
+     * Build stable lookup keys for shipment upserts before tracking exists.
+     *
+     * @return array<string, mixed>
+     */
+    public static function matchAttributesForOrderItem(DomainOrderItem $orderItem, ?string $trackingNumber, ?string $shipmentOrderId, ?string $cjOrderId): array
+    {
+        if ($shipmentOrderId) {
+            return ['shipment_order_id' => $shipmentOrderId];
+        }
+
+        if ($trackingNumber) {
+            return [
+                'order_item_id' => $orderItem->id,
+                'tracking_number' => $trackingNumber,
+            ];
+        }
+
+        if ($cjOrderId) {
+            return [
+                'order_item_id' => $orderItem->id,
+                'cj_order_id' => $cjOrderId,
+            ];
+        }
+
+        return ['order_item_id' => $orderItem->id];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function matchAttributesForOrder(DomainOrder $order, ?string $trackingNumber, ?string $shipmentOrderId, ?string $cjOrderId): array
+    {
+        if ($shipmentOrderId) {
+            return ['shipment_order_id' => $shipmentOrderId];
+        }
+
+        if ($trackingNumber) {
+            return [
+                'order_id' => $order->id,
+                'tracking_number' => $trackingNumber,
+            ];
+        }
+
+        if ($cjOrderId) {
+            return [
+                'order_id' => $order->id,
+                'cj_order_id' => $cjOrderId,
+            ];
+        }
+
+        return ['order_id' => $order->id];
     }
 
 }
