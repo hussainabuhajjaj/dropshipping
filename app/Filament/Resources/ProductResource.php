@@ -117,6 +117,11 @@ class ProductResource extends BaseResource
                     TextInput::make('name')
                         ->required()
                         ->maxLength(255),
+                    TextInput::make('code')
+                        ->label('Product Code')
+                        ->unique(ignoreRecord: true)
+                        ->maxLength(50)
+                        ->helperText('Unique product code (SKU). Auto-generated if left empty.'),
                     Select::make('category_id')
                         ->label('Category')
                         ->relationship('category', 'name')
@@ -360,6 +365,7 @@ class ProductResource extends BaseResource
                             ->modalCancelActionLabel('Close')
                     ),
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable()->limit(20,'...')->tooltip(fn ($record) => $record->name),
+                Tables\Columns\TextColumn::make('code')->searchable()->sortable()->copyable()->limit(12)->toggleable(),
                 Tables\Columns\TextColumn::make('quality_score')
                     ->label('Quality')
                     ->numeric(decimalPlaces: 0)
@@ -586,26 +592,33 @@ class ProductResource extends BaseResource
                     ->toggle(),
                 Tables\Filters\SelectFilter::make('category_id')
                     ->label('Category')
-                    ->options(function (): array {
-                        $categories = Category::query()->orderBy('name')->pluck('name', 'id')->all();
+                    ->options(fn (): array => ['null' => 'Uncategorized'] + self::getCategoryFilterOptions())
+                    ->getSearchResultsUsing(function (string $search): array {
+                        $results = collect(self::getCategoryFilterOptions())
+                            ->filter(fn (string $label): bool => str_contains(mb_strtolower($label), mb_strtolower($search)))
+                            ->all();
 
-                        // Add option for uncategorized products at the top
-                        return ['null' => 'Uncategorized'] + $categories;
+                        if (str_contains('uncategorized', mb_strtolower($search))) {
+                            return ['null' => 'Uncategorized'] + $results;
+                        }
+
+                        return $results;
                     })
+                    ->getOptionLabelUsing(fn ($value): string => $value === 'null'
+                        ? 'Uncategorized'
+                        : (self::getCategoryFilterOptions()[(string) $value] ?? (string) $value))
                     ->query(function (Builder $query, array $data): Builder {
-                        $value = $data['value'];
+                        $value = $data['value'] ?? null;
 
-                        // Explicitly handle empty/null values
                         if (blank($value)) {
                             return $query;
                         }
 
-                        // Handle uncategorized products
                         if ($value === 'null') {
                             return $query->whereNull('category_id');
                         }
 
-                        return $query->where('category_id', $value);
+                        return $query->whereIn('category_id', self::resolveCategoryFilterIds((int) $value));
                     })
                     ->searchable()
                     ->preload(),
@@ -3196,5 +3209,67 @@ class ProductResource extends BaseResource
         }
 
         return $query->get();
+    }
+
+    protected static function getCategoryFilterOptions(): array
+    {
+        return self::getCategoryFilterCategories()
+            ->mapWithKeys(fn (Category $category): array => [
+                (string) $category->id => self::formatCategoryFilterLabel($category),
+            ])
+            ->all();
+    }
+
+    protected static function formatCategoryFilterLabel(Category $category): string
+    {
+        $segments = [$category->name];
+        $categoriesById = self::getCategoryFilterCategories()->keyBy('id');
+        $current = $categoriesById->get($category->parent_id);
+
+        while ($current) {
+            array_unshift($segments, $current->name);
+            $current = $categoriesById->get($current->parent_id);
+        }
+
+        return Str::limit(implode(' / ', $segments), 120);
+    }
+
+    /**
+     * @return array<int>
+     */
+    protected static function resolveCategoryFilterIds(int $categoryId): array
+    {
+        $childrenByParent = self::getCategoryFilterCategories()
+            ->groupBy('parent_id')
+            ->map(fn (Collection $group): array => $group->pluck('id')->map(fn ($id): int => (int) $id)->all());
+
+        $ids = [];
+        $stack = [$categoryId];
+
+        while ($stack !== []) {
+            $currentId = array_pop($stack);
+
+            if (! $currentId || in_array($currentId, $ids, true)) {
+                continue;
+            }
+
+            $ids[] = $currentId;
+
+            foreach ($childrenByParent->get($currentId, []) as $childId) {
+                if (! in_array($childId, $ids, true)) {
+                    $stack[] = $childId;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    protected static function getCategoryFilterCategories(): Collection
+    {
+        return Category::query()
+            ->select(['id', 'name', 'slug', 'parent_id'])
+            ->orderBy('name')
+            ->get();
     }
 }

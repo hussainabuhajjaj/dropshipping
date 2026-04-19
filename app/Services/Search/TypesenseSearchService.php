@@ -33,8 +33,8 @@ class TypesenseSearchService
                 ->timeout($config['connection_timeout_seconds'] ?? 2)
                 ->get($endpoint, [
                     'q' => $expandedQuery,
-                    'query_by' => 'name,description,variants,tags,category_name,keywords',
-                    'query_by_weights' => '8,2,3,2,1,3',
+                    'query_by' => 'name,code,description,variants,tags,category_name,keywords',
+                    'query_by_weights' => '8,5,2,3,2,1,3',
                     'filter_by' => 'is_active:=true',
                     'per_page' => $perPage,
                     'page' => $page,
@@ -56,8 +56,8 @@ class TypesenseSearchService
                     ->timeout($config['connection_timeout_seconds'] ?? 2)
                     ->get($endpoint, [
                         'q' => $expandedQuery,
-                        'query_by' => 'name,description,variants,tags,category_name,keywords',
-                        'query_by_weights' => '8,2,3,2,1,3',
+                        'query_by' => 'name,code,description,variants,tags,category_name,keywords',
+                        'query_by_weights' => '8,5,2,3,2,1,3',
                         'filter_by' => 'is_active:=true',
                         'per_page' => $perPage,
                         'page' => $page,

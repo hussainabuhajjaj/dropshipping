@@ -88,6 +88,7 @@ class SearchController extends Controller
                     $builder
                         ->where('name', 'like', $query . '%')
                         ->orWhere('name', 'like', '%' . $query . '%')
+                        ->orWhere('code', 'like', '%' . $query . '%')
                         ->orWhere('description', 'like', '%' . $query . '%')
                         ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
                             $variantBuilder
@@ -114,6 +115,7 @@ class SearchController extends Controller
                             ->whereRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
                             ->orWhere('name', 'like', $query . '%')
                             ->orWhere('name', 'like', '%' . $query . '%')
+                            ->orWhere('code', 'like', '%' . $query . '%')
                             ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
                                 $variantBuilder
                                     ->where('sku', 'like', '%' . $query . '%')
@@ -239,6 +241,7 @@ class SearchController extends Controller
                             $builder
                                 ->where('name', 'like', $query . '%')
                                 ->orWhere('name', 'like', '%' . $query . '%')
+                                ->orWhere('code', 'like', '%' . $query . '%')
                                 ->orWhere('description', 'like', '%' . $query . '%');
                         })
                         ->orderByRaw('name LIKE ? DESC', [$query . '%'])
@@ -287,6 +290,7 @@ class SearchController extends Controller
                 $builder
                     ->where('name', 'like', $query . '%')
                     ->orWhere('name', 'like', '%' . $query . '%')
+                    ->orWhere('code', 'like', '%' . $query . '%')
                     ->orWhere('description', 'like', '%' . $query . '%');
             })
             ->orderByRaw('name LIKE ? DESC', [$query . '%'])
