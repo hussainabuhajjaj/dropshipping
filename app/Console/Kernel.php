@@ -60,6 +60,7 @@ class Kernel extends ConsoleKernel
         FixDefaultVariants::class,
         ResyncCheckVariants::class,
         \App\Console\Commands\PushStorefrontAnnouncement::class,
+        \App\Console\Commands\BackfillLogisticsRecords::class,
     ];
 
     protected function schedule(Schedule $schedule): void
