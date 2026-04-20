@@ -58,6 +58,7 @@ class CartController extends ApiController
             }
         }
 
+        $incomingQty = (int) ($data['quantity'] ?? 1);
         $selectedVariant = $variant ?? $product->variants->first();
         $providerId = (int) ($product->default_fulfillment_provider_id ?? 0);
         if ($providerId === 1) {
@@ -81,8 +82,6 @@ class CartController extends ApiController
             ->where('product_id', $product->id)
             ->when(isset($variant), fn ($collection) => $collection->where('variant_id', $variant->id))
             ->first();
-
-        $incomingQty = (int) ($data['quantity'] ?? 1);
 
         if ($existing) {
             $newQty = $existing->quantity + $incomingQty;
