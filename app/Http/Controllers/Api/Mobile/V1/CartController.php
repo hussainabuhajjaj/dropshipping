@@ -45,6 +45,9 @@ class CartController extends ApiController
 
         $data = $request->validated();
 
+        // Ensure quantity is properly set with fallback
+        $incomingQty = (int) ($data['quantity'] ?? 1);
+
         $product = Product::query()
             ->where('is_active', true)
             ->with(['images', 'variants', 'defaultFulfillmentProvider'])
@@ -57,8 +60,6 @@ class CartController extends ApiController
                 return $this->error('Selected variant is invalid for this product.', 422);
             }
         }
-
-        $incomingQty = (int) ($data['quantity'] ?? 1);
         $selectedVariant = $variant ?? $product->variants->first();
         $providerId = (int) ($product->default_fulfillment_provider_id ?? 0);
         if ($providerId === 1) {
