@@ -185,7 +185,7 @@ async function payWithPaystack(method) {
 
         const data = response.data?.data || {}
 
-        if (!/^https:\/\/checkout\.paystack\.(co|com)\//.test(data.authorization_url || '')) {
+        if (!/^https:\/\/checkout\.paystack\.com\//.test(data.authorization_url || '')) {
             throw new Error(response.data?.message || 'Paystack did not return an authorization URL.')
         }
 
