@@ -245,7 +245,6 @@ class CheckoutController extends ApiController
 
             $this->recordPromotionUsage($order, $promotionDiscounts, $subtotal, $discountSource);
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);
-
             $payment = Payment::create([
                 'order_id' => $order->id,
                 'provider' => 'korapay',

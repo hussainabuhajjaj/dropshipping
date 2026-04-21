@@ -525,6 +525,23 @@ class Cart extends Model
         $taxTotal = calculateTaxFromSettings(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
+        $firstItem = $cart_items->first();
+        $currency = $firstItem?->variant?->currency
+            ?? $firstItem?->product?->currency
+            ?? 'USD';
+        
+        // Debug: Log cart calculation details
+        Log::info('Cart::getSummery calculation', [
+            'subtotal' => $subtotal,
+            'shipping_total' => $shippingTotal,
+            'discount' => $discount,
+            'tax_total' => $taxTotal,
+            'tax_included' => $taxIncluded,
+            'final_total' => $total,
+            'currency' => $currency,
+            'cart_items_count' => $cart_items->count(),
+        ]);
+        
         $cartContext = $this->buildCartContext($cart_items, $subtotal);
 
         $promotionEngine = app(PromotionEngine::class);
@@ -551,11 +568,6 @@ class Cart extends Model
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shippingTotal, $promotionModels, $coupon);
         $selectedMethod = 'standard';
 
-        $firstItem = $cart_items->first();
-        $currency = $firstItem?->variant?->currency
-            ?? $firstItem?->product?->currency
-            ?? 'USD';
-
         return [
             'subtotal' => $subtotal,
             'shipping' => $shippingTotal,
@@ -574,6 +586,15 @@ class Cart extends Model
             'total' => $total,
             'currency' => $currency,
             'shipping_method' => $selectedMethod,
+            // Add raw structure for frontend PaymentSummary compatibility
+            'raw' => [
+                'subtotal' => $subtotal,
+                'shipping' => $shippingTotal,
+                'discount' => $discount,
+                'tax_total' => $taxTotal,
+                'total' => $total,
+                'currency' => $currency,
+            ],
         ];
     }
 

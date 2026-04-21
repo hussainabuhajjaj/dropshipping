@@ -82,7 +82,6 @@ import {computed, onMounted, ref} from 'vue'
 import {usePage} from '@inertiajs/vue3'
 import axios from 'axios'
 import {useTranslations} from '@/i18n'
-import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePromoNow, formatCountdown} from '@/composables/usePromoCountdown.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import OrderSummary from '@/Components/payment/OrderSummary.vue'
@@ -94,7 +93,6 @@ import {toastAlert} from '@/utils/toast.js'
 const page = usePage()
 const paystackConfig = window.paystackConfig || {}
 const {t} = useTranslations()
-const {formatCurrency, convertCurrency} = useUserPreferences()
 
 const now = usePromoNow()
 const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
@@ -121,7 +119,12 @@ const address = ref(buildInitialAddress())
 const isProcessing = ref(false)
 
 const displayAmount = (amount) => {
-    return formatCurrency(convertCurrency(Number(amount || 0), 'USD', displayCurrency.value), displayCurrency.value)
+    return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: displayCurrency.value,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(Number(amount || 0))
 }
 
 function buildInitialAddress() {
@@ -169,9 +172,7 @@ async function payWithPaystack(method) {
     isProcessing.value = true
 
     try {
-        // Get the exact converted total that PaymentSummary displays
-        const convertedTotal = convertCurrency(Number(final_total), 'USD', displayCurrency.value)
-        const amountToSend = Math.round(convertedTotal)
+        const amountToSend = Number(page.props.summery?.raw?.total || final_total || 0)
 
         const response = await axios.post('/paystack/initialize', {
             payment_method: method,
@@ -184,14 +185,15 @@ async function payWithPaystack(method) {
         })
 
         const data = response.data?.data || {}
-
-        // More robust URL validation
         const authUrl = data.authorization_url || ''
-        if (!authUrl.startsWith('https://checkout.paystack.com/')) {
+
+        const isValidPaystackUrl = /^https:\/\/checkout\.paystack\.(co|com)\//.test(authUrl)
+
+        if (!isValidPaystackUrl) {
             throw new Error(response.data?.message || 'Paystack did not return a valid authorization URL.')
         }
 
-        window.location.href = data.authorization_url
+        window.location.href = authUrl
     } catch (error) {
         toastAlert('error', error?.response?.data?.message || error?.message || 'Payment failed')
     } finally {

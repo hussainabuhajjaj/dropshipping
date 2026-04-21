@@ -17,6 +17,7 @@ use App\Models\OrderShipping;
 use App\Models\Payment;
 use App\Models\SiteSetting;
 use App\Services\AbandonedCartService;
+use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -52,9 +53,12 @@ class PaymentController extends Controller
         if ($item instanceof Cart) {
             $summery = $item->getSummery();
             $items = (CartResource::collection($item->items))->jsonSerialize();
+
+            $summery = $this->convertSummaryToXof($summery);
+            $items = $this->convertItemsToXof($items);
         }
 
-        $finalTotal = $summery['total'] ?? 0;
+        $finalTotal = (float) ($summery['raw']['total'] ?? $summery['total'] ?? 0);
 
         $defaultAddress = $customer->addresses()
             ->orderByDesc('is_default')
@@ -495,5 +499,109 @@ class PaymentController extends Controller
             'country' => ['required', 'string', 'max:2'],
             'delivery_notes' => ['nullable', 'string', 'max:500'],
         ];
+    }
+
+    private function convertSummaryToXof(array $summary): array
+    {
+        $sourceCurrency = strtoupper((string) ($summary['currency'] ?? config('currency.base', 'USD')));
+
+        $summary['subtotal'] = $this->convertMoneyToXof($summary['subtotal'] ?? 0, $sourceCurrency);
+        $summary['shipping'] = $this->convertMoneyToXof($summary['shipping'] ?? 0, $sourceCurrency);
+        $summary['shippingTotal'] = $this->convertMoneyToXof($summary['shippingTotal'] ?? ($summary['shipping'] ?? 0), $sourceCurrency);
+        $summary['discount'] = $this->convertMoneyToXof($summary['discount'] ?? 0, $sourceCurrency);
+        $summary['tax_total'] = $this->convertMoneyToXof($summary['tax_total'] ?? 0, $sourceCurrency);
+        $summary['total'] = $this->convertMoneyToXof($summary['total'] ?? 0, $sourceCurrency);
+        $summary['currency'] = 'XOF';
+
+        if (isset($summary['raw']) && is_array($summary['raw'])) {
+            $summary['raw']['subtotal'] = $summary['subtotal'];
+            $summary['raw']['shipping'] = $summary['shipping'];
+            $summary['raw']['discount'] = $summary['discount'];
+            $summary['raw']['tax_total'] = $summary['tax_total'];
+            $summary['raw']['total'] = $summary['total'];
+            $summary['raw']['currency'] = 'XOF';
+        }
+
+        if (isset($summary['minimum_cart_requirement']) && is_array($summary['minimum_cart_requirement'])) {
+            if (isset($summary['minimum_cart_requirement']['threshold'])) {
+                $summary['minimum_cart_requirement']['threshold'] = $this->convertMoneyToXof($summary['minimum_cart_requirement']['threshold'], $sourceCurrency);
+            }
+
+            if (isset($summary['minimum_cart_requirement']['effective_total'])) {
+                $summary['minimum_cart_requirement']['effective_total'] = $this->convertMoneyToXof($summary['minimum_cart_requirement']['effective_total'], $sourceCurrency);
+            }
+
+            $summary['minimum_cart_requirement']['message'] = null;
+        }
+
+        if (isset($summary['promotionDiscounts']) && is_array($summary['promotionDiscounts'])) {
+            $summary['promotionDiscounts'] = array_map(function ($promotion) use ($sourceCurrency) {
+                if (! is_array($promotion)) {
+                    return $promotion;
+                }
+
+                foreach (['amount', 'discount', 'value'] as $key) {
+                    if (isset($promotion[$key]) && is_numeric($promotion[$key])) {
+                        $promotion[$key] = $this->convertMoneyToXof($promotion[$key], $sourceCurrency);
+                    }
+                }
+
+                return $promotion;
+            }, $summary['promotionDiscounts']);
+        }
+
+        if (isset($summary['appliedPromotions']) && is_array($summary['appliedPromotions'])) {
+            $summary['appliedPromotions'] = array_map(function ($promotion) use ($sourceCurrency) {
+                if (! is_array($promotion)) {
+                    return $promotion;
+                }
+
+                if (($promotion['value_type'] ?? null) === 'fixed' && isset($promotion['value']) && is_numeric($promotion['value'])) {
+                    $promotion['value'] = $this->convertMoneyToXof($promotion['value'], $sourceCurrency);
+                }
+
+                return $promotion;
+            }, $summary['appliedPromotions']);
+        }
+
+        return $summary;
+    }
+
+    private function convertItemsToXof(array $items): array
+    {
+        return array_map(function ($item) {
+            if (! is_array($item)) {
+                return $item;
+            }
+
+            $sourceCurrency = strtoupper((string) ($item['currency'] ?? config('currency.base', 'USD')));
+            $item['price'] = $this->convertMoneyToXof($item['price'] ?? 0, $sourceCurrency);
+
+            if (isset($item['compare_at_price']) && $item['compare_at_price'] !== null) {
+                $item['compare_at_price'] = $this->convertMoneyToXof($item['compare_at_price'], $sourceCurrency);
+            }
+
+            $item['currency'] = 'XOF';
+
+            return $item;
+        }, $items);
+    }
+
+    private function convertMoneyToXof(float|int|string|null $amount, string $sourceCurrency): float
+    {
+        if (! is_numeric($amount)) {
+            return 0.0;
+        }
+
+        $amount = (float) $amount;
+        $sourceCurrency = strtoupper(trim($sourceCurrency));
+
+        if ($sourceCurrency === 'XOF') {
+            return round($amount, 0);
+        }
+
+        $converted = app(CurrencyConversionService::class)->convertAmount($amount, $sourceCurrency, 'XOF');
+
+        return round((float) ($converted ?? $amount), 0);
     }
 }

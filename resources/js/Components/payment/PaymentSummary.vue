@@ -35,7 +35,7 @@
 
         <!-- Amount Breakdown -->
         <div class="space-y-2 text-sm">
-            <div v-for="item in convertedSummary.items.filter(i => i.type !== 'total')"
+            <div v-for="item in displaySummary.items.filter(i => i.type !== 'total')"
                  :key="item.id"
                  class="flex justify-between"
                  :class="{
@@ -54,7 +54,7 @@
 
             <div class="flex justify-between font-semibold text-slate-900 pt-2 border-t border-slate-200 mt-2">
                 <span>{{ t('Total') }}</span>
-                <span class="text-lg text-[#f59e0b]">{{ convertedSummary.formatted.total }}</span>
+                <span class="text-lg text-[#f59e0b]">{{ displaySummary.formatted.total }}</span>
             </div>
         </div>
 
@@ -122,13 +122,11 @@
 <script setup>
 import {computed} from 'vue'
 import {useTranslations} from '@/i18n'
-import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePaymentSummary} from '@/composables/usePaymentSummary'
 import TrustBadges from "@/Components/TrustBadges.vue";
 import DeliveryTimeline from "@/Components/DeliveryTimeline.vue";
 
 const { t } = useTranslations()
-const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
 
 const props = defineProps({
     summaryData: {
@@ -166,30 +164,7 @@ const freeShippingEligible = computed(() => {
     return checkFreeShippingEligibility(summary.value)
 })
 
-// Convert amounts to user's preferred currency
-const convertedSummary = computed(() => {
-    if (!summary.value?.items) return summary.value
-
-    const convertedItems = summary.value.items.map(item => ({
-        ...item,
-        formatted: formatCurrency(
-            convertCurrency(Number(item.amount || 0), 'USD', currentCurrency.value || 'USD'),
-            currentCurrency.value || 'USD'
-        )
-    }))
-    //
-    return {
-        ...summary.value,
-        items: convertedItems,
-        formatted: {
-            ...summary.value.formatted,
-            total: formatCurrency(
-                convertCurrency(Number(summary.value.raw?.total || 0), 'USD', currentCurrency.value || 'USD'),
-                currentCurrency.value || 'USD'
-            )
-        }
-    }
-})
+const displaySummary = computed(() => summary.value || { items: [], formatted: { total: '' } })
 
 const paymentStatusClass = computed(() => {
     return {
