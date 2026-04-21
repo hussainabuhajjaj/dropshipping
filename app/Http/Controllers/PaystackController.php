@@ -184,15 +184,32 @@ class PaystackController extends Controller
         try {
             $payment = $this->paymentService->verifyPaystack($reference)->load('order');
 
-            if ($payment->status === 'paid' && $payment->order) {
+            if ($payment->status === 'paid') {
+                // Create order only after successful payment
+                if (!$payment->order) {
+                    $order = $this->createOrderFromPayment($payment);
+                    $payment->update(['order_id' => $order->id]);
+                }
+                
+                // Clear cart after successful payment
+                $this->clearCartFromPayment($payment);
+                
                 return redirect()
                     ->route('orders.confirmation', ['number' => $payment->order->number])
                     ->with('status', 'Payment confirmed.');
             }
 
+            // Handle failed/cancelled payments
+            if ($payment->status === 'failed' || $payment->status === 'cancelled') {
+                return redirect()
+                    ->route('checkout')
+                    ->with('error', 'Payment was cancelled or failed. Please try again.');
+            }
+
+            // Payment still pending
             return redirect()
-                ->route('orders.confirmation', ['number' => $payment->order?->number ?? ''])
-                ->with('error', 'Payment is still pending confirmation.');
+                ->route('checkout')
+                ->with('info', 'Payment is still being processed.');
         } catch (\Throwable $exception) {
             Log::error('Paystack callback failed', [
                 'reference' => $reference,
@@ -266,5 +283,114 @@ class PaystackController extends Controller
                 'customer_id' => $customerId,
             ], $meta),
         ]);
+    }
+
+    private function createOrderFromPayment(Payment $payment): Order
+    {
+        $meta = $payment->meta;
+        $customer = auth('customer')->user();
+        
+        // Create address from payment meta
+        $address = Address::query()->create([
+            'customer_id' => $customer->id,
+            'name' => trim(($meta['address']['first_name'] ?? '') . ' ' . ($meta['address']['last_name'] ?? '')) ?: $meta['customer_name'],
+            'phone' => $meta['payment_phone'] ?? null,
+            'line1' => $meta['address']['line1'] ?? 'Address not provided',
+            'line2' => $meta['address']['line2'] ?? null,
+            'city' => $meta['address']['city'] ?? 'City not provided',
+            'state' => $meta['address']['state'] ?? null,
+            'postal_code' => $meta['address']['postal_code'] ?? null,
+            'country' => strtoupper($meta['address']['country'] ?? 'CI'),
+            'type' => 'shipping',
+            'is_default' => false,
+        ]);
+
+        // Create order
+        $order = Order::createWithGeneratedNumber([
+            'user_id' => null,
+            'customer_id' => $customer->id,
+            'is_guest' => false,
+            'email' => $meta['customer_email'],
+            'locale' => app()->getLocale(),
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'currency' => 'XOF',
+            'subtotal' => $meta['subtotal'],
+            'shipping_total' => $meta['shipping'],
+            'shipping_total_estimated' => $meta['shipping'],
+            'tax_total' => 0,
+            'discount_total' => $meta['cart_summary']['discount'] ?? 0,
+            'grand_total' => $payment->amount,
+            'discount_snapshot' => null,
+            'discount_source' => null,
+            'shipping_address_id' => $address->id,
+            'billing_address_id' => $address->id,
+            'shipping_method' => 'standard',
+            'delivery_notes' => null,
+            'coupon_code' => null,
+            'placed_at' => now(),
+        ]);
+
+        // Create order items from cart
+        $cart = Cart::find($meta['cart_id']);
+        if ($cart) {
+            $cart_items = $cart->items;
+            $fallbackProvider = \App\Models\SiteSetting::query()->value('default_fulfillment_provider_id');
+
+            foreach ($cart_items as $line) {
+                $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+                $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                    ->where('product_variant_id', $line['variant_id'])
+                    ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                    ->first();
+
+                // No currency conversion needed - everything is in XOF
+                $unitPrice = $line->getSinglePrice();
+                $totalPrice = $unitPrice * $line['quantity'];
+
+                \App\Domain\Orders\Models\OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_variant_id' => $line['variant_id'],
+                    'fulfillment_provider_id' => $providerId,
+                    'supplier_product_id' => $supplierProduct?->id,
+                    'fulfillment_status' => 'pending',
+                    'quantity' => $line['quantity'],
+                    'unit_price' => $unitPrice,
+                    'total' => $totalPrice,
+                    'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
+                    'snapshot' => [
+                        'name' => @$line?->product['name'],
+                        'variant' => $line->variant
+                            ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
+                            : null,
+                        'supplier_type' => $line->product?->supplier_type,
+                    ],
+                    'meta' => [
+                        'media' => $line['media'] ?? null,
+                        'supplier_type' => $line->product?->supplier_type,
+                        'supplier_product_id' => $supplierProduct?->id,
+                        'external_product_id' => $supplierProduct?->external_product_id,
+                        'external_sku' => $supplierProduct?->external_sku,
+                    ],
+                ]);
+            }
+        }
+
+        return $order;
+    }
+
+    private function clearCartFromPayment(Payment $payment): void
+    {
+        $meta = $payment->meta;
+        $cartId = $meta['cart_id'] ?? null;
+        
+        if ($cartId) {
+            $cart = Cart::find($cartId);
+            if ($cart) {
+                $cart->items()->delete();
+                $cart->shippings()->delete();
+                $cart->delete();
+            }
+        }
     }
 }
