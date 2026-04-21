@@ -278,134 +278,115 @@ class PaystackController extends Controller
         ?float $subtotal = null,
         ?\App\Models\Cart $cart = null
     ): array {
-        $payment = Payment::query()
-            ->where('provider', 'paystack')
-            ->where('status', 'pending')
-            ->whereJsonContains('meta->customer_id', $customerId)
-            ->latest('id')
-            ->first();
+        // Always create new payment to avoid duplicate references
+        $address = Address::query()->create([
+            'customer_id' => $customerId,
+            'name' => trim(($addressData['first_name'] ?? '') . ' ' . ($addressData['last_name'] ?? '')) ?: $customerName,
+            'phone' => $phone,
+            'line1' => $addressData['line1'] ?? 'Address not provided',
+            'line2' => $addressData['line2'] ?? null,
+            'city' => $addressData['city'] ?? 'City not provided',
+            'state' => $addressData['state'] ?? null,
+            'postal_code' => $addressData['postal_code'] ?? null,
+            'country' => strtoupper($addressData['country'] ?? 'CI'),
+            'type' => 'shipping',
+            'is_default' => false,
+        ]);
 
-        if ($payment && $payment->order) {
-            // Generate a new reference to avoid duplicates
-            $newReference = 'pstk_' . strtolower($payment->order->number) . '_' . strtolower(\Illuminate\Support\Str::random(8)) . '_' . time();
-            
-            $payment->update([
-                'provider_reference' => $newReference,
-            ]);
-        }
+        $order = Order::createWithGeneratedNumber([
+            'user_id' => null,
+            'customer_id' => $customerId,
+            'is_guest' => false,
+            'email' => $email,
+            'locale' => app()->getLocale(),
+            'status' => 'pending',
+            'payment_status' => 'pending',
+            'currency' => 'XOF',
+            'subtotal' => $subtotal ?? $amount,
+            'shipping_total' => $shipping ?? 0,
+            'shipping_total_estimated' => $shipping ?? 0,
+            'tax_total' => 0,
+            'discount_total' => 0,
+            'grand_total' => ($subtotal ?? $amount) + ($shipping ?? 0),
+            'discount_snapshot' => null,
+            'discount_source' => null,
+            'shipping_address_id' => $address->id,
+            'billing_address_id' => $address->id,
+            'shipping_method' => 'standard',
+            'delivery_notes' => null,
+            'coupon_code' => null,
+            'placed_at' => now(),
+        ]);
 
-        if (! $payment) {
-            $address = Address::query()->create([
-                'customer_id' => $customerId,
-                'name' => trim(($addressData['first_name'] ?? '') . ' ' . ($addressData['last_name'] ?? '')) ?: $customerName,
-                'phone' => $phone,
-                'line1' => $addressData['line1'] ?? 'Address not provided',
-                'line2' => $addressData['line2'] ?? null,
-                'city' => $addressData['city'] ?? 'City not provided',
-                'state' => $addressData['state'] ?? null,
-                'postal_code' => $addressData['postal_code'] ?? null,
-                'country' => strtoupper($addressData['country'] ?? 'CI'),
-                'type' => 'shipping',
-                'is_default' => false,
-            ]);
+        // Create order items from cart
+        $fallbackProvider = \App\Models\SiteSetting::query()->value('default_fulfillment_provider_id');
 
-            $order = Order::createWithGeneratedNumber([
-                'user_id' => null,
-                'customer_id' => $customerId,
-                'is_guest' => false,
-                'email' => $email,
-                'locale' => app()->getLocale(),
-                'status' => 'pending',
-                'payment_status' => 'pending',
-                'currency' => 'XOF',
-                'subtotal' => $subtotal ?? $amount,
-                'shipping_total' => $shipping ?? 0,
-                'shipping_total_estimated' => $shipping ?? 0,
-                'tax_total' => 0,
-                'discount_total' => 0,
-                'grand_total' => ($subtotal ?? $amount) + ($shipping ?? 0),
-                'discount_snapshot' => null,
-                'discount_source' => null,
-                'shipping_address_id' => $address->id,
-                'billing_address_id' => $address->id,
-                'shipping_method' => 'standard',
-                'delivery_notes' => null,
-                'coupon_code' => null,
-                'placed_at' => now(),
-            ]);
+        if ($cart) {
+            $cart_items = $cart->items;
 
-            // Create order items from cart
-            $fallbackProvider = \App\Models\SiteSetting::query()->value('default_fulfillment_provider_id');
+            foreach ($cart_items as $line) {
+                $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+                $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                    ->where('product_variant_id', $line['variant_id'])
+                    ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                    ->first();
 
-            if ($cart) {
-                $cart_items = $cart->items;
+                // No currency conversion needed - everything is in XOF
+                $unitPrice = $line->getSinglePrice();
+                $totalPrice = $unitPrice * $line['quantity'];
 
-                foreach ($cart_items as $line) {
-                    $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
-                    $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
-                        ->where('product_variant_id', $line['variant_id'])
-                        ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
-                        ->first();
-
-                    // No currency conversion needed - everything is in XOF
-                    $unitPrice = $line->getSinglePrice();
-                    $totalPrice = $unitPrice * $line['quantity'];
-
-                    \App\Domain\Orders\Models\OrderItem::create([
-                        'order_id' => $order->id,
-                        'product_variant_id' => $line['variant_id'],
-                        'fulfillment_provider_id' => $providerId,
+                \App\Domain\Orders\Models\OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_variant_id' => $line['variant_id'],
+                    'fulfillment_provider_id' => $providerId,
+                    'supplier_product_id' => $supplierProduct?->id,
+                    'fulfillment_status' => 'pending',
+                    'quantity' => $line['quantity'],
+                    'unit_price' => $unitPrice,
+                    'total' => $totalPrice,
+                    'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
+                    'snapshot' => [
+                        'name' => @$line?->product['name'],
+                        'variant' => $line->variant
+                            ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
+                            : null,
+                        'supplier_type' => $line->product?->supplier_type,
+                    ],
+                    'meta' => [
+                        'media' => $line['media'] ?? null,
+                        'supplier_type' => $line->product?->supplier_type,
                         'supplier_product_id' => $supplierProduct?->id,
-                        'fulfillment_status' => 'pending',
-                        'quantity' => $line['quantity'],
-                        'unit_price' => $unitPrice,
-                        'total' => $totalPrice,
-                        'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
-                        'snapshot' => [
-                            'name' => @$line?->product['name'],
-                            'variant' => $line->variant
-                                ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
-                                : null,
-                            'supplier_type' => $line->product?->supplier_type,
-                        ],
-                        'meta' => [
-                            'media' => $line['media'] ?? null,
-                            'supplier_type' => $line->product?->supplier_type,
-                            'supplier_product_id' => $supplierProduct?->id,
-                            'external_product_id' => $supplierProduct?->external_product_id,
-                            'external_sku' => $supplierProduct?->external_sku,
-                        ],
-                    ]);
-                }
+                        'external_product_id' => $supplierProduct?->external_product_id,
+                        'external_sku' => $supplierProduct?->external_sku,
+                    ],
+                ]);
             }
-
-            $payment = Payment::query()->create([
-                'order_id' => $order->id,
-                'provider' => 'paystack',
-                'status' => 'pending',
-                'provider_reference' => 'pstk_' . strtolower($order->number) . '_' . strtolower(\Illuminate\Support\Str::random(6)),
-                'amount' => ($subtotal ?? $amount) + ($shipping ?? 0),
-                'currency' => 'XOF',
-                'meta' => [
-                    'payment_type' => $paymentType,
-                    'customer_email' => $email,
-                    'customer_name' => $customerName,
-                    'payment_phone' => $phone,
-                    'mobile_provider' => $mobileProvider,
-                    'customer_id' => $customerId,
-                ],
-            ]);
-
-            // Clear cart after order creation
-            if ($cart) {
-                $cart->items()->delete();
-                $cart->shippings()->delete();
-                $cart->delete();
-            }
-
-            return [$order, $payment];
         }
 
-        return [$payment->order, $payment];
+        $payment = Payment::query()->create([
+            'order_id' => $order->id,
+            'provider' => 'paystack',
+            'status' => 'pending',
+            'provider_reference' => 'pstk_' . strtolower($order->number) . '_' . strtolower(\Illuminate\Support\Str::random(6)),
+            'amount' => ($subtotal ?? $amount) + ($shipping ?? 0),
+            'currency' => 'XOF',
+            'meta' => [
+                'payment_type' => $paymentType,
+                'customer_email' => $email,
+                'customer_name' => $customerName,
+                'payment_phone' => $phone,
+                'mobile_provider' => $mobileProvider,
+                'customer_id' => $customerId,
+            ],
+        ]);
+
+        // Clear cart after order creation
+        if ($cart) {
+            $cart->items()->delete();
+            $cart->shippings()->delete();
+            $cart->delete();
+        }
+
+        return [$order, $payment];
     }
 }
