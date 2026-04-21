@@ -408,32 +408,4 @@ class PaystackController extends Controller
 
         return [$payment->order, $payment];
     }
-
-    private function createPendingPayment(
-        int $customerId,
-        string $email,
-        string $customerName,
-        int $amount,
-        string $paymentType,
-        ?string $phone,
-        ?string $mobileProvider,
-        array $meta = []
-    ): Payment {
-        return Payment::query()->create([
-            'order_id' => null, // No order yet
-            'provider' => 'paystack',
-            'status' => 'pending',
-            'provider_reference' => 'pstk_pending_' . strtolower(\Illuminate\Support\Str::random(12)),
-            'amount' => $amount,
-            'currency' => 'XOF',
-            'meta' => array_merge([
-                'payment_type' => $paymentType,
-                'customer_email' => $email,
-                'customer_name' => $customerName,
-                'payment_phone' => $phone,
-                'mobile_provider' => $mobileProvider,
-                'customer_id' => $customerId,
-            ], $meta),
-        ]);
-    }
 }
