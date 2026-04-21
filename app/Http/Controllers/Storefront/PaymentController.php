@@ -21,6 +21,7 @@ use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use RuntimeException;
 use Throwable;
@@ -134,49 +135,33 @@ class PaymentController extends Controller
             DB::transaction(function () use ($customer, $cart, $summery, $request, $method, &$order, &$payment, &$init): void {
                 $requestBody = (array) session()->get('request_body', []);
 
-                $fallbackAddress = $customer->addresses()
-                    ->orderByDesc('is_default')
-                    ->orderBy('id')
-                    ->first();
-
-                $firstName = (string) ($requestBody['first_name'] ?? $customer->first_name ?? $customer->name ?? '');
-                $lastName = (string) ($requestBody['last_name'] ?? $customer->last_name ?? '');
-                $phone = (string) ($requestBody['phone'] ?? $customer->phone ?? $fallbackAddress?->phone ?? '');
-                $line1 = (string) ($requestBody['line1'] ?? $fallbackAddress?->line1 ?? '');
-                $line2 = (string) ($requestBody['line2'] ?? $fallbackAddress?->line2 ?? '');
-                $city = (string) ($requestBody['city'] ?? $fallbackAddress?->city ?? '');
-                $state = (string) ($requestBody['state'] ?? $fallbackAddress?->state ?? '');
-                $postalCode = (string) ($requestBody['postal_code'] ?? $fallbackAddress?->postal_code ?? '');
-                $country = strtoupper((string) ($requestBody['country'] ?? $fallbackAddress?->country ?? 'US'));
                 $email = (string) ($requestBody['email'] ?? $customer->email ?? '');
 
                 if ($email === '') {
                     throw new RuntimeException('Customer email missing for checkout.');
                 }
 
-                $addressId = $request->input('address_id');
-                $shippingAddress = null;
-                if (is_numeric($addressId)) {
-                    $shippingAddress = Address::query()
+                $addressId = $request->integer('address_id');
+                $shippingAddress = $addressId
+                    ? Address::query()
                         ->where('customer_id', $customer->id)
-                        ->find((int) $addressId);
-                }
-
-                if (! $shippingAddress) {
-                    $shippingAddress = Address::query()->create([
+                        ->findOrFail($addressId)
+                    : Address::query()->create([
                         'user_id' => null,
                         'customer_id' => $customer->id,
-                        'name' => trim($firstName . ' ' . $lastName),
-                        'phone' => $phone,
-                        'line1' => $line1,
-                        'line2' => $line2 !== '' ? $line2 : null,
-                        'city' => $city,
-                        'state' => $state !== '' ? $state : null,
-                        'postal_code' => $postalCode !== '' ? $postalCode : null,
-                        'country' => $country,
+                        'name' => trim(implode(' ', array_filter([
+                            (string) ($requestBody['first_name'] ?? ''),
+                            (string) ($requestBody['last_name'] ?? ''),
+                        ]))),
+                        'phone' => (string) ($requestBody['phone'] ?? ''),
+                        'line1' => (string) ($requestBody['line1'] ?? ''),
+                        'line2' => filled($requestBody['line2'] ?? null) ? (string) $requestBody['line2'] : null,
+                        'city' => (string) ($requestBody['city'] ?? ''),
+                        'state' => filled($requestBody['state'] ?? null) ? (string) $requestBody['state'] : null,
+                        'postal_code' => filled($requestBody['postal_code'] ?? null) ? (string) $requestBody['postal_code'] : null,
+                        'country' => strtoupper((string) ($requestBody['country'] ?? '')),
                         'type' => 'shipping',
                     ]);
-                }
 
                 $coupon = $summery['coupon'] ?? null;
                 $discountSnapshot = buildDiscountSnapshot(
@@ -479,16 +464,22 @@ class PaymentController extends Controller
             return [];
         }
 
+        $customerId = auth('customer')->id();
         $addressId = request()->get('address_id');
-        if (isset($addressId) && is_numeric($addressId)) {
+        if (filled($addressId)) {
             return [
-                'address_id' => 'required|numeric|exists:addresses,id',
+                'address_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('addresses', 'id')->where(fn ($query) => $query->where('customer_id', $customerId)),
+                ],
+                'delivery_notes' => ['nullable', 'string', 'max:500'],
             ];
         }
 
         return [
             'email' => ['required', 'email'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'max:30'],
             'first_name' => ['required', 'string', 'max:120'],
             'last_name' => ['nullable', 'string', 'max:120'],
             'line1' => ['required', 'string', 'max:255'],

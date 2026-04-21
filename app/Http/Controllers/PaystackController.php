@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Common\Models\Address;
 use App\Domain\Payments\PaymentService;
 use App\Infrastructure\Payments\Paystack\PaystackService;
 use App\Models\Order;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class PaystackController extends Controller
 {
@@ -28,18 +30,31 @@ class PaystackController extends Controller
      */
     public function initialize(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'payment_method' => ['required', 'string', 'in:card,mobile_money'],
-            'email' => ['required', 'email'],
-            'grand_total' => ['required', 'numeric', 'min:1'], // Required but will be validated
-            'phone' => ['nullable', 'string', 'max:30'],
-            'mobile_provider' => ['nullable', 'string', 'max:50'],
-        ]);
+        $customer = auth('customer')->user();
+
+        $validator = Validator::make(
+            $request->all(),
+            array_merge([
+                'payment_method' => ['required', 'string', 'in:card,mobile_money'],
+                'email' => ['required', 'email'],
+                'grand_total' => ['required', 'numeric', 'min:1'],
+                'phone' => ['required', 'string', 'max:30'],
+                'mobile_provider' => ['nullable', 'string', 'max:50'],
+            ], $this->addressValidationRules($customer?->id)),
+            [
+                'address_id.required' => 'Please select a shipping address before continuing.',
+                'line1.required' => 'Shipping address line 1 is required.',
+                'city.required' => 'Shipping city is required.',
+                'country.required' => 'Shipping country is required.',
+                'phone.required' => 'Shipping phone number is required.',
+            ]
+        );
 
         if ($validator->fails()) {
             return response()->json([
                 'status' => false,
                 'errors' => $validator->errors(),
+                'message' => $validator->errors()->first() ?: 'A valid shipping address is required before payment.',
             ], 422);
         }
 
@@ -95,15 +110,7 @@ class PaystackController extends Controller
                 'paystack_will_see' => $normalizedForPaystack / 100, // What Paystack will display
             ]);
 
-            // Create shipping address first
-            $address = \App\Domain\Common\Models\Address::create([
-                'customer_id' => auth()->id(), // TODO: Get from auth when available
-                'name' => $request->email ?? 'Customer',
-                'line1' => 'Address not provided',
-                'city' => 'City not provided',
-                'country' => 'CI',
-                'type' => 'shipping',
-            ]);
+            $address = $this->resolveShippingAddress($request, $customer?->id);
 
             // Create order with backend-validated amount
             $order = Order::create([
@@ -153,6 +160,59 @@ class PaystackController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function addressValidationRules(?int $customerId): array
+    {
+        if (filled(request('address_id'))) {
+            return [
+                'address_id' => [
+                    'required',
+                    'integer',
+                    Rule::exists('addresses', 'id')->where(fn ($query) => $query->where('customer_id', $customerId)),
+                ],
+                'delivery_notes' => ['nullable', 'string', 'max:500'],
+            ];
+        }
+
+        return [
+            'first_name' => ['required', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:120'],
+            'line1' => ['required', 'string', 'max:255'],
+            'line2' => ['nullable', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:120'],
+            'state' => ['nullable', 'string', 'max:120'],
+            'postal_code' => ['nullable', 'string', 'max:30'],
+            'country' => ['required', 'string', 'size:2'],
+            'delivery_notes' => ['nullable', 'string', 'max:500'],
+        ];
+    }
+
+    private function resolveShippingAddress(Request $request, ?int $customerId): Address
+    {
+        $addressId = $request->integer('address_id');
+
+        if ($addressId) {
+            return Address::query()
+                ->where('customer_id', $customerId)
+                ->findOrFail($addressId);
+        }
+
+        return Address::query()->create([
+            'customer_id' => $customerId,
+            'name' => trim(implode(' ', array_filter([
+                (string) $request->input('first_name', ''),
+                (string) $request->input('last_name', ''),
+            ]))),
+            'phone' => (string) $request->input('phone', ''),
+            'line1' => (string) $request->input('line1', ''),
+            'line2' => filled($request->input('line2')) ? (string) $request->input('line2') : null,
+            'city' => (string) $request->input('city', ''),
+            'state' => filled($request->input('state')) ? (string) $request->input('state') : null,
+            'postal_code' => filled($request->input('postal_code')) ? (string) $request->input('postal_code') : null,
+            'country' => strtoupper((string) $request->input('country', '')),
+            'type' => 'shipping',
+        ]);
     }
 
 

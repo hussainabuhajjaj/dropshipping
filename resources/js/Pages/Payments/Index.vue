@@ -129,8 +129,9 @@ const displayAmount = (amount) => {
 
 function buildInitialAddress() {
     return {
+        address_id: defaultAddress?.id || null,
         email: customer?.email || '',
-        phone: customer?.phone || '',
+        phone: defaultAddress?.phone || customer?.phone || '',
         first_name: defaultAddress?.name?.split(' ')?.[0] || customer?.name?.split(' ')?.[0] || '',
         last_name: defaultAddress?.name?.split(' ')?.slice(1).join(' ') || customer?.name?.split(' ')?.slice(1).join(' ') || '',
         line1: defaultAddress?.line1 || '',
@@ -161,9 +162,28 @@ function handleMethodChange(method) {
     selectedMethodName.value = method === 'mobile_money' ? 'Mobile Money' : 'Card'
 }
 
+function hasValidAddress() {
+    if (address.value?.address_id) {
+        return true
+    }
+
+    return Boolean(
+        address.value?.first_name &&
+        address.value?.phone &&
+        address.value?.line1 &&
+        address.value?.city &&
+        address.value?.country
+    )
+}
+
 async function payWithPaystack(method) {
     if (!address.value?.email) {
         toastAlert('error', 'Email is required')
+        return
+    }
+
+    if (!hasValidAddress()) {
+        toastAlert('error', 'Please select or enter a valid shipping address before payment')
         return
     }
 
@@ -176,7 +196,18 @@ async function payWithPaystack(method) {
 
         const response = await axios.post('/paystack/initialize', {
             payment_method: method,
+            address_id: address.value.address_id || null,
             email: address.value.email,
+            phone: address.value.phone,
+            first_name: address.value.first_name,
+            last_name: address.value.last_name,
+            line1: address.value.line1,
+            line2: address.value.line2,
+            city: address.value.city,
+            state: address.value.state,
+            postal_code: address.value.postal_code,
+            country: address.value.country,
+            delivery_notes: address.value.delivery_notes,
             customer_name: identityName,
             grand_total: amountToSend,
             currency: 'XOF',
@@ -207,11 +238,13 @@ function changeAddress(payload) {
     }
 
     const value = payload?.value ?? payload
+    const resolvedAddressId = value.address_id || value.id || null
     const newPhone = value.phone || customer?.phone || address.value?.phone || ''
 
     address.value = {
         ...address.value,
         ...value,
+        address_id: resolvedAddressId,
         phone: newPhone,
     }
 }
