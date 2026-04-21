@@ -147,10 +147,25 @@ class PaystackService
         $result = $this->unwrap($this->client->post('/transaction/initialize', $payload));
         $data = is_array($result->data) ? $result->data : [];
 
+        // Debug logging
+        Log::error('Paystack initialize response', [
+            'payload' => $payload,
+            'response_data' => $data,
+            'raw_response' => $result->raw,
+            'status' => $result->status,
+            'message' => $result->message,
+        ]);
+
         $authorizationUrl = (string) ($data['authorization_url'] ?? '');
 
         // ✅ FIX: flexible validation (no hardcoded domain)
         if ($authorizationUrl === '' || ! filter_var($authorizationUrl, FILTER_VALIDATE_URL)) {
+            Log::error('Paystack authorization URL validation failed', [
+                'authorization_url' => $authorizationUrl,
+                'is_empty' => $authorizationUrl === '',
+                'is_valid_url' => filter_var($authorizationUrl, FILTER_VALIDATE_URL) !== false,
+                'full_response' => $data,
+            ]);
             throw new RuntimeException('Paystack did not return a valid authorization URL.');
         }
 
@@ -190,9 +205,24 @@ class PaystackService
         $result = $this->unwrap($this->client->post('/transaction/initialize', $payload));
         $data = is_array($result->data) ? $result->data : [];
 
+        // Debug logging
+        Log::error('Paystack mobile money initialize response', [
+            'payload' => $payload,
+            'response_data' => $data,
+            'raw_response' => $result->raw,
+            'status' => $result->status,
+            'message' => $result->message,
+        ]);
+
         $authorizationUrl = (string) ($data['authorization_url'] ?? '');
 
         if ($authorizationUrl === '' || ! filter_var($authorizationUrl, FILTER_VALIDATE_URL)) {
+            Log::error('Paystack mobile money authorization URL validation failed', [
+                'authorization_url' => $authorizationUrl,
+                'is_empty' => $authorizationUrl === '',
+                'is_valid_url' => filter_var($authorizationUrl, FILTER_VALIDATE_URL) !== false,
+                'full_response' => $data,
+            ]);
             throw new RuntimeException('Paystack did not return a valid authorization URL.');
         }
 
