@@ -51,7 +51,7 @@ class PaystackService
     }
 
     public function initializeTransaction(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         string $email,
         string $name,
@@ -72,16 +72,19 @@ class PaystackService
     }
 
     public function initializeMobileMoneyTransaction(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         string $email,
         string $name,
-        ?string $returnUrl = null
+        ?string $phone = null,
+        ?string $provider = null
     ): array {
         $response = $this->initializeMobileMoneyRedirectTransaction($order, $payment, [
             'email' => $email,
             'name' => $name,
-        ], $returnUrl);
+            'phone' => $phone,
+            'mobile_provider' => $provider,
+        ], null);
 
         $data = is_array($response->data) ? $response->data : [];
 
@@ -93,7 +96,7 @@ class PaystackService
     }
 
     public function chargeMobileMoney(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         string $email,
         string $name,
@@ -114,14 +117,14 @@ class PaystackService
      | CARD PAYMENT (REDIRECT)
      |-------------------------------------------------*/
     private function initializeRedirectTransaction(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         array $customer,
         ?string $returnUrl
     ): ApiResponse {
         $reference = $this->safeReference($payment);
 
-        $email = trim((string) ($customer['email'] ?? $order->email ?? ''));
+        $email = trim((string) ($customer['email'] ?? $order?->email ?? ''));
         if ($email === '') {
             throw new RuntimeException('Customer email is required.');
         }
@@ -159,14 +162,14 @@ class PaystackService
     }
 
     private function initializeMobileMoneyRedirectTransaction(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         array $customer,
         ?string $returnUrl
     ): ApiResponse {
         $reference = $this->safeReference($payment);
 
-        $email = trim((string) ($customer['email'] ?? $order->email ?? ''));
+        $email = trim((string) ($customer['email'] ?? $order?->email ?? ''));
         if ($email === '') {
             throw new RuntimeException('Customer email is required.');
         }
@@ -204,13 +207,13 @@ class PaystackService
      | MOBILE MONEY
      |-------------------------------------------------*/
     private function createMobileMoneyCharge(
-        Order $order,
+        ?Order $order,
         Payment $payment,
         array $customer
     ): ApiResponse {
         $reference = $this->safeReference($payment);
 
-        $email = trim((string) ($customer['email'] ?? $order->email ?? ''));
+        $email = trim((string) ($customer['email'] ?? $order?->email ?? ''));
         $phone = trim((string) ($customer['phone'] ?? ''));
 
         if ($email === '') {
@@ -343,13 +346,20 @@ class PaystackService
         return (int) round($amount * 100);
     }
 
-    private function buildMetadata(Order $order, Payment $payment, array $extra = []): array
+    private function buildMetadata(?Order $order, Payment $payment, array $extra = []): array
     {
-        return array_merge([
-            'order_number' => $order->number,
+        $metadata = [
             'payment_id' => $payment->id,
-            'customer_id' => $order->customer_id,
-        ], $extra);
+        ];
+        
+        if ($order) {
+            $metadata = array_merge($metadata, [
+                'order_number' => $order->number,
+                'customer_id' => $order->customer_id,
+            ]);
+        }
+        
+        return array_merge($metadata, $extra);
     }
 
     private function resolveMobileMoneyProvider(mixed $provider): string
