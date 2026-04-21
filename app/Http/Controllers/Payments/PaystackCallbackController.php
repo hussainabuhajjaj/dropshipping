@@ -5,59 +5,79 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Payments;
 
 use App\Domain\Payments\PaymentService;
-use App\Infrastructure\Payments\Paystack\PaystackService;
 use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PaystackCallbackController
 {
-    public function __invoke(Request $request, PaystackService $paystack, PaymentService $paymentService): RedirectResponse
+    public function __invoke(Request $request, PaymentService $paymentService): RedirectResponse
     {
-        $reference = (string) $request->query('reference', '');
+        $reference = (string) (
+            $request->query('reference')
+            ?? $request->query('trxref')
+            ?? ''
+        );
 
         if ($reference === '') {
-            return redirect()->route('home')->withErrors(['payment' => 'Missing payment reference.']);
+            return redirect()
+                ->route('home')
+                ->withErrors(['payment' => 'Missing payment reference.']);
         }
 
         $payment = Payment::query()
             ->where('provider', 'paystack')
             ->where('provider_reference', $reference)
+            ->with('order')
+            ->latest('id')
             ->first();
 
         if (! $payment) {
-            return redirect()->route('home')->withErrors(['payment' => 'Payment not found.']);
+            return redirect()
+                ->route('home')
+                ->withErrors(['payment' => 'Payment not found.']);
         }
 
-        try {
-            $verification = $paystack->verify($reference);
-        } catch (\Throwable $e) {
+        // Already paid (idempotent safe)
+        if ($payment->status === 'paid' && $payment->order) {
             return redirect()
-                ->route('orders.confirmation', ['number' => $payment->order?->number ?? ''])
-                ->withErrors(['payment' => 'Payment verification failed. Please try again.']);
-        }
-
-        $data = is_array($verification->data) ? $verification->data : [];
-        $status = strtolower((string) ($data['status'] ?? ''));
-
-        $payment->update([
-            'meta' => array_merge($payment->meta ?? [], ['paystack' => $data]),
-        ]);
-
-        if ($status === 'success') {
-            $paymentService->markAsPaid($payment);
-
-            return redirect()
-                ->route('orders.confirmation', ['number' => $payment->order->number])
+                ->route('orders.confirmation', [
+                    'number' => $payment->order->number
+                ])
                 ->with('status', 'Payment confirmed.');
         }
 
-        if (in_array($status, ['failed', 'abandoned'], true)) {
-            $payment->update(['status' => 'failed']);
+        try {
+            $payment = $paymentService
+                ->verifyPaystack($reference)
+                ->load('order');
+
+        } catch (\Throwable $e) {
+            Log::error('Paystack callback verification failed', [
+                'reference' => $reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('orders.confirmation', [
+                    'number' => $payment->order?->number ?? ''
+                ])
+                ->withErrors(['payment' => 'Verification failed.']);
+        }
+
+        if ($payment->status === 'paid' && $payment->order) {
+            return redirect()
+                ->route('orders.confirmation', [
+                    'number' => $payment->order->number
+                ])
+                ->with('status', 'Payment confirmed.');
         }
 
         return redirect()
-            ->route('orders.confirmation', ['number' => $payment->order->number])
+            ->route('orders.confirmation', [
+                'number' => $payment->order?->number ?? ''
+            ])
             ->withErrors(['payment' => 'Payment not completed.']);
     }
 }

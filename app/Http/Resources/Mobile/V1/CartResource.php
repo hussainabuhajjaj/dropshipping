@@ -26,6 +26,7 @@ class CartResource extends JsonResource
             'discount_label' => $this->resource['discount_label'] ?? null,
             'applied_promotions' => $this->resource['applied_promotions'] ?? [],
             'minimum_cart_requirement' => $this->resource['minimum_cart_requirement'] ?? null,
+            'customer' => $this->resource['customer'] ?? null,
         ];
     }
 }

@@ -43,6 +43,10 @@ class AddressService
 
     public function updateForCustomer(Customer $customer, Address $address, array $data): Address
     {
+        if ($address->customer_id !== $customer->id) {
+            throw new \InvalidArgumentException('Address does not belong to this customer');
+        }
+
         $address->update($data);
 
         if (! empty($data['is_default'])) {

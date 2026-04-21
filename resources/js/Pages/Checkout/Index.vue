@@ -39,18 +39,26 @@
           <section class="card p-5">
             <h2 class="text-sm font-semibold text-slate-900">{{ t('Payment method') }}</h2>
             <div class="mt-4 grid gap-3 text-sm text-slate-600">
-              <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+              <label v-if="paystackEnabled" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                 <input v-model="form.payment_method" type="radio" value="card" />
-                <span>{{ t('Card (Visa / Mastercard)') }}</span>
+                <span>{{ t('Paystack Card (Visa / Mastercard)') }}</span>
               </label>
-              <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
+              <label v-if="showMobileMoney" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                 <input v-model="form.payment_method" type="radio" value="mobile_money" />
-                <span>{{ t('Mobile money') }}</span>
+                <span>{{ t('Paystack Mobile Money') }}</span>
               </label>
               <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
                 <input v-model="form.payment_method" type="radio" value="bank_transfer" />
                 <span>{{ t('Bank transfer') }}</span>
               </label>
+            </div>
+            <div v-if="form.payment_method === 'mobile_money' && showMobileMoneyProviders" class="mt-4 space-y-2">
+              <label class="block text-xs font-medium uppercase tracking-wide text-slate-500">{{ t('Mobile money provider') }}</label>
+              <select v-model="form.mobile_money_provider" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                <option v-for="provider in mobileMoneyProviders" :key="provider" :value="provider">
+                  {{ formatProvider(provider) }}
+                </option>
+              </select>
             </div>
           </section>
 
@@ -147,6 +155,7 @@ import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
+const paystackConfig = window.paystackConfig || {}
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
@@ -177,8 +186,18 @@ const displayPromotions = computed(() =>
 )
 const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || currency.value || 'USD')
+const paystackEnabled = computed(() => Boolean(paystackConfig.paystackEnabled))
+const mobileMoneyEnabled = computed(() => Boolean(paystackConfig.paystackMobileMoneyEnabled))
+const mobileMoneyProviders = computed(() => paystackConfig.paystackMobileMoney?.[String(props.currency || '').toUpperCase()] || [])
+const showMobileMoney = computed(() => paystackEnabled.value && mobileMoneyEnabled.value && mobileMoneyProviders.value.length > 0)
+const showMobileMoneyProviders = computed(() => showMobileMoney.value && mobileMoneyProviders.value.length > 0)
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
+const formatProvider = (provider) =>
+  String(provider)
+    .split('_')
+    .map((part) => part.toUpperCase() === 'ATL' ? 'AirtelTigo' : part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 
 const form = useForm({
   email: props.user?.email || '',
@@ -192,9 +211,22 @@ const form = useForm({
   postal_code: props.defaultAddress?.postal_code || '',
   country: props.defaultAddress?.country || 'CI',
   delivery_notes: '',
-  payment_method: 'card',
+  payment_method: showMobileMoney.value ? 'mobile_money' : 'card',
+  mobile_money_provider: mobileMoneyProviders.value[0] || '',
   accept_terms: false,
 })
+
+watch(showMobileMoney, (enabled) => {
+  if (!enabled && form.payment_method === 'mobile_money') {
+    form.payment_method = 'card'
+  }
+})
+
+watch(mobileMoneyProviders, (providers) => {
+  if (!providers.includes(form.mobile_money_provider)) {
+    form.mobile_money_provider = providers[0] || ''
+  }
+}, { immediate: true })
 
 const { cart: persistentCart } = usePersistentCart()
 

@@ -44,6 +44,7 @@ return [
         'public_key' => env('PAYSTACK_PUBLIC_KEY'),
         'webhook_secret' => env('PAYSTACK_WEBHOOK_SECRET'),
         'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+        'test_mode' => env('PAYSTACK_TEST_MODE', false),
     ],
 
     'korapay' => [

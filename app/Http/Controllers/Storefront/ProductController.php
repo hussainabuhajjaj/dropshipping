@@ -205,13 +205,18 @@ class ProductController extends Controller
      */
     private function findCategoryByIdentifier(string $identifier, string $locale): ?Category
     {
+        $identifier = trim(urldecode($identifier));
+
         return Category::query()
-            ->where('slug', $identifier)
-            ->orWhere('name', $identifier)
-            ->orWhereHas('translations', function ($translations) use ($identifier, $locale) {
-                $translations
-                    ->where('locale', $locale)
-                    ->where('name', $identifier);
+            ->where(function ($query) use ($identifier, $locale) {
+                $query
+                    ->whereRaw('LOWER(slug) = ?', [mb_strtolower($identifier)])
+                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower($identifier)])
+                    ->orWhereHas('translations', function ($translations) use ($identifier, $locale) {
+                        $translations
+                            ->where('locale', $locale)
+                            ->whereRaw('LOWER(name) = ?', [mb_strtolower($identifier)]);
+                    });
             })
             ->first();
     }

@@ -126,6 +126,7 @@ Route::get('/.well-known/assetlinks.json', function () {
 });
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/products/{product:slug}', [ProductController::class, 'show'])->name('products.show');
+Route::get('/category/{category:slug}', [CategoryController::class, 'show'])->name('category.show');
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');
 Route::get('/collections', [\App\Http\Controllers\Storefront\CollectionController::class, 'index'])->name('collections.index');
 Route::get('/collections/{slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
@@ -223,6 +224,10 @@ Route::get('/logout-developer', function (Request $request) {
 Route::post('/webhooks/payments/{provider}', PaymentWebhookController::class)
     ->middleware(['throttle:30,1', VerifyPaymentWebhookSignature::class, IdempotencyMiddleware::class])
     ->name('webhooks.payments');
+
+Route::post('/webhooks/paystack', [App\Http\Controllers\Webhooks\PaystackWebhookController::class, '__invoke'])
+    ->middleware('throttle:30,1')
+    ->name('webhooks.paystack');
 
 Route::post('/webhooks/tracking/{provider}', TrackingWebhookController::class)
     ->middleware(['throttle:30,1', VerifyTrackingWebhookSignature::class])
@@ -333,7 +338,7 @@ Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'red
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
 
-Route::prefix('pay/{type}')->name('pay.')->group(function () {
+Route::middleware('auth:customer')->prefix('pay/{type}')->name('pay.')->group(function () {
     Route::get('/', [PaymentController::class, 'index'])->name('index');
     Route::post('/checkout', [PaymentController::class, 'checkout'])->name('checkout');
     Route::get('/redirect', [PaymentController::class, 'redirect'])->name('redirect');
@@ -342,10 +347,25 @@ Route::prefix('pay/{type}')->name('pay.')->group(function () {
     Route::get('/{id}/redirect', [PaymentController::class, 'redirect'])->whereNumber('id')->name('redirect.with-id');
 });
 
+// Paystack Routes
+Route::middleware(['auth:customer', 'throttle:30,1'])->prefix('paystack')->name('paystack.')->group(function () {
+    Route::post('/initialize', [App\Http\Controllers\PaystackController::class, 'initialize'])->name('initialize');
+    Route::get('/callback', [App\Http\Controllers\PaystackController::class, 'callback'])->name('callback');
+    Route::post('/verify', [App\Http\Controllers\PaystackController::class, 'verify'])->name('verify');
+    Route::post('/mobile-money/charge', [App\Http\Controllers\PaystackController::class, 'mobileMoneyCharge'])->name('mobile_money.charge');
+});
 
+Route::post('/paystack/webhook', [App\Http\Controllers\Webhooks\PaystackWebhookController::class, '__invoke'])
+    ->middleware('throttle:30,1')
+    ->name('paystack.webhook');
+
+
+// KoraPay routes (commented out - using Paystack instead)
+/*
 Route::post('/korapay/initialize', [KorapayController::class, 'initialize'])->name('korapay.initialize');
 Route::post('/korapay/webhook', [KorapayController::class, 'webhook'])->name('korapay.webhook');
 Route::get('/korapay/verify/{reference}', [KorapayController::class, 'verify'])->name('korapay.verify');
+*/
 
 // Currency & Language routes (legacy - redirect to new API)
 Route::post('/currency', [UserPreferenceController::class, 'updateCurrency'])->name('currency.set');

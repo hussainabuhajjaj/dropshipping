@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Storefront\Product\ProductIndexRequest;
 use App\Http\Resources\Storefront\ProductDetailResource;
 use App\Http\Resources\Storefront\ProductResource;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Collection;
 
 class ProductController extends Controller
 {
@@ -28,9 +30,18 @@ class ProductController extends Controller
             ->withCount('reviews');
 
         if ($category) {
-            $productQuery->whereHas('category', function ($builder) use ($category) {
-                $builder->where('name', $category)->orWhere('slug', $category);
-            });
+            $resolvedCategory = Category::query()
+                ->where('slug', $category)
+                ->orWhere('name', $category)
+                ->first();
+
+            if ($resolvedCategory) {
+                $productQuery->whereIn('category_id', $this->collectDescendantCategoryIds($resolvedCategory));
+            } else {
+                $productQuery->whereHas('category', function ($builder) use ($category) {
+                    $builder->where('name', $category)->orWhere('slug', $category);
+                });
+            }
         }
 
         $minValue = $minPrice !== null && is_numeric($minPrice) ? (float) $minPrice : null;
@@ -81,5 +92,25 @@ class ProductController extends Controller
         return response()->json([
             'product' => new ProductDetailResource($product),
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int,int>
+     */
+    private function collectDescendantCategoryIds(Category $root): Collection
+    {
+        $ids = collect([$root->id]);
+        $queue = collect([$root->id]);
+
+        while ($queue->isNotEmpty()) {
+            $children = Category::query()
+                ->whereIn('parent_id', $queue->all())
+                ->pluck('id');
+
+            $queue = $children;
+            $ids = $ids->merge($children);
+        }
+
+        return $ids->unique()->values();
     }
 }

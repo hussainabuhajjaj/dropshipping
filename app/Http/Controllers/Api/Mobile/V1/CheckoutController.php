@@ -167,12 +167,38 @@ class CheckoutController extends ApiController
             ]);
 
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
+            $currencyConverter = app(\App\Services\Currency\CurrencyConversionService::class);
+            $userCurrency = app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
+
             foreach ($cartItems as $line) {
                 $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
                 $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
                     ->where('product_variant_id', $line['variant_id'])
                     ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
                     ->first();
+
+                // Convert prices from USD to user's currency (XOF)
+                $unitPriceInUsd = $line->getSinglePrice();
+                try {
+                    $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                    if ($unitPriceInUserCurrency === null) {
+                        \Log::warning('Currency conversion returned null in mobile checkout', [
+                            'usd_price' => $unitPriceInUsd,
+                            'target_currency' => $userCurrency,
+                            'order_id' => $order->id,
+                        ]);
+                        $unitPriceInUserCurrency = $unitPriceInUsd;
+                    }
+                } catch (\Throwable $e) {
+                    \Log::error('Currency conversion failed in mobile checkout', [
+                        'usd_price' => $unitPriceInUsd,
+                        'target_currency' => $userCurrency,
+                        'error' => $e->getMessage(),
+                        'order_id' => $order->id,
+                    ]);
+                    $unitPriceInUserCurrency = $unitPriceInUsd;
+                }
+                $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -181,8 +207,8 @@ class CheckoutController extends ApiController
                     'supplier_product_id' => $supplierProduct?->id,
                     'fulfillment_status' => 'pending',
                     'quantity' => $line['quantity'],
-                    'unit_price' => $line->getSinglePrice(),
-                    'total' => $line->getSinglePrice() * $line['quantity'],
+                    'unit_price' => $unitPriceInUserCurrency,
+                    'total' => $totalInUserCurrency,
                     'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
                     'snapshot' => [
                         'name' => $line?->product['name'],

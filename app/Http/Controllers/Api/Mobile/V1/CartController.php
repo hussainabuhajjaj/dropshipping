@@ -250,6 +250,7 @@ class CartController extends ApiController
     {
         $cartItems = $cart->items;
         $summary = $cart->getSummery();
+        $customer = $request->user();
 
         return [
             'lines' => $cartItems,
@@ -263,6 +264,12 @@ class CartController extends ApiController
             'discount_label' => $summary['discount_label'] ?? null,
             'applied_promotions' => $summary['appliedPromotions'] ?? [],
             'minimum_cart_requirement' => $summary['minimum_cart_requirement'] ?? null,
+            'customer' => [
+                'id' => $customer?->id,
+                'name' => $customer?->name,
+                'email' => $customer?->email,
+                'phone' => $customer?->phone,
+            ],
         ];
     }
 

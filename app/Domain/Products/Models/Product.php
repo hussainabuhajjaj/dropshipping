@@ -43,6 +43,7 @@ class Product extends Model
         'cj_video_urls',
         'stock_on_hand',
         'cj_total_stock',
+        'code',
         'slug',
         'name',
         'category_id',
@@ -338,5 +339,18 @@ SQL;
                 $product->slug = $candidate;
             }
         });
+    }
+
+    /**
+     * Generate a unique product code (SKU).
+     * Format: PRD-{random 8 alphanumeric characters}
+     */
+    public static function generateProductCode(): string
+    {
+        do {
+            $code = 'P' . strtoupper(Str::random(8));
+        } while (self::where('code', $code)->exists());
+
+        return $code;
     }
 }

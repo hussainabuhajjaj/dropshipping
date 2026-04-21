@@ -33,6 +33,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/cj',
             'webhooks/cj/order-status',
             'webhooks/payments/*',
+            'webhooks/paystack',
+            'paystack/webhook',
         ]);
 
         $middleware->web(append: [

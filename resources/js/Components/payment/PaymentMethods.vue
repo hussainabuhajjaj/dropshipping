@@ -8,33 +8,41 @@
                 v-for="method in availableMethods"
                 :key="method.id"
                 @click="selectedMethod = method.id"
-                class="flex items-center p-4 border rounded-xl cursor-pointer transition hover:border-[#f59e0b]"
+                class="border rounded-xl cursor-pointer transition hover:border-[#f59e0b]"
                 :class="{'border-[#f59e0b] bg-amber-50/50': selectedMethod === method.id}"
             >
-                <input
-                    type="radio"
-                    :value="method.id"
-                    v-model="selectedMethod"
-                    class="w-4 h-4 text-[#f59e0b]"
+                <div class="flex items-center p-4">
+                    <input
+                        type="radio"
+                        :value="method.id"
+                        v-model="selectedMethod"
+                        class="w-4 h-4 text-[#f59e0b]"
+                    >
+                    <div class="ml-3 flex items-center gap-3 flex-1">
+                        <component :is="method.icon" v-if="method.icon" class="h-6 w-6"/>
+
+                        <span class="font-medium">{{ method.name }}</span>
+
+                        <span class="ml-auto text-xs text-slate-500">
+                            {{ method.description }}
+                        </span>
+                    </div>
+                </div>
+
+                <div
+                    v-if="method.id === 'mobile_money' && selectedMethod === 'mobile_money'"
+                    class="border-t border-amber-200 px-4 pb-4 pt-3"
+                    @click.stop
                 >
-                <div class="ml-3 flex items-center gap-3 flex-1">
-                    <!-- Method Icon -->
-                    <component :is="method.icon" v-if="method.icon" class="h-6 w-6"/>
-
-                    <span class="font-medium">{{ method.name }}</span>
-
-                    <!-- Available Badge -->
-                    <span class="ml-auto text-xs text-slate-500">
-                        {{ method.description }}
-                    </span>
+                    <slot name="mobile-money-details" />
                 </div>
             </div>
         </div>
 
-        <!-- Pay with Korapay Button -->
+        <!-- Pay with Paystack Button -->
         <button
             @click="processPayment"
-            class="w-full bg-[#f59e0b] text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-[#d97706] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full bg-[#00C3F2] text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-[#00A8D4] transition disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!selectedMethod || is_processing"
         >
             <span v-if="is_processing" class="flex items-center justify-center gap-2">
@@ -46,7 +54,7 @@
                 </svg>
                 {{ t('Processing...') }}
             </span>
-            <span v-else>{{ t('Pay Now') }} • {{ formattedAmount }}</span>
+            <span v-else>{{ t('Pay Now with Paystack') }} • {{ formattedAmount }}</span>
         </button>
 
         <!-- Secure Payment Notice -->
@@ -55,7 +63,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 15v2m-6 4h12a3 3 0 003-3v-6a3 3 0 00-3-3H6a3 3 0 00-3 3v6a3 3 0 003 3zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            {{ t('Secure payment with mobile money checkout.') }}
+            {{ t('Secure payment powered by Paystack.') }}
         </p>
 
         <!-- Payment Icons -->
@@ -90,36 +98,73 @@ const props = defineProps({
     },
     currency: {
         type: String,
-        default: 'USD'
+        default: 'XOF'
     },
     is_processing: {
         type: Boolean,
         default: false,
-    }
+    },
+    initialMethod: {
+        type: String,
+        default: 'card',
+    },
 })
 
-// Available payment methods (mapped to Korapay channels)
-const availableMethods = ref([
-    {
-        id: 'mobile_money',
-        name: 'Mobile Money',
-        channel: 'mobile_money',
-        description: 'Wave, Orange Money',
-        icon: null
+const emit = defineEmits(['method-change', 'pay-cards'])
+const paystackConfig = window.paystackConfig || {}
+const mobileMoneyProviders = computed(() => paystackConfig.paystackMobileMoney?.[String(props.currency || '').toUpperCase()] || [])
+
+// Available payment methods (mapped to Paystack channels)
+const availableMethods = computed(() => {
+    const methods = [];
+
+    if (paystackConfig.paystackEnabled) {
+        if (paystackConfig.paystackMobileMoneyEnabled && mobileMoneyProviders.value.length > 0) {
+            methods.push({
+                id: 'mobile_money',
+                name: 'Paystack Mobile Money',
+                channel: 'mobile_money',
+                description: mobileMoneyProviders.value.map((provider) =>
+                    provider.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+                ).join(', '),
+                icon: null
+            });
+        }
+
+        methods.push({
+            id: 'card',
+            name: 'Paystack Card',
+            channel: 'card',
+            description: 'Visa, Mastercard',
+            icon: null
+        });
     }
-])
+
+    return methods;
+})
 
 const is_processing = computed(() => props.is_processing);
-const emit = defineEmits([ 'method-change', 'pay-cards'])
 
 // State
-const selectedMethod = ref('mobile_money')
+const selectedMethod = ref(props.initialMethod)
 
 const processPayment = () => {
-    emit('pay-cards' , selectedMethod.value)
+    emit('pay-cards', selectedMethod.value)
 }
 
 watch(selectedMethod, (newMethod) => {
     emit('method-change', newMethod)
 })
+
+watch(() => props.initialMethod, (method) => {
+    if (method && method !== selectedMethod.value) {
+        selectedMethod.value = method
+    }
+})
+
+watch(availableMethods, (methods) => {
+    if (!methods.find((method) => method.id === selectedMethod.value)) {
+        selectedMethod.value = methods[0]?.id || ''
+    }
+}, { immediate: true })
 </script>

@@ -26,6 +26,7 @@ class Category extends Model
         'description',
         'hero_title',
         'hero_subtitle',
+        'image',
         'hero_image',
         'hero_cta_label',
         'hero_cta_link',

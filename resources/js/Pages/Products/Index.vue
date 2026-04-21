@@ -67,8 +67,8 @@
               <label class="text-xs font-semibold text-slate-600">{{ t('Category') }}</label>
               <select v-model="form.category" class="input-base">
                 <option value="">{{ t('All categories') }}</option>
-                <option v-for="category in categories" :key="category.slug || category.name" :value="category.slug || category.name">
-                  {{ category.name || category }}
+                <option v-for="category in categoryOptions" :key="category.slug || category.name" :value="category.slug || category.name">
+                  {{ category.label }}
                 </option>
               </select>
             </div>
@@ -165,8 +165,8 @@
             <label class="text-xs font-semibold text-slate-600">{{ t('Category') }}</label>
             <select v-model="form.category" class="input-base">
               <option value="">{{ t('All categories') }}</option>
-                <option v-for="category in categories" :key="category.slug || category.name" :value="category.slug || category.name">
-                  {{ category.name || category }}
+                <option v-for="category in categoryOptions" :key="category.slug || category.name" :value="category.slug || category.name">
+                  {{ category.label }}
                 </option>
             </select>
           </div>
@@ -290,13 +290,32 @@ const sortLabels = {
   featured: t('Featured'),
 }
 
+const flattenCategoryOptions = (nodes, depth = 0) => {
+  if (!Array.isArray(nodes)) return []
+
+  return nodes.flatMap((category) => {
+    const name = category?.name || category?.slug || ''
+    const label = depth > 0 ? `${'— '.repeat(depth)}${name}` : name
+
+    return [
+      {
+        ...category,
+        label,
+      },
+      ...flattenCategoryOptions(category?.children ?? [], depth + 1),
+    ]
+  })
+}
+
+const categoryOptions = computed(() => flattenCategoryOptions(props.categories))
+
 const activeFilters = computed(() => {
   const items = []
   if (form.q) {
     items.push({ key: 'q', label: t('Search: :value', { value: form.q }) })
   }
   if (form.category) {
-    const match = props.categories.find((category) => (category.slug || category.name || category) === form.category)
+    const match = categoryOptions.value.find((category) => (category.slug || category.name || category) === form.category)
     const label = match?.name ?? form.category
     items.push({ key: 'category', label: t('Category: :value', { value: label }) })
   }

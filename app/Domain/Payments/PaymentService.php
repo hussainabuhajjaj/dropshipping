@@ -10,6 +10,7 @@ use App\Domain\Payments\Models\PaymentWebhook;
 use App\Domain\Observability\EventLogger;
 use App\Events\Orders\OrderPaid;
 use App\Infrastructure\Payments\Clients\KorapayClient;
+use App\Infrastructure\Payments\Paystack\PaystackService;
 use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -229,12 +230,18 @@ class PaymentService
 
     private function assertPaymentTotalsMatch(Payment $payment, float|string|null $amount, ?string $currency): void
     {
-        $expectedAmount = (float) ($payment->amount ?? 0);
+        $expectedAmount = (int) ($payment->amount ?? 0);
         $expectedCurrency = (string) ($payment->currency ?? '');
 
         if ($expectedAmount <= 0 || $expectedCurrency === '') {
             // If payment is missing charged totals, fall back to order-level checks elsewhere.
             return;
+        }
+
+        $paystackAmount = (int) $amount;
+
+        if ((int) $paystackAmount !== (int) $payment->amount) {
+            throw new InvalidArgumentException('Payment amount mismatch');
         }
 
         $this->assertNumericTotalsMatch($expectedAmount, $expectedCurrency, $amount, $currency);
@@ -443,5 +450,237 @@ class PaymentService
     private function buildKorapayReference(Order $order): string
     {
         return 'krp_' . strtolower($order->number) . '_' . strtolower(Str::random(6));
+    }
+
+    public function initializePaystack(
+        Order $order,
+        Payment $payment,
+        array $customer = [],
+        string $method = 'card',
+        ?string $returnUrl = null
+    ): array
+    {
+        $paystackService = app(PaystackService::class);
+
+        if (! $payment->provider_reference) {
+            $newReference = $this->buildPaystackReference($order);
+            Log::info('Generating new Paystack reference', [
+                'order_number' => $order->number,
+                'new_reference' => $newReference,
+            ]);
+            $payment->update(['provider_reference' => $newReference]);
+        } else {
+            Log::info('Using existing Paystack reference', [
+                'order_number' => $order->number,
+                'existing_reference' => $payment->provider_reference,
+            ]);
+        }
+
+        // Use ONLY the payment amount as provided from frontend
+        $amount = (int) $payment->amount;
+        $currency = (string) ($payment->currency ?? 'XOF');
+
+        // Add mandatory debug logging
+        Log::info('PaymentService initializePaystack', [
+            'frontend_amount' => $amount,
+            'payment_amount' => $payment->amount,
+            'order_amount' => $order->grand_total,
+            'order_currency' => $order->currency,
+            'payment_currency' => $payment->currency,
+            'payment_method' => $method,
+            'customer' => $customer,
+        ]);
+
+        // Persist provider-facing charged totals for reconciliation and webhook validation
+        $existingMeta = is_array($payment->meta) ? $payment->meta : [];
+        $payment->forceFill([
+            'amount' => $amount,
+            'currency' => $currency,
+            'meta' => array_merge($existingMeta, [
+                'order_amount' => (float) ($order->grand_total ?? 0),
+                'order_currency' => (string) ($order->currency ?? config('currency.base', 'USD')),
+                'charged_amount' => $amount,
+                'charged_currency' => $currency,
+            ]),
+        ])->save();
+
+        try {
+            Log::info('Calling Paystack service initialize', [
+                'amount' => $amount,
+                'currency' => $currency,
+                'payment_reference' => $payment->provider_reference,
+            ]);
+
+            $response = $paystackService->initialize($order, $payment, $customer, $method);
+            $data = is_array($response->data) ? $response->data : [];
+
+            Log::info('Paystack service initialize response', [
+                'response_status' => $response->status,
+                'response_data_keys' => array_keys($data),
+            ]);
+
+            $payment->update([
+                'meta' => array_merge($payment->meta ?? [], ['paystack_init' => $data]),
+            ]);
+
+            return [
+                'reference' => $data['reference'] ?? $payment->provider_reference,
+                'authorization_url' => $data['authorization_url'] ?? null,
+                'checkout_url' => $data['authorization_url'] ?? null,
+                'access_code' => $data['access_code'] ?? null,
+                'status' => $data['status'] ?? 'pending',
+                'display_text' => $data['display_text'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Paystack service initialize failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'amount' => $amount,
+                'currency' => $currency,
+                'payment_reference' => $payment->provider_reference,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    public function verifyPaystack(string $reference): Payment
+    {
+        $paystackService = app(PaystackService::class);
+        $response = $paystackService->verify($reference);
+        $data = is_array($response->data) ? $response->data : [];
+
+        $existingForRef = Payment::query()
+            ->where('provider', 'paystack')
+            ->where('provider_reference', $reference)
+            ->latest('id')
+            ->first();
+
+        if ($existingForRef) {
+            $existingMeta = is_array($existingForRef->meta) ? $existingForRef->meta : [];
+            $existingForRef->update([
+                'meta' => array_merge($existingMeta, [
+                    'paystack_verify' => $data,
+                    'paystack_verify_raw' => $response->raw ?? null,
+                    'paystack_verify_at' => now()->toISOString(),
+                ]),
+            ]);
+        }
+
+        $payload = $this->normalizePaystackPayload($data, $reference);
+        $eventId = $payload['event_id'] ?? ('verify:' . $reference);
+
+        if (empty($payload['order_number'])) {
+            $payment = Payment::query()
+                ->where('provider', 'paystack')
+                ->where('provider_reference', $reference)
+                ->latest('id')
+                ->first();
+
+            if ($payment) {
+                $existingMeta = is_array($payment->meta) ? $payment->meta : [];
+                $payment->update([
+                    'meta' => array_merge($existingMeta, ['paystack_verify' => $data]),
+                ]);
+
+                $this->applyStatusFromPayload($payment, $payload);
+
+                return $payment->refresh();
+            }
+        }
+
+        return $this->handleWebhook('paystack', $eventId, $payload);
+    }
+
+    private function normalizePaystackPayload(array $data, string $reference): array
+    {
+        $currency = (string) ($data['currency'] ?? '');
+        $amount = isset($data['amount'])
+            ? $this->normalizePaystackAmount((float) $data['amount'], $currency)
+            : null;
+
+        return [
+            'event_id' => $data['id'] ?? $data['event_id'] ?? $reference,
+            'provider_reference' => $data['reference'] ?? $reference,
+            'transaction_id' => $data['id'] ?? null,
+            'order_number' => $data['metadata']['order_number'] ?? null,
+            'amount' => $amount,
+            'currency' => $currency !== '' ? $currency : null,
+            'status' => $data['status'] ?? null,
+            'payment_method' => $data['channel'] ?? $data['metadata']['payment_method'] ?? null,
+            'paystack' => $data,
+        ];
+    }
+
+    private function buildPaystackReference(Order $order): string
+    {
+        return 'pstk_' . strtolower($order->number) . '_' . strtolower(Str::random(8)) . '_' . time();
+    }
+
+    /**
+     * Resolve the exact amount/currency we should charge Paystack for this order + method.
+     *
+     * @return array{amount: float, currency: string, fx_rate_used: float|null}
+     */
+    private function resolveChargeForPaystack(Order $order, string $method): array
+    {
+        $baseCurrency = (string) ($order->currency ?? config('currency.base', 'USD'));
+        $baseAmount = (float) ($order->grand_total ?? 0);
+
+        // For card payments, use the order currency directly
+        if ($method !== 'mobile_money') {
+            return [
+                'amount' => $baseAmount,
+                'currency' => $baseCurrency,
+                'fx_rate_used' => null,
+            ];
+        }
+
+        // For mobile money, convert to supported local currencies
+        $chargeCurrency = $this->getPaystackMobileMoneyCurrency($baseCurrency);
+        $converter = app(CurrencyConversionService::class);
+
+        if ($chargeCurrency !== $baseCurrency) {
+            // Convert to the mobile money currency
+            $chargeAmount = (float) $converter->convertAmount($baseAmount, $baseCurrency, $chargeCurrency);
+            $fxRate = null;
+            try {
+                $fxRate = $converter->rate($converter->normalize($baseCurrency), $converter->normalize($chargeCurrency));
+            } catch (\Throwable) {
+                // Leave as null; conversion already validated rate existence.
+            }
+
+            return [
+                'amount' => $chargeAmount,
+                'currency' => $chargeCurrency,
+                'fx_rate_used' => $fxRate,
+            ];
+        }
+
+        return [
+            'amount' => $baseAmount,
+            'currency' => $baseCurrency,
+            'fx_rate_used' => null,
+        ];
+    }
+
+    /**
+     * Get the appropriate mobile money currency for Paystack based on the base currency
+     */
+    private function getPaystackMobileMoneyCurrency(string $baseCurrency): string
+    {
+        return match (strtoupper($baseCurrency)) {
+            'GHS' => 'GHS', // Ghana
+            'KES' => 'KES', // Kenya
+            'XOF' => 'XOF', // Cote d'Ivoire
+            default => strtoupper($baseCurrency),
+        };
+    }
+
+    private function normalizePaystackAmount(float $amount, string $currency): float
+    {
+        return $amount / 100;
     }
 }

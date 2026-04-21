@@ -105,14 +105,14 @@ class CategoryController extends Controller
                     ->map(fn (Category $child) => [
                         'id' => $child->id,
                         'name' => $child->translatedValue('name', $locale),
-                        'slug' => $child->slug,
-                        'image' => $child->hero_image
-                            ? (str_starts_with($child->hero_image, 'http://') || str_starts_with($child->hero_image, 'https://')
-                                ? $child->hero_image
-                                : url(Storage::url($child->hero_image)))
-                            : null,
-                        'product_count' => (int) ($child->products_count ?? 0),
-                    ])
+                'slug' => $child->slug,
+                'image' => ($child->image ?? $child->hero_image)
+                    ? (str_starts_with((string) ($child->image ?? $child->hero_image), 'http://') || str_starts_with((string) ($child->image ?? $child->hero_image), 'https://')
+                        ? ($child->image ?? $child->hero_image)
+                        : url(Storage::url($child->image ?? $child->hero_image)))
+                    : null,
+                'product_count' => (int) ($child->products_count ?? 0),
+            ])
                     ->values()
                     ->all(),
             ],
@@ -121,10 +121,10 @@ class CategoryController extends Controller
                     'id' => $child->id,
                     'name' => $child->translatedValue('name', $locale),
                     'slug' => $child->slug,
-                    'image' => $child->hero_image
-                        ? (str_starts_with($child->hero_image, 'http://') || str_starts_with($child->hero_image, 'https://')
-                            ? $child->hero_image
-                            : url(Storage::url($child->hero_image)))
+                    'image' => ($child->image ?? $child->hero_image)
+                        ? (str_starts_with((string) ($child->image ?? $child->hero_image), 'http://') || str_starts_with((string) ($child->image ?? $child->hero_image), 'https://')
+                            ? ($child->image ?? $child->hero_image)
+                            : url(Storage::url($child->image ?? $child->hero_image)))
                         : null,
                     'product_count' => (int) ($child->products_count ?? 0),
                 ])

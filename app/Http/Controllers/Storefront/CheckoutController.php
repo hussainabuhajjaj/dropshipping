@@ -28,7 +28,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
-use App\Infrastructure\Payments\Paystack\PaystackService;
+use App\Domain\Payments\PaymentService;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
@@ -209,6 +209,7 @@ class CheckoutController extends Controller
             'country' => ['required', 'string', 'max:2'],
             'delivery_notes' => ['nullable', 'string', 'max:500'],
             'payment_method' => ['required', 'string', 'in:card,mobile_money,bank_transfer'],
+            'mobile_money_provider' => ['nullable', 'string', 'max:50'],
             'accept_terms' => ['accepted'],
         ]);
 
@@ -324,7 +325,26 @@ class CheckoutController extends Controller
 
                 // Convert prices from USD to user's currency (XOF)
                 $unitPriceInUsd = $line->getSinglePrice();
-                $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                try {
+                    $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                    // If conversion returns null, fall back to original price
+                    if ($unitPriceInUserCurrency === null) {
+                        \Log::warning('Currency conversion returned null during checkout', [
+                            'usd_price' => $unitPriceInUsd,
+                            'target_currency' => $userCurrency,
+                            'order_id' => $order->id,
+                        ]);
+                        $unitPriceInUserCurrency = $unitPriceInUsd;
+                    }
+                } catch (\Throwable $e) {
+                    \Log::error('Currency conversion failed during checkout', [
+                        'usd_price' => $unitPriceInUsd,
+                        'target_currency' => $userCurrency,
+                        'error' => $e->getMessage(),
+                        'order_id' => $order->id,
+                    ]);
+                    $unitPriceInUserCurrency = $unitPriceInUsd;
+                }
                 $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
 
                 OrderItem::create([
@@ -385,6 +405,7 @@ class CheckoutController extends Controller
                 'meta' => [
                     'type' => 'checkout_pending',
                     'payment_method' => $validatedData['payment_method'],
+                    'mobile_money_provider' => $validatedData['mobile_money_provider'] ?? null,
                     'coupon_code' => $coupon['code'] ?? null,
                 ],
             ]);
@@ -396,18 +417,27 @@ class CheckoutController extends Controller
 
         // Handle payment based on method
         if (in_array($validatedData['payment_method'], ['card', 'mobile_money'], true)) {
-            $reference = 'azr_' . strtolower($order->number) . '_' . Str::lower(Str::random(6));
-            $payment->update(['provider_reference' => $reference]);
-
             try {
-                $init = app(PaystackService::class)->initialize(
+                $paymentService = app(PaymentService::class);
+                $init = $paymentService->initializePaystack(
                     $order,
                     $payment,
-                    ['email' => $validatedData['email']],
+                    [
+                        'email' => $validatedData['email'],
+                        'name' => trim($validatedData['first_name'] . ' ' . ($validatedData['last_name'] ?? '')),
+                        'phone' => $validatedData['phone'],
+                        'mobile_provider' => $validatedData['mobile_money_provider'] ?? null,
+                    ],
                     $validatedData['payment_method']
                 );
 
-                $authorizationUrl = $init->data['authorization_url'] ?? null;
+                $authorizationUrl = $init['authorization_url'] ?? $init['checkout_url'] ?? null;
+
+                if ($validatedData['payment_method'] === 'mobile_money' && ! $authorizationUrl) {
+                    return redirect()
+                        ->route('orders.confirmation', ['number' => $order->number])
+                        ->with('status', $init['display_text'] ?? 'Authorize the mobile money charge on your phone to complete payment.');
+                }
 
                 if (!$authorizationUrl) {
                     return back()->withErrors([
@@ -453,6 +483,9 @@ class CheckoutController extends Controller
                 'status' => $order->status,
                 'payment_status' => $order->payment_status,
                 'currency' => $order->currency,
+                'subtotal' => $order->subtotal,
+                'shipping_total' => $order->shipping_total,
+                'tax_total' => $order->tax_total,
                 'discount_total' => $order->discount_total,
                 'grand_total' => $order->grand_total,
                 'items' => $order->orderItems->map(fn($item) => [
@@ -467,6 +500,14 @@ class CheckoutController extends Controller
                     'line1' => $order->shippingAddress?->line1,
                     'city' => $order->shippingAddress?->city,
                     'country' => $order->shippingAddress?->country,
+                    'phone' => $order->shippingAddress?->phone,
+                ],
+                'billingAddress' => [
+                    'name' => $order->billingAddress?->name,
+                    'line1' => $order->billingAddress?->line1,
+                    'city' => $order->billingAddress?->city,
+                    'country' => $order->billingAddress?->country,
+                    'phone' => $order->billingAddress?->phone,
                 ],
             ],
         ]);

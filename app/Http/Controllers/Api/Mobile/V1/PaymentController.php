@@ -43,7 +43,7 @@ class PaymentController extends ApiController
         $customer = $request->user();
 
         if (! empty($validated['reference'])) {
-            $payment = $paymentService->verifyKorapay((string) $validated['reference']);
+            $payment = $paymentService->verifyPaystack((string) $validated['reference']);
         } else {
             $order = Order::query()
                 ->where('number', (string) ($validated['order_number'] ?? ''))
@@ -55,7 +55,7 @@ class PaymentController extends ApiController
 
             $payment = Payment::query()
                 ->where('order_id', $order->id)
-                ->where('provider', 'korapay')
+                ->where('provider', 'paystack')
                 ->latest('id')
                 ->first();
 
@@ -105,6 +105,7 @@ class PaymentController extends ApiController
             'customer.email' => 'nullable|email',
             'customer.name' => 'nullable|string|max:255',
             'customer.phone' => 'nullable|string|max:20',
+            'customer.mobile_provider' => 'nullable|string|max:50',
             'return_url' => 'nullable|string|max:2048',
         ]);
 
@@ -131,14 +132,14 @@ class PaymentController extends ApiController
 
         $payment = Payment::query()
             ->where('order_id', $order->id)
-            ->where('provider', 'korapay')
+            ->where('provider', 'paystack')
             ->latest('id')
             ->first();
 
         if (! $payment) {
             $payment = Payment::query()->create([
                 'order_id' => $order->id,
-                'provider' => 'korapay',
+                'provider' => 'paystack',
                 'status' => 'pending',
                 'provider_reference' => null,
                 'amount' => $order->grand_total,
@@ -153,19 +154,20 @@ class PaymentController extends ApiController
         }
 
         try {
-            $checkout = $paymentService->initializeKorapay(
+            $checkout = $paymentService->initializePaystack(
                 $order,
                 $payment,
                 [
                     'email' => $data['customer']['email'] ?? $order->email,
                     'name' => $data['customer']['name'] ?? $customer?->name ?? 'Customer',
                     'phone' => $data['customer']['phone'] ?? null,
+                    'mobile_provider' => $data['customer']['mobile_provider'] ?? null,
                 ],
                 $method,
                 $data['return_url'] ?? null
             );
 
-            if (! isset($checkout['checkout_url'])) {
+            if (! isset($checkout['checkout_url']) && $method !== 'mobile_money') {
                 return $this->error('Payment provider did not return valid response', 500);
             }
 
@@ -173,12 +175,14 @@ class PaymentController extends ApiController
 
             return $this->success([
                 'reference' => $checkout['reference'],
-                'redirect' => $checkout['checkout_url'],
+                'redirect' => $checkout['checkout_url'] ?? null,
                 'checkout_url' => $checkout['checkout_url'],
                 'amount' => $order->grand_total,
                 'currency' => $order->currency,
                 'order_number' => $order->number,
                 'method' => $method,
+                'status' => $checkout['status'] ?? 'pending',
+                'display_text' => $checkout['display_text'] ?? null,
             ]);
         } catch (\Exception $e) {
             \Log::error('Mobile payment initialization failed', [
@@ -194,84 +198,76 @@ class PaymentController extends ApiController
     /**
      * Payment redirect handler (matching storefront exactly)
      */
-    public function redirect(
-        Request $request,
-        PaymentResultService $paymentResultService,
-        PaymentService $paymentService
-    ): JsonResponse
-    {
-        $reference = (string) ($request->input('reference')
-            ?? $request->input('payment_reference')
-            ?? $request->input('transaction_reference')
-            ?? $request->query('trxref')
-            ?? '');
+    public function redirect(Request $request, $type, $id = null)
+{
+    $reference = (string) (
+        $request->input('reference')
+        ?? $request->query('reference')
+        ?? $request->query('trxref')
+        ?? ''
+    );
 
-        if (!$reference) {
-            return $this->error('Missing payment reference', 404);
-        }
-
-        try {
-            // Track redirects so we can distinguish "paid via webhook/verify but never redirected back".
-            $existing = Payment::query()
-                ->where('provider', 'korapay')
-                ->where('provider_reference', $reference)
-                ->latest('id')
-                ->first();
-
-            if ($existing) {
-                $meta = is_array($existing->meta) ? $existing->meta : [];
-                $meta['redirect_hit_at'] = now()->toISOString();
-                $meta['redirect_payload'] = [
-                    'query' => $request->query(),
-                    'input' => $request->all(),
-                    'path' => $request->path(),
-                ];
-                $existing->forceFill(['meta' => $meta])->save();
-            }
-
-            $korapayService = app(KorapayService::class);
-            $verifyResult = $korapayService->checkStatus($reference);
-
-            if (!isset($verifyResult) || !$verifyResult['status']) {
-                return $this->error('Payment verification failed', 400);
-            }
-
-            $paymentResult = strtolower((string) ($verifyResult['data']['status'] ?? ''));
-
-            if ($paymentResult === 'success') {
-                $existingPayment = $paymentService->verifyKorapay($reference)->load('order');
-
-                if ($existingPayment?->order) {
-                    return $this->success([
-                        'status' => 'success',
-                        'redirect' => '/orders/confirmation/' . $existingPayment->order->number,
-                        'order_number' => $existingPayment->order->number,
-                        'payment_status' => $existingPayment->status,
-                        'order_status' => $existingPayment->order->status,
-                        'message' => 'Payment confirmed successfully',
-                    ]);
-                }
-
-                return $this->success([
-                    'status' => 'success',
-                    'message' => 'Payment processed successfully',
-                ]);
-            } else {
-                return $this->success([
-                    'status' => 'failed',
-                    'message' => 'Payment failed or cancelled',
-                ]);
-            }
-        } catch (\Exception $e) {
-            \Log::error('Mobile payment redirect failed', [
-                'reference' => $reference,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->error('Payment redirect failed: ' . $e->getMessage(), 500);
-        }
+    if (! $reference) {
+        abort(404);
     }
 
+    $payment = Payment::query()
+        ->where('provider', 'paystack')
+        ->where('provider_reference', $reference)
+        ->with('order')
+        ->latest('id')
+        ->first();
+
+    if (! $payment) {
+        abort(404);
+    }
+
+    // Track redirect hit
+    $meta = is_array($payment->meta) ? $payment->meta : [];
+    $meta['redirect_hit_at'] = now()->toISOString();
+    $payment->update(['meta' => $meta]);
+
+    // Already paid
+    if ($payment->status === 'paid' && $payment->order) {
+        return redirect()->route('orders.confirmation', [
+            'number' => $payment->order->number
+        ]);
+    }
+
+    try {
+        $payment = $this->paymentService
+            ->verifyPaystack($reference)
+            ->load('order');
+
+    } catch (\Throwable $e) {
+        Log::error('Redirect verification failed', [
+            'reference' => $reference,
+            'error' => $e->getMessage(),
+        ]);
+
+        return redirect()
+            ->route('pay.index', ['type' => 'cart'])
+            ->with('error', 'Verification failed.');
+    }
+
+    if ($payment->status === 'paid' && $payment->order) {
+
+        $customer = auth('customer')->user();
+
+        if ($customer && (int)$payment->order->customer_id === (int)$customer->id) {
+            $cart = Cart::where('user_id', $customer->id)->first();
+            $cart?->emptyCart();
+        }
+
+        return redirect()->route('orders.confirmation', [
+            'number' => $payment->order->number
+        ]);
+    }
+
+    return redirect()
+        ->route('pay.index', ['type' => 'cart'])
+        ->with('error', 'Payment not completed.');
+}
     /**
      * Unified payment verification for mobile
      */
@@ -285,7 +281,7 @@ class PaymentController extends ApiController
         $validator = Validator::make($request->all(), [
             'reference' => 'nullable|string|max:255',
             'order_number' => 'nullable|string|max:64',
-            'provider' => 'nullable|in:korapay,stripe,paypal',
+            'provider' => 'nullable|in:korapay,paystack,stripe,paypal',
         ]);
 
         if ($validator->fails()) {
@@ -297,7 +293,7 @@ class PaymentController extends ApiController
 
         if (!empty($data['reference'])) {
             $reference = (string) $data['reference'];
-            $provider = (string) ($data['provider'] ?? 'korapay');
+            $provider = (string) ($data['provider'] ?? 'paystack');
 
             $existingPayment = Payment::query()
                 ->where('provider', $provider)
@@ -311,6 +307,7 @@ class PaymentController extends ApiController
                 try {
                     $payment = match ($provider) {
                         'korapay' => $paymentService->verifyKorapay($reference),
+                        'paystack' => $paymentService->verifyPaystack($reference),
                         default => throw new \InvalidArgumentException("Payment provider '{$provider}' is not supported"),
                     };
                 } catch (\RuntimeException $exception) {

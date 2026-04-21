@@ -59,4 +59,14 @@ class Payment extends Model
     {
         return $this->hasMany(PaymentEvent::class);
     }
+
+    public function shippingAddress(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Common\Models\Address::class, 'shipping_address_id');
+    }
+
+    public function billingAddress(): BelongsTo
+    {
+        return $this->belongsTo(\App\Domain\Common\Models\Address::class, 'billing_address_id');
+    }
 }

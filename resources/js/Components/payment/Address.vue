@@ -194,9 +194,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs text-slate-600 mb-1">{{ t('Phone') }}</label>
+                        <label class="block text-xs text-slate-600 mb-1">{{ t('Phone') }} *</label>
                         <input
                             v-model="form.phone"
+                            required
                             :placeholder="t('Phone')"
                             class="input-base w-full"
                         />
@@ -345,7 +346,7 @@ import {useTranslations} from "@/i18n.js";
 
 const {t} = useTranslations()
 
-const emit = defineEmits(['change-address'])
+const emit = defineEmits(['change-address', 'address-selected'])
 
 const props = defineProps({
     user: {type: Object, default: null},
@@ -354,8 +355,9 @@ const props = defineProps({
 })
 
 
-const selectedAddressId = ref(props.defaultAddress || '')
+const selectedAddressId = ref(props.defaultAddress?.id || '')
 const showNewAddressForm = ref(false)
+const selectedAddress = ref(props.defaultAddress ?? null)
 
 
 const form = ref({
@@ -377,7 +379,8 @@ const isAddressValid = computed(() => {
     return form.value.first_name &&
         form.value.line1 &&
         form.value.city &&
-        form.value.country
+        form.value.country &&
+        form.value.phone
 })
 
 const formatAddressOption = (address) => {
@@ -393,26 +396,16 @@ const formatAddressOption = (address) => {
 }
 
 
-// Computed property for selected address
-const selectedAddress = computed(() => {
-    if (!selectedAddressId.value) {
-        return null
-    }
-    if ( selectedAddressId.value === 'new'){
-        return form.value;
-    }
-    return props.userAddresses.find(addr => addr.id === selectedAddressId.value)
-})
-
-// Format address for dropdown option
-
-
 const handleAddressSelection = (event) => {
     const addressId = event.target.value
     if (addressId) {
-        selectedAddress.value = props.userAddresses.find(a => a.id == addressId)
-        form.value.address_id = selectedAddress.value.id;
-        emit('address-selected', selectedAddress.value)
+        selectedAddress.value = props.userAddresses.find(a => a.id == addressId) || null
+        form.value.address_id = selectedAddress.value?.id || null;
+        // Ensure phone number is included from selected address or fallback to user phone
+        form.value.phone = selectedAddress.value?.phone || props.user?.phone || '';
+        if (selectedAddress.value) {
+            emit('address-selected', selectedAddress.value)
+        }
     } else {
         selectedAddress.value = null
     }
@@ -421,9 +414,12 @@ const handleAddressSelection = (event) => {
 const openNewAddressForm = () => {
     showNewAddressForm.value = true
     selectedAddressId.value = 'new'
+    selectedAddress.value = null
     // Reset form
     form.value = {
         address_id: null,
+        email: props.user?.email || '',
+        phone: props.user?.phone || '',
         first_name: '',
         last_name: '',
         line1: '',
@@ -440,16 +436,17 @@ const saveNewAddress = () => {
     if (!isAddressValid.value) return
 
     // Select the new address
-    selectedAddress.value = form.value;
+    selectedAddress.value = { ...form.value };
     selectedAddressId.value = "new";
     showNewAddressForm.value = false;
-    emit('address-selected', form.value)
+    emit('address-selected', { ...form.value })
 }
 
 
 const cancelNewAddress = () => {
     showNewAddressForm.value = false
     selectedAddressId.value = ''
+    selectedAddress.value = props.defaultAddress ?? null
 }
 
 
@@ -497,9 +494,9 @@ const cancelNewAddress = () => {
 
 onMounted(() => {
     form.value = {
-        address_id: selectedAddressId?.value.id || null,
+        address_id: selectedAddressId?.value?.id || null,
         email: props.user?.email || '',
-        phone: props.user?.phone || '',
+        phone: props.defaultAddress?.phone || props.user?.phone || '',
         first_name: props.defaultAddress?.name?.split(' ')[0] || props.user?.name?.split(' ')[0] || '',
         last_name: props.defaultAddress?.name?.split(' ').slice(1).join(' ') || props.user?.name?.split(' ').slice(1).join(' ') || '',
         line1: props.defaultAddress?.line1 || '',
@@ -514,11 +511,12 @@ onMounted(() => {
     // Set default address if provided
     if (props.defaultAddress && props.defaultAddress.id) {
         selectedAddressId.value = props.defaultAddress.id
+        selectedAddress.value = props.defaultAddress
     }
 })
 
 watch(form, () => {
-    emit('change-address', form);
+    emit('change-address', form.value);
 }, {deep: true})
 
 </script>

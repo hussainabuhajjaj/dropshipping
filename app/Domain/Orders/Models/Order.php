@@ -188,12 +188,20 @@ class Order extends Model
 
     public function shippingAddress(): BelongsTo
     {
-        return $this->belongsTo(Address::class, 'shipping_address_id');
+        $relation = $this->belongsTo(Address::class, 'shipping_address_id');
+
+        return Address::softDeletesAvailable()
+            ? $relation->withTrashed()
+            : $relation;
     }
 
     public function billingAddress(): BelongsTo
     {
-        return $this->belongsTo(Address::class, 'billing_address_id');
+        $relation = $this->belongsTo(Address::class, 'billing_address_id');
+
+        return Address::softDeletesAvailable()
+            ? $relation->withTrashed()
+            : $relation;
     }
 
     public function notificationLocale(): string

@@ -250,7 +250,13 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $address->delete();
+        try {
+            $address->delete();
+        } catch (\RuntimeException $exception) {
+            return Redirect::back()->withErrors([
+                'address' => $exception->getMessage(),
+            ]);
+        }
 
         return Redirect::back();
     }

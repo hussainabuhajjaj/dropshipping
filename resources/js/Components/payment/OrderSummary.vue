@@ -180,8 +180,11 @@ const total = computed(() => {
 const formatPrice = (amount) => {
     if (amount === null || amount === undefined) return ''
 
-    // Display the amount directly in the order/cart currency (no conversion needed)
-    return formatCurrency(Number(amount || 0), props.currency || currentCurrency.value)
+    const numAmount = Number(amount || 0)
+    const displayCurrency = props.currency || currentCurrency.value
+
+    // No currency conversion needed - everything is in XOF
+    return formatCurrency(numAmount, displayCurrency)
 }
 
 // Handle image load error

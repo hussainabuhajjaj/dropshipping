@@ -2,11 +2,25 @@ import axios from 'axios';
 window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+window.axios.defaults.headers.common['Accept'] = 'application/json';
+window.axios.defaults.withCredentials = true;
+window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
 
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+const readXsrfCookie = () => {
+    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+
+    return match?.[1] ? decodeURIComponent(match[1]) : '';
+};
 
 if (csrfToken) {
     window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
+}
+
+const xsrfToken = readXsrfCookie();
+if (xsrfToken) {
+    window.axios.defaults.headers.common['X-XSRF-TOKEN'] = xsrfToken;
 }
 
 const readCsrfToken = () =>
@@ -26,6 +40,11 @@ const writeCsrfToken = (token) => {
     }
 
     window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+
+    const cookieToken = readXsrfCookie();
+    if (cookieToken) {
+        window.axios.defaults.headers.common['X-XSRF-TOKEN'] = cookieToken;
+    }
 };
 
 let csrfRefreshPromise = null;
@@ -86,6 +105,7 @@ window.axios.interceptors.response.use(
                 originalRequest.headers = {
                     ...(originalRequest.headers || {}),
                     'X-CSRF-TOKEN': refreshedToken,
+                    'X-XSRF-TOKEN': readXsrfCookie(),
                 };
             }
 

@@ -8,6 +8,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ApiClient
 {
@@ -58,6 +59,13 @@ class ApiClient
     {
         $url = $this->fullUrl($path);
 
+        Log::info('ApiClient request', [
+            'method' => $method,
+            'url' => $url,
+            'options' => $options,
+            'headers' => $this->defaultHeaders,
+        ]);
+
         $request = Http::timeout($this->timeout)
             ->baseUrl($this->baseUrl)
             // Important: don't let Laravel throw RequestException for 4xx/5xx responses.
@@ -103,6 +111,13 @@ class ApiClient
         $raw = $response->json() ?? $response->body();
         $status = $response->status();
 
+        Log::info('ApiClient response', [
+            'status' => $status,
+            'successful' => $response->successful(),
+            'response_body' => $raw,
+            'headers' => $response->headers(),
+        ]);
+
         // Generic CJ-style schema: { code, result, message, data }
         if (is_array($raw) && array_key_exists('result', $raw) && array_key_exists('code', $raw)) {
             $ok = (bool) $raw['result'] && ((int) $raw['code'] === 200);
@@ -115,7 +130,22 @@ class ApiClient
         }
 
         if (! $response->successful()) {
-            throw new ApiException('API error', $status, null, $raw);
+            $errorMessage = 'API error';
+            
+            // Try to extract more detailed error message from response
+            if (is_array($raw)) {
+                $errorMessage = $raw['data']['message']
+                    ?? $raw['data']['gateway_response']
+                    ?? $raw['message']
+                    ?? $raw['error']
+                    ?? $raw['description']
+                    ?? 'API error';
+            }
+            
+            // Include status code and response body in error
+            $detailedMessage = "API error (HTTP {$status}): {$errorMessage}";
+            
+            throw new ApiException($detailedMessage, $status, null, $raw);
         }
 
         return ApiResponse::success($raw, $raw, null, $status);

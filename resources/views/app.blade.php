@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
@@ -44,6 +45,17 @@
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
+        
+        <!-- Paystack Configuration -->
+        <script>
+            window.paystackConfig = {
+                korapayEnabled: @json(config('payments.korapay_enabled', true)),
+                korapayVisibleOnCheckout: @json(config('payments.korapay_visible_on_checkout', false)),
+                paystackEnabled: @json(config('payments.paystack_enabled', true)),
+                paystackMobileMoneyEnabled: @json(config('payments.paystack_mobile_money_enabled', true)),
+                paystackMobileMoney: @json(config('payments.paystack_mobile_money', [])),
+            };
+        </script>
         
         <!-- TikTok Pixel Code -->
         @if(config('services.tiktok.pixel_id'))

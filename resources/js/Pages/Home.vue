@@ -34,7 +34,26 @@
                 </div>
             </section>
 
-            <section v-if="heroSlides.length || railCards.length" class="hero-block">
+            <section v-if="heroSlides.length || heroCollectionCards.length || railCards.length" class="hero-block">
+                <div v-if="heroLeftCollections.length" class="hero-collection-rail hero-collection-rail-left">
+                    <Link
+                        v-for="item in heroLeftCollections"
+                        :key="`hero-left-${item.id || item.href || item.title}`"
+                        :href="item.href || seasonalDropsViewAllHref"
+                        class="hero-collection-card"
+                    >
+                        <div v-if="item.image" class="hero-collection-media">
+                            <img :src="item.image" :alt="item.title || t('Collection')" loading="lazy" />
+                        </div>
+                        <div v-else class="hero-collection-media hero-collection-fallback"></div>
+                        <div class="hero-collection-overlay"></div>
+                        <div class="hero-collection-copy">
+                            <p class="hero-collection-kicker">{{ item.kicker || item.tag || t('Collection') }}</p>
+                            <h3>{{ item.title || t('Collection') }}</h3>
+                        </div>
+                    </Link>
+                </div>
+
                 <div v-if="heroSlides.length" class="hero-carousel" @mouseenter="hoverPause = true" @mouseleave="hoverPause = false">
                     <div class="hero-frame">
                         <article
@@ -87,6 +106,24 @@
                             </svg>
                         </button>
                     </div>
+                </div>
+
+                <div v-if="heroRightCollections.length" class="hero-collection-rail hero-collection-rail-right">
+                    <Link
+                        v-for="item in heroRightCollections"
+                        :key="`hero-right-${item.id || item.href || item.title}`"
+                        :href="item.href || seasonalDropsViewAllHref"
+                        class="hero-collection-card hero-collection-card-brand"
+                    >
+                        <div v-if="item.image" class="hero-collection-media">
+                            <img :src="item.image" :alt="item.title || t('Collection')" loading="lazy" />
+                        </div>
+                        <div v-else class="hero-collection-media hero-collection-fallback"></div>
+                        <div class="hero-collection-overlay hero-collection-overlay-brand"></div>
+                        <div class="hero-collection-copy hero-collection-copy-brand">
+                            <p class="hero-collection-title">{{ item.title || t('Collection') }}</p>
+                        </div>
+                    </Link>
                 </div>
 
 <!--                <div v-if="railCards.length" class="hero-rails">-->
@@ -157,10 +194,10 @@
                 />
             </section>
 
-            <section v-if="seasonalDrops.length" class="section-block">
+            <section v-if="seasonalDropsOverflow.length" class="section-block">
                 <div class="collection-showcase-grid">
                     <Link
-                        v-for="item in seasonalDrops"
+                        v-for="item in seasonalDropsOverflow"
                         :key="`seasonal-drop-${item.id || item.href || item.title}`"
                         :href="item.href || seasonalDropsViewAllHref"
                         class="collection-showcase-card"
@@ -742,6 +779,10 @@ const formatCount = (count) => {
 }
 
 const featuredDeals = computed(() => (Array.isArray(props.flashDeals) ? props.flashDeals.slice(0, 6) : []))
+const heroCollectionCards = computed(() => (Array.isArray(props.seasonalDrops) ? props.seasonalDrops.slice(0, 6) : []))
+const heroLeftCollections = computed(() => heroCollectionCards.value.slice(0, 3))
+const heroRightCollections = computed(() => heroCollectionCards.value.slice(3, 6))
+const seasonalDropsOverflow = computed(() => (Array.isArray(props.seasonalDrops) ? props.seasonalDrops.slice(6) : []))
 const sectionBlocks = computed(() => {
     return [
         { key: 'trending', title: t('Trending Now'), items: props.trending ?? [] },
@@ -1011,8 +1052,9 @@ const valueProps = computed(() => {
 }
 
 .hero-block {
-    display: block;
+    display: grid;
     gap: 18px;
+    align-items: stretch;
 }
 
 .rail-track {
@@ -1115,6 +1157,90 @@ const valueProps = computed(() => {
     padding: 22px;
     position: relative;
     overflow: hidden;
+}
+
+.hero-collection-rail {
+    display: grid;
+    gap: 16px;
+}
+
+.hero-collection-card {
+    position: relative;
+    min-height: 120px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+    isolation: isolate;
+}
+
+.hero-collection-card-brand {
+    min-height: 120px;
+}
+
+.hero-collection-media {
+    position: absolute;
+    inset: 0;
+    background: #d6d3d1;
+}
+
+.hero-collection-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hero-collection-fallback {
+    background: linear-gradient(135deg, #dbeafe, #cbd5e1);
+}
+
+.hero-collection-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 40%, rgba(0, 0, 0, 0.05) 100%);
+}
+
+.hero-collection-overlay-brand {
+    background: linear-gradient(90deg, rgba(34, 24, 18, 0.68) 0%, rgba(34, 24, 18, 0.36) 48%, rgba(34, 24, 18, 0.18) 100%);
+}
+
+.hero-collection-copy {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 24px 26px;
+    color: #fff;
+}
+
+.hero-collection-copy-brand {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.hero-collection-kicker {
+    margin-bottom: 8px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.78);
+    font-weight: 700;
+}
+
+.hero-collection-copy h3,
+.hero-collection-title {
+    font-size: clamp(1.3rem, 1.4vw + 0.8rem, 2rem);
+    line-height: 1.05;
+    font-weight: 800;
+    max-width: 12ch;
+}
+
+.hero-collection-title {
+    max-width: none;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .hero-frame {
@@ -2192,7 +2318,7 @@ const valueProps = computed(() => {
 
 @media (min-width: 900px) {
     .hero-block {
-        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+        grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.8fr) minmax(220px, 0.72fr);
     }
 
     .value-grid {
@@ -2237,6 +2363,14 @@ const valueProps = computed(() => {
 }
 
 @media (max-width: 700px) {
+    .hero-block {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-collection-rail {
+        grid-template-columns: 1fr;
+    }
+
     .hero-carousel {
         padding: 16px;
     }
@@ -2276,6 +2410,16 @@ const valueProps = computed(() => {
     .hero-dot {
         width: 6px;
         height: 6px;
+    }
+}
+
+@media (min-width: 701px) and (max-width: 899px) {
+    .hero-block {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-collection-rail {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 </style>

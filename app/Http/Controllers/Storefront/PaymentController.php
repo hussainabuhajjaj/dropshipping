@@ -115,7 +115,7 @@ class PaymentController extends Controller
 
         $extraValidationRules = $this->getItemValidationArray('cart');
         $request->validate(array_merge([
-            'method' => 'required|in:mobile_money',
+            'method' => 'required|in:card,mobile_money',
         ], $extraValidationRules));
 
         $method = (string) $request->input('method');
@@ -192,7 +192,7 @@ class PaymentController extends Controller
                     'locale' => app()->getLocale(),
                     'status' => 'pending',
                     'payment_status' => 'pending',
-                    'currency' => $cart[0]['currency'] ?? 'USD',
+                    'currency' => $cart->items->first()?->variant['currency'] ?? 'USD',
                     'subtotal' => $summery['subtotal'] ?? null,
                     'shipping_total' => $summery['shippingTotal'] ?? null,
                     'shipping_total_estimated' => $summery['shippingTotal'] ?? null,
@@ -210,6 +210,8 @@ class PaymentController extends Controller
                 ]);
 
                 $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
+                $currencyConverter = app(\App\Services\Currency\CurrencyConversionService::class);
+                $userCurrency = app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
 
                 foreach ($cart->items as $line) {
                     $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
@@ -219,6 +221,29 @@ class PaymentController extends Controller
                         ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
                         ->first();
 
+                    // Convert prices from USD to user's currency (XOF)
+                    $unitPriceInUsd = $line->getSinglePrice();
+                    try {
+                        $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                        if ($unitPriceInUserCurrency === null) {
+                            \Log::warning('Currency conversion returned null in payment controller', [
+                                'usd_price' => $unitPriceInUsd,
+                                'target_currency' => $userCurrency,
+                                'order_id' => $order->id,
+                            ]);
+                            $unitPriceInUserCurrency = $unitPriceInUsd;
+                        }
+                    } catch (\Throwable $e) {
+                        \Log::error('Currency conversion failed in payment controller', [
+                            'usd_price' => $unitPriceInUsd,
+                            'target_currency' => $userCurrency,
+                            'error' => $e->getMessage(),
+                            'order_id' => $order->id,
+                        ]);
+                        $unitPriceInUserCurrency = $unitPriceInUsd;
+                    }
+                    $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
+
                     OrderItem::create([
                         'order_id' => $order->id,
                         'product_variant_id' => $line['variant_id'],
@@ -226,8 +251,8 @@ class PaymentController extends Controller
                         'supplier_product_id' => $supplierProduct?->id,
                         'fulfillment_status' => 'pending',
                         'quantity' => $line['quantity'],
-                        'unit_price' => $line->getSinglePrice(),
-                        'total' => $line->getSinglePrice() * $line['quantity'],
+                        'unit_price' => $unitPriceInUserCurrency,
+                        'total' => $totalInUserCurrency,
                         'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
                         'snapshot' => [
                             'name' => $line?->product['name'] ?? null,
@@ -255,6 +280,8 @@ class PaymentController extends Controller
                     OrderShipping::query()->create($shippingArr);
                 }
 
+                // KoraPay payment provider (commented out - using Paystack instead)
+                /*
                 $payment = Payment::query()->create([
                     'order_id' => $order->id,
                     'provider' => 'korapay',
@@ -282,19 +309,68 @@ class PaymentController extends Controller
                     method: $method,
                     returnUrl: $returnUrl,
                 );
+                */
+
+                // Paystack payment provider
+                $payment = Payment::query()->create([
+                    'order_id' => $order->id,
+                    'provider' => 'paystack',
+                    'status' => 'pending',
+                    'provider_reference' => null,
+                    'amount' => (float) ($order->grand_total ?? 0),
+                    'currency' => (string) ($order->currency ?? 'USD'),
+                    'meta' => [
+                        'storefront' => true,
+                        'request' => $requestBody,
+                    ],
+                ]);
+
+                // Use a stable return endpoint. The redirect handler resolves the order by Paystack reference anyway.
+                // This avoids provider-side issues with dynamic redirect URLs.
+                $returnUrl = route('pay.redirect', ['type' => 'cart']);
+
+                Log::info('Paystack initialization attempt', [
+                    'order_id' => $order->id,
+                    'order_number' => $order->number,
+                    'amount' => $order->grand_total,
+                    'currency' => $order->currency,
+                    'payment_method' => $method,
+                ]);
+                
+                $init = $this->paymentService->initializePaystack(
+                    order: $order,
+                    payment: $payment,
+                    customer: [
+                        'email' => $customer->email,
+                        'name' => $customer->name,
+                    ],
+                    method: $method,
+                    returnUrl: $returnUrl,
+                );
+                
+                Log::info('Paystack initialization successful', [
+                    'reference' => $init['reference'] ?? null,
+                    'authorization_url' => $init['authorization_url'] ?? null,
+                ]);
             });
 
             return response()->json([
                 'status' => true,
                 'data' => [
-                    'redirect' => $init['checkout_url'] ?? null,
+                    'redirect' => $init['authorization_url'] ?? $init['checkout_url'] ?? null,
                     'reference' => $init['reference'] ?? null,
                     'order_id' => $order?->id,
                     'order_number' => $order?->number,
                 ],
             ]);
         } catch (Throwable $e) {
-            Log::error('Storefront checkout failed', ['error' => $e->getMessage()]);
+            Log::error('Storefront checkout failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+            ]);
 
             return response()->json([
                 'status' => false,
@@ -315,8 +391,19 @@ class PaymentController extends Controller
             abort(404);
         }
 
+        // KoraPay provider check (commented out - using Paystack instead)
+        /*
         $existing = Payment::query()
             ->where('provider', 'korapay')
+            ->where('provider_reference', $reference)
+            ->with('order')
+            ->latest('id')
+            ->first();
+        */
+
+        // Paystack provider check
+        $existing = Payment::query()
+            ->where('provider', 'paystack')
             ->where('provider_reference', $reference)
             ->with('order')
             ->latest('id')
@@ -338,7 +425,13 @@ class PaymentController extends Controller
             return redirect()->route('orders.confirmation', ['number' => $existing->order->number]);
         }
 
+        // KoraPay verification (commented out - using Paystack instead)
+        /*
         $payment = $this->paymentService->verifyKorapay($reference);
+        */
+
+        // Paystack verification
+        $payment = $this->paymentService->verifyPaystack($reference);
         $order = $payment->order()->first();
 
         if ($payment->status === 'paid' && $order) {
@@ -391,7 +484,7 @@ class PaymentController extends Controller
 
         return [
             'email' => ['required', 'email'],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30'],
             'first_name' => ['required', 'string', 'max:120'],
             'last_name' => ['nullable', 'string', 'max:120'],
             'line1' => ['required', 'string', 'max:255'],

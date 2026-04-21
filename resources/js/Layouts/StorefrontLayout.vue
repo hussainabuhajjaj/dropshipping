@@ -531,166 +531,9 @@
                 </form>
             </div>
 
-            <!-- Categories Navigation Row (scrollbar hidden + arrows) -->
-            <div class="relative"
-                 style="background:linear-gradient(90deg,rgba(240,236,214,1) 0%,rgba(246,225,109,1) 50%,rgba(245,149,15,1) 100%);">
-                <div class="container-base">
-                    <div class="relative py-3">
-                        <!-- Left arrow -->
-                        <button
-                            v-show="canScrollLeft"
-                            type="button"
-                            class="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-900/70 p-2 text-dark shadow hover:text-[#f59e0b]"
-                            @click="scrollCategories('left')"
-                            :aria-label="t('Scroll left')"
-                        >
-                            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-                            </svg>
-                        </button>
-
-                        <!-- Scroll container -->
-                        <div
-                            ref="categoriesScrollRef"
-                            class="hide-scrollbar flex items-center gap-2 overflow-x-auto px-10"
-                            @scroll.passive="updateScrollArrows"
-                        >
-                            <Link
-                                v-for="category in rootCategories"
-                                :key="category.slug || category.name"
-                                :href="categoryHref(category)"
-                                class="group relative whitespace-nowrap px-4 py-2 text-sm font-semibold text-black transition hover:text-[#f59e0b]"
-                                @mouseenter="openMegaMenu(category)"
-                                @mouseleave="scheduleMegaMenuClose"
-                            >
-                                {{ category.name }}
-                                <span
-                                    class="absolute bottom-0 left-0 h-0.5 w-0 bg-[#f59e0b] transition-all group-hover:w-full"></span>
-                            </Link>
-                        </div>
-
-                        <!-- Right arrow -->
-                        <button
-                            v-show="canScrollRight"
-                            type="button"
-                            class="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-900/70 p-2 text-white shadow hover:text-[#f59e0b]"
-                            @click="scrollCategories('right')"
-                            :aria-label="t('Scroll right')"
-                        >
-                            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Mega Menu Dropdown -->
-                <Transition
-                    enter-active-class="transition duration-200 ease-out"
-                    enter-from-class="opacity-0 -translate-y-2"
-                    enter-to-class="opacity-100 translate-y-0"
-                    leave-active-class="transition duration-150 ease-in"
-                    leave-from-class="opacity-100 translate-y-0"
-                    leave-to-class="opacity-0 -translate-y-2"
-                >
-                    <div
-                        v-if="megaMenuOpen && selectedCategory"
-                        class="absolute left-0 right-0 top-full z-40 border-t border-slate-200 bg-white/75 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 relative"
-                        @mouseenter="cancelMegaMenuClose"
-                        @mouseleave="scheduleMegaMenuClose"
-                    >
-                        <div aria-hidden="true" class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-                            <div class="absolute -top-28 left-[-7rem] h-80 w-80 rounded-full bg-[var(--brand-primary)] opacity-20 blur-3xl"/>
-                            <div class="absolute -top-32 right-[-7rem] h-80 w-80 rounded-full bg-[var(--brand-primary-2)] opacity-15 blur-3xl"/>
-                            <div class="absolute -bottom-40 left-1/3 h-96 w-96 rounded-full bg-[var(--brand-primary)] opacity-10 blur-3xl"/>
-                        </div>
-
-                        <div class="container-base py-8 relative z-10">
-                            <div class="grid grid-cols-1 gap-8 lg:grid-cols-5">
-                                <!-- 4 Columns of Links -->
-                                <div v-for="(section, idx) in selectedCategory.sections" :key="'section-' + idx"
-                                     class="space-y-3">
-                                    <h3 class="text-sm font-bold uppercase tracking-wider text-[#0f172a]">
-                                        {{ section.title }}
-                                    </h3>
-                                    <ul class="space-y-2">
-                                        <li v-for="item in section.items" :key="item">
-                                            <Link
-                                                :href="`/products?category=${encodeURIComponent(selectedCategory.slug || selectedCategory.name)}&subcategory=${encodeURIComponent(item)}`"
-                                                class="block text-sm text-slate-600 transition hover:text-[#2563eb]"
-                                            >
-                                                {{ item }}
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <!-- Subcategories -->
-                                <div v-if="selectedCategory.children && selectedCategory.children.length"
-                                     class="space-y-4 lg:col-span-4 lg:max-h-[60vh] lg:overflow-y-auto lg:pr-3">
-                                    <ul class="grid grid-cols-2 gap-4">
-                                        <li v-for="child in selectedCategory.children" :key="child.slug || child.name"
-                                            class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 transition hover:bg-white">
-                                            <Link
-                                                :href="categoryHref(child)"
-                                                class="flex items-center gap-3"
-                                            >
-                                                <img
-                                                    v-if="child.image"
-                                                    :src="child.image"
-                                                    alt=""
-                                                    class="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
-                                                />
-                                                <img
-                                                    v-else
-                                                    src="/images/category-default.png"
-                                                    alt=""
-                                                    class="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
-                                                />
-                                                <span
-                                                    class="min-w-0 truncate text-sm font-semibold text-slate-800 transition hover:text-[#2563eb]"
-                                                >
-                                                    {{ child.name }}
-                                                </span>
-                                            </Link>
-
-                                            <ul
-                                                v-if="child.children && child.children.length"
-                                                class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-200 pt-3"
-                                            >
-                                                <li
-                                                    v-for="grandChild in child.children"
-                                                    :key="grandChild.slug || grandChild.name"
-                                                >
-                                                    <Link
-                                                        :href="categoryHref(grandChild)"
-                                                        class="block text-xs leading-5 text-slate-600 transition hover:text-[#2563eb]"
-                                                    >
-                                                        {{ grandChild.name }}
-                                                    </Link>
-                                                </li>
-                                            </ul>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <!-- Promo Block -->
-                                <div
-                                    v-if="selectedCategory.promo"
-                                    class="relative overflow-hidden rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 lg:col-span-1"
-                                >
-                                    <img v-if="selectedCategory.promo.image" :src="selectedCategory.promo.image"
-                                         alt="Featured" class="h-full w-full object-cover"/>
-                                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-                                        <h4 class="text-center text-lg font-bold text-white">
-                                            {{ selectedCategory.promo.title }}
-                                        </h4>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </Transition>
+            <div class="relative">
+                <MainNav :t="t" />
+                <MegaMenu :t="t" />
             </div>
         </header>
 
@@ -847,7 +690,7 @@
         >
             <aside
                 v-if="mobileOpen"
-                class="fixed inset-y-0 left-0 z-[70] w-[85%] max-w-xs overflow-y-auto border-r border-slate-200 bg-white p-5"
+                class="fixed inset-y-0 left-0 z-[70] flex w-[85%] max-w-xs flex-col overflow-hidden border-r border-slate-200 bg-white p-5"
             >
                 <div class="flex items-center justify-between">
                     <p class="text-sm font-semibold text-slate-900">{{ t('Menu') }}</p>
@@ -863,7 +706,7 @@
                     </button>
                 </div>
 
-                <div class="mt-6 space-y-6">
+                <div class="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pb-24 pr-1">
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Quick access') }}</p>
                         <div class="mt-3 grid grid-cols-2 gap-2">
@@ -887,56 +730,7 @@
                         </div>
                     </div>
 
-                    <div>
-                        <div class="flex items-center justify-between gap-3">
-                            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Shop by category') }}</p>
-                            <Link
-                                href="/products"
-                                class="text-xs font-semibold text-[#f59e0b]"
-                                @click="mobileOpen = false"
-                            >
-                                {{ t('View all') }}
-                            </Link>
-                        </div>
-                        <div class="mt-3 space-y-4">
-                            <div v-for="category in categories" :key="category.slug || category.name" class="space-y-2">
-                                <Link
-                                    :href="categoryHref(category)"
-                                    class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-semibold text-slate-800"
-                                    @click="mobileOpen = false"
-                                >
-                                    <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
-                                        {{ category.short }}
-                                    </span>
-                                    <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
-                                </Link>
-
-                                <div v-if="category.children?.length" class="space-y-2 pl-8 text-xs text-slate-600">
-                                    <div v-for="child in category.children" :key="child.slug || child.name" class="space-y-1">
-                                        <Link
-                                            :href="categoryHref(child)"
-                                            class="block rounded-lg text-xs font-semibold text-slate-600 transition hover:text-slate-900"
-                                            @click="mobileOpen = false"
-                                        >
-                                            {{ child.name }}
-                                        </Link>
-
-                                        <div v-if="child.children?.length" class="space-y-1 pl-4">
-                                            <Link
-                                                v-for="grandChild in child.children"
-                                                :key="grandChild.slug || grandChild.name"
-                                                :href="categoryHref(grandChild)"
-                                                class="block rounded-lg text-[0.7rem] font-medium text-slate-500 transition hover:text-slate-900"
-                                                @click="mobileOpen = false"
-                                            >
-                                                {{ grandChild.name }}
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <MegaMenu mobile :t="t" @navigate="mobileOpen = false" />
 
                     <div class="space-y-2 rounded-2xl border border-slate-200 p-4 text-sm text-slate-600">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Account') }}</p>
@@ -1017,8 +811,8 @@
 
 <script setup>
 
-// ,
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchEffect } from 'vue'
+import { storeToRefs } from 'pinia'
 
 import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
@@ -1029,6 +823,9 @@ import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
+import MainNav from '@/Components/navigation/MainNav.vue'
+import MegaMenu from '@/Components/navigation/MegaMenu.vue'
+import { useCategoryStore } from '@/stores/category'
 
 import { toastAlert } from "@/utils/toast";
 
@@ -1058,6 +855,8 @@ function onCurrencyChange() {
 
 // --- App / page ---
 const page = usePage()
+const categoryStore = useCategoryStore()
+const { desktopOpen: megaMenuOpen } = storeToRefs(categoryStore)
 
 // Simple fallback for translations
 const t = (key, replacements = {}) => {
@@ -1109,31 +908,6 @@ let mobileHeaderStateRaf = null
 
 const selectedLocation = ref('Abidjan')
 const locationOpen = ref(false)
-
-const megaMenuOpen = ref(false)
-const selectedCategory = ref(null)
-const megaMenuCloseTimer = ref(null)
-
-// --- Categories scroller (hide scrollbar + arrows) ---
-const categoriesScrollRef = ref(null)
-const canScrollLeft = ref(false)
-const canScrollRight = ref(false)
-
-const updateScrollArrows = () => {
-    const el = categoriesScrollRef.value
-    if (!el) return
-    const maxScrollLeft = el.scrollWidth - el.clientWidth
-    canScrollLeft.value = el.scrollLeft > 2
-    canScrollRight.value = el.scrollLeft < maxScrollLeft - 2
-}
-
-const scrollCategories = (dir) => {
-    const el = categoriesScrollRef.value
-    if (!el) return
-    const amount = Math.round(el.clientWidth * 0.75)
-    el.scrollBy({left: dir === 'left' ? -amount : amount, behavior: 'smooth'})
-    window.setTimeout(updateScrollArrows, 200)
-}
 
 	// --- Auth / storefront / cart ---
 	const authUser = computed(() => page.props.auth?.user ?? null)
@@ -1507,115 +1281,13 @@ const websiteSchema = computed(() => {
 // Inject JSON-LD schemas (temporarily disabled due to initialization error)
 // useMultipleJsonLd([organizationSchema, websiteSchema])
 
-// --- Categories (mega menu needs sections/promo) ---
-const fallbackCategories = computed(() => ([
-    {
-        name: t('Electronics'),
-        slug: 'electronics',
-        sections: [
-            {title: t('Mobile Phones'), items: [t('Smartphones'), t('Feature Phones'), t('Accessories')]},
-            {title: t('Computers'), items: [t('Laptops'), t('Desktops'), t('Tablets')]},
-            {title: t('Audio'), items: [t('Headphones'), t('Speakers'), t('Home Theater')]},
-            {title: t('Cameras'), items: [t('DSLR'), t('Action Cameras'), t('Accessories')]},
-        ],
-        promo: {title: t('LATEST TECH'), image: '/placeholder-tech.jpg'},
-        children: [],
+watch(
+    () => page.props.categories,
+    (categories) => {
+        categoryStore.hydrate(categories ?? [])
     },
-    {
-        name: t('Fashion'),
-        slug: 'fashion',
-        sections: [
-            {title: t("Men's Fashion"), items: [t('Shirts'), t('Pants'), t('Shoes'), t('Accessories')]},
-            {title: t("Women's Fashion"), items: [t('Dresses'), t('Tops'), t('Shoes'), t('Bags')]},
-            {title: t("Kids' Fashion"), items: [t('Boys'), t('Girls'), t('Baby')]},
-            {title: t('Sports'), items: [t('Activewear'), t('Sneakers')]},
-        ],
-        promo: {title: t('TRENDING NOW'), image: '/placeholder-fashion.jpg'},
-        children: [],
-    },
-    {
-        name: t('Home & Kitchen'),
-        slug: 'home-kitchen',
-        sections: [
-            {title: t('Furniture'), items: [t('Living Room'), t('Bedroom'), t('Office')]},
-            {title: t('Appliances'), items: [t('Kitchen'), t('Cleaning'), t('Cooling')]},
-            {title: t('Decor'), items: [t('Lighting'), t('Textiles'), t('Wall Art')]},
-            {title: t('Kitchen'), items: [t('Cookware'), t('Utensils')]},
-        ],
-        promo: {title: t('HOME ESSENTIALS'), image: '/placeholder-home.jpg'},
-        children: [],
-    },
-    {
-        name: t('Beauty & Health'),
-        slug: 'beauty-health',
-        sections: [
-            {title: t('Skincare'), items: [t('Face Care'), t('Body Care'), t('Sun Care')]},
-            {title: t('Makeup'), items: [t('Face'), t('Eyes'), t('Lips')]},
-            {title: t('Hair Care'), items: [t('Shampoo'), t('Styling'), t('Treatment')]},
-            {title: t('Health'), items: [t('Vitamins'), t('Personal Care')]},
-        ],
-        promo: {title: t('BEAUTY PICKS'), image: '/placeholder-beauty.jpg'},
-        children: [],
-    },
-    {
-        name: t('Sports & Outdoor'),
-        slug: 'sports-outdoor',
-        sections: [
-            {title: t('Exercise'), items: [t('Fitness Equipment'), t('Yoga'), t('Cardio')]},
-            {title: t('Outdoor'), items: [t('Camping'), t('Hiking'), t('Cycling')]},
-            {title: t('Sports'), items: [t('Football'), t('Basketball'), t('Swimming')]},
-            {title: t('Activewear'), items: [t('Clothing'), t('Shoes')]},
-        ],
-        promo: {title: t('GET ACTIVE'), image: '/placeholder-sports.jpg'},
-        children: [],
-    },
-    {
-        name: t('Baby & Kids'),
-        slug: 'baby-kids',
-        sections: [
-            {title: t('Baby Care'), items: [t('Diapers'), t('Feeding'), t('Bath')]},
-            {title: t('Toys'), items: [t('Educational'), t('Action Figures'), t('Dolls')]},
-            {title: t('Kids Fashion'), items: [t('Boys'), t('Girls'), t('Shoes')]},
-            {title: t('Nursery'), items: [t('Furniture'), t('Decor')]},
-        ],
-        promo: {title: t('FOR LITTLE ONES'), image: '/placeholder-kids.jpg'},
-        children: [],
-    },
-]))
-
-const makeShort = (name) => {
-    const initials = String(name || '')
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join('')
-        .toUpperCase()
-    return initials || String(name || '').slice(0, 2).toUpperCase()
-}
-
-const normalizeCategory = (entry) => {
-    const name = entry?.name ?? String(entry || '')
-    return {
-        name,
-        slug: entry?.slug ?? null,
-        short: entry?.short ?? makeShort(name),
-        image: entry?.image ?? entry?.hero_image ?? null,
-        children: Array.isArray(entry?.children) ? entry.children.map(normalizeCategory) : [],
-        sections: Array.isArray(entry?.sections) ? entry.sections : [],
-        promo: entry?.promo ?? null,
-    }
-}
-
-const categories = computed(() => {
-    const source =
-        Array.isArray(page.props.categories) && page.props.categories.length
-            ? page.props.categories
-            : fallbackCategories.value
-    return source.map((entry) => normalizeCategory(entry))
-})
-
-const rootCategories = computed(() => categories.value)
+    { immediate: true, deep: true },
+)
 
 // --- Search ---
 const resolveSearch = () => page.props.query ?? page.props.filters?.q ?? ''
@@ -2064,31 +1736,6 @@ onMounted(() => {
     })
 })
 
-// --- Mega menu ---
-const openMegaMenu = (category) => {
-    if (megaMenuCloseTimer.value) {
-        clearTimeout(megaMenuCloseTimer.value)
-        megaMenuCloseTimer.value = null
-    }
-    selectedCategory.value = category
-    megaMenuOpen.value = true
-}
-
-const scheduleMegaMenuClose = () => {
-    if (megaMenuCloseTimer.value) clearTimeout(megaMenuCloseTimer.value)
-    megaMenuCloseTimer.value = setTimeout(() => {
-        megaMenuOpen.value = false
-        selectedCategory.value = null
-    }, 200)
-}
-
-const cancelMegaMenuClose = () => {
-    if (megaMenuCloseTimer.value) {
-        clearTimeout(megaMenuCloseTimer.value)
-        megaMenuCloseTimer.value = null
-    }
-}
-
 // --- Account/Cart dropdowns ---
 const toggleAccount = () => {
     accountOpen.value = !accountOpen.value
@@ -2118,8 +1765,10 @@ const handleDocumentClick = (event) => {
 onMounted(() => {
     document.addEventListener('click', handleDocumentClick)
     loadRecentSearches()
-    requestAnimationFrame(updateScrollArrows)
-    window.addEventListener('resize', updateScrollArrows)
+
+    if (!categoryStore.initialized) {
+        categoryStore.fetchCategories()
+    }
 
     window.addEventListener('scroll', scheduleHeaderVisibilityUpdate, {passive: true})
     window.addEventListener('resize', measureHeaderHeight)
@@ -2146,7 +1795,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick)
-    window.removeEventListener('resize', updateScrollArrows)
     window.removeEventListener('scroll', scheduleHeaderVisibilityUpdate)
     window.removeEventListener('resize', measureHeaderHeight)
 
@@ -2181,17 +1829,6 @@ onBeforeUnmount(() => {
         searchSuggestionsAbortController.abort()
     }
 })
-
-// update arrows when categories change (async load)
-watch(rootCategories, () => {
-    requestAnimationFrame(updateScrollArrows)
-})
-
-// --- URL building ---
-const categoryHref = (category) => {
-    if (category?.slug) return `/categories/${encodeURIComponent(category.slug)}`
-    return `/products?category=${encodeURIComponent(category?.name ?? '')}`
-}
 </script>
 
 <style scoped>
