@@ -185,8 +185,10 @@ async function payWithPaystack(method) {
 
         const data = response.data?.data || {}
 
-        if (!/^https:\/\/checkout\.paystack\.com\//.test(data.authorization_url || '')) {
-            throw new Error(response.data?.message || 'Paystack did not return an authorization URL.')
+        // More robust URL validation
+        const authUrl = data.authorization_url || ''
+        if (!authUrl.startsWith('https://checkout.paystack.com/')) {
+            throw new Error(response.data?.message || 'Paystack did not return a valid authorization URL.')
         }
 
         window.location.href = data.authorization_url
