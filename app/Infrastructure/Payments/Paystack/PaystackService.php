@@ -9,6 +9,7 @@ use App\Domain\Payments\Models\Payment;
 use App\Services\Api\ApiClient;
 use App\Services\Api\ApiException;
 use App\Services\Api\ApiResponse;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class PaystackService
