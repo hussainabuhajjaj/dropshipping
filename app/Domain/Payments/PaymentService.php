@@ -540,17 +540,21 @@ class PaymentService
         ])->save();
 
         try {
-            Log::info('Calling Paystack service initialize', [
+            Log::info('Calling Paystack service initializeTransaction', [
                 'amount' => $amount,
                 'currency' => $currency,
                 'payment_reference' => $payment->provider_reference,
             ]);
 
-            $response = $paystackService->initialize($order, $payment, $customer, $method);
-            $data = is_array($response->data) ? $response->data : [];
+            $data = $paystackService->initializeTransaction(
+                $order,
+                $payment,
+                (string) ($customer['email'] ?? $order->email ?? ''),
+                (string) ($customer['name'] ?? 'Customer'),
+                $returnUrl
+            );
 
             Log::info('Paystack service initialize response', [
-                'response_status' => $response->status,
                 'response_data_keys' => array_keys($data),
             ]);
 
