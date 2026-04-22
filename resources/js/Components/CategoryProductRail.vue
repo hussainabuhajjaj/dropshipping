@@ -9,7 +9,32 @@
             </Link>
         </div>
 
-        <div class="rail-surface">
+        <!-- Single Product Layout -->
+        <div v-if="!isLoading && products.length === 1" class="single-product-surface">
+            <div class="single-product-container">
+                <ProductCard
+                    :product="products[0]"
+                    :currency="currency"
+                    :promotions="promotions"
+                    :dense="false"
+                    class="single-product-card"
+                />
+            </div>
+
+            <button
+                v-if="canLoadMore"
+                type="button"
+                class="load-more-button"
+                :disabled="loadingMore"
+                @click="loadNextPage"
+            >
+                <span v-if="!loadingMore">{{ t('Load more from :category', { category: category.name }) }}</span>
+                <span v-else class="spinner">{{ t('Loading') }}</span>
+            </button>
+        </div>
+
+        <!-- Multiple Products Layout (Original) -->
+        <div v-else class="rail-surface">
             <div
                 ref="trackRef"
                 class="rail-track"
@@ -173,7 +198,7 @@ onBeforeUnmount(() => {
 .rail-track {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(180px, 48vw);
+    grid-auto-columns: minmax(140px, 1fr);
     gap: 12px;
     overflow-x: auto;
     scroll-snap-type: x proximity;
@@ -272,19 +297,78 @@ onBeforeUnmount(() => {
 
 @media (min-width: 640px) {
     .rail-track {
-        grid-auto-columns: minmax(210px, 32vw);
+        grid-auto-columns: minmax(150px, 1fr);
     }
 }
 
 @media (min-width: 1024px) {
     .rail-track {
-        grid-auto-columns: minmax(220px, 20vw);
+        grid-auto-columns: minmax(160px, 1fr);
     }
 }
 
 @media (min-width: 1280px) {
     .rail-track {
-        grid-auto-columns: minmax(230px, 16vw);
+        grid-auto-columns: minmax(170px, 1fr);
+    }
+}
+
+/* Single Product Layout Styles */
+.single-product-surface {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.single-product-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.single-product-card {
+    max-width: 280px;
+    width: 100%;
+}
+
+.load-more-button {
+    padding: 12px 24px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.load-more-button:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.load-more-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (min-width: 640px) {
+    .single-product-card {
+        max-width: 320px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .single-product-card {
+        max-width: 340px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .single-product-card {
+        max-width: 360px;
     }
 }
 </style>

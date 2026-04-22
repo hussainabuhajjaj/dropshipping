@@ -359,7 +359,27 @@
                         <Link :href="section.viewAllHref" class="section-link">{{ t('View all') }}</Link>
                     </div>
 
-                    <div class="featured-category-slider">
+                    <!-- Single Product Layout -->
+                    <div
+                        v-if="section.products.length === 1"
+                        class="featured-single-product-surface grid grid-cols-2 gap-3 px-2 sm:grid-cols-4 sm:px-0 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
+                    >
+                        <div
+                            class="featured-single-product-container col-span-1 w-full"
+                        >
+                            <ProductCard
+                                :product="section.products[0]"
+                                :currency="currency"
+                                :promotions="homepagePromotions"
+                                dense
+                                class="featured-single-product-card h-auto w-full self-start"
+                            />
+                        </div>
+                        <div class="hidden sm:block sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6" aria-hidden="true"></div>
+                    </div>
+
+                    <!-- Multiple Products Layout -->
+                    <div v-else class="featured-category-slider">
                         <ProductCard
                             v-for="product in section.products"
                             :key="`featured-category-product-${section.id}-${product.id}`"
@@ -428,7 +448,7 @@
                     </div>
                     <Link href="/products" class="section-link">{{ t('Browse all') }}</Link>
                 </div>
-                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                <div class="grid gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
                         <ProductCard
                             v-for="product in bestSellers"
                             :key="product.id"
@@ -452,7 +472,7 @@
                     </div>
                     <Link href="/products" class="section-link">{{ t('See more') }}</Link>
                 </div>
-                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                <div class="grid gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
                         <ProductCard
                             v-for="product in recommended"
                             :key="product.id"
@@ -473,7 +493,7 @@
                     </div>
                     <Link href="/products?sort=rating" class="section-link">{{ t('View all') }}</Link>
                 </div>
-                <div class="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                <div class="grid gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
                         <ProductCard
                             v-for="product in bestValue"
                             :key="product.id"
@@ -496,7 +516,7 @@
                     </div>
                     <Link href="/promotions" class="section-link">{{ t('See all promotions') }}</Link>
                 </div>
-                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
+                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     <div v-for="promo in featuredPromotions" :key="promo.id" class="promotion-card reveal">
                         <div class="promotion-header">
                             <span class="promotion-badge">{{ promo.badge_text || (promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount')) }}</span>
@@ -1253,7 +1273,7 @@ const valueProps = computed(() => {
     inset: 0;
     display: grid;
     gap: 20px;
-    align-items: center;
+    align-items: stretch;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     opacity: 0;
     transform: translateY(12px);
@@ -1327,15 +1347,19 @@ const valueProps = computed(() => {
 }
 
 .hero-image {
-    display: flex;
-    justify-content: center;
-}
-
-.hero-image img {
-    width: min(420px, 100%);
+    position: relative;
+    min-height: 320px;
+    overflow: hidden;
     border-radius: 20px;
     border: 5px solid #fff;
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+}
+
+.hero-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 
 .hero-controls {
@@ -1383,7 +1407,7 @@ const valueProps = computed(() => {
     display: grid;
     gap: 10px;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(180px, 1fr);
+    grid-auto-columns: minmax(160px, 1fr);
     overflow-x: auto;
     padding-bottom: 6px;
 }
@@ -1461,7 +1485,7 @@ const valueProps = computed(() => {
 .promo-strip {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(120px, 1fr);
+    grid-auto-columns: minmax(160px, 1fr);
     gap: 10px;
     overflow-x: auto;
     padding-bottom: 6px;
@@ -1538,7 +1562,7 @@ const valueProps = computed(() => {
 .rail-track {
     display: grid;
     gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .rail-item {
@@ -1800,7 +1824,7 @@ const valueProps = computed(() => {
     display: grid;
     gap: 12px;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(180px, 1fr);
+    grid-auto-columns: minmax(140px, 1fr);
     overflow-x: auto;
     padding: 4px 2px 8px;
     scroll-snap-type: x proximity;
@@ -1873,7 +1897,7 @@ const valueProps = computed(() => {
 .icon-grid {
     display: grid;
     gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .icon-tile {
@@ -2397,9 +2421,11 @@ const valueProps = computed(() => {
 
     .hero-image img {
         width: 100%;
-        max-width: 100%;
-        aspect-ratio: 4 / 3;
-        object-fit: cover;
+        height: 100%;
+    }
+
+    .hero-image {
+        min-height: 240px;
         border-width: 3px;
     }
 
