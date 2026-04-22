@@ -325,10 +325,10 @@ class HomeController extends Controller
             ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale))
             ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true));
 
-        $items = [];
+        $campaignItems = [];
 
         foreach ($campaigns as $campaign) {
-            $items[] = [
+            $campaignItems[] = [
                 'id' => 'campaign-' . $campaign->id,
                 'kind' => 'campaign',
                 'entityId' => $campaign->id,
@@ -342,8 +342,10 @@ class HomeController extends Controller
             ];
         }
 
+        $collectionItems = [];
+
         foreach ($collections as $collection) {
-            $items[] = [
+            $collectionItems[] = [
                 'id' => 'collection-' . $collection->id,
                 'kind' => 'collection',
                 'entityId' => $collection->id,
@@ -357,7 +359,18 @@ class HomeController extends Controller
             ];
         }
 
-        $items = array_slice($items, 0, 6);
+        $items = array_merge(
+            array_slice($campaignItems, 0, 3),
+            array_slice($collectionItems, 0, 3),
+        );
+
+        if (count($items) < 6) {
+            $items = array_slice(array_merge(
+                $items,
+                array_slice($campaignItems, 3),
+                array_slice($collectionItems, 3),
+            ), 0, 6);
+        }
 
         return [
             'items' => $items,

@@ -513,10 +513,10 @@ class HomeController extends ApiController
             ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true))
             ->take(6);
 
-        $items = [];
+        $campaignItems = [];
 
         foreach ($campaigns as $campaign) {
-            $items[] = [
+            $campaignItems[] = [
                 'id' => 'campaign-' . $campaign->id,
                 'kind' => 'campaign',
                 'kicker' => $campaign->localizedValue('hero_kicker', $locale) ?? strtoupper($campaign->type),
@@ -528,8 +528,10 @@ class HomeController extends ApiController
             ];
         }
 
+        $collectionItems = [];
+
         foreach ($collections as $collection) {
-            $items[] = [
+            $collectionItems[] = [
                 'id' => 'collection-' . $collection->id,
                 'kind' => 'collection',
                 'kicker' => $collection->localizedValue('hero_kicker', $locale) ?? strtoupper($collection->type),
@@ -541,7 +543,20 @@ class HomeController extends ApiController
             ];
         }
 
-        return array_slice($items, 0, 6);
+        $items = array_merge(
+            array_slice($campaignItems, 0, 3),
+            array_slice($collectionItems, 0, 3),
+        );
+
+        if (count($items) < 6) {
+            $items = array_slice(array_merge(
+                $items,
+                array_slice($campaignItems, 3),
+                array_slice($collectionItems, 3),
+            ), 0, 6);
+        }
+
+        return $items;
     }
 
     private function mapNewsletterPopup(HomeBuilderService $homeBuilder): ?array

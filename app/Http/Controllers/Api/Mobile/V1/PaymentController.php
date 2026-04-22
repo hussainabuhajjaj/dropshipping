@@ -18,6 +18,7 @@ use App\Services\Payments\KorapayService;
 use App\Services\Payments\PaymentResultService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class PaymentController extends ApiController
@@ -198,76 +199,83 @@ class PaymentController extends ApiController
     /**
      * Payment redirect handler (matching storefront exactly)
      */
-    public function redirect(Request $request, $type, $id = null)
-{
-    $reference = (string) (
-        $request->input('reference')
-        ?? $request->query('reference')
-        ?? $request->query('trxref')
-        ?? ''
-    );
+    public function redirect(Request $request, PaymentService $paymentService): JsonResponse
+    {
+        $reference = (string) (
+            $request->input('reference')
+            ?? $request->query('reference')
+            ?? $request->query('trxref')
+            ?? ''
+        );
 
-    if (! $reference) {
-        abort(404);
-    }
-
-    $payment = Payment::query()
-        ->where('provider', 'paystack')
-        ->where('provider_reference', $reference)
-        ->with('order')
-        ->latest('id')
-        ->first();
-
-    if (! $payment) {
-        abort(404);
-    }
-
-    // Track redirect hit
-    $meta = is_array($payment->meta) ? $payment->meta : [];
-    $meta['redirect_hit_at'] = now()->toISOString();
-    $payment->update(['meta' => $meta]);
-
-    // Already paid
-    if ($payment->status === 'paid' && $payment->order) {
-        return redirect()->route('orders.confirmation', [
-            'number' => $payment->order->number
-        ]);
-    }
-
-    try {
-        $payment = $this->paymentService
-            ->verifyPaystack($reference)
-            ->load('order');
-
-    } catch (\Throwable $e) {
-        Log::error('Redirect verification failed', [
-            'reference' => $reference,
-            'error' => $e->getMessage(),
-        ]);
-
-        return redirect()
-            ->route('pay.index', ['type' => 'cart'])
-            ->with('error', 'Verification failed.');
-    }
-
-    if ($payment->status === 'paid' && $payment->order) {
-
-        $customer = auth('customer')->user();
-
-        if ($customer && (int)$payment->order->customer_id === (int)$customer->id) {
-            $cart = Cart::where('user_id', $customer->id)->first();
-            $cart?->emptyCart();
+        if ($reference === '') {
+            return $this->error('Missing payment reference', 404);
         }
 
-        return redirect()->route('orders.confirmation', [
-            'number' => $payment->order->number
+        $payment = Payment::query()
+            ->where('provider', 'paystack')
+            ->where('provider_reference', $reference)
+            ->with('order')
+            ->latest('id')
+            ->first();
+
+        if (! $payment) {
+            return $this->notFound('Payment not found');
+        }
+
+        $meta = is_array($payment->meta) ? $payment->meta : [];
+        $meta['redirect_hit_at'] = now()->toISOString();
+        $payment->update(['meta' => $meta]);
+
+        if ($payment->status === 'paid' && $payment->order) {
+            return $this->success([
+                'status' => 'success',
+                'payment_status' => $payment->status,
+                'order_status' => $payment->order->status,
+                'order_number' => $payment->order->number,
+                'reference' => $payment->provider_reference,
+                'redirect' => null,
+            ]);
+        }
+
+        try {
+            $payment = $paymentService->verifyPaystack($reference)->load('order');
+        } catch (\Throwable $e) {
+            Log::error('Mobile payment redirect verification failed', [
+                'reference' => $reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->error('Verification failed', 422);
+        }
+
+        if ($payment->status === 'paid' && $payment->order) {
+            $customer = $request->user();
+
+            if ($customer && (int) $payment->order->customer_id === (int) $customer->id) {
+                $cart = Cart::query()->where('user_id', $customer->id)->first();
+                $cart?->emptyCart();
+            }
+
+            return $this->success([
+                'status' => 'success',
+                'payment_status' => $payment->status,
+                'order_status' => $payment->order->status,
+                'order_number' => $payment->order->number,
+                'reference' => $payment->provider_reference,
+                'redirect' => null,
+            ]);
+        }
+
+        return $this->success([
+            'status' => 'pending',
+            'payment_status' => $payment->status,
+            'order_status' => $payment->order?->status,
+            'order_number' => $payment->order?->number,
+            'reference' => $payment->provider_reference,
+            'redirect' => null,
         ]);
     }
-
-    return redirect()
-        ->route('pay.index', ['type' => 'cart'])
-        ->with('error', 'Payment not completed.');
-}
     /**
      * Unified payment verification for mobile
      */
