@@ -196,6 +196,9 @@ Route::get('currency-settings', function () {
     ]);
 });
 
+// Guest-accessible payment verification endpoint
+Route::get('payments/verify', [\App\Http\Controllers\Api\PaymentVerificationController::class, '__invoke']);
+
 Route::prefix('storefront')->group(function () {
     Route::get('home', HomeController::class);
     Route::get('categories', [CategoryController::class, 'index']);

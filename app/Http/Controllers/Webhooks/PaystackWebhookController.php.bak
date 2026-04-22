@@ -91,27 +91,6 @@ class PaystackWebhookController
 
             // ✅ Mark as paid
             $paymentService->markAsPaid($payment);
-
-            // Clear cart after successful payment via webhook (backup for callback bypass)
-            if ($payment->order && $payment->order->customer_id) {
-                Log::info("Clearing customer cart via webhook", [
-                    "reference" => $reference,
-                    "payment_id" => $payment->id,
-                    "order_id" => $payment->order->id,
-                    "customer_id" => $payment->order->customer_id,
-                ]);
-
-                $cart = \App\Models\Cart::where("user_id", $payment->order->customer_id)->first();
-                if ($cart) {
-                    $cart->emptyCart();
-                    \App\Services\AbandonedCartService::markRecovered();
-                    
-                    Log::info("Cart cleared via webhook", [
-                        "cart_id" => $cart->id,
-                        "payment_id" => $payment->id,
-                    ]);
-                }
-            }
         });
 
         return response('OK', SymfonyResponse::HTTP_OK);

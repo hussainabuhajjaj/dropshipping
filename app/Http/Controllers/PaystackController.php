@@ -38,7 +38,7 @@ class PaystackController extends Controller
                 'payment_method' => ['required', 'string', 'in:card,mobile_money'],
                 'email' => ['required', 'email'],
                 'grand_total' => ['required', 'numeric', 'min:1'],
-                'phone' => ['required', 'string', 'max:30'],
+                'phone' => [filled(request('address_id')) ? 'nullable' : 'required', 'string', 'max:30'],
                 'mobile_provider' => ['nullable', 'string', 'max:50'],
             ], $this->addressValidationRules($customer?->id)),
             [
@@ -115,6 +115,7 @@ class PaystackController extends Controller
             // Create order with backend-validated amount
             $order = Order::create([
                 'number' => 'ORD-' . uniqid(),
+                'customer_id' => $customer?->id,
                 'email' => $request->email,
                 'status' => 'pending',
                 'payment_status' => 'pending',
@@ -193,9 +194,16 @@ class PaystackController extends Controller
         $addressId = $request->integer('address_id');
 
         if ($addressId) {
-            return Address::query()
+            $address = Address::query()
                 ->where('customer_id', $customerId)
                 ->findOrFail($addressId);
+            
+            // If phone is provided in request, update the existing address
+            if ($request->filled('phone') && $request->input('phone') !== $address->phone) {
+                $address->update(['phone' => $request->input('phone')]);
+            }
+            
+            return $address;
         }
 
         return Address::query()->create([
@@ -216,41 +224,30 @@ class PaystackController extends Controller
     }
 
 
-    /**
-     * STEP 2: Paystack callback
-     */
-    public function callback(Request $request): RedirectResponse
+    
+    private function clearCustomerCart(Payment $payment): void
     {
-        $reference = $request->query('reference');
+        $order = $payment->order;
+        $customerId = $order?->customer_id;
 
-        if (!$reference) {
-            return redirect('/')->with('error', 'Missing reference');
+        if (! $customerId) {
+            return;
         }
 
-        try {
-            $data = $this->paystackService->verify($reference);
-
-            $payment = Payment::where('provider_reference', $reference)->firstOrFail();
-
-            if ($data['status'] === 'success') {
-                $payment->update(['status' => 'paid']);
-
-                $payment->order->update([
-                    'payment_status' => 'paid',
-                    'status' => 'processing',
-                ]);
-
-                return redirect('/success');
-            }
-
-            return redirect('/failed');
-
-        } catch (\Throwable $e) {
-            Log::error('Paystack verify failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return redirect('/failed');
+        $cart = \App\Models\Cart::query()->where('user_id', $customerId)->first();
+        if (! $cart) {
+            return;
         }
+
+        Log::info('Clearing customer cart after successful Paystack payment', [
+            'reference' => $payment->provider_reference,
+            'payment_id' => $payment->id,
+            'order_id' => $order?->id,
+            'customer_id' => $customerId,
+            'cart_id' => $cart->id,
+        ]);
+
+        $cart->emptyCart();
+        app(\App\Services\AbandonedCartService::class)->markRecovered();
     }
 }

@@ -145,6 +145,7 @@ export function useProductCartForm(options) {
 
     form.post('/cart', {
       preserveScroll: true,
+      preserveState: false, // Force refresh of shared data (including cart)
       headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
       onSuccess: () => {
         successMessage.value = t('Added to cart.')

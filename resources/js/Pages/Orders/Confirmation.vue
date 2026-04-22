@@ -11,11 +11,14 @@
       </p>
 
       <p class="text-sm text-slate-600">
-        <span v-if="order.payment_status === 'paid'">
+        <span v-if="paymentStatus === 'paid'">
           {{ t("Your order :number is confirmed. We will share tracking once the supplier dispatches. Delivery to Cote d'Ivoire with transparent customs.", { number: `#${order.number}` }) }}
         </span>
+        <span v-else-if="paymentStatus === 'verifying'">
+          {{ t('Verifying payment for order :number. Please wait...', { number: `#${order.number}` }) }}
+        </span>
         <span v-else>
-          {{ t('We have received your order :number. Payment is :payment, and we will confirm once it clears.', { number: `#${order.number}` , payment : order.payment_status }) }}
+          {{ t('We have received your order :number. Payment is :payment, and we will confirm once it clears.', { number: `#${order.number}` , payment : paymentStatus }) }}
         </span>
       </p>
 
@@ -26,7 +29,10 @@
         </div>
         <div class="mt-2 flex items-center justify-between text-sm">
           <span>{{ t('Payment') }}</span>
-          <span class="font-semibold text-slate-900">{{ order.payment_status }}</span>
+          <div class="flex items-center gap-2">
+            <span v-if="isVerifying" class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></span>
+            <span class="font-semibold text-slate-900">{{ formattedPaymentStatus }}</span>
+          </div>
         </div>
         <div class="mt-2 flex items-center justify-between text-sm">
           <span>{{ t('Discount') }}</span>
@@ -64,6 +70,18 @@
         >
           {{ t('Track order') }}
         </Link>
+        
+        <!-- Show retry button if verification failed -->
+        <button
+          v-if="verificationError && paymentStatus !== 'paid'"
+          @click="verifyPayment"
+          :disabled="isVerifying"
+          class="btn-secondary w-full sm:w-auto disabled:opacity-50"
+        >
+          <span v-if="isVerifying" class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+          {{ isVerifying ? t('Verifying...') : t('Retry verification') }}
+        </button>
+        
         <Link href="/support" class="btn-secondary w-full sm:w-auto">
           {{ t('Contact support') }}
         </Link>
@@ -89,8 +107,10 @@
 
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
+import { computed, onMounted, ref } from 'vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { useTranslations } from '@/i18n'
+import axios from 'axios'
 
 defineProps({
   order: { type: Object, required: true },
@@ -99,4 +119,82 @@ defineProps({
 const page = usePage()
 const { t } = useTranslations()
 const supportWhatsApp = page.props.site?.support_whatsapp ?? '+225 00 00 00 00'
+
+// Payment verification state
+const paymentStatus = ref(page.props.order?.payment_status || 'pending')
+const isVerifying = ref(false)
+const verificationError = ref(null)
+
+// Computed properties
+const formattedPaymentStatus = computed(() => {
+  if (isVerifying.value) return t('Verifying...')
+  if (verificationError.value) return t('Verification failed')
+  return paymentStatus.value
+})
+
+// Extract payment reference from URL or order
+const getPaymentReference = () => {
+  // Try to get reference from URL query parameters first
+  const urlParams = new URLSearchParams(window.location.search)
+  const reference = urlParams.get('reference') || urlParams.get('trxref')
+  
+  // If not in URL, try to get from order payment data
+  if (!reference && page.props.order?.payments?.length > 0) {
+    const payment = page.props.order.payments.find(p => p.provider === 'paystack')
+    return payment?.provider_reference
+  }
+  
+  return reference
+}
+
+// Verify payment status
+const verifyPayment = async () => {
+  const reference = getPaymentReference()
+  
+  if (!reference) {
+    console.log('No payment reference found for verification')
+    return
+  }
+
+  if (paymentStatus.value === 'paid') {
+    console.log('Payment already marked as paid')
+    return
+  }
+
+  isVerifying.value = true
+  verificationError.value = null
+
+  try {
+    const response = await axios.get('/api/payments/verify', {
+      params: { reference }
+    })
+
+    if (response.data.success) {
+      // Update payment status from verification response
+      paymentStatus.value = response.data.data?.payment_status || 'paid'
+      
+      // Optionally reload page data if status changed
+      if (response.data.data?.payment_status !== page.props.order?.payment_status) {
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      }
+    } else {
+      verificationError.value = response.data.message || 'Verification failed'
+    }
+  } catch (error) {
+    console.error('Payment verification error:', error)
+    verificationError.value = error.response?.data?.message || 'Network error'
+  } finally {
+    isVerifying.value = false
+  }
+}
+
+// Auto-verify on page load if payment is not paid
+onMounted(() => {
+  if (paymentStatus.value !== 'paid' && getPaymentReference()) {
+    // Small delay to ensure page is fully loaded
+    setTimeout(verifyPayment, 1000)
+  }
+})
 </script>

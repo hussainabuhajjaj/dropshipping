@@ -49,7 +49,7 @@ class PaystackService
             // ✅ MUST allow both
             'channels' => ['card', 'mobile_money'],
 
-            'callback_url' => $returnUrl ?: route('payments.paystack.callback'),
+            'callback_url' => $returnUrl ?: route('paystack.callback'),
 
             'metadata' => [
                 'order_number' => $order->number,
@@ -97,16 +97,26 @@ class PaystackService
     public function verifyTransaction(string $reference): array
     {
         $response = $this->client->get('/transaction/verify/' . urlencode($reference));
-        $result = $this->unwrap($response);
 
-        $data = is_array($result->data) ? $result->data : [];
+        // Directly access raw response data to avoid unwrap() issues
+        $data = isset($response->raw['data']) && is_array($response->raw['data'])
+            ? $response->raw['data']
+            : [];
 
         return [
             'reference' => $data['reference'] ?? null,
-            'status' => strtolower($data['status'] ?? 'pending'),
+            'status' => strtolower((string) ($data['status'] ?? 'pending')),
             'amount' => $data['amount'] ?? null,
             'currency' => $data['currency'] ?? null,
             'paid_at' => $data['paid_at'] ?? null,
+            'gateway_response' => $data['gateway_response'] ?? null,
+            'message' => $data['message'] ?? null,
+            'id' => $data['id'] ?? null,
+            'domain' => $data['domain'] ?? null,
+            'channel' => $data['channel'] ?? null,
+            'customer' => $data['customer'] ?? null,
+            'authorization' => $data['authorization'] ?? null,
+            'metadata' => $data['metadata'] ?? null,
         ];
     }
 
@@ -145,6 +155,14 @@ class PaystackService
         }
 
         return $response;
+    }
+
+    public function validateWebhook(string $payload, string $signature): bool
+    {
+        $secret = config('services.paystack.secret_key');
+        $expectedSignature = hash_hmac('sha512', $payload, $secret);
+
+        return hash_equals($expectedSignature, $signature);
     }
 
     private function assertConfigured(): void

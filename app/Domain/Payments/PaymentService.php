@@ -170,24 +170,59 @@ class PaymentService
         return $payment;
     }
 
-    private function applyStatusFromPayload(Payment $payment, array $payload): void
+    public function applyStatusFromPayload(Payment $payment, array $payload): void
     {
         $status = strtolower($payload['status'] ?? 'pending');
 
-        if (in_array($status, ['paid', 'captured', 'success', 'succeeded'], true)) {
+        // Handle successful transactions
+        if (in_array($status, ['success'], true)) {
             $this->markAsPaid($payment);
+            Log::info('Payment successful', ['payment_id' => $payment->id, 'status' => $status]);
             return;
         }
 
-        if (in_array($status, ['failed', 'declined'], true)) {
+        // Handle failed transactions
+        if (in_array($status, ['failed'], true)) {
             $payment->update(['status' => 'failed']);
-            Log::warning('Payment failed', ['payment_id' => $payment->id, 'payload' => $payload]);
+            Log::warning('Payment failed', ['payment_id' => $payment->id, 'status' => $status, 'payload' => $payload]);
             return;
         }
 
-        if ($status === 'authorized') {
-            $payment->update(['status' => 'authorized']);
+        // Handle ongoing/pending transactions (customer still completing action)
+        if (in_array($status, ['ongoing', 'pending', 'processing'], true)) {
+            $payment->update(['status' => 'pending']);
+            Log::info('Payment ongoing/pending', ['payment_id' => $payment->id, 'status' => $status]);
+            return;
         }
+
+        // Handle abandoned transactions
+        if ($status === 'abandoned') {
+            $payment->update(['status' => 'failed']);
+            Log::warning('Payment abandoned', ['payment_id' => $payment->id, 'status' => $status]);
+            return;
+        }
+
+        // Handle reversed transactions (refunds/chargebacks)
+        if ($status === 'reversed') {
+            $payment->update(['status' => 'refunded']);
+            Log::info('Payment reversed/refunded', ['payment_id' => $payment->id, 'status' => $status]);
+            return;
+        }
+
+        // Handle queued transactions (bulk charges)
+        if ($status === 'queued') {
+            $payment->update(['status' => 'pending']);
+            Log::info('Payment queued', ['payment_id' => $payment->id, 'status' => $status]);
+            return;
+        }
+
+        // Default to pending for unknown statuses
+        $payment->update(['status' => 'pending']);
+        Log::warning('Unknown payment status, defaulting to pending', [
+            'payment_id' => $payment->id, 
+            'status' => $status, 
+            'payload' => $payload
+        ]);
     }
 
     private function assertPayloadHasBasics(array $payload, ?string $provider = null): void
@@ -549,8 +584,8 @@ class PaymentService
     public function verifyPaystack(string $reference): Payment
     {
         $paystackService = app(PaystackService::class);
-        $response = $paystackService->verify($reference);
-        $data = is_array($response->data) ? $response->data : [];
+        $response = $paystackService->verifyTransaction($reference);
+        $data = $response; // verifyTransaction already returns array
 
         $existingForRef = Payment::query()
             ->where('provider', 'paystack')
@@ -570,7 +605,7 @@ class PaymentService
         }
 
         $payload = $this->normalizePaystackPayload($data, $reference);
-        $eventId = $payload['event_id'] ?? ('verify:' . $reference);
+        $eventId = (string) ($payload['event_id'] ?? ('verify:' . $reference));
 
         if (empty($payload['order_number'])) {
             $payment = Payment::query()

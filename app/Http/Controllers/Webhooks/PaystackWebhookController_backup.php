@@ -11,7 +11,6 @@ use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class PaystackWebhookController
@@ -21,15 +20,11 @@ class PaystackWebhookController
         PaystackService $paystackService,
         PaymentService $paymentService
     ): Response {
-        // ✅ Webhooks should be POST-only
-        if (!$request->isMethod('POST')) {
-            return response('Method not allowed', SymfonyResponse::HTTP_METHOD_NOT_ALLOWED);
-        }
 
+        // ✅ ONLY POST
         $payload = $request->getContent();
         $signature = (string) $request->header('x-paystack-signature', '');
 
-        // ✅ Validate webhook signature
         if ($signature === '' || !$paystackService->validateWebhook($payload, $signature)) {
             return response('Invalid signature', SymfonyResponse::HTTP_UNAUTHORIZED);
         }
@@ -91,27 +86,6 @@ class PaystackWebhookController
 
             // ✅ Mark as paid
             $paymentService->markAsPaid($payment);
-
-            // Clear cart after successful payment via webhook (backup for callback bypass)
-            if ($payment->order && $payment->order->customer_id) {
-                Log::info("Clearing customer cart via webhook", [
-                    "reference" => $reference,
-                    "payment_id" => $payment->id,
-                    "order_id" => $payment->order->id,
-                    "customer_id" => $payment->order->customer_id,
-                ]);
-
-                $cart = \App\Models\Cart::where("user_id", $payment->order->customer_id)->first();
-                if ($cart) {
-                    $cart->emptyCart();
-                    \App\Services\AbandonedCartService::markRecovered();
-                    
-                    Log::info("Cart cleared via webhook", [
-                        "cart_id" => $cart->id,
-                        "payment_id" => $payment->id,
-                    ]);
-                }
-            }
         });
 
         return response('OK', SymfonyResponse::HTTP_OK);

@@ -13,6 +13,7 @@ use App\Console\Commands\UpdateStockFromMetadata;
 use App\Console\Commands\FixDefaultCategories;
 use App\Console\Commands\FixDefaultVariants;
 use App\Console\Commands\ResyncCheckVariants;
+use App\Console\Commands\ReconcilePaymentsCommand;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
@@ -61,6 +62,7 @@ class Kernel extends ConsoleKernel
         ResyncCheckVariants::class,
         \App\Console\Commands\PushStorefrontAnnouncement::class,
         \App\Console\Commands\BackfillLogisticsRecords::class,
+        ReconcilePaymentsCommand::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -127,6 +129,11 @@ class Kernel extends ConsoleKernel
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
         $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
+        $schedule->command('payments:reconcile')
+            ->everyTenMinutes()
+            ->name('payments-reconcile-paystack')
+            ->withoutOverlapping()
+            ->description('Reconcile pending Paystack payments');
         $schedule->command('payments:reconcile-korapay --limit=50 --min-age=3 --max-age=4320')
             ->everyFiveMinutes()
             ->name('payments-reconcile-korapay')

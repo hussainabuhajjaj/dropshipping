@@ -350,11 +350,15 @@ Route::middleware('auth:customer')->prefix('pay/{type}')->name('pay.')->group(fu
 // Paystack Routes
 Route::middleware(['auth:customer', 'throttle:30,1'])->prefix('paystack')->name('paystack.')->group(function () {
     Route::post('/initialize', [App\Http\Controllers\PaystackController::class, 'initialize'])->name('initialize');
-    Route::get('/callback', [App\Http\Controllers\PaystackController::class, 'callback'])->name('callback');
     Route::post('/verify', [App\Http\Controllers\PaystackController::class, 'verify'])->name('verify');
     Route::post('/mobile-money/charge', [App\Http\Controllers\PaystackController::class, 'mobileMoneyCharge'])->name('mobile_money.charge');
 });
 
+// Paystack callback route (GET only - for user redirect after payment)
+Route::get('/paystack/callback', [App\Http\Controllers\Payments\PaystackCallbackController::class, '__invoke'])
+    ->name('paystack.callback');
+
+// Paystack webhook route (POST only - for Paystack server notifications)
 Route::post('/paystack/webhook', [App\Http\Controllers\Webhooks\PaystackWebhookController::class, '__invoke'])
     ->middleware('throttle:30,1')
     ->name('paystack.webhook');
