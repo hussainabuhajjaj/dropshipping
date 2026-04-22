@@ -338,6 +338,11 @@ SQL;
 
                 $product->slug = $candidate;
             }
+
+            // Generate product code if not provided
+            if (! $product->code || trim((string) $product->code) === '') {
+                $product->code = self::generateProductCode();
+            }
         });
     }
 
