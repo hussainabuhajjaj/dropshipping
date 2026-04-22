@@ -25,7 +25,9 @@ use App\Models\SiteSetting;
 use App\Services\CampaignManager;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
+use App\Services\Currency\CurrencyConversionService;
 use App\Services\Promotions\PromotionEngine;
+use App\Services\User\UserPreferenceService;
 use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,9 +96,7 @@ class CheckoutController extends ApiController
             $discountSource,
             $coupon ? $this->serializeCoupon($couponModel) : null,
             $promotionDiscounts,
-            $cartItems->first()?->variant?->currency
-                ?? $cartItems->first()?->product?->currency
-                ?? 'USD'
+            (string) ($pricing['currency'] ?? 'XOF')
         );
 
         [$order, $payment] = DB::transaction(function () use (
@@ -109,6 +109,7 @@ class CheckoutController extends ApiController
             $promotionDiscounts,
             $discountSource,
             $discountSnapshot,
+            $pricing,
             $shippingLines,
             $subtotal,
             $shipping,
@@ -147,9 +148,7 @@ class CheckoutController extends ApiController
                 'locale' => $locale,
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
-                'currency' => $cartItems->first()?->variant?->currency
-                    ?? $cartItems->first()?->product?->currency
-                    ?? 'USD',
+                'currency' => (string) ($pricing['currency'] ?? 'XOF'),
                 'subtotal' => $subtotal,
                 'shipping_total' => $shipping,
                 'shipping_total_estimated' => $shipping,
@@ -167,8 +166,8 @@ class CheckoutController extends ApiController
             ]);
 
             $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
-            $currencyConverter = app(\App\Services\Currency\CurrencyConversionService::class);
-            $userCurrency = app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
+            $currencyConverter = app(CurrencyConversionService::class);
+            $userCurrency = (string) ($pricing['currency'] ?? 'XOF');
 
             foreach ($cartItems as $line) {
                 $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
@@ -177,26 +176,28 @@ class CheckoutController extends ApiController
                     ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
                     ->first();
 
-                // Convert prices from USD to user's currency (XOF)
-                $unitPriceInUsd = $line->getSinglePrice();
+                $lineCurrency = $this->resolveCheckoutCurrencyForItem($line);
+                $unitPrice = $line->getSinglePrice();
                 try {
-                    $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPriceInUsd, 'USD', $userCurrency);
+                    $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPrice, $lineCurrency, $userCurrency);
                     if ($unitPriceInUserCurrency === null) {
                         \Log::warning('Currency conversion returned null in mobile checkout', [
-                            'usd_price' => $unitPriceInUsd,
+                            'source_price' => $unitPrice,
+                            'source_currency' => $lineCurrency,
                             'target_currency' => $userCurrency,
                             'order_id' => $order->id,
                         ]);
-                        $unitPriceInUserCurrency = $unitPriceInUsd;
+                        $unitPriceInUserCurrency = $unitPrice;
                     }
                 } catch (\Throwable $e) {
                     \Log::error('Currency conversion failed in mobile checkout', [
-                        'usd_price' => $unitPriceInUsd,
+                        'source_price' => $unitPrice,
+                        'source_currency' => $lineCurrency,
                         'target_currency' => $userCurrency,
                         'error' => $e->getMessage(),
                         'order_id' => $order->id,
                     ]);
-                    $unitPriceInUserCurrency = $unitPriceInUsd;
+                    $unitPriceInUserCurrency = $unitPrice;
                 }
                 $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
 
@@ -247,7 +248,7 @@ class CheckoutController extends ApiController
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);
             $payment = Payment::create([
                 'order_id' => $order->id,
-                'provider' => 'korapay',
+                'provider' => 'paystack',
                 'status' => 'pending',
                 'provider_reference' => null,
                 'amount' => $order->grand_total,
@@ -255,7 +256,7 @@ class CheckoutController extends ApiController
                 'paid_at' => null,
                 'meta' => [
                     'type' => 'checkout_pending',
-                    'payment_method' => $validated['payment_method'] ?? 'korapay',
+                    'payment_method' => $validated['payment_method'] ?? 'card',
                     'coupon_code' => $coupon['code'] ?? null,
                     'tax_included' => $taxIncluded,
                 ],
@@ -373,6 +374,10 @@ class CheckoutController extends ApiController
     private function buildPricingPayload(Cart $cart, ?Customer $customer, $cartItems = null): array
     {
         $cartItems = $cartItems ?? $cart->items;
+        $sourceCurrency = $this->resolveCheckoutCurrency($cartItems);
+        $targetCurrency = app(UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
+        $currencyConverter = app(CurrencyConversionService::class);
+
         $subtotal = (float) $cartItems->reduce(
             fn (float $carry, $item) => $carry + ((float) $item->quantity * (float) $item->getSinglePrice()),
             0.0
@@ -416,20 +421,38 @@ class CheckoutController extends ApiController
             $promotionModels,
             $couponModel
         );
-        $currency = $cartItems->first()?->variant?->currency
-            ?? $cartItems->first()?->product?->currency
-            ?? 'USD';
+        $subtotal = $this->convertCheckoutAmount($currencyConverter, $subtotal, $sourceCurrency, $targetCurrency);
+        $shippingTotal = $this->convertCheckoutAmount($currencyConverter, $shippingTotal, $sourceCurrency, $targetCurrency);
+        $discount = $this->convertCheckoutAmount($currencyConverter, $discount, $sourceCurrency, $targetCurrency);
+        $taxTotal = $this->convertCheckoutAmount($currencyConverter, $taxTotal, $sourceCurrency, $targetCurrency);
+        $total = $this->convertCheckoutAmount($currencyConverter, $total, $sourceCurrency, $targetCurrency);
+        $shippingLines = collect($shippingQuote['lines'] ?? [])->map(function (array $line) use ($currencyConverter, $sourceCurrency, $targetCurrency) {
+            $line['logistic_price'] = $this->convertCheckoutAmount(
+                $currencyConverter,
+                (float) ($line['logistic_price'] ?? 0),
+                $sourceCurrency,
+                $targetCurrency
+            );
+            $line['total_postage_fee'] = $this->convertCheckoutAmount(
+                $currencyConverter,
+                (float) ($line['total_postage_fee'] ?? ($line['logistic_price'] ?? 0)),
+                $sourceCurrency,
+                $targetCurrency
+            );
+
+            return $line;
+        })->values()->all();
 
         return [
             'subtotal' => $subtotal,
             'shipping' => $shippingTotal,
-            'shipping_lines' => $shippingQuote['lines'] ?? [],
+            'shipping_lines' => $shippingLines,
             'shipping_unavailable' => (bool) ($shippingQuote['unavailable'] ?? false),
             'shipping_unavailable_reason' => $shippingQuote['reason'] ?? null,
             'discount' => $discount,
             'tax' => $taxTotal,
             'total' => $total,
-            'currency' => $currency,
+            'currency' => $targetCurrency,
             'applied_promotions' => $appliedPromotions,
             'minimum_cart_requirement' => $minimumRequirement,
             'coupon' => $discounts['coupon'] ?? null,
@@ -476,6 +499,33 @@ class CheckoutController extends ApiController
             'coupon_model' => null,
             'promotion_discounts' => $campaign['promotion_discounts'] ?? [],
         ];
+    }
+
+    private function resolveCheckoutCurrency($cartItems): string
+    {
+        return (string) (
+            $cartItems->first()?->variant?->currency
+            ?? $cartItems->first()?->product?->currency
+            ?? config('currency.base', 'USD')
+        );
+    }
+
+    private function resolveCheckoutCurrencyForItem($item): string
+    {
+        return (string) (
+            $item?->variant?->currency
+            ?? $item?->product?->currency
+            ?? config('currency.base', 'USD')
+        );
+    }
+
+    private function convertCheckoutAmount(
+        CurrencyConversionService $currencyConverter,
+        float $amount,
+        string $sourceCurrency,
+        string $targetCurrency
+    ): float {
+        return $currencyConverter->convertAmount($amount, $sourceCurrency, $targetCurrency) ?? $amount;
     }
 
     private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
