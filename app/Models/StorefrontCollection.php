@@ -236,27 +236,46 @@ class StorefrontCollection extends Model
         ?int $page = null
     ): LengthAwarePaginator {
         $page = max(1, $page ?? LengthAwarePaginator::resolveCurrentPage());
-        $limit = $this->normalizeLimit($this->product_limit ?? Arr::get($this->rules ?? [], 'limit'));
-        $query = $this->filteredQuery($filters, $locale);
+        $mode = $this->selection_mode ?: 'rules';
+        $rules = $this->rules ?? [];
+        $limit = $this->normalizeLimit($this->product_limit ?? Arr::get($rules, 'limit'));
+        $manualIds = $this->manualProductIds();
+
+        if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
+            return $this->paginateQueryResults(
+                $this->buildManualQuery($manualIds, $filters),
+                $perPage,
+                $page,
+                $limit
+            );
+        }
+
+        if ($mode === 'manual') {
+            return $this->paginateQueryResults(
+                $this->buildManualQuery($manualIds, $filters),
+                $perPage,
+                $page,
+                $limit
+            );
+        }
+
+        if ($mode === 'rules') {
+            return $this->paginateQueryResults(
+                $this->buildRuleQuery($rules, $manualIds, $locale, $filters),
+                $perPage,
+                $page,
+                $limit
+            );
+        }
+
+        if ($mode === 'hybrid' && $manualIds !== []) {
+            return $this->paginateHybridFilteredProducts($rules, $manualIds, $locale, $filters, $perPage, $page, $limit);
+        }
+
+        $query = $this->buildRuleQuery($rules, [], $locale, $filters);
 
         if ($query) {
-            $total = (clone $query)->count();
-            if ($limit !== null) {
-                $total = min($total, $limit);
-            }
-
-            $offset = max(0, ($page - 1) * $perPage);
-            if ($offset >= $total) {
-                return $this->paginateCollection(collect(), $perPage, $page, $total);
-            }
-
-            $remaining = $total - $offset;
-            $items = $query
-                ->offset($offset)
-                ->limit(min($perPage, $remaining))
-                ->get();
-
-            return $this->paginateCollection($items, $perPage, $page, $total);
+            return $this->paginateQueryResults($query, $perPage, $page, $limit);
         }
 
         $resolved = $this->applyFiltersToResolvedProducts($this->resolveProducts($locale), $filters);
@@ -511,6 +530,21 @@ class StorefrontCollection extends Model
             ->implode(' ') . ' ELSE ' . count($ids) . ' END';
 
         return $query->orderByRaw($caseSql);
+    }
+
+    private function buildHybridManualQuery(array $ids, array $filters, bool $withRelations = true): ?Builder
+    {
+        if ($ids === []) {
+            return null;
+        }
+
+        $query = $this->baseProductQuery($withRelations)
+            ->whereIn('id', $ids);
+
+        $query = $this->applyRuntimeFilters($query, $filters);
+        $this->applySort($query, Arr::get($filters, 'sort'));
+
+        return $query;
     }
 
     private function baseProductQuery(bool $withRelations = true): Builder
@@ -848,6 +882,49 @@ class StorefrontCollection extends Model
         return $this->paginateCollection($items, $perPage, $page, $total);
     }
 
+    private function paginateHybridFilteredProducts(
+        array $rules,
+        array $manualIds,
+        ?string $locale,
+        array $filters,
+        int $perPage,
+        int $page,
+        ?int $limit
+    ): LengthAwarePaginator {
+        $manualCountQuery = $this->buildHybridManualQuery($manualIds, $filters, false);
+        $ruleCountQuery = $this->buildRuleQuery($rules, $manualIds, $locale, $filters, false);
+
+        $manualTotal = $manualCountQuery ? (clone $manualCountQuery)->count() : 0;
+        $ruleTotal = (clone $ruleCountQuery)->count();
+        $total = $manualTotal + $ruleTotal;
+
+        if ($limit !== null) {
+            $total = min($total, $limit);
+        }
+
+        $offset = max(0, ($page - 1) * $perPage);
+        if ($offset >= $total) {
+            return $this->paginateCollection(collect(), $perPage, $page, $total);
+        }
+
+        $candidateLimit = min($total, $offset + $perPage);
+        $manualItems = collect();
+        if ($manualCountQuery && $candidateLimit > 0) {
+            $manualItems = $this->applyCandidateLimit($this->buildHybridManualQuery($manualIds, $filters), $candidateLimit)->get();
+        }
+
+        $ruleItems = collect();
+        if ($candidateLimit > 0) {
+            $ruleItems = $this->applyCandidateLimit($this->buildRuleQuery($rules, $manualIds, $locale, $filters), $candidateLimit)->get();
+        }
+
+        $items = $this->sortResolvedProducts($manualItems->concat($ruleItems)->values(), Arr::get($filters, 'sort'))
+            ->slice($offset, $perPage)
+            ->values();
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
     private function paginateHybridProducts(
         array $rules,
         array $manualIds,
@@ -923,6 +1000,36 @@ class StorefrontCollection extends Model
         }
 
         return $this->loadProductsByIds($pageIds);
+    }
+
+    private function paginateQueryResults(?Builder $query, int $perPage, int $page, ?int $limit = null): LengthAwarePaginator
+    {
+        if (! $query) {
+            return $this->paginateCollection(collect(), $perPage, $page, 0);
+        }
+
+        $total = (clone $query)->count();
+        if ($limit !== null) {
+            $total = min($total, $limit);
+        }
+
+        $offset = max(0, ($page - 1) * $perPage);
+        if ($offset >= $total) {
+            return $this->paginateCollection(collect(), $perPage, $page, $total);
+        }
+
+        $remaining = $total - $offset;
+        $items = $query
+            ->offset($offset)
+            ->limit(min($perPage, $remaining))
+            ->get();
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    private function applyCandidateLimit(?Builder $query, int $candidateLimit): Builder
+    {
+        return $query->limit(max(1, $candidateLimit));
     }
 
     private function paginateCollection($items, int $perPage, int $page, ?int $total = null): LengthAwarePaginator

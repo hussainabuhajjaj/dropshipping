@@ -132,6 +132,55 @@ class CollectionTest extends TestCase
             ->assertJsonPath('data.products.1.id', $productWithHigherBasePrice->id);
     }
 
+    public function test_hybrid_collection_endpoint_supports_filtered_pagination(): void
+    {
+        $category = Category::factory()->create([
+            'slug' => 'hybrid-collection-category',
+            'is_active' => true,
+        ]);
+
+        $manualMatch = Product::factory()->create([
+            'is_active' => true,
+            'name' => 'Manual Blue Item',
+            'attributes' => ['color' => 'Blue'],
+            'created_at' => now()->subDay(),
+        ]);
+
+        $ruleMatch = Product::factory()->create([
+            'category_id' => $category->id,
+            'is_active' => true,
+            'name' => 'Rule Blue Item',
+            'attributes' => ['color' => 'Blue'],
+            'created_at' => now(),
+        ]);
+
+        Product::factory()->create([
+            'category_id' => $category->id,
+            'is_active' => true,
+            'name' => 'Rule Red Item',
+            'attributes' => ['color' => 'Red'],
+        ]);
+
+        $collection = StorefrontCollection::query()->create([
+            'title' => 'Hybrid Picks',
+            'slug' => 'hybrid-picks',
+            'is_active' => true,
+            'selection_mode' => 'hybrid',
+            'rules' => [
+                'category_ids' => [$category->id],
+            ],
+        ]);
+
+        $collection->products()->attach($manualMatch->id, ['position' => 1]);
+
+        $response = $this->getJson('/api/mobile/v1/collections/hybrid-picks?attributes[color]=Blue');
+
+        $response->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.products.0.id', $ruleMatch->id)
+            ->assertJsonPath('data.products.1.id', $manualMatch->id);
+    }
+
     public function test_legacy_collection_endpoint_returns_empty_payload_when_rendering_fails(): void
     {
         $category = Category::factory()->create([
