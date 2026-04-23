@@ -203,7 +203,9 @@ class CollectionController extends ApiController
 
     private function filtersFromQuery(Builder $query): array
     {
-        $aggregate = (clone $query)
+        $metaQuery = (clone $query)->setEagerLoads([]);
+
+        $aggregate = (clone $metaQuery)
             ->reorder()
             ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
             ->first();
@@ -213,7 +215,7 @@ class CollectionController extends ApiController
                 'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
                 'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
             ],
-            ...$this->productMetaExtractor->extractFromQuery($query),
+            ...$this->productMetaExtractor->extractFromQuery($metaQuery),
         ];
     }
 
@@ -325,14 +327,17 @@ class CollectionController extends ApiController
         $page = max((int) ($request->query('page', 1)), 1);
         $categoryIds = $this->descendantCategoryIds([(int) $category->id]);
 
-        $query = Product::query()
+        $baseQuery = Product::query()
             ->where('is_active', true)
-            ->whereIn('category_id', $categoryIds)
+            ->whereIn('category_id', $categoryIds);
+
+        $filters = $this->filtersFromQuery($baseQuery);
+
+        $query = (clone $baseQuery)
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
 
-        $filters = $this->filtersFromQuery($query);
         $query = $this->applyRequestFiltersToQuery($query, $requestFilters);
         $this->applyRequestSort($query, Arr::get($requestFilters, 'sort'));
 

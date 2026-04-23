@@ -273,11 +273,14 @@ class StorefrontCollection extends Model
 
     public function availableFilters(?string $locale = null): array
     {
-        $query = $this->filteredQuery([], $locale);
+        $query = $this->filteredQuery([], $locale, false);
 
         if ($query) {
-            $aggregate = (clone $query)
-                ->reorder()
+            $metaQuery = (clone $query)
+                ->setEagerLoads([])
+                ->reorder();
+
+            $aggregate = (clone $metaQuery)
                 ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
                 ->first();
 
@@ -286,7 +289,7 @@ class StorefrontCollection extends Model
                     'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
                     'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
                 ],
-                ...app(ProductMetaExtractor::class)->extractFromQuery($query),
+                ...app(ProductMetaExtractor::class)->extractFromQuery($metaQuery),
             ];
         }
 
@@ -330,9 +333,15 @@ class StorefrontCollection extends Model
         })->values();
     }
 
-    private function buildRuleQuery(array $rules, array $excludeIds, ?string $locale, array $filters = []): Builder
+    private function buildRuleQuery(
+        array $rules,
+        array $excludeIds,
+        ?string $locale,
+        array $filters = [],
+        bool $withRelations = true
+    ): Builder
     {
-        $query = $this->baseProductQuery();
+        $query = $this->baseProductQuery($withRelations);
 
         $isActive = Arr::get($rules, 'is_active', true);
         if ($isActive !== null) {
@@ -454,38 +463,38 @@ class StorefrontCollection extends Model
         return $query;
     }
 
-    private function filteredQuery(array $filters, ?string $locale): ?Builder
+    private function filteredQuery(array $filters, ?string $locale, bool $withRelations = true): ?Builder
     {
         $mode = $this->selection_mode ?: 'rules';
         $rules = $this->rules ?? [];
         $manualIds = $this->manualProductIds();
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
-            return $this->buildManualQuery($manualIds, $filters);
+            return $this->buildManualQuery($manualIds, $filters, $withRelations);
         }
 
         if ($mode === 'manual') {
-            return $this->buildManualQuery($manualIds, $filters);
+            return $this->buildManualQuery($manualIds, $filters, $withRelations);
         }
 
         if ($mode === 'rules') {
-            return $this->buildRuleQuery($rules, $manualIds, $locale, $filters);
+            return $this->buildRuleQuery($rules, $manualIds, $locale, $filters, $withRelations);
         }
 
         if ($mode === 'hybrid' && $manualIds === []) {
-            return $this->buildRuleQuery($rules, [], $locale, $filters);
+            return $this->buildRuleQuery($rules, [], $locale, $filters, $withRelations);
         }
 
         return null;
     }
 
-    private function buildManualQuery(array $ids, array $filters): ?Builder
+    private function buildManualQuery(array $ids, array $filters, bool $withRelations = true): ?Builder
     {
         if ($ids === []) {
             return null;
         }
 
-        $query = $this->baseProductQuery()
+        $query = $this->baseProductQuery($withRelations)
             ->whereIn('id', $ids);
 
         $query = $this->applyRuntimeFilters($query, $filters);
@@ -504,9 +513,15 @@ class StorefrontCollection extends Model
         return $query->orderByRaw($caseSql);
     }
 
-    private function baseProductQuery(): Builder
+    private function baseProductQuery(bool $withRelations = true): Builder
     {
-        return Product::query()
+        $query = Product::query();
+
+        if (! $withRelations) {
+            return $query;
+        }
+
+        return $query
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
