@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Api\Mobile\V1;
 
+use App\Domain\Products\Models\ProductImage;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\StorefrontCollection;
+use App\Services\Storefront\HomeBuilderService;
 use App\Services\Storefront\ProductMetaExtractor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
@@ -123,5 +125,40 @@ class CollectionTest extends TestCase
             ->assertJsonCount(0, 'data.products')
             ->assertJsonPath('data.filters.attributeDefs', [])
             ->assertJsonPath('data.filters.brands', null);
+    }
+
+    public function test_legacy_collection_endpoint_returns_empty_payload_when_product_serialization_fails(): void
+    {
+        $category = Category::factory()->create([
+            'slug' => 'womens-clothing',
+            'name' => 'Women',
+            'is_active' => true,
+        ]);
+
+        $product = Product::factory()->create([
+            'category_id' => $category->id,
+            'is_active' => true,
+            'name' => 'Blue Dress',
+            'attributes' => ['color' => 'Blue'],
+        ]);
+
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'url' => 'products/test-image.jpg',
+            'position' => 1,
+        ]);
+
+        $this->mock(HomeBuilderService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('normalizeImage')
+                ->andThrow(new \RuntimeException('Simulated product serialization failure'));
+        });
+
+        $response = $this->getJson('/api/mobile/v1/collections/women-collection');
+
+        $response->assertOk()
+            ->assertJsonPath('data.collection.slug', 'women-collection')
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonCount(0, 'data.products')
+            ->assertJsonPath('data.filters.attributeDefs.0.key', 'color');
     }
 }

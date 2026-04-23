@@ -326,6 +326,7 @@ class CollectionController extends ApiController
         $perPage = min((int) ($request->query('per_page', 18)), 50);
         $page = max((int) ($request->query('page', 1)), 1);
         $items = collect();
+        $productPayload = [];
         $filters = $this->buildFilters($items);
         $total = 0;
         $lastPage = 1;
@@ -349,6 +350,7 @@ class CollectionController extends ApiController
 
             $products = $query->paginate($perPage, ['*'], 'page', $page);
             $items = collect($products->items())->values();
+            $productPayload = ProductResource::collection($items)->resolve();
             $total = $products->total();
             $lastPage = $products->lastPage();
         } catch (\Throwable $exception) {
@@ -383,7 +385,7 @@ class CollectionController extends ApiController
                     'starts_at' => null,
                     'ends_at' => null,
                 ],
-                'products' => ProductResource::collection($items)->resolve(),
+                'products' => $productPayload,
                 'filters' => $filters,
             ],
             null,
