@@ -230,7 +230,7 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('products/{product:slug}', [MobileProductController::class, 'show']);
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
     Route::get('collections', [MobileCollectionController::class, 'index']);
-    Route::get('collections/{collection:slug}', [MobileCollectionController::class, 'show']);
+    Route::get('collections/{slug}', [MobileCollectionController::class, 'show']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::post('translations/register', [MobileTranslationsController::class, 'register']);
