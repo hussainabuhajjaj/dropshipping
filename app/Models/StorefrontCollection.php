@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection as SupportCollection;
+use App\Services\Storefront\ProductMetaExtractor;
 
 class StorefrontCollection extends Model
 {
@@ -228,6 +229,70 @@ class StorefrontCollection extends Model
         return $this->paginateHybridProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
     }
 
+    public function paginateFilteredProducts(
+        array $filters = [],
+        ?string $locale = null,
+        int $perPage = 18,
+        ?int $page = null
+    ): LengthAwarePaginator {
+        $page = max(1, $page ?? LengthAwarePaginator::resolveCurrentPage());
+        $limit = $this->normalizeLimit($this->product_limit ?? Arr::get($this->rules ?? [], 'limit'));
+        $query = $this->filteredQuery($filters, $locale);
+
+        if ($query) {
+            $total = (clone $query)->count();
+            if ($limit !== null) {
+                $total = min($total, $limit);
+            }
+
+            $offset = max(0, ($page - 1) * $perPage);
+            if ($offset >= $total) {
+                return $this->paginateCollection(collect(), $perPage, $page, $total);
+            }
+
+            $remaining = $total - $offset;
+            $items = $query
+                ->offset($offset)
+                ->limit(min($perPage, $remaining))
+                ->get();
+
+            return $this->paginateCollection($items, $perPage, $page, $total);
+        }
+
+        $resolved = $this->applyFiltersToResolvedProducts($this->resolveProducts($locale), $filters);
+        if ($limit !== null) {
+            $resolved = $resolved->take($limit)->values();
+        }
+
+        $total = $resolved->count();
+        $offset = max(0, ($page - 1) * $perPage);
+        $items = $resolved->slice($offset, $perPage)->values();
+
+        return $this->paginateCollection($items, $perPage, $page, $total);
+    }
+
+    public function availableFilters(?string $locale = null): array
+    {
+        $query = $this->filteredQuery([], $locale);
+
+        if ($query) {
+            $aggregate = (clone $query)
+                ->reorder()
+                ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
+                ->first();
+
+            return [
+                'price_range' => [
+                    'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
+                    'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
+                ],
+                ...app(ProductMetaExtractor::class)->extractFromQuery($query),
+            ];
+        }
+
+        return $this->filtersFromResolvedProducts($this->resolveProducts($locale));
+    }
+
     private function loadRuleProducts(array $rules, array $excludeIds, ?int $limit, ?string $locale)
     {
         $query = $this->buildRuleQuery($rules, $excludeIds, $locale);
@@ -265,12 +330,9 @@ class StorefrontCollection extends Model
         })->values();
     }
 
-    private function buildRuleQuery(array $rules, array $excludeIds, ?string $locale): Builder
+    private function buildRuleQuery(array $rules, array $excludeIds, ?string $locale, array $filters = []): Builder
     {
-        $query = Product::query()
-            ->with(['images', 'category', 'variants', 'translations'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews');
+        $query = $this->baseProductQuery();
 
         $isActive = Arr::get($rules, 'is_active', true);
         if ($isActive !== null) {
@@ -386,29 +448,265 @@ class StorefrontCollection extends Model
             $query->whereNotIn('id', array_unique($excludeIds));
         }
 
-        $sort = Arr::get($rules, 'sort') ?: $this->sort_by;
+        $query = $this->applyRuntimeFilters($query, $filters);
+        $this->applySort($query, Arr::get($filters, 'sort') ?: Arr::get($rules, 'sort') ?: $this->sort_by);
+
+        return $query;
+    }
+
+    private function filteredQuery(array $filters, ?string $locale): ?Builder
+    {
+        $mode = $this->selection_mode ?: 'rules';
+        $rules = $this->rules ?? [];
+        $manualIds = $this->manualProductIds();
+
+        if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
+            return $this->buildManualQuery($manualIds, $filters);
+        }
+
+        if ($mode === 'manual') {
+            return $this->buildManualQuery($manualIds, $filters);
+        }
+
+        if ($mode === 'rules') {
+            return $this->buildRuleQuery($rules, $manualIds, $locale, $filters);
+        }
+
+        if ($mode === 'hybrid' && $manualIds === []) {
+            return $this->buildRuleQuery($rules, [], $locale, $filters);
+        }
+
+        return null;
+    }
+
+    private function buildManualQuery(array $ids, array $filters): ?Builder
+    {
+        if ($ids === []) {
+            return null;
+        }
+
+        $query = $this->baseProductQuery()
+            ->whereIn('id', $ids);
+
+        $query = $this->applyRuntimeFilters($query, $filters);
+
+        $sort = Arr::get($filters, 'sort');
+        if ($sort) {
+            $this->applySort($query, $sort);
+            return $query;
+        }
+
+        $caseSql = 'CASE id ' . collect($ids)
+            ->values()
+            ->map(fn ($id, $index) => 'WHEN ' . (int) $id . ' THEN ' . $index)
+            ->implode(' ') . ' ELSE ' . count($ids) . ' END';
+
+        return $query->orderByRaw($caseSql);
+    }
+
+    private function baseProductQuery(): Builder
+    {
+        return Product::query()
+            ->with(['images', 'category', 'variants', 'translations'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews');
+    }
+
+    private function applyRuntimeFilters(Builder $query, array $filters): Builder
+    {
+        $minPrice = Arr::get($filters, 'min_price');
+        if ($minPrice !== null && is_numeric($minPrice)) {
+            $query->where('selling_price', '>=', (float) $minPrice);
+        }
+
+        $maxPrice = Arr::get($filters, 'max_price');
+        if ($maxPrice !== null && is_numeric($maxPrice)) {
+            $query->where('selling_price', '<=', (float) $maxPrice);
+        }
+
+        $inStock = Arr::get($filters, 'in_stock');
+        if ($inStock === true || $inStock === 1 || $inStock === '1' || $inStock === 'true') {
+            $query->where('stock_on_hand', '>', 0);
+        }
+
+        $minRating = Arr::get($filters, 'rating');
+        if ($minRating !== null && is_numeric($minRating)) {
+            $query->having('reviews_avg_rating', '>=', (float) $minRating);
+        }
+
+        $brand = trim((string) Arr::get($filters, 'brand', ''));
+        if ($brand !== '') {
+            $query->where(function (Builder $builder) use ($brand) {
+                $builder
+                    ->where('attributes->brand', $brand)
+                    ->orWhereJsonContains('attributes->brand', $brand);
+            });
+        }
+
+        $attributes = Arr::get($filters, 'attributes', []);
+        if (is_array($attributes)) {
+            foreach ($attributes as $key => $value) {
+                if (! is_string($key)) {
+                    continue;
+                }
+
+                if (is_array($value)) {
+                    $value = collect($value)->first(fn ($item) => is_scalar($item) && trim((string) $item) !== '');
+                }
+
+                $normalizedValue = trim((string) $value);
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                $query->where(function (Builder $builder) use ($key, $normalizedValue) {
+                    $builder
+                        ->where('attributes->' . $key, $normalizedValue)
+                        ->orWhereJsonContains('attributes->' . $key, $normalizedValue);
+                });
+            }
+        }
+
+        return $query;
+    }
+
+    private function applySort(Builder $query, ?string $sort): void
+    {
         $sortable = [
             'price_asc' => ['selling_price', 'asc'],
             'price_desc' => ['selling_price', 'desc'],
             'newest' => ['created_at', 'desc'],
             'rating' => ['reviews_avg_rating', 'desc'],
             'popularity' => ['reviews_count', 'desc'],
+            'popular' => ['reviews_count', 'desc'],
             'featured' => ['is_featured', 'desc'],
         ];
 
+        $sort = is_string($sort) ? trim($sort) : null;
+
+        $query->reorder();
+
         if ($sort === 'random') {
             $query->inRandomOrder();
-        } elseif ($sort && isset($sortable[$sort])) {
+            return;
+        }
+
+        if ($sort && isset($sortable[$sort])) {
             [$field, $direction] = $sortable[$sort];
             $query->orderBy($field, $direction);
             if ($sort === 'featured') {
                 $query->orderBy('created_at', 'desc');
             }
-        } else {
-            $query->orderBy('created_at', 'desc');
+            return;
         }
 
-        return $query;
+        $query->orderBy('created_at', 'desc');
+    }
+
+    private function applyFiltersToResolvedProducts(SupportCollection $products, array $filters): SupportCollection
+    {
+        $filtered = $products->filter(function ($product) use ($filters): bool {
+            $price = (float) ($product->selling_price ?? 0);
+            $minPrice = Arr::get($filters, 'min_price');
+            if ($minPrice !== null && is_numeric($minPrice) && $price < (float) $minPrice) {
+                return false;
+            }
+
+            $maxPrice = Arr::get($filters, 'max_price');
+            if ($maxPrice !== null && is_numeric($maxPrice) && $price > (float) $maxPrice) {
+                return false;
+            }
+
+            $inStock = Arr::get($filters, 'in_stock');
+            if (($inStock === true || $inStock === 1 || $inStock === '1' || $inStock === 'true')
+                && (int) ($product->stock_on_hand ?? 0) <= 0) {
+                return false;
+            }
+
+            $brand = trim((string) Arr::get($filters, 'brand', ''));
+            $attributes = is_array($product->attributes ?? null) ? $product->attributes : [];
+            if ($brand !== '') {
+                $brandValue = $attributes['brand'] ?? null;
+                if (is_array($brandValue)) {
+                    if (! in_array($brand, array_map('strval', $brandValue), true)) {
+                        return false;
+                    }
+                } elseif ((string) $brandValue !== $brand) {
+                    return false;
+                }
+            }
+
+            $selectedAttributes = Arr::get($filters, 'attributes', []);
+            if (is_array($selectedAttributes)) {
+                foreach ($selectedAttributes as $key => $value) {
+                    $normalizedValue = trim((string) (is_array($value) ? reset($value) : $value));
+                    if ($normalizedValue === '') {
+                        continue;
+                    }
+
+                    $attributeValue = $attributes[$key] ?? null;
+                    if (is_array($attributeValue)) {
+                        if (! in_array($normalizedValue, array_map('strval', $attributeValue), true)) {
+                            return false;
+                        }
+                        continue;
+                    }
+
+                    if ((string) $attributeValue !== $normalizedValue) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        })->values();
+
+        return $this->sortResolvedProducts($filtered, Arr::get($filters, 'sort'));
+    }
+
+    private function sortResolvedProducts(SupportCollection $products, ?string $sort): SupportCollection
+    {
+        $sort = is_string($sort) ? trim($sort) : null;
+
+        return match ($sort) {
+            'price_asc' => $products->sortBy(fn ($product) => (float) ($product->selling_price ?? 0))->values(),
+            'price_desc' => $products->sortByDesc(fn ($product) => (float) ($product->selling_price ?? 0))->values(),
+            'rating' => $products->sortByDesc(fn ($product) => (float) ($product->reviews_avg_rating ?? 0))->values(),
+            'popularity', 'popular' => $products->sortByDesc(fn ($product) => (int) ($product->reviews_count ?? 0))->values(),
+            'featured' => $products
+                ->sortByDesc(fn ($product) => [
+                    (int) ($product->is_featured ?? false),
+                    optional($product->created_at)?->getTimestamp() ?? 0,
+                ])
+                ->values(),
+            default => $products->sortByDesc(fn ($product) => optional($product->created_at)?->getTimestamp() ?? 0)->values(),
+        };
+    }
+
+    private function filtersFromResolvedProducts(SupportCollection $products): array
+    {
+        $priceValues = $products
+            ->map(function ($product): ?float {
+                $sellingPrice = is_array($product)
+                    ? ($product['selling_price'] ?? $product['price'] ?? null)
+                    : ($product->selling_price ?? null);
+
+                if ($sellingPrice !== null && is_numeric($sellingPrice)) {
+                    return (float) $sellingPrice;
+                }
+
+                return null;
+            })
+            ->filter(fn ($value): bool => $value !== null)
+            ->values();
+
+        return [
+            'price_range' => [
+                'min' => $priceValues->isNotEmpty() ? round((float) $priceValues->min(), 2) : null,
+                'max' => $priceValues->isNotEmpty() ? round((float) $priceValues->max(), 2) : null,
+            ],
+            ...app(ProductMetaExtractor::class)->extract($products->all()),
+        ];
     }
 
     /**

@@ -10,9 +10,10 @@ use App\Models\Product;
 use App\Models\StorefrontCollection;
 use App\Services\Storefront\ProductMetaExtractor;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -45,12 +46,19 @@ class CollectionController extends ApiController
     {
         $collection = StorefrontCollection::query()->where('slug', $slug)->first();
         $locale = app()->getLocale();
+        $requestFilters = $this->requestFilters($request);
 
         if (! $collection) {
             $fallbackCategorySlug = $this->legacyCollectionCategorySlug($slug);
 
             if ($fallbackCategorySlug) {
-                return $this->legacyCategoryCollectionResponse($request, $fallbackCategorySlug, $slug, $locale);
+                return $this->legacyCategoryCollectionResponse(
+                    $request,
+                    $fallbackCategorySlug,
+                    $slug,
+                    $locale,
+                    $requestFilters
+                );
             }
 
             return $this->notFound('Collection not found');
@@ -59,12 +67,12 @@ class CollectionController extends ApiController
         abort_if(! $collection->isActiveForLocale($locale), 404);
 
         $perPage = min((int) ($request->query('per_page', 18)), 50);
-        $page    = max((int) ($request->query('page', 1)), 1);
+        $page = max((int) ($request->query('page', 1)), 1);
 
         try {
-            $resolvedProducts = $collection->paginateResolvedProducts($locale, $perPage, $page);
+            $resolvedProducts = $collection->paginateFilteredProducts($requestFilters, $locale, $perPage, $page);
             $items = collect($resolvedProducts->items())->values();
-            $filters = $this->buildFilters($items);
+            $filters = $collection->availableFilters($locale);
             $total = $resolvedProducts->total();
             $lastPage = $resolvedProducts->lastPage();
         } catch (\Throwable $exception) {
@@ -72,6 +80,7 @@ class CollectionController extends ApiController
                 'collection_id' => $collection->id,
                 'collection_slug' => $collection->slug,
                 'locale' => $locale,
+                'filters' => $requestFilters,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -81,22 +90,19 @@ class CollectionController extends ApiController
             $lastPage = 1;
         }
 
-        $productPayload = ProductResource::collection($items)
-            ->resolve();
-
         return $this->success(
             [
                 'collection' => $this->transformDetail($collection, $locale),
-                'products'   => $productPayload,
-                'filters'    => $filters,
+                'products' => ProductResource::collection($items)->resolve(),
+                'filters' => $filters,
             ],
             null,
             200,
             [
                 'currentPage' => $page,
-                'lastPage'    => $lastPage,
-                'perPage'     => $perPage,
-                'total'       => $total,
+                'lastPage' => $lastPage,
+                'perPage' => $perPage,
+                'total' => $total,
             ]
         );
     }
@@ -104,37 +110,37 @@ class CollectionController extends ApiController
     private function transformSummary(StorefrontCollection $collection, string $locale): array
     {
         return [
-            'id'           => $collection->id,
-            'slug'         => $collection->slug,
-            'type'         => $collection->type,
-            'title'        => $collection->localizedValue('title', $locale),
-            'description'  => $collection->localizedValue('description', $locale),
-            'hero_kicker'  => $collection->localizedValue('hero_kicker', $locale),
-            'hero_subtitle'=> $collection->localizedValue('hero_subtitle', $locale),
-            'hero_image'   => $this->resolveImage($collection->hero_image),
-            'starts_at'    => $collection->starts_at?->toIso8601String(),
-            'ends_at'      => $collection->ends_at?->toIso8601String(),
+            'id' => $collection->id,
+            'slug' => $collection->slug,
+            'type' => $collection->type,
+            'title' => $collection->localizedValue('title', $locale),
+            'description' => $collection->localizedValue('description', $locale),
+            'hero_kicker' => $collection->localizedValue('hero_kicker', $locale),
+            'hero_subtitle' => $collection->localizedValue('hero_subtitle', $locale),
+            'hero_image' => $this->resolveImage($collection->hero_image),
+            'starts_at' => $collection->starts_at?->toIso8601String(),
+            'ends_at' => $collection->ends_at?->toIso8601String(),
         ];
     }
 
     private function transformDetail(StorefrontCollection $collection, string $locale): array
     {
         return [
-            'id'              => $collection->id,
-            'slug'            => $collection->slug,
-            'type'            => $collection->type,
-            'title'           => $collection->localizedValue('title', $locale),
-            'description'     => $collection->localizedValue('description', $locale),
-            'hero_kicker'     => $collection->localizedValue('hero_kicker', $locale),
-            'hero_subtitle'   => $collection->localizedValue('hero_subtitle', $locale),
-            'hero_image'      => $this->resolveImage($collection->hero_image),
-            'hero_cta_label'  => $collection->localizedValue('hero_cta_label', $locale),
-            'hero_cta_url'    => $collection->localizedValue('hero_cta_url', $locale),
-            'content'         => $collection->localizedValue('content', $locale),
-            'seo_title'       => $collection->localizedValue('seo_title', $locale),
+            'id' => $collection->id,
+            'slug' => $collection->slug,
+            'type' => $collection->type,
+            'title' => $collection->localizedValue('title', $locale),
+            'description' => $collection->localizedValue('description', $locale),
+            'hero_kicker' => $collection->localizedValue('hero_kicker', $locale),
+            'hero_subtitle' => $collection->localizedValue('hero_subtitle', $locale),
+            'hero_image' => $this->resolveImage($collection->hero_image),
+            'hero_cta_label' => $collection->localizedValue('hero_cta_label', $locale),
+            'hero_cta_url' => $collection->localizedValue('hero_cta_url', $locale),
+            'content' => $collection->localizedValue('content', $locale),
+            'seo_title' => $collection->localizedValue('seo_title', $locale),
             'seo_description' => $collection->localizedValue('seo_description', $locale),
-            'starts_at'       => $collection->starts_at?->toIso8601String(),
-            'ends_at'         => $collection->ends_at?->toIso8601String(),
+            'starts_at' => $collection->starts_at?->toIso8601String(),
+            'ends_at' => $collection->ends_at?->toIso8601String(),
         ];
     }
 
@@ -177,6 +183,114 @@ class CollectionController extends ApiController
         ];
     }
 
+    private function requestFilters(Request $request): array
+    {
+        $attributes = $request->query('attributes', []);
+
+        if (! is_array($attributes)) {
+            $attributes = [];
+        }
+
+        return [
+            'sort' => $request->query('sort'),
+            'min_price' => $request->query('min_price'),
+            'max_price' => $request->query('max_price'),
+            'in_stock' => $request->boolean('in_stock'),
+            'brand' => $request->query('brand'),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function filtersFromQuery(Builder $query): array
+    {
+        $aggregate = (clone $query)
+            ->reorder()
+            ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
+            ->first();
+
+        return [
+            'price_range' => [
+                'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
+                'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
+            ],
+            ...$this->productMetaExtractor->extractFromQuery($query),
+        ];
+    }
+
+    private function applyRequestFiltersToQuery(Builder $query, array $filters): Builder
+    {
+        $minPrice = Arr::get($filters, 'min_price');
+        if ($minPrice !== null && is_numeric($minPrice)) {
+            $query->where('selling_price', '>=', (float) $minPrice);
+        }
+
+        $maxPrice = Arr::get($filters, 'max_price');
+        if ($maxPrice !== null && is_numeric($maxPrice)) {
+            $query->where('selling_price', '<=', (float) $maxPrice);
+        }
+
+        if (Arr::get($filters, 'in_stock') === true) {
+            $query->where('stock_on_hand', '>', 0);
+        }
+
+        $brand = trim((string) Arr::get($filters, 'brand', ''));
+        if ($brand !== '') {
+            $query->where(function (Builder $builder) use ($brand) {
+                $builder
+                    ->where('attributes->brand', $brand)
+                    ->orWhereJsonContains('attributes->brand', $brand);
+            });
+        }
+
+        $attributes = Arr::get($filters, 'attributes', []);
+        if (is_array($attributes)) {
+            foreach ($attributes as $key => $value) {
+                if (! is_string($key)) {
+                    continue;
+                }
+
+                $normalizedValue = trim((string) (is_array($value) ? reset($value) : $value));
+                if ($normalizedValue === '') {
+                    continue;
+                }
+
+                $query->where(function (Builder $builder) use ($key, $normalizedValue) {
+                    $builder
+                        ->where('attributes->' . $key, $normalizedValue)
+                        ->orWhereJsonContains('attributes->' . $key, $normalizedValue);
+                });
+            }
+        }
+
+        return $query;
+    }
+
+    private function applyRequestSort(Builder $query, ?string $sort): void
+    {
+        $sortable = [
+            'price_asc' => ['selling_price', 'asc'],
+            'price_desc' => ['selling_price', 'desc'],
+            'newest' => ['created_at', 'desc'],
+            'rating' => ['reviews_avg_rating', 'desc'],
+            'popularity' => ['reviews_count', 'desc'],
+            'popular' => ['reviews_count', 'desc'],
+            'featured' => ['is_featured', 'desc'],
+        ];
+
+        $query->reorder();
+
+        if ($sort && isset($sortable[$sort])) {
+            [$field, $direction] = $sortable[$sort];
+            $query->orderBy($field, $direction);
+            if ($sort === 'featured') {
+                $query->orderBy('created_at', 'desc');
+            }
+            return;
+        }
+
+        $query->latest();
+    }
+
     private function legacyCollectionCategorySlug(string $slug): ?string
     {
         return [
@@ -195,7 +309,8 @@ class CollectionController extends ApiController
         Request $request,
         string $categorySlug,
         string $requestedSlug,
-        string $locale
+        string $locale,
+        array $requestFilters
     ): JsonResponse {
         $category = Category::query()
             ->where('slug', $categorySlug)
@@ -215,8 +330,11 @@ class CollectionController extends ApiController
             ->whereIn('category_id', $categoryIds)
             ->with(['images', 'category', 'variants', 'translations'])
             ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
-            ->latest();
+            ->withCount('reviews');
+
+        $filters = $this->filtersFromQuery($query);
+        $query = $this->applyRequestFiltersToQuery($query, $requestFilters);
+        $this->applyRequestSort($query, Arr::get($requestFilters, 'sort'));
 
         $products = $query->paginate($perPage, ['*'], 'page', $page);
         $items = collect($products->items())->values();
@@ -243,7 +361,7 @@ class CollectionController extends ApiController
                     'ends_at' => null,
                 ],
                 'products' => ProductResource::collection($items)->resolve(),
-                'filters' => $this->buildFilters($items),
+                'filters' => $filters,
             ],
             null,
             200,
