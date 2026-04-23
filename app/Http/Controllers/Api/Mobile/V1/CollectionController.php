@@ -68,10 +68,16 @@ class CollectionController extends ApiController
 
         $perPage = min((int) ($request->query('per_page', 18)), 50);
         $page = max((int) ($request->query('page', 1)), 1);
+        $items = collect();
+        $productPayload = [];
+        $filters = $this->buildFilters($items);
+        $total = 0;
+        $lastPage = 1;
 
         try {
             $resolvedProducts = $collection->paginateFilteredProducts($requestFilters, $locale, $perPage, $page);
             $items = collect($resolvedProducts->items())->values();
+            $productPayload = ProductResource::collection($items)->resolve();
             $filters = $collection->availableFilters($locale);
             $total = $resolvedProducts->total();
             $lastPage = $resolvedProducts->lastPage();
@@ -83,17 +89,12 @@ class CollectionController extends ApiController
                 'filters' => $requestFilters,
                 'error' => $exception->getMessage(),
             ]);
-
-            $items = collect();
-            $filters = $this->buildFilters($items);
-            $total = 0;
-            $lastPage = 1;
         }
 
         return $this->success(
             [
                 'collection' => $this->transformDetail($collection, $locale),
-                'products' => ProductResource::collection($items)->resolve(),
+                'products' => $productPayload,
                 'filters' => $filters,
             ],
             null,
@@ -219,15 +220,15 @@ class CollectionController extends ApiController
         ];
     }
 
-    private function applyRequestFiltersToQuery(Builder $query, array $filters): Builder
+    private function applyRequestFiltersToQuery(Builder $query, array $filters, bool $applyPriceRange = true): Builder
     {
         $minPrice = Arr::get($filters, 'min_price');
-        if ($minPrice !== null && is_numeric($minPrice)) {
+        if ($applyPriceRange && $minPrice !== null && is_numeric($minPrice)) {
             $query->where('selling_price', '>=', (float) $minPrice);
         }
 
         $maxPrice = Arr::get($filters, 'max_price');
-        if ($maxPrice !== null && is_numeric($maxPrice)) {
+        if ($applyPriceRange && $maxPrice !== null && is_numeric($maxPrice)) {
             $query->where('selling_price', '<=', (float) $maxPrice);
         }
 
@@ -293,6 +294,22 @@ class CollectionController extends ApiController
         $query->latest();
     }
 
+    private function applyLegacyCategorySort(Builder $query, ?string $sort): Builder
+    {
+        return match ($sort) {
+            'price_asc' => $query
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
+            'price_desc' => $query
+                ->withMin('variants', 'price')
+                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
+            'rating' => $query->orderByDesc('reviews_avg_rating'),
+            'popularity', 'popular' => $query->orderByDesc('reviews_count'),
+            'featured' => $query->orderByDesc('is_featured')->orderByDesc('created_at'),
+            default => $query->latest(),
+        };
+    }
+
     private function legacyCollectionCategorySlug(string $slug): ?string
     {
         return [
@@ -345,8 +362,15 @@ class CollectionController extends ApiController
                 ->withAvg('reviews', 'rating')
                 ->withCount('reviews');
 
-            $query = $this->applyRequestFiltersToQuery($query, $requestFilters);
-            $this->applyRequestSort($query, Arr::get($requestFilters, 'sort'));
+            $minValue = Arr::get($requestFilters, 'min_price');
+            $maxValue = Arr::get($requestFilters, 'max_price');
+            $query->priceRange(
+                $minValue !== null && is_numeric($minValue) ? (float) $minValue : null,
+                $maxValue !== null && is_numeric($maxValue) ? (float) $maxValue : null
+            );
+
+            $query = $this->applyRequestFiltersToQuery($query, $requestFilters, false);
+            $query = $this->applyLegacyCategorySort($query, Arr::get($requestFilters, 'sort'));
 
             $products = $query->paginate($perPage, ['*'], 'page', $page);
             $items = collect($products->items())->values();

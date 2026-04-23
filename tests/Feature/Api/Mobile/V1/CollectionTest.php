@@ -90,6 +90,48 @@ class CollectionTest extends TestCase
             ->assertJsonPath('data.products.0.id', $blue->id);
     }
 
+    public function test_legacy_collection_endpoint_uses_category_style_variant_price_sorting(): void
+    {
+        $category = Category::factory()->create([
+            'slug' => 'womens-clothing',
+            'is_active' => true,
+        ]);
+
+        $productWithCheaperVariant = Product::factory()->create([
+            'category_id' => $category->id,
+            'is_active' => true,
+            'selling_price' => 50,
+            'name' => 'Variant Discount Dress',
+        ]);
+
+        $productWithHigherBasePrice = Product::factory()->create([
+            'category_id' => $category->id,
+            'is_active' => true,
+            'selling_price' => 20,
+            'name' => 'Base Price Dress',
+        ]);
+
+        $productWithCheaperVariant->variants()->create([
+            'title' => 'Default',
+            'sku' => 'variant-discount',
+            'price' => 10,
+            'currency' => 'USD',
+        ]);
+
+        $productWithHigherBasePrice->variants()->create([
+            'title' => 'Default',
+            'sku' => 'base-price',
+            'price' => 20,
+            'currency' => 'USD',
+        ]);
+
+        $response = $this->getJson('/api/mobile/v1/collections/women-collection?sort=price_asc');
+
+        $response->assertOk()
+            ->assertJsonPath('data.products.0.id', $productWithCheaperVariant->id)
+            ->assertJsonPath('data.products.1.id', $productWithHigherBasePrice->id);
+    }
+
     public function test_legacy_collection_endpoint_returns_empty_payload_when_rendering_fails(): void
     {
         Category::factory()->create([
