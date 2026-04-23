@@ -134,27 +134,28 @@ class CollectionTest extends TestCase
 
     public function test_legacy_collection_endpoint_returns_empty_payload_when_rendering_fails(): void
     {
-        Category::factory()->create([
+        $category = Category::factory()->create([
             'slug' => 'womens-clothing',
             'name' => 'Women',
             'is_active' => true,
         ]);
 
         Product::factory()->create([
+            'category_id' => $category->id,
             'is_active' => true,
             'attributes' => ['color' => 'Blue'],
         ]);
 
         $this->mock(ProductMetaExtractor::class, function (MockInterface $mock): void {
             $mock->shouldReceive('extract')
-                ->once()
                 ->with([])
                 ->andReturn([
                     'attributeDefs' => [],
                     'brands' => null,
                 ]);
 
-            $mock->shouldReceive('extractFromQuery')
+            $mock->shouldReceive('extract')
+                ->with(\Mockery::on(fn (array $products): bool => count($products) > 0))
                 ->once()
                 ->andThrow(new \RuntimeException('Simulated legacy render failure'));
         });
@@ -201,6 +202,7 @@ class CollectionTest extends TestCase
             ->assertJsonPath('data.collection.slug', 'women-collection')
             ->assertJsonPath('meta.total', 0)
             ->assertJsonCount(0, 'data.products')
-            ->assertJsonPath('data.filters.attributeDefs.0.key', 'color');
+            ->assertJsonPath('data.filters.attributeDefs.0.key', 'color')
+            ->assertJsonPath('data.filters.brands', null);
     }
 }

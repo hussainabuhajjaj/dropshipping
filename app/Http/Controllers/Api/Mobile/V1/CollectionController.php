@@ -77,8 +77,8 @@ class CollectionController extends ApiController
         try {
             $resolvedProducts = $collection->paginateFilteredProducts($requestFilters, $locale, $perPage, $page);
             $items = collect($resolvedProducts->items())->values();
+            $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
-            $filters = $collection->availableFilters($locale);
             $total = $resolvedProducts->total();
             $lastPage = $resolvedProducts->lastPage();
         } catch (\Throwable $exception) {
@@ -355,8 +355,6 @@ class CollectionController extends ApiController
                 ->where('is_active', true)
                 ->whereIn('category_id', $categoryIds);
 
-            $filters = $this->filtersFromQuery($baseQuery);
-
             $query = (clone $baseQuery)
                 ->with(['images', 'category', 'variants', 'translations'])
                 ->withAvg('reviews', 'rating')
@@ -374,6 +372,7 @@ class CollectionController extends ApiController
 
             $products = $query->paginate($perPage, ['*'], 'page', $page);
             $items = collect($products->items())->values();
+            $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
             $total = $products->total();
             $lastPage = $products->lastPage();
