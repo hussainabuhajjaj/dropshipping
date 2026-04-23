@@ -325,24 +325,42 @@ class CollectionController extends ApiController
 
         $perPage = min((int) ($request->query('per_page', 18)), 50);
         $page = max((int) ($request->query('page', 1)), 1);
-        $categoryIds = $this->descendantCategoryIds([(int) $category->id]);
+        $items = collect();
+        $filters = $this->buildFilters($items);
+        $total = 0;
+        $lastPage = 1;
 
-        $baseQuery = Product::query()
-            ->where('is_active', true)
-            ->whereIn('category_id', $categoryIds);
+        try {
+            $categoryIds = $this->descendantCategoryIds([(int) $category->id]);
 
-        $filters = $this->filtersFromQuery($baseQuery);
+            $baseQuery = Product::query()
+                ->where('is_active', true)
+                ->whereIn('category_id', $categoryIds);
 
-        $query = (clone $baseQuery)
-            ->with(['images', 'category', 'variants', 'translations'])
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews');
+            $filters = $this->filtersFromQuery($baseQuery);
 
-        $query = $this->applyRequestFiltersToQuery($query, $requestFilters);
-        $this->applyRequestSort($query, Arr::get($requestFilters, 'sort'));
+            $query = (clone $baseQuery)
+                ->with(['images', 'category', 'variants', 'translations'])
+                ->withAvg('reviews', 'rating')
+                ->withCount('reviews');
 
-        $products = $query->paginate($perPage, ['*'], 'page', $page);
-        $items = collect($products->items())->values();
+            $query = $this->applyRequestFiltersToQuery($query, $requestFilters);
+            $this->applyRequestSort($query, Arr::get($requestFilters, 'sort'));
+
+            $products = $query->paginate($perPage, ['*'], 'page', $page);
+            $items = collect($products->items())->values();
+            $total = $products->total();
+            $lastPage = $products->lastPage();
+        } catch (\Throwable $exception) {
+            Log::error('Mobile legacy collection render failed', [
+                'category_id' => $category->id,
+                'category_slug' => $category->slug,
+                'requested_slug' => $requestedSlug,
+                'locale' => $locale,
+                'filters' => $requestFilters,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return $this->success(
             [
@@ -371,10 +389,10 @@ class CollectionController extends ApiController
             null,
             200,
             [
-                'currentPage' => $products->currentPage(),
-                'lastPage' => $products->lastPage(),
-                'perPage' => $products->perPage(),
-                'total' => $products->total(),
+                'currentPage' => $page,
+                'lastPage' => $lastPage,
+                'perPage' => $perPage,
+                'total' => $total,
             ]
         );
     }
