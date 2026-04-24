@@ -183,7 +183,7 @@ class StorefrontCollection extends Model
         $manualIds = $this->manualProductIds();
         $manualProducts = collect();
         if (! empty($manualIds)) {
-            $manualProducts = $this->loadProductsByIds($manualIds);
+            $manualProducts = $this->loadProductsByIds($manualIds, $locale);
         }
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
@@ -215,7 +215,7 @@ class StorefrontCollection extends Model
         $manualIds = $this->manualProductIds();
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
-            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit);
+            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit, $locale);
         }
 
         if ($mode === 'rules') {
@@ -223,7 +223,7 @@ class StorefrontCollection extends Model
         }
 
         if ($mode === 'manual') {
-            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit);
+            return $this->paginateManualProducts($manualIds, $perPage, $page, $limit, $locale);
         }
 
         return $this->paginateHybridProducts($rules, $manualIds, $locale, $perPage, $page, $limit);
@@ -243,7 +243,7 @@ class StorefrontCollection extends Model
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
             return $this->paginateQueryResults(
-                $this->buildManualQuery($manualIds, $filters),
+                $this->buildManualQuery($manualIds, $filters, true, $locale),
                 $perPage,
                 $page,
                 $limit
@@ -252,7 +252,7 @@ class StorefrontCollection extends Model
 
         if ($mode === 'manual') {
             return $this->paginateQueryResults(
-                $this->buildManualQuery($manualIds, $filters),
+                $this->buildManualQuery($manualIds, $filters, true, $locale),
                 $perPage,
                 $page,
                 $limit
@@ -324,7 +324,7 @@ class StorefrontCollection extends Model
         return $query->get();
     }
 
-    private function loadProductsByIds(array $ids)
+    private function loadProductsByIds(array $ids, ?string $locale = null)
     {
         if (empty($ids)) {
             return collect();
@@ -342,7 +342,7 @@ class StorefrontCollection extends Model
 
         $products = Product::query()
             ->whereIn('id', $ids)
-            ->with(['images', 'category', 'variants', 'translations'])
+            ->with($this->productRelations($locale))
             ->withAvg('reviews', 'rating')
             ->withCount('reviews')
             ->get();
@@ -360,7 +360,7 @@ class StorefrontCollection extends Model
         bool $withRelations = true
     ): Builder
     {
-        $query = $this->baseProductQuery($withRelations);
+        $query = $this->baseProductQuery($locale, $withRelations);
 
         $isActive = Arr::get($rules, 'is_active', true);
         if ($isActive !== null) {
@@ -489,11 +489,11 @@ class StorefrontCollection extends Model
         $manualIds = $this->manualProductIds();
 
         if ($this->shouldFallbackToManualProducts($mode, $rules, $manualIds)) {
-            return $this->buildManualQuery($manualIds, $filters, $withRelations);
+            return $this->buildManualQuery($manualIds, $filters, $withRelations, $locale);
         }
 
         if ($mode === 'manual') {
-            return $this->buildManualQuery($manualIds, $filters, $withRelations);
+            return $this->buildManualQuery($manualIds, $filters, $withRelations, $locale);
         }
 
         if ($mode === 'rules') {
@@ -507,13 +507,13 @@ class StorefrontCollection extends Model
         return null;
     }
 
-    private function buildManualQuery(array $ids, array $filters, bool $withRelations = true): ?Builder
+    private function buildManualQuery(array $ids, array $filters, bool $withRelations = true, ?string $locale = null): ?Builder
     {
         if ($ids === []) {
             return null;
         }
 
-        $query = $this->baseProductQuery($withRelations)
+        $query = $this->baseProductQuery($locale, $withRelations)
             ->whereIn('id', $ids);
 
         $query = $this->applyRuntimeFilters($query, $filters);
@@ -532,13 +532,13 @@ class StorefrontCollection extends Model
         return $query->orderByRaw($caseSql);
     }
 
-    private function buildHybridManualQuery(array $ids, array $filters, bool $withRelations = true): ?Builder
+    private function buildHybridManualQuery(array $ids, array $filters, bool $withRelations = true, ?string $locale = null): ?Builder
     {
         if ($ids === []) {
             return null;
         }
 
-        $query = $this->baseProductQuery($withRelations)
+        $query = $this->baseProductQuery($locale, $withRelations)
             ->whereIn('id', $ids);
 
         $query = $this->applyRuntimeFilters($query, $filters);
@@ -547,7 +547,7 @@ class StorefrontCollection extends Model
         return $query;
     }
 
-    private function baseProductQuery(bool $withRelations = true): Builder
+    private function baseProductQuery(?string $locale = null, bool $withRelations = true): Builder
     {
         $query = Product::query();
 
@@ -556,9 +556,43 @@ class StorefrontCollection extends Model
         }
 
         return $query
-            ->with(['images', 'category', 'variants', 'translations'])
+            ->with($this->productRelations($locale))
             ->withAvg('reviews', 'rating')
             ->withCount('reviews');
+    }
+
+    private function productRelations(?string $locale = null): array
+    {
+        return [
+            'images' => fn ($query) => $query
+                ->select(['id', 'product_id', 'url', 'position'])
+                ->orderBy('position'),
+            'category' => fn ($query) => $query
+                ->select(['id', 'name', 'slug', 'parent_id'])
+                ->with([
+                    'translations' => fn ($translationQuery) => $translationQuery
+                        ->select(['id', 'category_id', 'locale', 'name'])
+                        ->when($locale, fn ($q) => $q->where('locale', $locale)),
+                ]),
+            'variants' => fn ($query) => $query->select([
+                'id',
+                'product_id',
+                'title',
+                'price',
+                'compare_at_price',
+                'currency',
+                'sku',
+                'cj_vid',
+                'stock_on_hand',
+                'low_stock_threshold',
+                'options',
+                'metadata',
+                'variant_image',
+            ]),
+            'translations' => fn ($query) => $query
+                ->select(['id', 'product_id', 'locale', 'name', 'description'])
+                ->when($locale, fn ($q) => $q->where('locale', $locale)),
+        ];
     }
 
     private function applyRuntimeFilters(Builder $query, array $filters): Builder
@@ -891,7 +925,7 @@ class StorefrontCollection extends Model
         int $page,
         ?int $limit
     ): LengthAwarePaginator {
-        $manualCountQuery = $this->buildHybridManualQuery($manualIds, $filters, false);
+        $manualCountQuery = $this->buildHybridManualQuery($manualIds, $filters, false, $locale);
         $ruleCountQuery = $this->buildRuleQuery($rules, $manualIds, $locale, $filters, false);
 
         $manualTotal = $manualCountQuery ? (clone $manualCountQuery)->count() : 0;
@@ -910,7 +944,7 @@ class StorefrontCollection extends Model
         $candidateLimit = min($total, $offset + $perPage);
         $manualItems = collect();
         if ($manualCountQuery && $candidateLimit > 0) {
-            $manualItems = $this->applyCandidateLimit($this->buildHybridManualQuery($manualIds, $filters), $candidateLimit)->get();
+            $manualItems = $this->applyCandidateLimit($this->buildHybridManualQuery($manualIds, $filters, true, $locale), $candidateLimit)->get();
         }
 
         $ruleItems = collect();
@@ -950,7 +984,7 @@ class StorefrontCollection extends Model
         $items = collect();
 
         if ($offset < $manualCount) {
-            $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit);
+            $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit, $locale);
         }
 
         $remaining = $perPage - $items->count();
@@ -969,7 +1003,7 @@ class StorefrontCollection extends Model
         return $this->paginateCollection($items, $perPage, $page, $total);
     }
 
-    private function paginateManualProducts(array $manualIds, int $perPage, int $page, ?int $limit = null): LengthAwarePaginator
+    private function paginateManualProducts(array $manualIds, int $perPage, int $page, ?int $limit = null, ?string $locale = null): LengthAwarePaginator
     {
         $total = $limit !== null ? min(count($manualIds), $limit) : count($manualIds);
         $offset = max(0, ($page - 1) * $perPage);
@@ -978,12 +1012,12 @@ class StorefrontCollection extends Model
             return $this->paginateCollection(collect(), $perPage, $page, $total);
         }
 
-        $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit);
+        $items = $this->loadProductsPageByIds($manualIds, $offset, $perPage, $limit, $locale);
 
         return $this->paginateCollection($items, $perPage, $page, $total);
     }
 
-    private function loadProductsPageByIds(array $ids, int $offset, int $perPage, ?int $limit = null)
+    private function loadProductsPageByIds(array $ids, int $offset, int $perPage, ?int $limit = null, ?string $locale = null)
     {
         if ($limit !== null) {
             $ids = array_slice($ids, 0, $limit);
@@ -999,7 +1033,7 @@ class StorefrontCollection extends Model
             return collect();
         }
 
-        return $this->loadProductsByIds($pageIds);
+        return $this->loadProductsByIds($pageIds, $locale);
     }
 
     private function paginateQueryResults(?Builder $query, int $perPage, int $page, ?int $limit = null): LengthAwarePaginator

@@ -6,13 +6,11 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Http\Resources\Mobile\V1\ProductResource;
 use App\Models\Category;
-use App\Models\Product;
 use App\Models\StorefrontCollection;
+use App\Services\Storefront\MobileCollectionService;
 use App\Services\Storefront\ProductMetaExtractor;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +19,7 @@ class CollectionController extends ApiController
 {
     public function __construct(
         private readonly ProductMetaExtractor $productMetaExtractor,
+        private readonly MobileCollectionService $mobileCollectionService,
     ) {
     }
 
@@ -75,7 +74,13 @@ class CollectionController extends ApiController
         $lastPage = 1;
 
         try {
-            $resolvedProducts = $collection->paginateFilteredProducts($requestFilters, $locale, $perPage, $page);
+            $resolvedProducts = $this->mobileCollectionService->paginateCollection(
+                $collection,
+                $locale,
+                $requestFilters,
+                $perPage,
+                $page
+            );
             $items = collect($resolvedProducts->items())->values();
             $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
@@ -202,114 +207,6 @@ class CollectionController extends ApiController
         ];
     }
 
-    private function filtersFromQuery(Builder $query): array
-    {
-        $metaQuery = (clone $query)->setEagerLoads([]);
-
-        $aggregate = (clone $metaQuery)
-            ->reorder()
-            ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
-            ->first();
-
-        return [
-            'price_range' => [
-                'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
-                'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
-            ],
-            ...$this->productMetaExtractor->extractFromQuery($metaQuery),
-        ];
-    }
-
-    private function applyRequestFiltersToQuery(Builder $query, array $filters, bool $applyPriceRange = true): Builder
-    {
-        $minPrice = Arr::get($filters, 'min_price');
-        if ($applyPriceRange && $minPrice !== null && is_numeric($minPrice)) {
-            $query->where('selling_price', '>=', (float) $minPrice);
-        }
-
-        $maxPrice = Arr::get($filters, 'max_price');
-        if ($applyPriceRange && $maxPrice !== null && is_numeric($maxPrice)) {
-            $query->where('selling_price', '<=', (float) $maxPrice);
-        }
-
-        if (Arr::get($filters, 'in_stock') === true) {
-            $query->where('stock_on_hand', '>', 0);
-        }
-
-        $brand = trim((string) Arr::get($filters, 'brand', ''));
-        if ($brand !== '') {
-            $query->where(function (Builder $builder) use ($brand) {
-                $builder
-                    ->where('attributes->brand', $brand)
-                    ->orWhereJsonContains('attributes->brand', $brand);
-            });
-        }
-
-        $attributes = Arr::get($filters, 'attributes', []);
-        if (is_array($attributes)) {
-            foreach ($attributes as $key => $value) {
-                if (! is_string($key)) {
-                    continue;
-                }
-
-                $normalizedValue = trim((string) (is_array($value) ? reset($value) : $value));
-                if ($normalizedValue === '') {
-                    continue;
-                }
-
-                $query->where(function (Builder $builder) use ($key, $normalizedValue) {
-                    $builder
-                        ->where('attributes->' . $key, $normalizedValue)
-                        ->orWhereJsonContains('attributes->' . $key, $normalizedValue);
-                });
-            }
-        }
-
-        return $query;
-    }
-
-    private function applyRequestSort(Builder $query, ?string $sort): void
-    {
-        $sortable = [
-            'price_asc' => ['selling_price', 'asc'],
-            'price_desc' => ['selling_price', 'desc'],
-            'newest' => ['created_at', 'desc'],
-            'rating' => ['reviews_avg_rating', 'desc'],
-            'popularity' => ['reviews_count', 'desc'],
-            'popular' => ['reviews_count', 'desc'],
-            'featured' => ['is_featured', 'desc'],
-        ];
-
-        $query->reorder();
-
-        if ($sort && isset($sortable[$sort])) {
-            [$field, $direction] = $sortable[$sort];
-            $query->orderBy($field, $direction);
-            if ($sort === 'featured') {
-                $query->orderBy('created_at', 'desc');
-            }
-            return;
-        }
-
-        $query->latest();
-    }
-
-    private function applyLegacyCategorySort(Builder $query, ?string $sort): Builder
-    {
-        return match ($sort) {
-            'price_asc' => $query
-                ->withMin('variants', 'price')
-                ->orderByRaw('COALESCE(variants_min_price, selling_price) asc'),
-            'price_desc' => $query
-                ->withMin('variants', 'price')
-                ->orderByRaw('COALESCE(variants_min_price, selling_price) desc'),
-            'rating' => $query->orderByDesc('reviews_avg_rating'),
-            'popularity', 'popular' => $query->orderByDesc('reviews_count'),
-            'featured' => $query->orderByDesc('is_featured')->orderByDesc('created_at'),
-            default => $query->latest(),
-        };
-    }
-
     private function legacyCollectionCategorySlug(string $slug): ?string
     {
         return [
@@ -349,28 +246,13 @@ class CollectionController extends ApiController
         $lastPage = 1;
 
         try {
-            $categoryIds = $this->descendantCategoryIds([(int) $category->id]);
-
-            $baseQuery = Product::query()
-                ->where('is_active', true)
-                ->whereIn('category_id', $categoryIds);
-
-            $query = (clone $baseQuery)
-                ->with(['images', 'category', 'variants', 'translations'])
-                ->withAvg('reviews', 'rating')
-                ->withCount('reviews');
-
-            $minValue = Arr::get($requestFilters, 'min_price');
-            $maxValue = Arr::get($requestFilters, 'max_price');
-            $query->priceRange(
-                $minValue !== null && is_numeric($minValue) ? (float) $minValue : null,
-                $maxValue !== null && is_numeric($maxValue) ? (float) $maxValue : null
+            $products = $this->mobileCollectionService->paginateLegacyCategory(
+                $category,
+                $locale,
+                $requestFilters,
+                $perPage,
+                $page
             );
-
-            $query = $this->applyRequestFiltersToQuery($query, $requestFilters, false);
-            $query = $this->applyLegacyCategorySort($query, Arr::get($requestFilters, 'sort'));
-
-            $products = $query->paginate($perPage, ['*'], 'page', $page);
             $items = collect($products->items())->values();
             $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
@@ -420,41 +302,5 @@ class CollectionController extends ApiController
                 'total' => $total,
             ]
         );
-    }
-
-    /**
-     * @param array<int, int> $rootIds
-     * @return array<int, int>
-     */
-    private function descendantCategoryIds(array $rootIds): array
-    {
-        $rootIds = collect($rootIds)->map(fn ($id) => (int) $id)->filter()->values()->all();
-
-        if ($rootIds === []) {
-            return [];
-        }
-
-        $all = $rootIds;
-        $frontier = $rootIds;
-
-        for ($i = 0; $i < 12; $i++) {
-            $children = Category::query()
-                ->whereIn('parent_id', $frontier)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->values()
-                ->all();
-
-            $children = array_values(array_diff($children, $all));
-
-            if ($children === []) {
-                break;
-            }
-
-            $all = array_merge($all, $children);
-            $frontier = $children;
-        }
-
-        return array_values(array_unique($all));
     }
 }

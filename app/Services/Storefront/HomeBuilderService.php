@@ -13,6 +13,16 @@ use Illuminate\Support\Facades\Storage;
 
 class HomeBuilderService
 {
+    /**
+     * @var array<string, string|null>
+     */
+    private static array $normalizedImageCache = [];
+
+    /**
+     * @var array<string, array<int, string>>
+     */
+    private static array $directoryListingCache = [];
+
     public function baseProductQuery(): Builder
     {
         return Product::query()
@@ -125,14 +135,19 @@ class HomeBuilderService
 
     public function normalizeImage(?string $image): ?string
     {
+        $cacheKey = $image ?? '__null__';
+        if (array_key_exists($cacheKey, self::$normalizedImageCache)) {
+            return self::$normalizedImageCache[$cacheKey];
+        }
+
         // Return null/empty as null
         if ($image === null || $image === '') {
-            return null;
+            return self::$normalizedImageCache[$cacheKey] = null;
         }
 
         // If it's already a full URL, return as-is
         if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
-            return $image;
+            return self::$normalizedImageCache[$cacheKey] = $image;
         }
 
         // Extract the base filename without path
@@ -142,35 +157,35 @@ class HomeBuilderService
         // Check storage path first (where images actually exist)
         $storagePath = storage_path('app/public/' . $image);
         if (file_exists($storagePath)) {
-            return url('storage/' . $image);
+            return self::$normalizedImageCache[$cacheKey] = url('storage/' . $image);
         }
 
         // Check public storage path (alternative location)
         $publicStoragePath = public_path('storage/' . $image);
         if (file_exists($publicStoragePath)) {
-            return url('storage/' . $image);
+            return self::$normalizedImageCache[$cacheKey] = url('storage/' . $image);
         }
 
         // If exact file doesn't exist, try to find the closest match
         $storageDir = storage_path('app/public/' . $directory);
         if (is_dir($storageDir)) {
-            $files = scandir($storageDir);
+            $files = self::$directoryListingCache[$storageDir] ??= (scandir($storageDir) ?: []);
             $closestMatch = $this->findClosestFile($filename, $files);
 
             if ($closestMatch) {
                 $correctedImage = $directory . '/' . $closestMatch;
-                return url('storage/' . $correctedImage);
+                return self::$normalizedImageCache[$cacheKey] = url('storage/' . $correctedImage);
             }
         }
 
         // Check direct public path (original logic)
         $publicPath = public_path($image);
         if (file_exists($publicPath)) {
-            return url($image);
+            return self::$normalizedImageCache[$cacheKey] = url($image);
         }
 
         // Final fallback - return the path anyway (let browser handle 404)
-        return url('storage/' . $image);
+        return self::$normalizedImageCache[$cacheKey] = url('storage/' . $image);
     }
 
     /**
