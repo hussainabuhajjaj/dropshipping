@@ -133,6 +133,11 @@
           </span>
         </div>
 
+        <div v-if="productCode || shouldShowVariantSku" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span v-if="productCode">{{ t('Product code') }}: <span class="font-semibold text-slate-800">{{ productCode }}</span></span>
+          <span v-if="shouldShowVariantSku">{{ t('Variant SKU') }}: <span class="font-semibold text-slate-800">{{ variantSku }}</span></span>
+        </div>
+
         <TrustBadges compact :columns="3" tone="muted" />
 
         <div class="card-muted p-4 text-xs text-slate-600">
@@ -637,6 +642,15 @@ const displayPriceFormatted = computed(() =>
 const compareAtFormatted = computed(() =>
   formatCurrency(convertCurrency(Number(compareAtForDisplay.value ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 )
+const productCode = computed(() => {
+  const code = props.product.code
+  return typeof code === 'string' && code.trim() !== '' ? code.trim() : null
+})
+const variantSku = computed(() => {
+  const sku = selectedVariant.value?.sku
+  return typeof sku === 'string' && sku.trim() !== '' ? sku.trim() : null
+})
+const shouldShowVariantSku = computed(() => Boolean(variantSku.value && variantSku.value !== productCode.value))
 
 const displayPromotionValue = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
