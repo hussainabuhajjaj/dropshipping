@@ -62,7 +62,7 @@ class HomeController extends Controller
         $bestValue = $sections['bestValue'] ?? collect();
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
-        $featuredCategories = $this->featuredCategoriesForHome($locale);
+        $featuredCategories = $this->featuredCategoriesForHome($locale, $homeBuilder);
 
         $homeContent = HomePageSetting::latestForLocale($locale);
         $categoryHighlights = $this->resolveCategoryHighlights($homeContent);
@@ -202,7 +202,7 @@ class HomeController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function featuredCategoriesForHome(string $locale): array
+    private function featuredCategoriesForHome(string $locale, HomeBuilderService $homeBuilder): array
     {
         $flagColumn = Schema::hasColumn('categories', 'is_featured')
             ? 'is_featured'
@@ -220,7 +220,7 @@ class HomeController extends Controller
 
         $cacheKey = 'home:featured-categories:' . $locale . ':' . md5($idSignature);
 
-        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($locale) {
+        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($locale, $homeBuilder) {
             $flagColumn = Schema::hasColumn('categories', 'is_featured')
                 ? 'is_featured'
                 : (Schema::hasColumn('categories', 'is_feature') ? 'is_feature' : null);
@@ -247,7 +247,7 @@ class HomeController extends Controller
                         : $category->name,
                 ])
                 ->values()
-                ->map(function (Category $category) use ($locale) {
+                ->map(function (Category $category) use ($locale, $homeBuilder) {
                     $name = method_exists($category, 'translatedValue')
                         ? $category->translatedValue('name', $locale)
                         : $category->name;
@@ -256,7 +256,7 @@ class HomeController extends Controller
                     'id' => $category->id,
                     'name' => $name,
                     'slug' => $category->slug,
-                    'image' => $category->hero_image,
+                    'image' => $homeBuilder->normalizeImage($category->hero_image),
                     'parent_id' => $category->parent_id,
                     'is_featured' => (bool) $category->is_featured,
                     ];
