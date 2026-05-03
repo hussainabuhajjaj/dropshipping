@@ -17,8 +17,8 @@ class AdminStatsOverview extends StatsOverviewWidget
         $orders = Order::query();
         $paidOrders = Order::query()->where('payment_status', 'paid');
 
-        $revenue = (float) (clone $paidOrders)->sum('grand_total');
-        $grossProfit = (float) (clone $paidOrders)->sum('gross_profit_amount');
+        $revenue = Order::sumAmountInAdminCurrency('grand_total', (clone $paidOrders));
+        $grossProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', (clone $paidOrders));
         $grossMargin = $revenue > 0 ? round(($grossProfit / $revenue) * 100, 1) : 0.0;
         $pendingReviews = ProductReview::query()->where('status', 'pending')->count();
         $openReturns = ReturnRequest::query()->whereIn('status', ['requested', 'approved', 'received'])->count();

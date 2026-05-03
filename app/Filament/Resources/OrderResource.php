@@ -317,6 +317,30 @@ class OrderResource extends Resource
                             ->send();
                     }),
 
+                ActionsAction::make('delete')
+                    ->label('Delete')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete order')
+                    ->modalDescription(fn(Order $record) => "Delete order {$record->number}? This action is only allowed for pending or draft orders without payments.")
+                    ->visible(fn(Order $record) => in_array($record->status, ['pending', 'draft'], true) && ! $record->payments()->exists())
+                    ->action(function (Order $record) {
+                        try {
+                            app(\App\Services\OrderService::class)->delete($record);
+                            Notification::make()
+                                ->title('Order deleted')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $exception) {
+                            Notification::make()
+                                ->title('Delete failed')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+
                 ActionsAction::make('refund')
                     ->label('Refund')
                     ->icon('heroicon-o-arrow-uturn-left')
@@ -339,7 +363,47 @@ class OrderResource extends Resource
             ])
             ->toolbarActions([
                 ActionsBulkActionGroup::make([
-                    ActionsDeleteBulkAction::make(),
+                    ActionsBulkAction::make('delete_selected')
+                        ->label('Delete Selected')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete selected orders')
+                    ->modalDescription('Delete only pending or draft orders without payments. Paid, fulfilled, or payment-linked orders will be skipped.')
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                        $service = app(\App\Services\OrderService::class);
+                        $deleted = 0;
+                        $skipped = 0;
+                        $failed = 0;
+
+                        foreach ($records as $record) {
+                            if (! in_array($record->status, ['pending', 'draft'], true) || $record->payments()->exists()) {
+                                    continue;
+                                }
+
+                                try {
+                                    $service->delete($record);
+                                    $deleted++;
+                                } catch (\Throwable $exception) {
+                                    $failed++;
+                                }
+                            }
+
+                            $message = "{$deleted} order(s) deleted";
+                            if ($skipped > 0) {
+                                $message .= ", {$skipped} skipped";
+                            }
+                            if ($failed > 0) {
+                                $message .= ", {$failed} failed";
+                            }
+                            $message .= '.';
+
+                            Notification::make()
+                                ->title('Bulk delete completed')
+                                ->body($message)
+                                ->success()
+                                ->send();
+                        }),
 
                     ActionsBulkAction::make('bulk_mark_fulfilled')
                         ->label('Mark as Fulfilled')

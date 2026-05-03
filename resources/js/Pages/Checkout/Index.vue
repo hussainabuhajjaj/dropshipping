@@ -1,7 +1,16 @@
 <template>
   <StorefrontLayout>
-    <div class="space-y-8">
-      <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ t('Checkout') }}</h1>
+    <div class="space-y-5 pb-24 sm:space-y-8">
+      <section class="rounded-[1.8rem] bg-[#111111] px-4 py-5 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:px-6">
+        <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]">{{ t('Checkout flow') }}</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="rounded-full bg-white/10 px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white">{{ t('1. Address') }}</span>
+          <span class="rounded-full bg-white/10 px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white">{{ t('2. Payment') }}</span>
+          <span class="rounded-full bg-[#ff6b35] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white">{{ t('3. Place order') }}</span>
+        </div>
+        <h1 class="mt-4 text-[1.95rem] font-black tracking-[-0.04em] sm:text-[2.25rem]">{{ t('Checkout') }}</h1>
+        <p class="mt-2 max-w-xl text-sm leading-6 text-white/72">{{ t('Keep the final step light: address, payment, review. No extra browsing friction, no hidden totals.') }}</p>
+      </section>
 
       <div class="grid gap-10 lg:grid-cols-[1.4fr,1fr]">
         <div v-if="!props.user" class="mb-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-700 border border-slate-200 flex items-center gap-2">
@@ -36,7 +45,7 @@
             @change-address="handleAddressChange"
           />
 
-          <section class="card p-5">
+          <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
             <h2 class="text-sm font-semibold text-slate-900">{{ t('Payment method') }}</h2>
             <div class="mt-4 grid gap-3 text-sm text-slate-600">
               <label v-if="paystackEnabled" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
@@ -62,7 +71,7 @@
             </div>
           </section>
 
-          <section class="card p-5">
+          <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
             <label class="flex items-start gap-3 text-sm text-slate-600">
               <input v-model="form.accept_terms" type="checkbox" />
               <span>
@@ -74,13 +83,13 @@
             </label>
           </section>
 
-          <button type="submit" class="btn-primary w-full">
+          <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#111111] px-5 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#262626]">
             {{ t('Place order') }}
           </button>
         </form>
         </div>
 
-        <aside class="card-muted space-y-4 p-5">
+        <aside class="sticky top-28 space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
           <div class="flex items-center justify-between text-sm">
             <span>{{ t('Subtotal') }}</span>
             <span class="font-semibold text-slate-900">{{ displayAmount(subtotal) }}</span>
@@ -124,7 +133,7 @@
             </span>
             <span class="text-slate-600">{{ displayAmount(tax_total) }}</span>
           </div>
-          <div class="flex items-center justify-between text-base font-semibold text-slate-900">
+          <div class="flex items-center justify-between border-t border-[#eadfce] pt-4 text-base font-semibold text-slate-900">
             <span>{{ t('Total') }}</span>
             <span>{{ displayAmount(total) }}</span>
           </div>

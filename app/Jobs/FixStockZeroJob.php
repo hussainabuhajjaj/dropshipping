@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Services\CjApiRateLimiterService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -61,13 +62,14 @@ class FixStockZeroJob implements ShouldQueue
             return;
         }
 
+        $rateLimiter = new CjApiRateLimiterService($client);
         $totalUpdated = 0;
         $totalErrors = 0;
         $totalSkipped = 0;
 
         foreach ($variants as $variant) {
             try {
-                $result = $this->fixVariant($client, $variant);
+                $result = $this->fixVariant($rateLimiter, $variant);
                 
                 if ($result['updated']) {
                     $totalUpdated++;
@@ -115,10 +117,10 @@ class FixStockZeroJob implements ShouldQueue
         }
     }
 
-    private function fixVariant(CJDropshippingClient $client, ProductVariant $variant): array
+    private function fixVariant(CjApiRateLimiterService $rateLimiter, ProductVariant $variant): array
     {
-        // Get stock from CJ API
-        $resp = $client->getStockByVid($variant->cj_vid);
+        // Get stock from CJ API with circuit breaker protection
+        $resp = $rateLimiter->executeApiCall('getStockByVid', [$variant->cj_vid]);
         $data = $resp->data ?? null;
         
         // Calculate stock

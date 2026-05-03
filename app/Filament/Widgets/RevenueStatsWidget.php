@@ -21,23 +21,23 @@ class RevenueStatsWidget extends BaseWidget
         $thisMonthStart = now()->startOfMonth();
         $lastMonthStart = now()->subMonth()->startOfMonth();
 
-        $todayRevenue = (float) Order::query()
+        $todayRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->whereDate('created_at', $today)
-            ->sum('grand_total');
-        $todayProfit = (float) Order::query()
+        );
+        $todayProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->whereDate('created_at', $today)
-            ->sum('gross_profit_amount');
+        );
 
-        $yesterdayRevenue = (float) Order::query()
+        $yesterdayRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->whereDate('created_at', $yesterday)
-            ->sum('grand_total');
-        $yesterdayProfit = (float) Order::query()
+        );
+        $yesterdayProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->whereDate('created_at', $yesterday)
-            ->sum('gross_profit_amount');
+        );
 
         $todayRevenueChange = $yesterdayRevenue > 0
             ? round((($todayRevenue - $yesterdayRevenue) / $yesterdayRevenue) * 100, 1)
@@ -46,23 +46,23 @@ class RevenueStatsWidget extends BaseWidget
             ? round((($todayProfit - $yesterdayProfit) / abs($yesterdayProfit)) * 100, 1)
             : 0;
 
-        $thisWeekRevenue = (float) Order::query()
+        $thisWeekRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', $thisWeekStart)
-            ->sum('grand_total');
-        $thisWeekProfit = (float) Order::query()
+        );
+        $thisWeekProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', $thisWeekStart)
-            ->sum('gross_profit_amount');
+        );
 
-        $lastWeekRevenue = (float) Order::query()
+        $lastWeekRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$lastWeekStart, $thisWeekStart])
-            ->sum('grand_total');
-        $lastWeekProfit = (float) Order::query()
+        );
+        $lastWeekProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$lastWeekStart, $thisWeekStart])
-            ->sum('gross_profit_amount');
+        );
 
         $weekRevenueChange = $lastWeekRevenue > 0
             ? round((($thisWeekRevenue - $lastWeekRevenue) / $lastWeekRevenue) * 100, 1)
@@ -71,23 +71,23 @@ class RevenueStatsWidget extends BaseWidget
             ? round((($thisWeekProfit - $lastWeekProfit) / abs($lastWeekProfit)) * 100, 1)
             : 0;
 
-        $thisMonthRevenue = (float) Order::query()
+        $thisMonthRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', $thisMonthStart)
-            ->sum('grand_total');
-        $thisMonthProfit = (float) Order::query()
+        );
+        $thisMonthProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', $thisMonthStart)
-            ->sum('gross_profit_amount');
+        );
 
-        $lastMonthRevenue = (float) Order::query()
+        $lastMonthRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$lastMonthStart, $thisMonthStart])
-            ->sum('grand_total');
-        $lastMonthProfit = (float) Order::query()
+        );
+        $lastMonthProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$lastMonthStart, $thisMonthStart])
-            ->sum('gross_profit_amount');
+        );
 
         $monthRevenueChange = $lastMonthRevenue > 0
             ? round((($thisMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
@@ -96,10 +96,17 @@ class RevenueStatsWidget extends BaseWidget
             ? round((($thisMonthProfit - $lastMonthProfit) / abs($lastMonthProfit)) * 100, 1)
             : 0;
 
-        $avgOrderValue = (float) (Order::query()
+        $paidOrdersThisMonth = Order::query()
             ->where('payment_status', 'paid')
             ->where('placed_at', '>=', $thisMonthStart)
-            ->avg('grand_total') ?? 0);
+            ->count();
+
+        $totalRevenueThisMonth = Order::sumAmountInAdminCurrency('grand_total', Order::query()
+            ->where('payment_status', 'paid')
+            ->where('placed_at', '>=', $thisMonthStart)
+        );
+
+        $avgOrderValue = $paidOrdersThisMonth > 0 ? round($totalRevenueThisMonth / $paidOrdersThisMonth, 2) : 0;
         $monthMargin = $thisMonthRevenue > 0 ? round(($thisMonthProfit / $thisMonthRevenue) * 100, 1) : 0;
 
         return [
@@ -150,15 +157,13 @@ class RevenueStatsWidget extends BaseWidget
     private function getDailyMetricChart(int $days, string $column): array
     {
         $data = [];
+        $start = now()->subDays($days - 1)->startOfDay();
+        $end = now();
+        $dailyTotals = Order::dailySumsInAdminCurrency($column, $start, $end);
 
         for ($i = $days - 1; $i >= 0; $i--) {
             $date = now()->subDays($i)->startOfDay();
-            $value = Order::query()
-                ->where('payment_status', 'paid')
-                ->whereDate('created_at', $date)
-                ->sum($column);
-
-            $data[] = (float) $value;
+            $data[] = (float) ($dailyTotals[$date->toDateString()] ?? 0);
         }
 
         return $data;

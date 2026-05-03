@@ -54,6 +54,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             \Illuminate\Session\Middleware\StartSession::class,
             \App\Http\Middleware\ApiSetLocale::class,
+            \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
+            \App\Http\Middleware\ResponseCompression::class,
         ]);
 
         $middleware->alias([

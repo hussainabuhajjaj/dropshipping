@@ -10,6 +10,7 @@ use App\Domain\Fulfillment\DTOs\FulfillmentRequestData;
 use App\Domain\Orders\Models\OrderItem;
 use App\Models\LocalWareHouse;
 use App\Models\AliExpressToken;
+use App\Services\AliExpressCircuitBreakerService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -203,16 +204,19 @@ class AliExpressClient
         $params['sign'] = $this->sign($params, $appSecret, $method);
 
 
-        $url = config('ali_express.base_url') . "/rest";
+        $execute = function () use ($params) {
+            $url = config('ali_express.base_url') . "/rest";
 
-        $response = Http::asForm()
-            ->withHeaders([
-                'Content-Type' => 'application/x-www-form-urlencoded;charset=utf-8',
-            ])
-            ->post($url, $params);
+            $response = Http::asForm()
+                ->withHeaders([
+                    'Content-Type' => 'application/x-www-form-urlencoded;charset=utf-8',
+                ])
+                ->post($url, $params);
 
+            return $response->json() ?? [];
+        };
 
-        return $response->json() ?? [];
+        return app(AliExpressCircuitBreakerService::class)->executeApiCall($execute);
     }
 
     private function resolveOrderItems(FulfillmentRequestData $request): array

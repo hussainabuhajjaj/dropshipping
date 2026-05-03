@@ -1,9 +1,23 @@
 <template>
     <StorefrontLayout>
-        <div class="space-y-8">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ t('Your cart') }}</h1>
-                <Link href="/products" class="btn-ghost">{{ t('Continue shopping') }}</Link>
+        <div class="space-y-5 pb-24 sm:space-y-8">
+            <section class="rounded-[1.8rem] bg-[#111111] px-4 py-5 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:px-6">
+                <div class="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]">{{ t('Bag review') }}</p>
+                        <h1 class="mt-2 text-[1.9rem] font-black tracking-[-0.04em] sm:text-[2.2rem]">{{ t('Your cart') }}</h1>
+                        <p class="mt-2 max-w-xl text-sm leading-6 text-white/72">{{ t('Keep the momentum. Prices, deal tags, and low-stock signals stay visible so shoppers move from bag to checkout without second-guessing.') }}</p>
+                    </div>
+                    <Link href="/products" class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12">
+                        {{ t('Continue shopping') }}
+                    </Link>
+                </div>
+            </section>
+
+            <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div class="shrink-0 rounded-full bg-[#fff4e8] px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#c55b24]">{{ t(':count items', { count: itemCount }) }}</div>
+                <div v-if="savingsTotal > 0" class="shrink-0 rounded-full bg-emerald-50 px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-emerald-700">{{ t('Saving :amount', { amount: displayPrice(savingsTotal) }) }}</div>
+                <div class="shrink-0 rounded-full bg-white px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Fast checkout') }}</div>
             </div>
 
             <div class="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
@@ -30,7 +44,7 @@
                     </template>
                 </EmptyState>
 
-                <aside class="card-muted space-y-4 p-5">
+                <aside class="sticky top-28 space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
                     <div class="space-y-3">
                         <form class="flex flex-col gap-3 sm:flex-row sm:items-center" @submit.prevent="applyCoupon">
                             <input v-model="couponCode" type="text" :placeholder="t('Coupon code')"
@@ -102,7 +116,7 @@
                     </p>
                     <button
                         :disabled="!canCheckout"
-                        class="btn-primary mt-4 w-full"
+                        class="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#111111] px-5 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#262626]"
                         :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
                         @click="$inertia.visit('/checkout')"
                     >
@@ -124,7 +138,7 @@
 
         <div v-if="itemCount > 0" class="fixed inset-x-0 bottom-0 z-[120] border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden">
             <div class="container-base pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3">
-                <div class="flex items-center justify-between gap-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_-14px_40px_rgba(15,23,42,0.12)]">
+                <div class="flex items-center justify-between gap-4 rounded-[1.5rem] border border-[#eadfce] bg-white px-4 py-3 shadow-[0_-14px_40px_rgba(15,23,42,0.12)]">
                     <div class="min-w-0">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Cart') }}</p>
                         <p class="text-sm font-semibold text-slate-900">{{ t(':count items', { count: itemCount }) }}</p>
@@ -132,7 +146,7 @@
                     </div>
                     <button
                         :disabled="!canCheckout"
-                        class="btn-primary min-h-11 shrink-0 px-5"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#111111] px-5 text-sm font-bold uppercase tracking-[0.12em] text-white"
                         :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
                         @click="$inertia.visit('/checkout')"
                     >

@@ -164,11 +164,12 @@ class PaymentController extends Controller
                     ]);
 
                 $coupon = $summery['coupon'] ?? null;
+                $couponModel = $summery['coupon_model'] ?? null;
                 $discountSnapshot = buildDiscountSnapshot(
                     $summery['discount'] ?? null,
                     $summery['discount_label'] ?? null,
                     $summery['discount_source'] ?? null,
-                    $coupon ? $coupon->serializeCoupon() : null,
+                    is_array($coupon) ? $coupon : ($couponModel ? $couponModel->serializeCoupon() : null),
                     $summery['promotionDiscounts'] ?? null,
                     $cart[0]['currency'] ?? 'USD'
                 );

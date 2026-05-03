@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\Order;
+use App\Domain\Orders\Models\Order;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\DatabaseManager as DBManager;
 use Illuminate\Http\Request;
@@ -145,10 +145,19 @@ class OrderService
      */
     public function delete(Order $order): void
     {
-        if (!in_array($order->status, ['pending', 'draft'])) {
+        if (!in_array($order->status, ['pending', 'draft'], true)) {
             throw new \InvalidArgumentException('Only pending or draft orders can be deleted.');
         }
-        $order->delete();
+
+        $this->db->transaction(function () use ($order) {
+            if ($order->payments()->exists()) {
+                throw new \InvalidArgumentException(
+                    'Order cannot be deleted because related payment records exist. Remove payments first.'
+                );
+            }
+
+            $order->delete();
+        });
     }
 
     /**

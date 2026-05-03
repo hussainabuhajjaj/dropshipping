@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Domain\Products\Models\ProductVariant;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Jobs\FixStockZeroJob;
+use App\Services\CjApiRateLimiterService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -116,6 +117,7 @@ class ServerFixStockZero extends Command
         $this->line('');
 
         $client = new CJDropshippingClient();
+        $rateLimiter = new CjApiRateLimiterService($client);
         $totalUpdated = 0;
         $totalErrors = 0;
         $totalSkipped = 0;
@@ -128,7 +130,7 @@ class ServerFixStockZero extends Command
             try {
                 $progressBar->advance();
 
-                $result = $this->fixVariant($client, $variant, $dryRun);
+                $result = $this->fixVariant($rateLimiter, $variant, $dryRun);
 
                 if ($result['updated']) {
                     $totalUpdated++;
@@ -174,7 +176,7 @@ class ServerFixStockZero extends Command
                 try {
                     $variant = ProductVariant::where('cj_vid', $vid)->first();
                     if ($variant) {
-                        $result = $this->fixVariant($client, $variant, $dryRun);
+                        $result = $this->fixVariant($rateLimiter, $variant, $dryRun);
                         if ($result['updated']) {
                             $totalUpdated++;
                             $totalErrors--;
@@ -213,10 +215,10 @@ class ServerFixStockZero extends Command
         return self::SUCCESS;
     }
 
-    private function fixVariant(CJDropshippingClient $client, ProductVariant $variant, bool $dryRun): array
+    private function fixVariant(CjApiRateLimiterService $rateLimiter, ProductVariant $variant, bool $dryRun): array
     {
-        // Get stock from CJ API
-        $resp = $client->getStockByVid($variant->cj_vid);
+        // Get stock from CJ API with circuit breaker protection
+        $resp = $rateLimiter->executeApiCall('getStockByVid', [$variant->cj_vid]);
         $data = $resp->data ?? null;
 
         // Calculate stock

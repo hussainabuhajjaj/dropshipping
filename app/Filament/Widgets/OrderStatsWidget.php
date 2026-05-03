@@ -16,9 +16,10 @@ class OrderStatsWidget extends BaseWidget
     {
         // Today's stats
         $todayOrders = Order::whereDate('created_at', today())->count();
-        $todayRevenue = Order::where('payment_status', 'paid')
+        $todayRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
+            ->where('payment_status', 'paid')
             ->whereDate('created_at', today())
-            ->sum('grand_total');
+        );
 
         // Yesterday's stats for comparison
         $yesterdayOrders = Order::whereDate('created_at', today()->subDay())->count();
@@ -30,19 +31,21 @@ class OrderStatsWidget extends BaseWidget
         $monthOrders = Order::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-        $monthRevenue = Order::where('payment_status', 'paid')
+        $monthRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
+            ->where('payment_status', 'paid')
             ->whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
-            ->sum('grand_total');
+        );
 
         // Last month for comparison
         $lastMonthOrders = Order::whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
             ->count();
-        $lastMonthRevenue = Order::where('payment_status', 'paid')
+        $lastMonthRevenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
+            ->where('payment_status', 'paid')
             ->whereMonth('created_at', now()->subMonth()->month)
             ->whereYear('created_at', now()->subMonth()->year)
-            ->sum('grand_total');
+        );
 
         // Pending orders
         $pendingOrders = Order::where('status', 'pending')->count();

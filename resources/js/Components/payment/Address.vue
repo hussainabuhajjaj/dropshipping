@@ -84,8 +84,15 @@
     <!--        </p>-->
     <!--    </section>-->
 
-    <section class="card p-5">
-        <h2 class="text-sm font-semibold text-slate-900">{{ t('Shipping address') }}</h2>
+    <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.05)] sm:p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <p class="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-400">{{ t('Delivery') }}</p>
+                <h2 class="mt-1 text-base font-semibold text-slate-900">{{ t('Shipping address') }}</h2>
+                <p class="mt-1 text-sm text-slate-500">{{ t('Keep checkout fast by selecting a saved address or adding one inline.') }}</p>
+            </div>
+            <span class="rounded-full bg-[#fff4e8] px-3 py-2 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-[#c55b24]">{{ userAddresses.length ? t('Saved addresses') : t('New address') }}</span>
+        </div>
 
         <!-- Address Selector -->
         <div v-if="userAddresses.length > 0" class="mt-4">
@@ -97,7 +104,7 @@
                     v-if="!showNewAddressForm"
                     type="button"
                     @click="openNewAddressForm"
-                    class="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
+                    class="inline-flex min-h-10 items-center gap-1 rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#c55b24] transition hover:border-[#ddb98d]"
                 >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -128,7 +135,7 @@
             <button
                 type="button"
                 @click="openNewAddressForm"
-                class="w-full py-3 border-2 border-dashed border-slate-200 rounded-lg text-slate-600 hover:border-orange-300 hover:text-orange-600 transition flex items-center justify-center gap-2"
+                class="flex min-h-12 w-full items-center justify-center gap-2 rounded-[1.2rem] border-2 border-dashed border-[#eadfce] bg-[#fffaf4] px-4 text-sm font-semibold text-slate-600 transition hover:border-[#ddb98d] hover:text-[#c55b24]"
             >
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -146,7 +153,7 @@
             leave-from-class="opacity-100 translate-y-0"
             leave-to-class="opacity-0 -translate-y-2"
         >
-            <div v-if="showNewAddressForm" class="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div v-if="showNewAddressForm" class="mt-4 rounded-[1.4rem] border border-[#eadfce] bg-[#fffaf4] p-4">
                 <!-- Form Header -->
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-sm font-medium text-slate-700">{{ t('New shipping address') }}</h3>
@@ -187,6 +194,7 @@
                         <label class="block text-xs text-slate-600 mb-1">{{ t('Email') }} *</label>
                         <input
                             v-model="form.email"
+                            type="email"
                             required
                             :placeholder="t('Email')"
                             class="input-base w-full"
@@ -197,6 +205,8 @@
                         <label class="block text-xs text-slate-600 mb-1">{{ t('Phone') }} *</label>
                         <input
                             v-model="form.phone"
+                            type="tel"
+                            inputmode="tel"
                             required
                             :placeholder="t('Phone')"
                             class="input-base w-full"
@@ -246,6 +256,7 @@
                         <label class="block text-xs text-slate-600 mb-1">{{ t('Postal code') }}</label>
                         <input
                             v-model="form.postal_code"
+                            inputmode="numeric"
                             :placeholder="t('Postal code')"
                             class="input-base w-full"
                         />
@@ -269,7 +280,7 @@
                     <button
                         type="button"
                         @click="saveNewAddress"
-                        class="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg text-sm font-semibold hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-[#111111] px-4 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-50"
                         :disabled="!isAddressValid"
                     >
                         {{ t('Save address') }}
@@ -277,7 +288,7 @@
                     <button
                         type="button"
                         @click="cancelNewAddress"
-                        class="flex-1 bg-slate-200 text-slate-700 py-2 px-4 rounded-lg text-sm font-semibold hover:bg-slate-300 transition"
+                        class="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-[#eadfce] bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
                     >
                         {{ t('Cancel') }}
                     </button>
@@ -295,7 +306,7 @@
             leave-to-class="opacity-0 -translate-y-2"
         >
             <div v-if="selectedAddress && !showNewAddressForm"
-                 class="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                 class="mt-4 rounded-[1.4rem] border border-[#eadfce] bg-[#fffaf4] p-4">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
@@ -308,6 +319,7 @@
                             <p class="font-medium text-slate-900">{{
                                     selectedAddress.name || t('Shipping address')
                                 }}</p>
+                            <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Selected') }}</span>
                         </div>
                         <p class="text-sm text-slate-600">{{ selectedAddress.line1 }}</p>
                         <p v-if="selectedAddress.line2" class="text-sm text-slate-600">{{ selectedAddress.line2 }}</p>

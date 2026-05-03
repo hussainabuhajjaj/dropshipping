@@ -14,38 +14,35 @@ class RevenueChartWidget extends ChartWidget
 
     protected function getData(): array
     {
+        $labels = [];
         $revenue = [];
         $profit = [];
-        $labels = [];
+
+        $start = now()->subDays(29)->startOfDay();
+        $end = now();
+        $dailyRevenue = Order::dailySumsInAdminCurrency('grand_total', $start, $end);
+        $dailyProfit = Order::dailySumsInAdminCurrency('gross_profit_amount', $start, $end);
 
         for ($i = 29; $i >= 0; $i--) {
             $date = now()->subDays($i);
             $labels[] = $date->format('M d');
+            $key = $date->toDateString();
 
-            $dailyRevenue = (float) Order::query()
-                ->where('payment_status', 'paid')
-                ->whereDate('created_at', $date)
-                ->sum('grand_total');
-            $dailyProfit = (float) Order::query()
-                ->where('payment_status', 'paid')
-                ->whereDate('created_at', $date)
-                ->sum('gross_profit_amount');
-
-            $revenue[] = $dailyRevenue;
-            $profit[] = $dailyProfit;
+            $revenue[] = (float) ($dailyRevenue[$key] ?? 0);
+            $profit[] = (float) ($dailyProfit[$key] ?? 0);
         }
 
         return [
             'datasets' => [
                 [
-                    'label' => 'Revenue ($)',
+                    'label' => 'Revenue (USD)',
                     'data' => $revenue,
                     'borderColor' => 'rgb(59, 130, 246)',
                     'backgroundColor' => 'rgba(59, 130, 246, 0.12)',
                     'fill' => true,
                 ],
                 [
-                    'label' => 'Gross Profit ($)',
+                    'label' => 'Gross Profit (USD)',
                     'data' => $profit,
                     'borderColor' => 'rgb(22, 163, 74)',
                     'backgroundColor' => 'rgba(22, 163, 74, 0.12)',

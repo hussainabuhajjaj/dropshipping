@@ -18,6 +18,12 @@
         <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
           <span>{{ productsPager.total ?? products.length }} {{ t('items') }}</span>
           <span class="rounded-full bg-slate-100 px-3 py-1">{{ typeLabel }}</span>
+          <span
+            class="rounded-full px-3 py-1 font-semibold"
+            :class="collection.is_live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'"
+          >
+            {{ collection.is_live ? t('Live now') : t('Upcoming') }}
+          </span>
           <span v-if="collection.starts_at" class="rounded-full bg-slate-100 px-3 py-1">
             {{ t('Starts') }} {{ formatDate(collection.starts_at) }}
           </span>
@@ -25,6 +31,13 @@
             {{ t('Ends') }} {{ formatDate(collection.ends_at) }}
           </span>
         </div>
+      </div>
+
+      <div
+        v-if="!collection.is_live"
+        class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+      >
+        {{ t('This collection is scheduled and visible early. Products and details can still change before the live date.') }}
       </div>
 
       <div v-if="activeFilterPills.length" class="flex flex-wrap gap-2">

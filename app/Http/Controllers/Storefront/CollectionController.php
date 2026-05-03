@@ -9,6 +9,7 @@ use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\StorefrontCollection;
 use App\Models\Product;
 use App\Services\Storefront\ProductMetaExtractor;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
@@ -59,7 +60,7 @@ class CollectionController extends Controller
         }
 
         $locale = app()->getLocale();
-        abort_if(! $collection->isActiveForLocale($locale), 404);
+        abort_if(! $this->isCollectionAccessible($collection, $locale), 404);
         $perPage = 18;
         $page = max(1, (int) $request->integer('page', 1));
 
@@ -111,6 +112,7 @@ class CollectionController extends Controller
             'hero_image' => $collection->hero_image ? $this->resolveImagePath($collection->hero_image) : null,
             'starts_at' => $collection->starts_at,
             'ends_at' => $collection->ends_at,
+            'is_live' => $collection->isActiveForLocale($locale),
         ];
     }
 
@@ -132,7 +134,39 @@ class CollectionController extends Controller
             'seo_description' => $collection->localizedValue('seo_description', $locale),
             'starts_at' => $collection->starts_at,
             'ends_at' => $collection->ends_at,
+            'is_live' => $collection->isActiveForLocale($locale),
         ];
+    }
+
+    private function isCollectionAccessible(StorefrontCollection $collection, ?string $locale): bool
+    {
+        if (! $collection->is_active || ! $collection->isVisibleForLocale($locale)) {
+            return false;
+        }
+
+        if ($collection->isActiveForLocale($locale)) {
+            return true;
+        }
+
+        $schedule = $collection->resolveScheduleForLocale($locale);
+        $timezone = $schedule['timezone'] ?: config('app.timezone');
+        $now = now()->copy()->timezone($timezone);
+
+        if (! empty($schedule['ends_at'])) {
+            try {
+                $endsAt = $schedule['ends_at'] instanceof Carbon
+                    ? $schedule['ends_at']->copy()->timezone($timezone)
+                    : Carbon::parse($schedule['ends_at'], $timezone);
+
+                if ($now->gt($endsAt)) {
+                    return false;
+                }
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function resolveImagePath(?string $path): ?string

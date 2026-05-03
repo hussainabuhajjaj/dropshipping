@@ -28,14 +28,14 @@ class ProfitPeriodComparisonChart extends ChartWidget
         $margin = [];
 
         foreach ($periods as $label => [$start, $end]) {
-            $totals = Order::query()
+            $periodRevenue = round(Order::sumAmountInAdminCurrency('grand_total', Order::query()
                 ->where('payment_status', 'paid')
                 ->whereBetween('created_at', [$start, $end])
-                ->selectRaw('COALESCE(SUM(grand_total), 0) as revenue, COALESCE(SUM(gross_profit_amount), 0) as profit')
-                ->first();
-
-            $periodRevenue = round((float) ($totals?->revenue ?? 0), 2);
-            $periodProfit = round((float) ($totals?->profit ?? 0), 2);
+            ), 2);
+            $periodProfit = round(Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
+                ->where('payment_status', 'paid')
+                ->whereBetween('created_at', [$start, $end])
+            ), 2);
 
             $labels[] = $label;
             $revenue[] = $periodRevenue;

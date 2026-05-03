@@ -59,20 +59,29 @@ class ProfitPeriodOverview extends StatsOverviewWidget
         Carbon $previousStart,
         Carbon $previousEnd,
     ): Stat {
-        $current = Order::query()
+        $currentOrders = Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$start, $end])
-            ->selectRaw('COUNT(*) as orders_count, COALESCE(SUM(grand_total), 0) as revenue, COALESCE(SUM(gross_profit_amount), 0) as profit')
-            ->first();
+            ->count();
 
-        $previousProfit = (float) Order::query()
+        $revenue = Order::sumAmountInAdminCurrency('grand_total', Order::query()
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$start, $end])
+        );
+
+        $profit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$start, $end])
+        );
+
+        $previousProfit = Order::sumAmountInAdminCurrency('gross_profit_amount', Order::query()
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$previousStart, $previousEnd])
-            ->sum('gross_profit_amount');
+        );
 
-        $revenue = round((float) ($current?->revenue ?? 0), 2);
-        $profit = round((float) ($current?->profit ?? 0), 2);
-        $ordersCount = (int) ($current?->orders_count ?? 0);
+        $revenue = round($revenue, 2);
+        $profit = round($profit, 2);
+        $ordersCount = $currentOrders;
         $margin = $revenue > 0 ? round(($profit / $revenue) * 100, 1) : 0.0;
         $change = $previousProfit != 0.0
             ? round((($profit - $previousProfit) / abs($previousProfit)) * 100, 1)

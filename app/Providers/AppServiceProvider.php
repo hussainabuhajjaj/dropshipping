@@ -10,6 +10,9 @@ use App\Observers\ProductSearchObserver;
 use App\Models\User;
 use App\Observers\ProductSeoObserver;
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
@@ -70,6 +73,9 @@ class AppServiceProvider extends ServiceProvider
         if (config('typesense.enabled')) {
             Product::observe(ProductSearchObserver::class);
         }
+
+        $this->configureRateLimiting();
+
         $this->registerFilamentWidgetAliases();
     }
 
@@ -98,6 +104,19 @@ class AppServiceProvider extends ServiceProvider
             $event->output->writeln('<error>Blocked destructive command in production: ' . $name . '</error>');
 
             throw new \RuntimeException('Destructive artisan command blocked in production: ' . $name);
+        });
+    }
+
+    private function configureRateLimiting(): void
+    {
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(100)->by($request->ip());
+        });
+
+        RateLimiter::for('checkout', function (Request $request) {
+            return $request->user()
+                ? Limit::perMinute(10)->by($request->user()->id)
+                : Limit::perMinute(5)->by($request->ip());
         });
     }
 

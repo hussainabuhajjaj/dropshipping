@@ -17,7 +17,11 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use App\Services\Currency\CurrencyConversionService;
 
 class Order extends Model
 {
@@ -318,6 +322,46 @@ class Order extends Model
     public static function generateOrderNumber(): string
     {
         return 'DS-' . Str::upper(Str::random(12));
+    }
+
+    public static function sumAmountInAdminCurrency(string $field, ?Builder $query = null): float
+    {
+        $query = $query ?? static::query();
+        $rows = (clone $query)
+            ->selectRaw('COALESCE(currency, ?) as currency, COALESCE(SUM(' . $field . '), 0) as total', [config('currency.base', 'USD')])
+            ->groupBy('currency')
+            ->get();
+
+        $converter = app(CurrencyConversionService::class);
+
+        return (float) $rows->sum(fn ($row) => (float) $converter->convertAmount(
+            (float) ($row->total ?? 0.0),
+            (string) ($row->currency ?? config('currency.base', 'USD')),
+            'USD',
+        ));
+    }
+
+    public static function dailySumsInAdminCurrency(string $field, Carbon $start, Carbon $end, ?Builder $query = null): Collection
+    {
+        $query = $query ?? static::query();
+        $rows = (clone $query)
+            ->selectRaw('DATE(created_at) as day, currency, COALESCE(SUM(' . $field . '), 0) as total')
+            ->whereBetween('created_at', [$start, $end])
+            ->groupBy('day', 'currency')
+            ->orderBy('day')
+            ->get();
+
+        $converter = app(CurrencyConversionService::class);
+
+        return $rows->groupBy('day')->mapWithKeys(function ($group, $day) use ($converter) {
+            return [
+                $day => (float) $group->sum(fn ($row) => (float) $converter->convertAmount(
+                    (float) ($row->total ?? 0.0),
+                    (string) ($row->currency ?? config('currency.base', 'USD')),
+                    'USD',
+                )),
+            ];
+        });
     }
 
     public static function createWithGeneratedNumber(array $attributes, int $maxAttempts = 5): static

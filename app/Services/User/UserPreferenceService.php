@@ -171,7 +171,7 @@ class UserPreferenceService
     private function fetchPreferences(): array
     {
         $currency = 'XOF';
-        $language = 'en';
+        $language = 'fr';
 
         $customer = $this->resolveCustomer();
         if ($customer) {

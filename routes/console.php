@@ -182,7 +182,7 @@ if (filter_var(env('PRODUCT_AUTO_HIDE_STALE_ENABLED', false), FILTER_VALIDATE_BO
 // Optional scheduled queue worker for environments without Supervisor/systemd.
 // Enable with: SCHEDULED_QUEUE_WORKER_ENABLED=true
 if (filter_var(env('SCHEDULED_QUEUE_WORKER_ENABLED', false), FILTER_VALIDATE_BOOL)) {
-    $scheduledQueues = env('SCHEDULED_QUEUE_WORKER_QUEUES', 'default,import,variants,media,translations,seo,pricing,support');
+    $scheduledQueues = env('SCHEDULED_QUEUE_WORKER_QUEUES', 'default,cj-import,import,variants,media,translations,seo,pricing,support');
 
     Schedule::command("queue:work --once --queue={$scheduledQueues} --tries=3 --timeout=120 --sleep=0")
         ->everyTenSeconds()
@@ -276,7 +276,7 @@ Artisan::command('cj:sync-products {--start-page=1} {--pages=1} {--page-size=24}
         $job = new \App\Jobs\SyncCjProductsJob($page, $pageSize);
 
         if ($queue) {
-            dispatch($job);
+            dispatch($job)->onQueue('cj-import');
             $this->info("Queued CJ sync for page {$page}");
         } else {
             dispatch_sync($job);
@@ -292,7 +292,7 @@ Artisan::command('cj:sync-my-products-job {--start-page=1} {--page-size=24} {--m
     $maxPages = (int) $this->option('max-pages');
 
     for ($page = $start; $page < $start + $maxPages; $page++) {
-        \App\Jobs\SyncCjMyProductsJob::dispatch($page, $pageSize);
+        \App\Jobs\SyncCjMyProductsJob::dispatch($page, $pageSize)->onQueue('cj-import');
         $this->info("Dispatched SyncCjMyProductsJob for page {$page} (size {$pageSize})");
     }
     $this->info('All jobs dispatched. Monitor logs for progress.');
@@ -506,4 +506,4 @@ Schedule::call(function () {
         dispatch(new PollCJFulfillmentStatus($jobId))->onConnection('database')->onQueue('default');
     }
 })->everyMinute()->name('cj:poll-fulfillment');
-Schedule::command('queue:work --tries=3 --timeout=120   --stop-when-empty --queue=default')->everyMinute();
+Schedule::command('queue:work --tries=3 --timeout=1200 --stop-when-empty --queue=cj-import,default')->everyMinute();

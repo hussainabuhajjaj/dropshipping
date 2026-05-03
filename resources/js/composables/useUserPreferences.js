@@ -4,7 +4,7 @@ import { router, usePage } from '@inertiajs/vue3'
 // State management
 const preferences = ref({
   currency: 'XOF',
-  language: 'en',
+  language: 'fr',
   availableCurrencies: ['XOF'],
   availableLanguages: ['en', 'fr'],
   currencyRates: {},
@@ -24,7 +24,7 @@ export function useUserPreferences() {
 
   const normalizePreferences = (payload = {}) => ({
     currency: payload.currency || 'XOF',
-    language: payload.language || 'en',
+    language: payload.language || 'fr',
     availableCurrencies: payload.available_currencies || ['XOF'],
     availableLanguages: Object.keys(payload.available_languages || { en: 'English' }),
     currencyRates: payload.currency_rates || { USD: 1, USD_XOF: 600, XOF_USD: 0.00167 },

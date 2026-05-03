@@ -4,58 +4,113 @@
       <meta name="description" head-key="description" :content="metaDescription" />
     </Head>
 
-    <Breadcrumbs :items="breadcrumbs" class="mb-4" />
+    <div class="space-y-5 bg-[#f7f3eb] pb-24 sm:space-y-6 sm:pb-28">
+      <Breadcrumbs :items="breadcrumbs" class="px-1" />
 
-    <section
-      class="mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-amber-50 via-white to-slate-50"
-    >
-      <div class="grid gap-6 p-8 lg:grid-cols-[1.2fr,0.8fr]">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Category') }}</p>
-          <h1 class="mt-2 text-3xl font-semibold text-slate-900">{{ displayTitle }}</h1>
-          <p v-if="displaySubtitle" class="mt-3 max-w-2xl text-sm text-slate-600">{{ displaySubtitle }}</p>
-          <p v-else-if="metaDescription" class="mt-3 max-w-2xl text-sm text-slate-600">{{ metaDescription }}</p>
-          <div class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span>{{ t(':count products', { count: productsPager.total ?? 0 }) }}</span>
-            <span>{{ t('Tracked delivery') }}</span>
-            <span>{{ t('Customs clarity') }}</span>
-          </div>
-          <div v-if="categoryPromotion" class="mt-4 inline-flex flex-wrap items-center gap-2 rounded-full bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-            <span>{{ categoryPromotion.badge_text || categoryPromotion.name }}</span>
-            <span v-if="categoryPromotion.value_type === 'percentage'">-{{ categoryPromotion.value }}%</span>
-            <span v-else-if="categoryPromotion.value_type === 'fixed'">-{{ categoryPromotion.value }}</span>
-            <span v-if="categoryPromotion.apply_hint" class="text-[11px] font-medium text-amber-800">
-              {{ categoryPromotion.apply_hint }}
-            </span>
-            <span v-if="categoryPromoCountdown" class="text-[11px] font-semibold text-amber-700">
-              {{ t('Ends in') }} {{ categoryPromoCountdown }}
-            </span>
-          </div>
-          <Link
-            v-if="category.hero_cta_label && category.hero_cta_link"
-            :href="category.hero_cta_link"
-            class="btn-primary mt-4 inline-flex"
-          >
-            {{ category.hero_cta_label }}
-          </Link>
-          <TrustBadges compact :columns="3" tone="muted" class="mt-6" />
-        </div>
-        <div v-if="category.hero_image" class="flex items-center justify-center">
-          <img :src="category.hero_image" :alt="category.name" class="h-56 w-full rounded-2xl object-cover shadow-lg" />
-        </div>
-      </div>
-    </section>
+      <section class="overflow-hidden rounded-[1.8rem] bg-[#111111] text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)]">
+        <div class="grid gap-3 p-4 sm:p-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch lg:p-6">
+          <div class="space-y-3">
+            <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span class="shrink-0 rounded-full bg-[#ff6b35] px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.2em] text-white">{{ t('Category') }}</span>
+              <span class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ t(':count products', { count: productsPager.total ?? 0 }) }}</span>
+              <span v-if="subcategories.length" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ t(':count subcategories', { count: subcategories.length }) }}</span>
+            </div>
 
-    <section class="space-y-6">
+            <div class="rounded-[1.35rem] border border-white/10 bg-white/8 p-4 backdrop-blur">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <h1 class="text-[1.5rem] font-black leading-[0.95] tracking-[-0.04em] sm:text-[2rem]">{{ displayTitle }}</h1>
+                  <p v-if="displaySubtitle" class="mt-2 max-w-2xl text-sm leading-6 text-white/74">{{ displaySubtitle }}</p>
+                  <p v-else-if="metaDescription" class="mt-2 max-w-2xl text-sm leading-6 text-white/74">{{ metaDescription }}</p>
+                </div>
+                <div class="shrink-0 rounded-[1rem] bg-[#facc15] px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-slate-950">
+                  {{ categoryPromoCountdown ? t('Live') : t('Hot') }}
+                </div>
+              </div>
+
+              <div v-if="categoryPromotion" class="mt-3 flex flex-wrap items-center gap-2 rounded-[1rem] border border-[#f7c16d]/40 bg-[#fffbf2] px-3 py-2 text-xs font-semibold text-amber-900">
+                <span>{{ categoryPromotion.badge_text || categoryPromotion.name }}</span>
+                <span v-if="categoryPromotion.value_type === 'percentage'">-{{ categoryPromotion.value }}%</span>
+                <span v-else-if="categoryPromotion.value_type === 'fixed'">-{{ categoryPromotion.value }}</span>
+                <span v-if="categoryPromotion.apply_hint" class="text-[11px] font-medium text-amber-800">
+                  {{ categoryPromotion.apply_hint }}
+                </span>
+                <span v-if="categoryPromoCountdown" class="text-[11px] font-semibold text-amber-700">
+                  {{ t('Ends in') }} {{ categoryPromoCountdown }}
+                </span>
+              </div>
+
+              <div class="mt-3 grid grid-cols-3 gap-2">
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Results') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ productsPager.total ?? 0 }}</p>
+                </article>
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Subcats') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ subcategories.length }}</p>
+                </article>
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Sort') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ sortLabel }}</p>
+                </article>
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Link
+                  v-if="category.hero_cta_label && category.hero_cta_link"
+                  :href="category.hero_cta_link"
+                  class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.78rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420]"
+                >
+                  {{ category.hero_cta_label }}
+                </Link>
+                <button
+                  type="button"
+                  class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/16 bg-white/8 px-4 text-[0.78rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 lg:hidden"
+                  @click="filtersOpen = true"
+                >
+                  {{ t('Open filters') }}
+                </button>
+              </div>
+            </div>
+
+            <TrustBadges compact :columns="3" tone="muted" class="pt-1" />
+          </div>
+
+          <div class="grid gap-3">
+            <div v-if="category.hero_image" class="overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/8 p-1.5 backdrop-blur">
+              <img :src="category.hero_image" :alt="category.name" class="aspect-[1.12] w-full rounded-[1.1rem] object-cover" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <article class="rounded-[1.25rem] bg-[#ff6b35] px-3 py-3 text-white">
+                <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/72">{{ t('Fast browse') }}</p>
+                <p class="mt-1 text-sm font-black leading-4">{{ t('Quick category entry') }}</p>
+                <p class="mt-1 text-[0.7rem] leading-4 text-white/80">{{ t('Jump from subcategory to products in one tap.') }}</p>
+              </article>
+              <article class="rounded-[1.25rem] border border-white/10 bg-white/8 px-3 py-3 backdrop-blur">
+                <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/55">{{ t('Buying cues') }}</p>
+                <p class="mt-1 text-sm font-black leading-4 text-white">{{ t('Price, stock, reviews') }}</p>
+                <p class="mt-1 text-[0.7rem] leading-4 text-white/72">{{ t('Everything visible before product entry.') }}</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-5">
       <!-- Subcategory cards -->
-      <div v-if="subcategories.length" class="card p-4">
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">{{ t('Subcategories') }}</p>
-        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div v-if="subcategories.length" class="rounded-[1.6rem] bg-white p-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
+        <div class="flex items-end justify-between gap-3">
+          <div>
+            <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">{{ t('Subcategories') }}</p>
+            <h2 class="text-lg font-black tracking-[-0.03em] text-slate-950">{{ t('Jump into a more specific lane') }}</h2>
+          </div>
+        </div>
+        <div class="mt-3 flex gap-3 overflow-x-auto pb-1 sm:mt-4 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-4 xl:grid-cols-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Link
             v-for="sub in subcategories"
             :key="sub.id || sub.slug || sub.name"
             :href="`/categories/${encodeURIComponent(sub.slug || sub.id || sub.name)}`"
-            class="subcat-card"
+            class="subcat-card shrink-0 w-[152px] sm:w-auto"
           >
             <div class="subcat-thumb" v-if="sub.image"><img :src="sub.image" :alt="sub.name" loading="lazy" /></div>
             <div class="subcat-fallback" v-else>{{ sub.name?.slice(0,2) || 'SC' }}</div>
@@ -66,12 +121,12 @@
       </div>
 
       <div v-if="products.length" class="space-y-4">
-      <div class="flex flex-col lg:flex-row gap-8">
+      <div class="flex flex-col gap-5 lg:flex-row lg:gap-8">
         <!-- Sidebar Filters -->
         <aside class="hidden lg:block min-w-[260px] max-w-xs">
           <FilterSidebar
             :model-value="form"
-            wrapper-class="card h-fit space-y-4 p-5"
+            wrapper-class="sticky top-28 rounded-[1.6rem] border border-[#eadfce] bg-white h-fit space-y-4 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
             :brands="brands"
             :attributes="attributes"
             :category-tree="categoryTree"
@@ -86,26 +141,19 @@
         </aside>
 
         <div class="flex-1 space-y-4">
-          <!-- Topbar: Sort & Filters (mobile) -->
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <span>{{ t(':count items', { count: products.length }) }}</span>
-              <button type="button" class="btn-secondary px-3 py-2 text-xs lg:hidden" @click="filtersOpen = true">
-                {{ t('Filters') }}
-              </button>
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Sort by') }}</label>
-              <select v-model="form.sort" class="input-base" @change="applyFilters">
-                <option value="">{{ t('Relevance') }}</option>
-                <option value="price_asc">{{ t('Price: Low to High') }}</option>
-                <option value="price_desc">{{ t('Price: High to Low') }}</option>
-                <option value="newest">{{ t('Newest') }}</option>
-                <option value="rating">{{ t('Rating') }}</option>
-                <option value="popularity">{{ t('Popularity') }}</option>
-              </select>
-            </div>
-          </div>
+          <BrowseToolbar
+            :total-count="productsPager.total ?? products.length"
+            :active-filter-count="activeFilters.length"
+            :search="form.q"
+            :search-placeholder="t('Search in this category')"
+            :sort="form.sort"
+            :sort-options="sortOptions"
+            :filter-button-label="t('Filters')"
+            @update:search="form.q = $event"
+            @update:sort="handleSortChange"
+            @open-filters="filtersOpen = true"
+            @submit-search="applyFilters"
+          />
 
           <!-- Active filters chips -->
           <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
@@ -113,7 +161,7 @@
               v-for="filter in activeFilters"
               :key="filter.key"
               type="button"
-              class="chip"
+              class="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 text-[0.72rem] font-semibold text-slate-700 transition hover:border-slate-300"
               @click="clearFilter(filter.key)"
             >
               {{ filter.label }}
@@ -125,7 +173,7 @@
           </div>
 
           <!-- Product grid -->
-          <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-3">
+          <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
             <ProductCard
               v-for="product in products"
               :key="product.id"
@@ -166,7 +214,7 @@
           </div>
           <FilterSidebar
             :model-value="form"
-            wrapper-class="mt-4 space-y-4"
+            wrapper-class="mt-4 max-h-[70vh] space-y-4 overflow-y-auto pb-6"
             :brands="brands"
             :attributes="attributes"
             :category-tree="categoryTree"
@@ -205,6 +253,7 @@
         <Link href="/support" class="btn-ghost">{{ t('Request a product') }}</Link>
       </template>
     </EmptyState>
+    </div>
   </StorefrontLayout>
 </template>
 
@@ -218,6 +267,7 @@ import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import PaginationRail from '@/Components/PaginationRail.vue'
 import { useJsonLd } from '@/composables/useJsonLd.js'
+import BrowseToolbar from '@/Components/storefront/BrowseToolbar.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import { useTranslations } from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
@@ -319,6 +369,31 @@ const metaTitle = computed(() => props.category.meta_title || `${props.category.
 const metaDescription = computed(() => props.category.meta_description || '')
 const displayTitle = computed(() => props.category.hero_title || props.category.name)
 const displaySubtitle = computed(() => props.category.hero_subtitle || props.category.description || '')
+const sortOptions = computed(() => [
+  { value: '', label: t('Relevance') },
+  { value: 'price_asc', label: t('Price: Low to High') },
+  { value: 'price_desc', label: t('Price: High to Low') },
+  { value: 'newest', label: t('Newest') },
+  { value: 'rating', label: t('Rating') },
+  { value: 'popularity', label: t('Popularity') },
+])
+const sortLabel = computed(() => {
+  const labels = {
+    '': t('Relevance'),
+    price_asc: t('Low-high'),
+    price_desc: t('High-low'),
+    newest: t('Newest'),
+    rating: t('Rating'),
+    popularity: t('Popular'),
+  }
+
+  return labels[form.sort ?? ''] || t('Relevance')
+})
+
+const handleSortChange = (value) => {
+  form.sort = value
+  applyFilters()
+}
 
 const categorySchema = computed(() => {
   const baseUrl = window.location.origin

@@ -1,9 +1,9 @@
 <template>
   <StorefrontLayout>
-    <div class="grid gap-8 lg:grid-cols-[260px,1fr]">
-      <aside class="card-muted h-fit space-y-4 p-4">
+    <div class="grid gap-5 lg:grid-cols-[260px,1fr]">
+      <aside class="h-fit space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
         <h3 class="text-sm font-semibold text-slate-900">Account menu</h3>
-        <nav class="space-y-2 text-sm text-slate-700">
+        <nav class="hidden space-y-2 text-sm text-slate-700 lg:block">
           <button class="nav-link" @click="scrollTo('profile')">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm-8 8a8 8 0 0 1 16 0"/></svg>
             <span>Profile & settings</span>
@@ -37,17 +37,26 @@
             <span>Gift cards & coupons</span>
           </button>
         </nav>
+        <div class="flex gap-2 overflow-x-auto pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button class="nav-link shrink-0" @click="scrollTo('profile')"><span>Profile</span></button>
+          <button class="nav-link shrink-0" @click="scrollTo('addresses')"><span>Addresses</span></button>
+          <button class="nav-link shrink-0" @click="scrollTo('payments')"><span>Payments</span></button>
+          <button class="nav-link shrink-0" @click="scrollTo('orders')"><span>Orders</span></button>
+          <button class="nav-link shrink-0" @click="scrollTo('wallet')"><span>Wallet</span></button>
+        </div>
       </aside>
 
       <div class="space-y-10">
       <section class="space-y-4">
+        <div class="rounded-[1.8rem] bg-[#111111] px-5 py-5 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)]">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Account</p>
-            <h1 class="text-3xl font-semibold tracking-tight text-slate-900">Hello, {{ user.name || 'Customer' }}</h1>
-            <p class="text-sm text-slate-500">Manage your orders, payments, addresses, and wallet like Noon’s profile.</p>
+            <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]">Account</p>
+            <h1 class="mt-2 text-[2rem] font-black tracking-[-0.04em] text-white">Hello, {{ user.name || 'Customer' }}</h1>
+            <p class="mt-2 text-sm text-white/72">Everything shoppers need after buying, compressed into one fast mobile hub.</p>
           </div>
-          <Link href="/products" class="btn-ghost">Continue shopping</Link>
+          <Link href="/products" class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12">Continue shopping</Link>
+        </div>
         </div>
 
         <div class="grid gap-3 md:grid-cols-3">

@@ -292,8 +292,10 @@ Route::prefix('mobile/v1')->group(function () {
             Route::post('notifications/expo-token', [MobileNotificationController::class, 'registerExpoToken']);
             Route::delete('notifications/expo-token', [MobileNotificationController::class, 'removeExpoToken']);
 
-            Route::post('checkout/preview', [MobileCheckoutController::class, 'preview']);
-            Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm']);
+            Route::middleware('throttle:checkout')->group(function () {
+                Route::post('checkout/preview', [MobileCheckoutController::class, 'preview']);
+                Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm']);
+            });
 
             Route::post('products/{product:slug}/reviews', [MobileProductReviewController::class, 'store']);
 

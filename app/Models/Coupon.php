@@ -125,7 +125,7 @@ class Coupon extends Model
         return $this->{$field} ?? null;
     }
 
-    private function serializeCoupon(): array
+    public function serializeCoupon(): array
     {
         return [
             'id' => $this->id,
@@ -137,7 +137,7 @@ class Coupon extends Model
         ];
     }
 
-    private function redeemCoupon(?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
+    public function redeemCoupon(?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
     {
         if ($discountSource !== 'coupon' || $discountAmount <= 0) {
             return;

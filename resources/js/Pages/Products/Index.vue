@@ -5,42 +5,98 @@
       <link v-if="prevPageUrl" rel="prev" :href="prevPageUrl" />
       <link v-if="nextPageUrl" rel="next" :href="nextPageUrl" />
     </Head>
-    <section class="space-y-8">
-      <div class="space-y-3">
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Collection') }}</p>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 class="text-3xl font-semibold tracking-tight text-slate-900">{{ t('Shop the catalog') }}</h1>
-          <p class="max-w-xl text-sm text-slate-500">
-            {{ t("Curated picks with reliable delivery to Cote d'Ivoire. Duties and customs are disclosed before payment.") }}
-          </p>
-        </div>
-        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <span>{{ t(':count items', { count: products.length }) }}</span>
-          <div class="ml-auto flex items-center gap-2">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Sort') }}</span>
-            <select v-model="form.sort" class="input-base !py-1.5 !text-xs" @change="applyFilters">
-              <option value="">{{ t('Newest') }}</option>
-              <option value="price_asc">{{ t('Price: low to high') }}</option>
-              <option value="price_desc">{{ t('Price: high to low') }}</option>
-              <option value="rating">{{ t('Top rated') }}</option>
-              <option value="popularity">{{ t('Most reviewed') }}</option>
-              <option value="featured">{{ t('Featured') }}</option>
-            </select>
+    <div class="space-y-5 bg-[#f7f3eb] pb-24 sm:space-y-6 sm:pb-28">
+      <section class="overflow-hidden rounded-[1.8rem] bg-[#111111] text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)]">
+        <div class="grid gap-3 p-4 sm:p-5 lg:grid-cols-[1.12fr_0.88fr] lg:p-6">
+          <div class="space-y-3">
+            <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span class="shrink-0 rounded-full bg-[#ff6b35] px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.2em] text-white">{{ t('Catalog') }}</span>
+              <span class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ t(':count products', { count: productsPaginator.total ?? products.length }) }}</span>
+              <span v-if="filterContextLabel" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ filterContextLabel }}</span>
+            </div>
+
+            <div class="rounded-[1.35rem] border border-white/10 bg-white/8 p-4 backdrop-blur">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <h1 class="text-[1.5rem] font-black leading-[0.95] tracking-[-0.04em] sm:text-[2rem]">{{ heroTitle }}</h1>
+                  <p class="mt-2 max-w-2xl text-sm leading-6 text-white/74">{{ heroSubtitle }}</p>
+                </div>
+                <div class="shrink-0 rounded-[1rem] bg-[#facc15] px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-slate-950">
+                  {{ t('Live') }}
+                </div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-3 gap-2">
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Results') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ productsPaginator.total ?? products.length }}</p>
+                </article>
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Categories') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ categoryOptions.length }}</p>
+                </article>
+                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
+                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Sort') }}</p>
+                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ currentSortLabel }}</p>
+                </article>
+              </div>
+
+              <div v-if="contextChips.length" class="mt-3 flex flex-wrap gap-2">
+                <Link
+                  v-for="chip in contextChips"
+                  :key="chip.label"
+                  :href="chip.href"
+                  class="inline-flex min-h-10 items-center rounded-full border border-white/16 bg-white/8 px-3 text-[0.72rem] font-semibold text-white transition hover:bg-white/12"
+                >
+                  {{ chip.label }}
+                </Link>
+              </div>
+            </div>
           </div>
-          <button
-            type="button"
-            class="btn-secondary px-3 py-2 text-xs lg:hidden"
-            @click="filtersOpen = true"
-          >
-            {{ t('Filters') }}
-          </button>
+
+          <div class="grid grid-cols-2 gap-3">
+            <article class="rounded-[1.25rem] bg-[#ff6b35] px-3 py-3 text-white">
+              <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/72">{{ t('Fast browse') }}</p>
+              <p class="mt-1 text-sm font-black leading-4">{{ t('Dense product exposure') }}</p>
+              <p class="mt-1 text-[0.7rem] leading-4 text-white/80">{{ t('More products per screen with quick add and visible buying cues.') }}</p>
+            </article>
+            <article class="rounded-[1.25rem] border border-white/10 bg-white/8 px-3 py-3 backdrop-blur">
+              <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/55">{{ t('Discovery') }}</p>
+              <p class="mt-1 text-sm font-black leading-4 text-white">{{ t('Search, sort, filter') }}</p>
+              <p class="mt-1 text-[0.7rem] leading-4 text-white/72">{{ t('Everything stays within thumb reach on mobile.') }}</p>
+            </article>
+            <article class="col-span-2 overflow-hidden rounded-[1.25rem] border border-white/10 bg-white/8 p-1.5 backdrop-blur">
+              <div class="rounded-[1rem] bg-gradient-to-br from-[#2a2a2a] via-[#1a1a1a] to-[#101010] px-4 py-4">
+                <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-white/52">{{ t('Simbazu feed') }}</p>
+                <p class="mt-2 text-[1.1rem] font-black tracking-[-0.03em] text-white">{{ t('Find the next add-to-cart faster') }}</p>
+                <p class="mt-1 text-[0.74rem] leading-5 text-white/72">{{ t("Reliable delivery and transparent checkout stay intact while the browse experience gets denser.") }}</p>
+              </div>
+            </article>
+          </div>
         </div>
+      </section>
+
+      <section class="space-y-5">
+        <BrowseToolbar
+          :total-count="productsPaginator.total ?? products.length"
+          :active-filter-count="activeFilters.length"
+          :search="form.q"
+          :search-placeholder="t('Search products')"
+          :sort="form.sort"
+          :sort-options="sortOptions"
+          :filter-button-label="t('Filters')"
+          @update:search="form.q = $event"
+          @update:sort="handleSortChange"
+          @open-filters="filtersOpen = true"
+          @submit-search="applyFilters"
+        />
+
         <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
           <button
             v-for="filter in activeFilters"
             :key="filter.key"
             type="button"
-            class="chip"
+            class="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 text-[0.72rem] font-semibold text-slate-700 transition hover:border-slate-300"
             @click="clearFilter(filter.key)"
           >
             {{ filter.label }}
@@ -50,64 +106,59 @@
             {{ t('Clear all') }}
           </button>
         </div>
-      </div>
 
-      <div class="grid gap-8 lg:grid-cols-[260px,1fr]">
-        <aside class="card hidden h-fit space-y-4 p-5 lg:block">
-          <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Filters') }}</p>
-            <p class="text-sm text-slate-600">{{ t('Narrow results by category or price.') }}</p>
-          </div>
-          <form class="space-y-4" @submit.prevent="applyFilters">
+        <div class="grid gap-5 lg:grid-cols-[260px,1fr]">
+          <aside class="hidden lg:block rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
             <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Search') }}</label>
-              <input v-model="form.q" type="search" :placeholder="t('Search products')" class="input-base" />
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Filters') }}</p>
+              <p class="text-sm text-slate-600">{{ t('Narrow results by category, price, stock, or featured status.') }}</p>
             </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Category') }}</label>
-              <select v-model="form.category" class="input-base">
-                <option value="">{{ t('All categories') }}</option>
-                <option v-for="category in categoryOptions" :key="category.slug || category.name" :value="category.slug || category.name">
-                  {{ category.label }}
-                </option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Price range') }}</label>
-              <div class="flex gap-2">
-                <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="input-base" />
-                <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
+            <form class="mt-4 space-y-4" @submit.prevent="applyFilters">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-slate-600">{{ t('Category') }}</label>
+                <select v-model="form.category" class="input-base">
+                  <option value="">{{ t('All categories') }}</option>
+                  <option v-for="category in categoryOptions" :key="category.slug || category.name" :value="category.slug || category.name">
+                    {{ category.label }}
+                  </option>
+                </select>
               </div>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Minimum rating') }}</label>
-              <select v-model="form.rating" class="input-base">
-                <option value="">{{ t('Any rating') }}</option>
-                <option value="4">4+ {{ t('stars') }}</option>
-                <option value="3">3+ {{ t('stars') }}</option>
-                <option value="2">2+ {{ t('stars') }}</option>
-              </select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-xs font-semibold text-slate-600">{{ t('Featured') }}</label>
-              <select v-model="form.is_featured" class="input-base">
-                <option value="">{{ t('Any') }}</option>
-                <option value="1">{{ t('Featured only') }}</option>
-                <option value="0">{{ t('Standard') }}</option>
-              </select>
-            </div>
-            <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <input v-model="form.in_stock" type="checkbox" />
-              <span>{{ t('In stock only') }}</span>
-            </label>
-            <div class="flex gap-2">
-              <button type="submit" class="btn-secondary flex-1">{{ t('Apply') }}</button>
-              <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
-            </div>
-          </form>
-        </aside>
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-slate-600">{{ t('Price range') }}</label>
+                <div class="flex gap-2">
+                  <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="input-base" />
+                  <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" />
+                </div>
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-slate-600">{{ t('Minimum rating') }}</label>
+                <select v-model="form.rating" class="input-base">
+                  <option value="">{{ t('Any rating') }}</option>
+                  <option value="4">4+ {{ t('stars') }}</option>
+                  <option value="3">3+ {{ t('stars') }}</option>
+                  <option value="2">2+ {{ t('stars') }}</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-slate-600">{{ t('Featured') }}</label>
+                <select v-model="form.is_featured" class="input-base">
+                  <option value="">{{ t('Any') }}</option>
+                  <option value="1">{{ t('Featured only') }}</option>
+                  <option value="0">{{ t('Standard') }}</option>
+                </select>
+              </div>
+              <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input v-model="form.in_stock" type="checkbox" />
+                <span>{{ t('In stock only') }}</span>
+              </label>
+              <div class="flex gap-2">
+                <button type="submit" class="btn-secondary flex-1">{{ t('Apply') }}</button>
+                <button type="button" class="btn-ghost flex-1" @click="resetFilters">{{ t('Reset') }}</button>
+              </div>
+            </form>
+          </aside>
 
-        <div v-if="products.length" class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-3">
+          <div v-if="products.length" class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           <ProductCard
             v-for="product in products"
             :key="product.id"
@@ -115,20 +166,21 @@
             :currency="currency"
             :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
           />
+          </div>
+          <EmptyState
+            v-else
+            :eyebrow="t('Catalog')"
+            :title="t('No products match these filters')"
+            :message="t('Clear a few filters or jump back to all categories to keep exploring.')"
+          >
+            <template #actions>
+              <button type="button" class="btn-primary" @click="resetFilters">{{ t('Clear filters') }}</button>
+              <Link href="/products" class="btn-ghost">{{ t('View all products') }}</Link>
+            </template>
+          </EmptyState>
         </div>
-        <EmptyState
-          v-else
-          :eyebrow="t('Catalog')"
-          :title="t('No products match these filters')"
-          :message="t('Clear a few filters or jump back to all categories to keep exploring.')"
-        >
-          <template #actions>
-            <button type="button" class="btn-primary" @click="resetFilters">{{ t('Clear filters') }}</button>
-            <Link href="/products" class="btn-ghost">{{ t('View all products') }}</Link>
-          </template>
-        </EmptyState>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <Transition
       enter-active-class="transition duration-200 ease-out"
@@ -235,6 +287,7 @@
 import { computed, reactive, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import BrowseToolbar from '@/Components/storefront/BrowseToolbar.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import PaginationRail from '@/Components/PaginationRail.vue'
@@ -245,6 +298,7 @@ const props = defineProps({
   currency: { type: String, default: 'USD' },
   categories: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
+  filterContext: { type: Object, default: () => ({}) },
   shouldNoindex: { type: Boolean, default: false },
 })
 
@@ -282,6 +336,7 @@ const form = reactive({
 const filtersOpen = ref(false)
 
 const sortLabels = {
+  '': t('Newest'),
   newest: t('Newest'),
   price_asc: t('Price: low to high'),
   price_desc: t('Price: high to low'),
@@ -289,6 +344,14 @@ const sortLabels = {
   popularity: t('Most reviewed'),
   featured: t('Featured'),
 }
+const sortOptions = computed(() => [
+  { value: '', label: t('Newest') },
+  { value: 'price_asc', label: t('Price: low to high') },
+  { value: 'price_desc', label: t('Price: high to low') },
+  { value: 'rating', label: t('Top rated') },
+  { value: 'popularity', label: t('Most reviewed') },
+  { value: 'featured', label: t('Featured') },
+])
 
 const flattenCategoryOptions = (nodes, depth = 0) => {
   if (!Array.isArray(nodes)) return []
@@ -308,6 +371,50 @@ const flattenCategoryOptions = (nodes, depth = 0) => {
 }
 
 const categoryOptions = computed(() => flattenCategoryOptions(props.categories))
+const heroTitle = computed(() => {
+  if (props.filterContext?.collection?.name) return props.filterContext.collection.name
+  if (props.filterContext?.campaign?.name) return props.filterContext.campaign.name
+  if (props.filterContext?.category?.name) return t('Shop :name', { name: props.filterContext.category.name })
+  return t('Shop the catalog')
+})
+const heroSubtitle = computed(() => {
+  if (props.filterContext?.collection?.name) {
+    return t("Browse this storefront collection like a live Simbazu feed with dense product exposure and faster add-to-cart decisions.")
+  }
+  if (props.filterContext?.campaign?.name) {
+    return t("This campaign lane keeps the strongest matching products together so users can scroll, compare, and buy without friction.")
+  }
+  return t("Curated picks with reliable delivery to Cote d'Ivoire. Duties and customs are disclosed before payment.")
+})
+const filterContextLabel = computed(() => {
+  if (props.filterContext?.collection?.name) return t('Collection')
+  if (props.filterContext?.campaign?.name) return t('Campaign')
+  if (props.filterContext?.category?.name) return t('Category')
+  return ''
+})
+const contextChips = computed(() => {
+  const chips = []
+  if (props.filterContext?.collection?.slug) {
+    chips.push({
+      label: t('Collection: :value', { value: props.filterContext.collection.name }),
+      href: `/products?collection=${encodeURIComponent(props.filterContext.collection.slug)}`,
+    })
+  }
+  if (props.filterContext?.campaign?.slug) {
+    chips.push({
+      label: t('Campaign: :value', { value: props.filterContext.campaign.name }),
+      href: `/products?campaign=${encodeURIComponent(props.filterContext.campaign.slug)}`,
+    })
+  }
+  if (props.filterContext?.category?.slug) {
+    chips.push({
+      label: t('Category: :value', { value: props.filterContext.category.name }),
+      href: `/categories/${encodeURIComponent(props.filterContext.category.slug)}`,
+    })
+  }
+  return chips
+})
+const currentSortLabel = computed(() => sortLabels[form.sort] || sortLabels[''])
 
 const activeFilters = computed(() => {
   const items = []
@@ -349,6 +456,11 @@ const applyFilters = () => {
   filtersOpen.value = false
   form.page = 1
   router.get('/products', { ...form }, { preserveState: true, replace: true })
+}
+
+const handleSortChange = (value) => {
+  form.sort = value
+  applyFilters()
 }
 
 const resetFilters = () => {

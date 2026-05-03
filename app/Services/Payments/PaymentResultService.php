@@ -105,11 +105,12 @@ class PaymentResultService
             }
 
             $coupon = @$summery['coupon'];
+            $couponModel = @$summery['coupon_model'];
             $discount_snapshot = buildDiscountSnapshot(
                 @$summery['discount'],
                 @$summery['discount_label'] ?? null,
                 @$summery['discount_source'],
-                $coupon ? $coupon->serializeCoupon() : null,
+                is_array($coupon) ? $coupon : ($couponModel ? $couponModel->serializeCoupon() : null),
                 @$summery['promotionDiscounts'],
                 $cart[0]['currency'] ?? 'USD'
             );
@@ -214,8 +215,8 @@ class PaymentResultService
             }
 
             $order->recordPromotionUsage(@$summery['promotionDiscounts'], @$summery['subtotal'], @$summery['discount_source']);
-            if (isset($coupon)) {
-                $coupon->redeemCoupon($customer, $order, @$summery['discount_source'], @$summery['discount']);
+            if ($couponModel) {
+                $couponModel->redeemCoupon($customer, $order, @$summery['discount_source'], @$summery['discount']);
             }
 
             $paymentPayload = $this->resolvePaymentPayload($payment_result, (float) ($order->grand_total ?? 0), (string) ($order->currency ?? 'USD'));

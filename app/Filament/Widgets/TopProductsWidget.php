@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
-use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
+use App\Filament\Widgets\Concerns\AdminCurrencyConversion;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use Illuminate\Database\Eloquent\Builder;
 
 class TopProductsWidget extends BaseWidget
 {
+    use AdminCurrencyConversion;
+
     protected static ?int $sort = 4;
     protected int | string | array $columnSpan = 'full';
 
@@ -27,12 +27,11 @@ class TopProductsWidget extends BaseWidget
                     ->select([
                         'products.id',
                         'products.name',
-                        'products.selling_price',
-                        'products.currency',
                     ])
+                    ->selectRaw('products.selling_price * ' . $this->currencyConversionFactorSql('products.currency') . ' as selling_price')
                     ->selectRaw('COUNT(order_items.id) as total_orders')
                     ->selectRaw('SUM(order_items.quantity) as total_units')
-                    ->selectRaw('SUM(order_items.total) as total_revenue')
+                    ->selectRaw('SUM(' . $this->amountToUsdSql('order_items.total', 'orders.currency') . ') as total_revenue')
                     ->leftJoin('product_variants', 'products.id', '=', 'product_variants.product_id')
                     ->leftJoin('order_items', 'product_variants.id', '=', 'order_items.product_variant_id')
                     ->leftJoin('orders', function ($join) use ($thirtyDaysAgo) {

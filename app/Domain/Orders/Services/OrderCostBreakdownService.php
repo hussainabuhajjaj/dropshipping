@@ -7,6 +7,7 @@ namespace App\Domain\Orders\Services;
 use App\Domain\Orders\Models\Order;
 use App\Domain\Orders\Models\OrderItem;
 use App\Domain\Orders\Models\Shipment;
+use App\Services\Currency\CurrencyConversionService;
 
 class OrderCostBreakdownService
 {
@@ -17,7 +18,10 @@ class OrderCostBreakdownService
             'shipments.items',
         ]);
 
-        $itemBreakdown = $order->orderItems->map(fn (OrderItem $item) => $this->buildItemBreakdown($item));
+        $currencyConverter = app(CurrencyConversionService::class);
+        $orderCurrency = (string) ($order->currency ?? config('currency.base', 'USD'));
+
+        $itemBreakdown = $order->orderItems->map(fn (OrderItem $item) => $this->buildItemBreakdown($item, $orderCurrency, $currencyConverter));
 
         $productCostTotal = round((float) $itemBreakdown->sum('product_cost_total'), 2);
         $externalShippingTotal = round((float) $itemBreakdown->sum('external_shipping_total'), 2);
@@ -49,7 +53,7 @@ class OrderCostBreakdownService
         return $order->fresh();
     }
 
-    private function buildItemBreakdown(OrderItem $item): array
+    private function buildItemBreakdown(OrderItem $item, string $orderCurrency, CurrencyConversionService $currencyConverter): array
     {
         $variant = $item->productVariant;
         $product = $variant?->product;
@@ -64,16 +68,42 @@ class OrderCostBreakdownService
             ?? $this->normalizeMoney(data_get($product?->pricing_meta, 'external_shipping'))
             ?? 0.0;
 
+        $costCurrency = $this->resolveCostCurrency($item);
+        $productCostUnitInOrderCurrency = $this->convertCostToOrderCurrency($unitProductCost, $costCurrency, $orderCurrency, $currencyConverter);
+        $externalShippingUnitInOrderCurrency = $this->convertCostToOrderCurrency($unitExternalShipping, $costCurrency, $orderCurrency, $currencyConverter);
+
         return [
             'order_item_id' => $item->id,
             'sku' => $item->source_sku,
             'quantity' => $quantity,
-            'product_cost_unit' => round($unitProductCost, 2),
-            'product_cost_total' => round($unitProductCost * $quantity, 2),
-            'external_shipping_unit' => round($unitExternalShipping, 2),
-            'external_shipping_total' => round($unitExternalShipping * $quantity, 2),
+            'cost_currency' => $costCurrency,
+            'product_cost_unit' => round($productCostUnitInOrderCurrency, 2),
+            'product_cost_total' => round($productCostUnitInOrderCurrency * $quantity, 2),
+            'external_shipping_unit' => round($externalShippingUnitInOrderCurrency, 2),
+            'external_shipping_total' => round($externalShippingUnitInOrderCurrency * $quantity, 2),
             'revenue_total' => round((float) ($item->total ?? 0), 2),
         ];
+    }
+
+    private function resolveCostCurrency(OrderItem $item): string
+    {
+        $variantCurrency = (string) ($item->productVariant?->currency ?? '');
+        $productCurrency = (string) ($item->productVariant?->product?->currency ?? '');
+
+        return $variantCurrency ?: $productCurrency ?: config('currency.base', 'USD');
+    }
+
+    private function convertCostToOrderCurrency(
+        float $amount,
+        string $sourceCurrency,
+        string $orderCurrency,
+        CurrencyConversionService $currencyConverter
+    ): float {
+        if ($amount <= 0 || $sourceCurrency === $orderCurrency) {
+            return $amount;
+        }
+
+        return $currencyConverter->convertAmount($amount, $sourceCurrency, $orderCurrency) ?? $amount;
     }
 
     private function actualCjShippingTotal(Order $order): ?float

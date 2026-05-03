@@ -1,17 +1,19 @@
 <template>
     <StorefrontLayout>
-        <div class="space-y-8">
+        <div class="space-y-5 sm:space-y-8">
+            <section class="rounded-[1.8rem] bg-[#111111] px-5 py-5 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)]">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Account</p>
-                    <h1 class="text-3xl font-semibold tracking-tight text-slate-900">Payment methods</h1>
-                    <p class="text-sm text-slate-500">Manage your saved cards and wallets like Noon.</p>
+                    <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]">Account</p>
+                    <h1 class="mt-2 text-[2rem] font-black tracking-[-0.04em] text-white">Payment methods</h1>
+                    <p class="mt-2 text-sm text-white/72">Keep checkout fast with saved cards and a clean wallet view.</p>
                 </div>
-                <Link href="/account" class="btn-ghost text-sm">Back to profile</Link>
+                <Link href="/account" class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12">Back to profile</Link>
             </div>
+            </section>
 
             <section class="grid gap-6 lg:grid-cols-2">
-                <div class="card space-y-6 p-6">
+                <div class="rounded-[1.8rem] border border-[#eadfce] bg-white p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
                     <div>
                         <h2 class="text-lg font-semibold text-slate-900">Saved methods</h2>
                         <p class="text-sm text-slate-500">Default method is listed first.</p>
@@ -51,7 +53,7 @@
                     />
                 </div>
 
-                <div class="card space-y-4 p-6">
+                <div class="rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
                     <div>
                         <h2 class="text-lg font-semibold text-slate-900">Add payment method</h2>
                         <p class="text-sm text-slate-500">New method can be set as default.</p>

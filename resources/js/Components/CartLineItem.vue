@@ -1,7 +1,7 @@
 <template>
-    <div class="card flex flex-col gap-4 p-4">
-        <div class="flex items-start gap-3 sm:gap-4">
-            <div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-50 sm:h-20 sm:w-20">
+    <div class="flex flex-col gap-3 rounded-[1.6rem] border border-[#eadfce] bg-white p-3 shadow-[0_14px_34px_rgba(15,23,42,0.05)] sm:gap-4 sm:p-4">
+        <div class="flex items-start gap-3">
+            <div class="h-24 w-20 shrink-0 overflow-hidden rounded-[1.2rem] bg-[#f8f3ec] sm:h-24 sm:w-24 sm:rounded-2xl">
                 <img
                     v-if="line.media?.[0]"
                     :src="line.media[0]"
@@ -10,16 +10,16 @@
                 />
             </div>
             <div class="min-w-0 flex-1 space-y-1.5">
-                <div class="flex items-start justify-between gap-3">
-                    <p class="text-sm font-semibold text-slate-900 line-clamp-2">{{ line.name }}</p>
+                <div class="flex items-start justify-between gap-2">
+                    <p class="text-[0.9rem] font-bold leading-5 text-slate-900 line-clamp-2">{{ line.name }}</p>
                     <button
                         type="button"
-                        class="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50" @click="$emit('remove', line.id)"
+                        class="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-[0.68rem] font-semibold text-rose-600 transition hover:bg-rose-100" @click="$emit('remove', line.id)"
                     >
                         {{ t('Remove') }}
                     </button>
                 </div>
-                <p class="text-xs text-slate-500">{{
+                <p class="text-[0.72rem] text-slate-500">{{
                         t('Variant: :variant', {variant: line.variant ?? t('Default')})
                     }}</p>
                 <div class="flex flex-wrap items-center gap-2">
@@ -36,17 +36,17 @@
                     <span v-else-if="linePromotion.value_type === 'fixed'">-{{ displayPrice(linePromotion.value) }}</span>
                     <span v-if="promoCountdown" class="ml-1">· {{ t('Ends in') }} {{ promoCountdown }}</span>
                 </p>
-                <p class="text-xs text-slate-500">
+                <p class="text-[0.72rem] text-slate-500">
                     {{ t('Unit price: :amount', {amount: displayUnitPrice}) }}
                 </p>
             </div>
         </div>
 
-        <div class="flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-2 rounded-full border border-slate-200 px-2 py-1 self-start">
+        <div class="grid gap-3 border-t border-[#f0e7dc] pt-3 sm:grid-cols-[auto,1fr] sm:items-center">
+            <div class="flex items-center gap-1.5 rounded-full border border-[#eadfce] bg-[#fcf8f3] px-1.5 py-1 self-start">
                     <button
                         type="button"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e2d7ca] bg-white text-sm font-semibold text-slate-700"
                         @click="$emit('update', line.id, Math.max(1, line.quantity - 1))"
                     >
                         -
@@ -55,23 +55,25 @@
                         :value="line.quantity"
                         type="number"
                         min="1"
-                        class="h-8 w-14 rounded-lg border border-slate-300 bg-white text-center text-xs text-slate-700 focus:border-slate-500 focus:outline-none justify-center"
+                        class="h-8 w-12 rounded-lg border border-[#e2d7ca] bg-white text-center text-xs font-semibold text-slate-700 focus:border-slate-500 focus:outline-none"
                         @change="$emit('update', line.id, Math.max(1, Number($event.target.value || 1)))"
                     />
                     <button
                         type="button"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-sm text-slate-600"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#e2d7ca] bg-white text-sm font-semibold text-slate-700"
                         @click="$emit('update', line.id, line.quantity + 1)"
                     >
                         +
                     </button>
             </div>
-            <div class="text-left sm:text-right">
+            <div class="flex items-end justify-between gap-3 sm:justify-end">
+                <div class="text-left sm:text-right">
                 <div v-if="line.compare_at_price && line.compare_at_price > line.price" class="text-xs text-slate-400 line-through">
                     {{ displayCompareAtLine }}
                 </div>
-                <div class="text-sm font-semibold text-slate-900">
+                <div class="text-base font-black tracking-[-0.02em] text-slate-900">
                     {{ displayTotalPrice }}
+                </div>
                 </div>
             </div>
         </div>

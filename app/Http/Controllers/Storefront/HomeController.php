@@ -16,6 +16,7 @@ use App\Models\StorefrontCollection;
 use App\Services\Promotions\PromotionHomepageService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -73,6 +74,7 @@ class HomeController extends Controller
         $bannerResolution = $this->resolveHomeBanners($locale, $promotionBanners);
 
         $seasonalDropsPayload = $this->buildSeasonalDrops($locale, $homeBuilder);
+        $homeCollectionsPayload = $this->buildHomeCollections($locale, $homeBuilder);
         $flashDealsPayload = $this->buildFlashDeals($homepagePromotions);
 
         return Inertia::render('Home', [
@@ -91,6 +93,17 @@ class HomeController extends Controller
             'bannerDiagnostics' => $bannerResolution['diagnostics'],
             'seasonalDrops' => $seasonalDropsPayload['items'],
             'seasonalDropsViewAllHref' => $seasonalDropsPayload['viewAllHref'],
+            'homeCollections' => $homeCollectionsPayload['items'],
+            'homeCollectionsViewAllHref' => $homeCollectionsPayload['viewAllHref'],
+            'popularSearches' => collect(Cache::get('popular_searches', collect()))
+                ->take(10)
+                ->map(fn ($count, $query) => [
+                    'query' => (string) $query,
+                    'count' => (int) $count,
+                    'href' => '/search?q=' . urlencode((string) $query),
+                ])
+                ->values()
+                ->all(),
             'homeContent' => $homeContent ? [
                 'top_strip' => $homeContent->top_strip,
                 'hero_slides' => $heroSlides,
@@ -319,12 +332,6 @@ class HomeController extends Controller
             ->filter(fn (StorefrontCampaign $campaign) => $campaign->isActiveForLocale($locale))
             ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true));
 
-        $collections = StorefrontCollection::query()
-            ->orderBy('display_order')
-            ->get()
-            ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale))
-            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true));
-
         $campaignItems = [];
 
         foreach ($campaigns as $campaign) {
@@ -342,10 +349,52 @@ class HomeController extends Controller
             ];
         }
 
-        $collectionItems = [];
+        $items = array_slice($campaignItems, 0, 6);
+
+        return [
+            'items' => $items,
+            'viewAllHref' => $items[0]['href'] ?? '/products',
+        ];
+    }
+
+    /**
+     * @return array{items: array<int, array<string, mixed>>, viewAllHref: string}
+     */
+    private function buildHomeCollections(string $locale, HomeBuilderService $homeBuilder): array
+    {
+        $allCollections = StorefrontCollection::query()
+            ->orderBy('display_order')
+            ->get()
+            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true));
+
+        $collections = $allCollections
+            ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale));
+
+        if ($collections->isEmpty()) {
+            $now = now();
+
+            $collections = $allCollections
+                ->filter(fn (StorefrontCollection $collection) => $collection->is_active && $collection->isVisibleForLocale($locale))
+                ->sortBy(function (StorefrontCollection $collection) use ($locale, $now) {
+                    $schedule = $collection->resolveScheduleForLocale($locale);
+                    $timezone = $schedule['timezone'] ?: config('app.timezone');
+                    $startsAt = $schedule['starts_at']
+                        ? Carbon::parse($schedule['starts_at'], $timezone)->getTimestamp()
+                        : PHP_INT_MAX;
+
+                    return [
+                        $startsAt < $now->copy()->timezone($timezone)->getTimestamp() ? 1 : 0,
+                        $startsAt,
+                        (int) ($collection->display_order ?? PHP_INT_MAX),
+                    ];
+                })
+                ->values();
+        }
+
+        $items = [];
 
         foreach ($collections as $collection) {
-            $collectionItems[] = [
+            $items[] = [
                 'id' => 'collection-' . $collection->id,
                 'kind' => 'collection',
                 'entityId' => $collection->id,
@@ -359,22 +408,11 @@ class HomeController extends Controller
             ];
         }
 
-        $items = array_merge(
-            array_slice($campaignItems, 0, 3),
-            array_slice($collectionItems, 0, 3),
-        );
-
-        if (count($items) < 6) {
-            $items = array_slice(array_merge(
-                $items,
-                array_slice($campaignItems, 3),
-                array_slice($collectionItems, 3),
-            ), 0, 6);
-        }
+        $items = array_slice($items, 0, 6);
 
         return [
             'items' => $items,
-            'viewAllHref' => $items[0]['href'] ?? '/products',
+            'viewAllHref' => $items[0]['href'] ?? '/collections',
         ];
     }
 

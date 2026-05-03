@@ -15,26 +15,21 @@ class SalesTrendChart extends ChartWidget
     protected function getData(): array
     {
         $start = Carbon::now()->subDays(29)->startOfDay();
+        $end = Carbon::now();
 
-        $rows = Order::query()
-            ->selectRaw('DATE(created_at) as day, SUM(grand_total) as revenue_total, SUM(gross_profit_amount) as profit_total')
-            ->where('payment_status', 'paid')
-            ->where('created_at', '>=', $start)
-            ->groupBy('day')
-            ->orderBy('day')
-            ->get();
+        $dailyRevenue = Order::dailySumsInAdminCurrency('grand_total', $start, $end);
+        $dailyProfit = Order::dailySumsInAdminCurrency('gross_profit_amount', $start, $end);
 
         $labels = [];
         $revenueTotals = [];
         $profitTotals = [];
         $cursor = $start->copy();
-        $byDay = $rows->keyBy('day');
 
-        while ($cursor->lte(Carbon::now())) {
+        while ($cursor->lte($end)) {
             $day = $cursor->toDateString();
             $labels[] = $cursor->format('M d');
-            $revenueTotals[] = (float) ($byDay[$day]->revenue_total ?? 0);
-            $profitTotals[] = (float) ($byDay[$day]->profit_total ?? 0);
+            $revenueTotals[] = (float) ($dailyRevenue[$day] ?? 0);
+            $profitTotals[] = (float) ($dailyProfit[$day] ?? 0);
             $cursor->addDay();
         }
 

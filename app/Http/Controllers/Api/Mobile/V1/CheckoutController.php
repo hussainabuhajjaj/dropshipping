@@ -31,6 +31,7 @@ use App\Services\User\UserPreferenceService;
 use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -374,9 +375,21 @@ class CheckoutController extends ApiController
     private function buildPricingPayload(Cart $cart, ?Customer $customer, $cartItems = null): array
     {
         $cartItems = $cartItems ?? $cart->items;
-        $sourceCurrency = $this->resolveCheckoutCurrency($cartItems);
-        $targetCurrency = app(UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
-        $currencyConverter = app(CurrencyConversionService::class);
+
+        // Create cache key based on cart state
+        $cartItemsHash = md5(serialize($cartItems->map(fn ($item) => [
+            'id' => $item->id,
+            'product_id' => $item->product_id,
+            'variant_id' => $item->variant_id,
+            'quantity' => $item->quantity,
+            'price' => $item->getSinglePrice(),
+        ])->toArray()));
+        $cacheKey = "checkout:pricing:{$cart->id}:{$customer?->id}:{$cartItemsHash}";
+
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($cart, $customer, $cartItems) {
+            $sourceCurrency = $this->resolveCheckoutCurrency($cartItems);
+            $targetCurrency = app(UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
+            $currencyConverter = app(CurrencyConversionService::class);
 
         $subtotal = (float) $cartItems->reduce(
             fn (float $carry, $item) => $carry + ((float) $item->quantity * (float) $item->getSinglePrice()),
@@ -461,6 +474,7 @@ class CheckoutController extends ApiController
             'discount_source' => $discounts['source'] ?? null,
             'label' => $discounts['label'] ?? null,
         ];
+        });
     }
 
     private function calculateDiscounts($cartItems, ?array $coupon, ?Customer $customer, float $subtotal): array
