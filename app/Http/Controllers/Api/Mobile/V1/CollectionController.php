@@ -8,17 +8,14 @@ use App\Http\Resources\Mobile\V1\ProductResource;
 use App\Models\Category;
 use App\Models\StorefrontCollection;
 use App\Services\Storefront\MobileCollectionService;
-use App\Services\Storefront\ProductMetaExtractor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class CollectionController extends ApiController
 {
     public function __construct(
-        private readonly ProductMetaExtractor $productMetaExtractor,
         private readonly MobileCollectionService $mobileCollectionService,
     ) {
     }
@@ -69,20 +66,18 @@ class CollectionController extends ApiController
         $page = max((int) ($request->query('page', 1)), 1);
         $items = collect();
         $productPayload = [];
-        $filters = $this->buildFilters($items);
+        $filters = $collection->availableFilters($locale);
         $total = 0;
         $lastPage = 1;
 
         try {
-            $resolvedProducts = $this->mobileCollectionService->paginateCollection(
-                $collection,
-                $locale,
+            $resolvedProducts = $collection->paginateFilteredProducts(
                 $requestFilters,
+                $locale,
                 $perPage,
                 $page
             );
             $items = collect($resolvedProducts->items())->values();
-            $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
             $total = $resolvedProducts->total();
             $lastPage = $resolvedProducts->lastPage();
@@ -163,32 +158,6 @@ class CollectionController extends ApiController
         return url(\Storage::url($path));
     }
 
-    private function buildFilters(Collection $products): array
-    {
-        $priceValues = $products
-            ->map(function ($product): ?float {
-                $sellingPrice = is_array($product)
-                    ? ($product['selling_price'] ?? $product['price'] ?? null)
-                    : ($product->selling_price ?? null);
-
-                if ($sellingPrice !== null && is_numeric($sellingPrice)) {
-                    return (float) $sellingPrice;
-                }
-
-                return null;
-            })
-            ->filter(fn ($value): bool => $value !== null)
-            ->values();
-
-        return [
-            'price_range' => [
-                'min' => $priceValues->isNotEmpty() ? round((float) $priceValues->min(), 2) : null,
-                'max' => $priceValues->isNotEmpty() ? round((float) $priceValues->max(), 2) : null,
-            ],
-            ...$this->productMetaExtractor->extract($products->all()),
-        ];
-    }
-
     private function requestFilters(Request $request): array
     {
         $attributes = $request->query('attributes', []);
@@ -241,7 +210,14 @@ class CollectionController extends ApiController
         $page = max((int) ($request->query('page', 1)), 1);
         $items = collect();
         $productPayload = [];
-        $filters = $this->buildFilters($items);
+        $filters = [
+            'price_range' => [
+                'min' => null,
+                'max' => null,
+            ],
+            'attributeDefs' => [],
+            'brands' => [],
+        ];
         $total = 0;
         $lastPage = 1;
 
@@ -254,7 +230,6 @@ class CollectionController extends ApiController
                 $page
             );
             $items = collect($products->items())->values();
-            $filters = $this->buildFilters($items);
             $productPayload = ProductResource::collection($items)->resolve();
             $total = $products->total();
             $lastPage = $products->lastPage();

@@ -4,118 +4,16 @@
             <div
                 class="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-2.5 py-3 sm:gap-6 sm:px-5 sm:py-4 lg:px-8"
             >
-                <HeroBanner
-                    :hero="heroBanner"
-                    :stats="heroStats"
-                    :chips="heroChips"
-                    :highlights="heroHighlights"
-                    @jump="scrollToSection"
-                />
-
-                <BottomNav :items="sectionNavItems" />
-
-                <section
-                    id="categories"
-                    class="rounded-[1.6rem] bg-[#fcfaf7] px-3.5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:rounded-[2rem] sm:px-5 sm:py-5"
-                >
-                    <CategoryScroll :categories="scrollCategories" />
-                </section>
-
-                <section
-                    id="collections"
-                    class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-5 sm:py-5"
-                >
-                    <div class="flex items-end justify-between gap-3">
-                        <div>
-                            <p
-                                class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]"
-                            >
-                                {{ t("Collections edit") }}
-                            </p>
-                            <h2
-                                class="text-[1.2rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.55rem]"
-                            >
-                                {{ t("Shop curated Simbazu collections") }}
-                            </h2>
-                        </div>
-                        <Link
-                            v-if="collectionsCtaHref"
-                            :href="collectionsCtaHref"
-                            class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950 sm:text-xs sm:tracking-[0.18em]"
-                        >
-                            {{ t("Browse all") }}
-                        </Link>
-                    </div>
-
-                    <div
-                        class="mt-3.5 grid gap-3 sm:mt-4 lg:grid-cols-[1.1fr_0.9fr]"
-                    >
-                        <Link
-                            v-if="collectionLanes[0]"
-                            :href="collectionLanes[0].href"
-                            class="group overflow-hidden rounded-[1.6rem] border border-[#f0e7dc] bg-[#faf5ef] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-                        >
-                            <div
-                                class="grid gap-0 sm:grid-cols-[0.95fr_1.05fr]"
-                            >
-                                <div
-                                    class="aspect-[1.04] overflow-hidden bg-[#f3e9db]"
-                                >
-                                    <img
-                                        v-if="collectionLanes[0].image"
-                                        :src="collectionLanes[0].image"
-                                        :alt="collectionLanes[0].title"
-                                        class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                        loading="lazy"
-                                    />
-                                </div>
-                                <div
-                                    class="flex flex-col justify-between gap-3 px-4 py-4 sm:px-5 sm:py-5"
-                                >
-                                    <div>
-                                        <p
-                                            class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#c55b24]"
-                                        >
-                                            {{ collectionLanes[0].kicker }}
-                                        </p>
-                                        <p
-                                            class="mt-2 text-[1.15rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.45rem]"
-                                        >
-                                            {{ collectionLanes[0].title }}
-                                        </p>
-                                        <p
-                                            class="mt-2 text-[0.9rem] leading-5 text-slate-600 sm:text-sm sm:leading-6"
-                                        >
-                                            {{ collectionLanes[0].subtitle }}
-                                        </p>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2">
-                                        <span
-                                            class="inline-flex rounded-full bg-white px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-slate-900 ring-1 ring-[#eadfce]"
-                                        >
-                                            {{ collectionLanes[0].cta }}
-                                        </span>
-                                        <span
-                                            v-if="collectionLanes[0].tag"
-                                            class="inline-flex rounded-full bg-[#111111] px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-white"
-                                        >
-                                            {{ collectionLanes[0].tag }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
-
-                        <div class="grid gap-3">
+                <section id="collections-hero" class="space-y-2.5">
+                    <div class="grid gap-2.5 xl:grid-cols-[0.82fr_1.36fr_0.82fr]">
+                        <div class="hidden xl:grid gap-2.5">
                             <Link
-                                v-for="lane in collectionLanes.slice(1, 3)"
-                                :key="lane.title"
+                                v-for="lane in leftCollectionLanes"
+                                :key="`left-${lane.title}`"
                                 :href="lane.href"
-                                class="group overflow-hidden rounded-[1.45rem] border border-[#f0e7dc] bg-[#fffaf4] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
                             >
-                                <div
-                                    class="grid grid-cols-[0.42fr_0.58fr] items-stretch"
-                                >
+                                <div class="grid h-full grid-cols-[0.42fr_0.58fr] items-stretch">
                                     <div class="overflow-hidden bg-[#f3e9db]">
                                         <img
                                             v-if="lane.image"
@@ -125,75 +23,151 @@
                                             loading="lazy"
                                         />
                                     </div>
-                                    <div class="space-y-2 px-3.5 py-3.5">
-                                        <p
-                                            class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#c55b24]"
-                                        >
+                                    <div class="space-y-1.5 px-2.5 py-2.5">
+                                        <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
                                             {{ lane.kicker }}
                                         </p>
-                                        <p
-                                            class="text-[0.96rem] font-black tracking-[-0.02em] text-slate-950"
-                                        >
+                                        <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
                                             {{ lane.title }}
                                         </p>
-                                        <p
-                                            class="text-[0.82rem] leading-5 text-slate-600"
-                                        >
+                                        <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
                                             {{ lane.subtitle }}
                                         </p>
-                                        <span
-                                            class="inline-flex rounded-full bg-white px-3 py-1.5 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-slate-900 ring-1 ring-[#eadfce]"
-                                        >
-                                            {{ lane.cta }}
-                                        </span>
                                     </div>
+                                </div>
+                            </Link>
+                        </div>
+
+                        <HeroBanner
+                            :hero="heroBanner"
+                            :slides="heroSlides"
+                            :stats="heroStats"
+                            :chips="heroChips"
+                            :highlights="heroHighlights"
+                            @jump="scrollToSection"
+                        />
+
+                        <div class="hidden xl:grid gap-2.5">
+                            <Link
+                                v-for="lane in rightCollectionLanes"
+                                :key="`right-${lane.title}`"
+                                :href="lane.href"
+                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                            >
+                                <div class="grid h-full grid-cols-[0.58fr_0.42fr] items-stretch">
+                                    <div class="space-y-1.5 px-2.5 py-2.5">
+                                        <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
+                                            {{ lane.kicker }}
+                                        </p>
+                                        <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
+                                            {{ lane.title }}
+                                        </p>
+                                        <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
+                                            {{ lane.subtitle }}
+                                        </p>
+                                    </div>
+                                    <div class="overflow-hidden bg-[#f3e9db]">
+                                        <img
+                                            v-if="lane.image"
+                                            :src="lane.image"
+                                            :alt="lane.title"
+                                            class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                                            loading="lazy"
+                                        />
+                                    </div>
+                                </div>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div v-if="collectionLanes.length" class="xl:hidden">
+                        <div class="mb-1.5 flex items-end justify-between gap-3">
+                            <div>
+                                <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">
+                                    {{ t("Collections edit") }}
+                                </p>
+                                <h2 class="text-[0.96rem] font-black tracking-[-0.03em] text-slate-950">
+                                    {{ t("Curated Simbazu collections") }}
+                                </h2>
+                            </div>
+                            <Link
+                                v-if="collectionsCtaHref"
+                                :href="collectionsCtaHref"
+                                class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
+                            >
+                                {{ t("Browse all") }}
+                            </Link>
+                        </div>
+
+                        <div class="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <Link
+                                v-for="lane in collectionLanes"
+                                :key="`mobile-${lane.title}`"
+                                :href="lane.href"
+                                class="group block w-[198px] shrink-0 overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"
+                            >
+                                <div class="aspect-[1.08] overflow-hidden bg-[#f3e9db]">
+                                    <img
+                                        v-if="lane.image"
+                                        :src="lane.image"
+                                        :alt="lane.title"
+                                        class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <div class="space-y-1.5 px-3 py-3">
+                                    <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
+                                        {{ lane.kicker }}
+                                    </p>
+                                    <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
+                                        {{ lane.title }}
+                                    </p>
+                                    <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
+                                        {{ lane.subtitle }}
+                                    </p>
                                 </div>
                             </Link>
                         </div>
                     </div>
                 </section>
 
+                <!-- <BottomNav :items="sectionNavItems" /> -->
+
                 <section
-                    id="intent"
+                    id="categories"
+                    class="rounded-[1.6rem] bg-[#fcfaf7] px-3.5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:rounded-[2rem] sm:px-5 sm:py-5"
+                >
+                    <CategoryScroll :categories="scrollCategories" />
+                </section>
+
+                <section
+                    id="top-products"
                     class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-5 sm:py-5"
                 >
-                    <div
-                        class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
-                    >
+                    <div class="flex items-end justify-between gap-3">
                         <div>
-                            <p
-                                class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]"
-                            >
-                                {{ t("Intent shortcuts") }}
+                            <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">
+                                {{ t("Shop now") }}
                             </p>
-                            <h2
-                                class="text-lg font-black tracking-[-0.03em] text-slate-950 sm:text-xl"
-                            >
-                                {{ t("High-intent searches ready to tap") }}
+                            <h2 class="text-[1.08rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.3rem]">
+                                {{ t("Bestsellers on the homepage") }}
                             </h2>
                         </div>
-                        <p
-                            class="max-w-md text-[0.92rem] leading-5 text-slate-500 sm:text-sm sm:leading-6"
+                        <Link
+                            href="/products"
+                            class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
                         >
-                            {{
-                                t(
-                                    "Remove thinking by surfacing the exact shopping missions users usually type into search.",
-                                )
-                            }}
-                        </p>
+                            {{ t("Browse all") }}
+                        </Link>
                     </div>
 
-                    <div
-                        class="mt-3.5 flex flex-nowrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-4 sm:flex-wrap sm:gap-2.5"
-                    >
-                        <Link
-                            v-for="chip in searchIntentChips"
-                            :key="chip.label"
-                            :href="chip.href"
-                            class="inline-flex min-h-10 shrink-0 items-center rounded-full border border-[#ece0d4] bg-[#fcf7f0] px-3.5 text-[0.78rem] font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-[#ffcfbc] hover:bg-white sm:min-h-11 sm:px-4 sm:text-sm"
-                        >
-                            {{ chip.label }}
-                        </Link>
+                    <div class="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-2.5 lg:grid-cols-4">
+                        <ProductCard
+                            v-for="product in topProducts"
+                            :key="`top-${product.id}`"
+                            :product="product"
+                            :currency="currency"
+                        />
                     </div>
                 </section>
 
@@ -215,7 +189,7 @@
                             >
                                 {{
                                     t(
-                                        "Get the full Simbazu experience on mobile",
+                                        "Download the Simbazu app for faster shopping",
                                     )
                                 }}
                             </h2>
@@ -224,33 +198,76 @@
                             >
                                 {{
                                     t(
-                                        "Shop faster, track orders in real time, and unlock app-only offers.",
+                                        "Push clients toward app installs with app-only drops, quicker checkout, and live tracking.",
                                     )
                                 }}
                             </p>
                         </div>
                         <div class="flex flex-wrap gap-3">
-                            <a
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                href="https://apps.apple.com/"
+                            <button
+                                type="button"
                                 class="inline-flex min-h-[44px] items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-800"
+                                @click="openAppDownloadPopup"
                             >
-                                {{ t("App Store") }}
-                            </a>
-                            <a
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                href="https://play.google.com/store"
-                                class="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-900 bg-white px-5 text-sm font-bold text-slate-950 transition hover:bg-slate-50"
+                                {{ t("Open download popup") }}
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-bold text-slate-400"
+                                disabled
                             >
-                                {{ t("Google Play") }}
-                            </a>
+                                {{ t("Google Play coming soon") }}
+                            </button>
                         </div>
                     </div>
                 </section>
+                <section
+                    id="intent"
+                    class="rounded-[1.35rem] bg-white px-3 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[1.6rem] sm:px-4 sm:py-4"
+                >
+                    <div
+                        class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+                    >
+                        <div>
+                            <p
+                                class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#ff6b35]"
+                            >
+                                {{ t("Intent shortcuts") }}
+                            </p>
+                            <h2
+                                class="text-[1rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.1rem]"
+                            >
+                                {{ t("Tap-to-shop searches") }}
+                            </h2>
+                        </div>
+                        <p
+                            class="max-w-md text-[0.76rem] leading-4 text-slate-500 sm:text-[0.82rem] sm:leading-5"
+                        >
+                            {{
+                                t(
+                                    "Fast search chips for high-intent browsing.",
+                                )
+                            }}
+                        </p>
+                    </div>
 
-                <section class="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                    <div
+                        class="mt-2.5 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-3 sm:flex-wrap sm:gap-2"
+                    >
+                        <Link
+                            v-for="chip in searchIntentChips"
+                            :key="chip.label"
+                            :href="chip.href"
+                            class="inline-flex min-h-9 shrink-0 items-center rounded-full border border-[#ece0d4] bg-[#fcf7f0] px-3 text-[0.7rem] font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-[#ffcfbc] hover:bg-white sm:min-h-10 sm:px-3.5 sm:text-[0.78rem]"
+                        >
+                            {{ chip.label }}
+                        </Link>
+                    </div>
+                </section>
+
+               
+
+                <!-- <section class="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
                     <section
                         id="signals"
                         class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-4 sm:py-5"
@@ -303,7 +320,7 @@
                             :ends-at="flashEndsAt"
                         />
                     </section>
-                </section>
+                </section> -->
 
                 <section
                     id="for-you"
@@ -328,18 +345,14 @@
                         <div class="flex items-end justify-between gap-3">
                             <div>
                                 <p
-                                    class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]"
+                                    class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#ff6b35]"
                                 >
                                     {{ t("Trending right now") }}
                                 </p>
                                 <h2
-                                    class="text-[1.35rem] font-black tracking-[-0.03em] text-slate-950 sm:text-2xl"
+                                    class="text-[1.08rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.3rem]"
                                 >
-                                    {{
-                                        t(
-                                            "Fast-entry lanes that keep users scrolling",
-                                        )
-                                    }}
+                                    {{ t("Trending lanes") }}
                                 </h2>
                             </div>
                             <Link
@@ -351,13 +364,13 @@
                         </div>
 
                         <div
-                            class="mt-3.5 grid gap-2.5 sm:mt-4 sm:gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                            class="mt-2.5 grid gap-2 sm:mt-3 sm:gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
                         >
                             <Link
                                 v-for="lane in trendLanes"
                                 :key="lane.title"
                                 :href="lane.href"
-                                class="group overflow-hidden rounded-[1.6rem] border border-[#f0e7dc] bg-[#faf5ef] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-[#faf5ef] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
                             >
                                 <div
                                     class="aspect-[1.12] overflow-hidden bg-[#f3e9db]"
@@ -371,25 +384,25 @@
                                     />
                                 </div>
                                 <div
-                                    class="space-y-2 px-3.5 py-3.5 sm:px-4 sm:py-4"
+                                    class="space-y-1.5 px-3 py-3 sm:px-3.5 sm:py-3.5"
                                 >
                                     <p
-                                        class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#c55b24]"
+                                        class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]"
                                     >
                                         {{ lane.kicker }}
                                     </p>
                                     <p
-                                        class="text-base font-black tracking-[-0.02em] text-slate-950 sm:text-lg"
+                                        class="text-[0.92rem] font-black tracking-[-0.02em] text-slate-950 sm:text-[1rem]"
                                     >
                                         {{ lane.title }}
                                     </p>
                                     <p
-                                        class="text-[0.88rem] leading-5 text-slate-600 sm:text-sm sm:leading-6"
+                                        class="text-[0.74rem] leading-4 text-slate-600 sm:text-[0.8rem] sm:leading-5"
                                     >
                                         {{ lane.subtitle }}
                                     </p>
                                     <span
-                                        class="inline-flex rounded-full bg-white px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-slate-900 ring-1 ring-[#eadfce] sm:text-[0.68rem] sm:tracking-[0.14em]"
+                                        class="inline-flex rounded-full bg-white px-2.5 py-1.5 text-[0.58rem] font-bold uppercase tracking-[0.12em] text-slate-900 ring-1 ring-[#eadfce] sm:text-[0.62rem]"
                                     >
                                         {{ lane.cta }}
                                     </span>
@@ -400,36 +413,36 @@
 
                     <section
                         id="social"
-                        class="rounded-[1.6rem] bg-[#111111] px-3.5 py-4 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:rounded-[2rem] sm:px-4 sm:py-5"
+                        class="rounded-[1.35rem] bg-[#111111] px-3 py-3 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:rounded-[1.6rem] sm:px-3.5 sm:py-4"
                     >
                         <p
-                            class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]"
+                            class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#facc15]"
                         >
                             {{ t("Social proof") }}
                         </p>
                         <h2
-                            class="mt-2 text-[1.35rem] font-black tracking-[-0.03em] sm:text-2xl"
+                            class="mt-1.5 text-[1.05rem] font-black tracking-[-0.03em] sm:text-[1.25rem]"
                         >
-                            {{ t("Why the feed converts harder") }}
+                            {{ t("Why shoppers keep going") }}
                         </h2>
-                        <div class="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
+                        <div class="mt-3 space-y-2 sm:mt-3.5 sm:space-y-2.5">
                             <article
                                 v-for="block in socialBlocks"
                                 :key="block.title"
-                                class="rounded-[1.2rem] border border-white/10 bg-white/8 p-3.5 backdrop-blur sm:rounded-[1.45rem] sm:p-4"
+                                class="rounded-[1rem] border border-white/10 bg-white/8 p-3 backdrop-blur sm:rounded-[1.15rem] sm:p-3.5"
                             >
                                 <p
-                                    class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-white/50"
+                                    class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/50"
                                 >
                                     {{ block.eyebrow }}
                                 </p>
                                 <p
-                                    class="mt-2 text-[0.95rem] font-black sm:text-base"
+                                    class="mt-1.5 text-[0.86rem] font-black sm:text-[0.92rem]"
                                 >
                                     {{ block.title }}
                                 </p>
                                 <p
-                                    class="mt-1 text-[0.88rem] leading-5 text-white/74 sm:text-sm sm:leading-6"
+                                    class="mt-1 text-[0.72rem] leading-4 text-white/74 sm:text-[0.78rem] sm:leading-5"
                                 >
                                     {{ block.subtitle }}
                                 </p>
@@ -468,15 +481,22 @@
             </div>
         </div>
 
-        <StickyCartBar />
+        <!-- <StickyCartBar /> -->
+        <AppDownloadPopup
+            ref="appDownloadPopupRef"
+            :settings="appDownloadSettings"
+            :hero-image="heroImage"
+        />
     </StorefrontLayout>
 </template>
 
 <script setup>
+import AppDownloadPopup from "@/Components/homepage/AppDownloadPopup.vue";
 import BottomNav from "@/Components/homepage/BottomNav.vue";
 import CategoryScroll from "@/Components/homepage/CategoryScroll.vue";
 import FlashSale from "@/Components/homepage/FlashSale.vue";
 import HeroBanner from "@/Components/homepage/HeroBanner.vue";
+import ProductCard from "@/Components/homepage/ProductCard.vue";
 import ProductGrid from "@/Components/homepage/ProductGrid.vue";
 import StickyCartBar from "@/Components/homepage/StickyCartBar.vue";
 import {
@@ -486,7 +506,7 @@ import {
 import { useTranslations } from "@/i18n";
 import StorefrontLayout from "@/Layouts/StorefrontLayout.vue";
 import { Link } from "@inertiajs/vue3";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const props = defineProps({
     featured: { type: Array, required: true },
@@ -512,6 +532,7 @@ const props = defineProps({
 
 const { t } = useTranslations();
 const now = usePromoNow();
+const appDownloadPopupRef = ref(null);
 
 const buildShort = (name) => {
     const initials = String(name || "")
@@ -706,6 +727,38 @@ const heroBanner = computed(() => {
     };
 });
 
+const heroSlides = computed(() => {
+    const cmsSlides = Array.isArray(props.homeContent?.hero_slides)
+        ? props.homeContent.hero_slides
+        : [];
+
+    if (cmsSlides.length) {
+        return cmsSlides.map((slide, index) => ({
+            key: slide.id || `cms-slide-${index}`,
+            kicker: slide.kicker || t("Today only"),
+            badge: slide.badge || t("Simbazu deals"),
+            title: slide.title || t("Hot picks, fast deals, new drops."),
+            subtitle:
+                slide.subtitle ||
+                t(
+                    "Shop Simbazu like a live fashion feed with limited-time offers, quick categories, and daily deal momentum.",
+                ),
+            image: slide.image || heroImage.value,
+            primary: slide.primary || {
+                label: t("Shop the feed"),
+                href: "#for-you",
+            },
+            secondary: slide.secondary || {
+                label: t("Open flash sale"),
+                href: "#flash",
+            },
+            calloutBadge: slide.calloutBadge || t("Hot"),
+        }));
+    }
+
+    return [heroBanner.value];
+});
+
 const heroStats = computed(() => [
     { label: t("Products surfaced"), value: `${feedProducts.value.length}+` },
     { label: t("Fast lanes"), value: `${scrollCategories.value.length}` },
@@ -783,7 +836,7 @@ const collectionLanes = computed(() => {
     const collectionDrops = (
         Array.isArray(props.homeCollections) ? props.homeCollections : []
     )
-        .slice(0, 3)
+        .slice(0, 6)
         .map((item) => ({
             title: item.title,
             kicker: item.kicker || item.tag || t("Collection"),
@@ -807,7 +860,7 @@ const collectionLanes = computed(() => {
             ? props.featuredCategorySections
             : []
     )
-        .slice(0, 3)
+        .slice(0, 6)
         .map((section) => ({
             title: section.title || section.name || t("Curated edit"),
             kicker: t("Category edit"),
@@ -837,6 +890,9 @@ const collectionsCtaHref = computed(
         collectionLanes.value[0]?.href ||
         null,
 );
+
+const leftCollectionLanes = computed(() => collectionLanes.value.slice(0, 3));
+const rightCollectionLanes = computed(() => collectionLanes.value.slice(3, 6));
 
 const trendLanes = computed(() => {
     const seasonal = (
@@ -899,7 +955,7 @@ const feedPills = computed(() => [
 
 const sectionNavItems = computed(() => [
     { id: "categories", label: t("Categories") },
-    { id: "collections", label: t("Collections") },
+    { id: "collections-hero", label: t("Collections") },
     { id: "intent", label: t("Intent") },
     { id: "flash", label: t("Flash") },
     { id: "for-you", label: t("For You") },
@@ -944,10 +1000,51 @@ const bannerStrip = computed(() => {
     };
 });
 
+const topProducts = computed(() => feedProducts.value.slice(0, 8));
+
+const appDownloadSettings = computed(() => {
+    const settings = props.homeContent?.app_download;
+    if (!settings || typeof settings !== "object") {
+        return {
+            enabled: true,
+            badge: t("App-only deals"),
+            title: t("Unlock the full Simbazu app experience"),
+            subtitle: t(
+                "Get faster checkout, real-time order tracking, and mobile-only drops.",
+            ),
+            ios_label: t("Download on the App Store"),
+            ios_href: "",
+            android_label: t("Google Play coming soon"),
+            android_href: "",
+        };
+    }
+
+    return {
+        enabled: settings.enabled ?? true,
+        badge: settings.badge || t("App-only deals"),
+        title:
+            settings.title || t("Unlock the full Simbazu app experience"),
+        subtitle:
+            settings.subtitle ||
+            t(
+                "Get faster checkout, real-time order tracking, and mobile-only drops.",
+            ),
+        ios_label: settings.ios_label || t("Download on the App Store"),
+        ios_href: settings.ios_href || "",
+        android_label:
+            settings.android_label || t("Google Play coming soon"),
+        android_href: settings.android_href || "",
+    };
+});
+
 const scrollToSection = (id) => {
     if (typeof window === "undefined") return;
     const element = document.getElementById(id);
     if (!element) return;
     element.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const openAppDownloadPopup = () => {
+    appDownloadPopupRef.value?.open?.();
 };
 </script>

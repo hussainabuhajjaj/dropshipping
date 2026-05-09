@@ -1,33 +1,39 @@
 <template>
-  <section class="overflow-hidden rounded-[1.6rem] bg-[#111111] text-white shadow-[0_28px_70px_rgba(15,23,42,0.18)] sm:rounded-[2rem]">
-    <div class="grid gap-4 px-3.5 py-4 sm:px-6 sm:py-5 lg:grid-cols-[0.36fr_0.64fr] lg:items-center lg:px-8">
-      <div class="space-y-3.5 sm:space-y-4">
-        <div class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-white/88 sm:text-[0.68rem] sm:tracking-[0.24em]">
+  <section class="overflow-hidden rounded-[1.35rem] bg-[#111111] text-white shadow-[0_24px_56px_rgba(15,23,42,0.18)] sm:rounded-[1.7rem]">
+    <div class="grid gap-3 px-3 py-3 sm:px-4 sm:py-4 lg:grid-cols-[0.32fr_0.68fr] lg:items-center lg:px-5">
+      <div class="space-y-3">
+        <div class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[0.58rem] font-bold uppercase tracking-[0.18em] text-white/88 sm:text-[0.62rem]">
           <span class="inline-flex h-2.5 w-2.5 rounded-full bg-[#ff6b35]"></span>
           {{ t('Flash sale') }}
         </div>
         <div>
-          <h2 class="text-[1.7rem] font-black tracking-[-0.05em] sm:text-3xl">{{ t('The scroll-stopper deals') }}</h2>
-          <p class="mt-2 max-w-sm text-[0.92rem] leading-5 text-white/72 sm:text-sm sm:leading-6">
-            {{ t('Anchor discount, low-stock urgency, and fast product exposure in one swipeable lane.') }}
+          <h2 class="text-[1.2rem] font-black tracking-[-0.05em] sm:text-[1.5rem]">{{ t('Flash deals') }}</h2>
+          <p class="mt-1 max-w-sm text-[0.74rem] leading-4 text-white/72 sm:text-[0.8rem] sm:leading-5">
+            {{ t('Coupon-style offers, urgency, and swipeable deals.') }}
           </p>
         </div>
-        <div class="rounded-[1.2rem] border border-white/10 bg-white/8 p-3.5 backdrop-blur sm:rounded-[1.5rem] sm:p-4">
-          <p class="text-[0.62rem] uppercase tracking-[0.24em] text-white/55">{{ t('Sale ends in') }}</p>
-          <p class="mt-2 text-[1.45rem] font-black tracking-[0.06em] text-[#facc15] sm:text-2xl sm:tracking-[0.08em]">{{ countdown }}</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded-[1rem] border border-white/10 bg-white/8 p-2.5 backdrop-blur">
+            <p class="text-[0.52rem] uppercase tracking-[0.18em] text-white/55">{{ t('Ends in') }}</p>
+            <p class="mt-1 text-[1rem] font-black tracking-[0.04em] text-[#facc15] sm:text-[1.15rem]">{{ countdown }}</p>
+          </div>
+          <div class="rounded-[1rem] bg-[#ff6b35] p-2.5 text-white">
+            <p class="text-[0.52rem] uppercase tracking-[0.18em] text-white/72">{{ t('Deal zone') }}</p>
+            <p class="mt-1 text-[0.9rem] font-black">{{ t('Up to 70% off') }}</p>
+          </div>
         </div>
-        <Link href="/products?promotion_type=flash_sale" class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.82rem] font-bold text-white shadow-[0_12px_28px_rgba(255,107,53,0.38)] transition hover:-translate-y-0.5 hover:bg-[#ff5420] sm:min-h-12 sm:px-5 sm:text-sm">
+        <Link href="/products?promotion_type=flash_sale" class="inline-flex min-h-10 items-center justify-center rounded-full bg-white px-4 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-950 transition hover:bg-[#fff3ed] sm:min-h-11 sm:text-[0.76rem]">
           {{ t('Open flash lane') }}
         </Link>
       </div>
 
-      <div class="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3">
+      <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5">
         <ProductCard
           v-for="product in deals"
           :key="product.id"
           :product="product"
           :currency="currency"
-          class="w-[170px] shrink-0 sm:w-[220px] lg:w-[240px]"
+          class="w-[154px] shrink-0 sm:w-[180px] lg:w-[188px]"
         />
       </div>
     </div>

@@ -21,6 +21,7 @@ class HomePageSettingTranslationService
         $state['rail_cards'] = $this->translateRailCards($state['rail_cards'] ?? null, $sourceLocale, $targetLocale);
         $state['category_highlights'] = $this->translateCategoryHighlights($state['category_highlights'] ?? null, $sourceLocale, $targetLocale);
         $state['banner_strip'] = $this->translateBannerStrip($state['banner_strip'] ?? null, $sourceLocale, $targetLocale);
+        $state['app_download'] = $this->translateAppDownload($state['app_download'] ?? null, $sourceLocale, $targetLocale);
 
         return $state;
     }
@@ -227,6 +228,39 @@ class HomePageSettingTranslationService
         }
 
         return $strip;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function translateAppDownload(mixed $value, string $sourceLocale, string $targetLocale): array
+    {
+        $appDownload = is_array($value) ? $value : [];
+
+        $toTranslate = [];
+        foreach ([
+            'badge',
+            'title',
+            'subtitle',
+            'ios_label',
+            'android_label',
+        ] as $field) {
+            $text = is_string($appDownload[$field] ?? null) ? trim($appDownload[$field]) : '';
+            if ($text !== '') {
+                $toTranslate["app_download_{$field}"] = $text;
+            }
+        }
+
+        $translated = $this->translator->translateFields($toTranslate, $sourceLocale, $targetLocale);
+
+        foreach (['badge', 'title', 'subtitle', 'ios_label', 'android_label'] as $field) {
+            $key = "app_download_{$field}";
+            if (isset($translated[$key]) && is_string($translated[$key]) && trim($translated[$key]) !== '') {
+                $appDownload[$field] = $translated[$key];
+            }
+        }
+
+        return $appDownload;
     }
 
     /**

@@ -1,138 +1,143 @@
 <template>
-  <section class="relative overflow-hidden rounded-[1.35rem] bg-[#111111] text-white shadow-[0_20px_52px_rgba(15,23,42,0.18)] sm:rounded-[1.8rem]">
-    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,121,71,0.28),_transparent_28%),radial-gradient(circle_at_left_center,_rgba(254,240,138,0.16),_transparent_24%)]"></div>
-    <div class="relative space-y-3 px-3 py-3 sm:px-5 sm:py-4">
-      <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <span class="shrink-0 rounded-full bg-[#ff6b35] px-3 py-1 text-[0.62rem] font-bold uppercase tracking-[0.22em] text-white">
-          {{ hero.kicker || t('Today only') }}
-        </span>
-        <span v-if="hero.badge" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-white/90">
-          {{ hero.badge }}
-        </span>
-        <span
-          v-for="stat in stats.slice(0, 2)"
-          :key="stat.label"
-          class="shrink-0 rounded-full bg-white/8 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-white/74"
+  <section
+    class="relative overflow-hidden rounded-[1.25rem] bg-[#111111] text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] sm:rounded-[1.55rem]"
+    @touchstart.passive="onTouchStart"
+    @touchend.passive="onTouchEnd"
+  >
+    <div class="relative">
+      <div class="relative aspect-[0.96] sm:aspect-[1.08] lg:aspect-[1.18]">
+        <div
+          v-for="(slide, index) in displaySlides"
+          :key="slide.key"
+          class="absolute inset-0 transition-opacity duration-300"
+          :class="index === activeIndex ? 'opacity-100' : 'pointer-events-none opacity-0'"
         >
-          {{ stat.value }} {{ stat.label }}
-        </span>
-      </div>
+          <img
+            v-if="slide.image"
+            :src="slide.image"
+            :alt="slide.title"
+            class="h-full w-full object-cover"
+            loading="lazy"
+          />
+          <div
+            v-else
+            class="h-full w-full bg-[radial-gradient(circle_at_top_right,_rgba(255,121,71,0.35),_transparent_28%),linear-gradient(135deg,#1b1b1b_0%,#111111_55%,#050505_100%)]"
+          ></div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/32 to-black/12"></div>
+        </div>
 
-      <div class="grid gap-3 md:grid-cols-[1.05fr_0.95fr] md:items-stretch">
-        <div class="rounded-[1.2rem] border border-white/10 bg-white/7 p-3 backdrop-blur sm:rounded-[1.45rem] sm:p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <h1 class="max-w-md text-[1.22rem] font-black leading-[0.92] tracking-[-0.05em] sm:text-[1.6rem]">
-                {{ hero.title }}
-              </h1>
-              <p class="mt-2 max-w-md text-[0.78rem] leading-5 text-white/74 sm:text-[0.86rem]">
-                {{ hero.subtitle }}
-              </p>
+        <div class="absolute inset-x-0 top-0 z-10 flex gap-1.5 overflow-x-auto px-2.5 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-4 sm:pt-4">
+          <span class="shrink-0 rounded-full bg-[#ff6b35] px-3 py-1 text-[0.62rem] font-bold uppercase tracking-[0.22em] text-white">
+            {{ currentSlide.kicker || t('Today only') }}
+          </span>
+          <span
+            v-if="currentSlide.badge"
+            class="shrink-0 rounded-full bg-white/12 px-3 py-1 text-[0.62rem] font-bold uppercase tracking-[0.18em] text-white/90"
+          >
+            {{ currentSlide.badge }}
+          </span>
+          <span
+            v-for="stat in stats.slice(0, 2)"
+            :key="`${currentSlide.key}-${stat.label}`"
+            class="shrink-0 rounded-full bg-black/28 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-white/78 backdrop-blur"
+          >
+            {{ stat.value }} {{ stat.label }}
+          </span>
+        </div>
+
+        <div class="absolute inset-x-0 bottom-0 z-10 p-2.5 sm:p-4">
+          <div class="rounded-[1.1rem] border border-white/10 bg-black/26 p-3 backdrop-blur sm:rounded-[1.3rem] sm:p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <h1 class="max-w-md text-[1.08rem] font-black leading-[0.92] tracking-[-0.05em] sm:text-[1.42rem] lg:text-[1.7rem]">
+                  {{ currentSlide.title }}
+                </h1>
+                <p class="mt-1.5 max-w-lg text-[0.72rem] leading-4 text-white/78 sm:text-[0.82rem] sm:leading-5 lg:text-[0.9rem]">
+                  {{ currentSlide.subtitle }}
+                </p>
+              </div>
+
+              <div class="hidden shrink-0 rounded-[1rem] bg-[#facc15] px-2.5 py-1.5 text-right text-[0.62rem] font-black uppercase tracking-[0.16em] text-slate-950 sm:block">
+                <div>{{ currentSlide.calloutBadge || t('Hot') }}</div>
+                <div class="mt-0.5">{{ t('Now') }}</div>
+              </div>
             </div>
-            <div class="shrink-0 rounded-[1rem] bg-[#facc15] px-2.5 py-1.5 text-right text-[0.62rem] font-black uppercase tracking-[0.16em] text-slate-950">
-              <div>{{ hero.calloutBadge || t('Hot') }}</div>
-              <div class="mt-0.5">{{ t('Now') }}</div>
+
+            <div class="mt-2.5 flex flex-wrap gap-2">
+              <component
+                :is="primaryAction.isJump ? 'button' : Link"
+                v-bind="primaryAction.bindings"
+                class="inline-flex min-h-9 items-center justify-center rounded-full bg-[#ff6b35] px-3.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420] sm:min-h-10 sm:text-[0.7rem]"
+                @click="handleAction(primaryAction)"
+              >
+                {{ currentSlide.primary?.label || t('Shop now') }}
+              </component>
+              <component
+                :is="secondaryAction.isJump ? 'button' : Link"
+                v-bind="secondaryAction.bindings"
+                class="inline-flex min-h-9 items-center justify-center rounded-full border border-white/16 bg-white/8 px-3.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 sm:min-h-10 sm:text-[0.7rem]"
+                @click="handleAction(secondaryAction)"
+              >
+                {{ currentSlide.secondary?.label || t('See trending') }}
+              </component>
             </div>
-          </div>
 
-          <div class="mt-3 grid grid-cols-2 gap-2">
-            <article
-              v-for="highlight in normalizedHighlights.slice(0, 2)"
-              :key="highlight.title"
-              class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5"
-            >
-              <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ highlight.eyebrow }}</p>
-              <p class="mt-1 text-[0.78rem] font-bold leading-4 text-white">{{ highlight.title }}</p>
-              <p class="mt-1 text-[0.68rem] leading-4 text-white/70">{{ highlight.subtitle }}</p>
-            </article>
-          </div>
-
-          <div class="mt-3 grid grid-cols-2 gap-2">
-            <component
-              :is="primaryAction.isJump ? 'button' : Link"
-              v-bind="primaryAction.bindings"
-              class="inline-flex min-h-10 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.74rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420] sm:min-h-11 sm:text-xs"
-              @click="handleAction(primaryAction)"
-            >
-              {{ hero.primary?.label || t('Shop now') }}
-            </component>
-            <component
-              :is="secondaryAction.isJump ? 'button' : Link"
-              v-bind="secondaryAction.bindings"
-              class="inline-flex min-h-10 items-center justify-center rounded-full border border-white/16 bg-white/8 px-4 text-[0.74rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 sm:min-h-11 sm:text-xs"
-              @click="handleAction(secondaryAction)"
-            >
-              {{ hero.secondary?.label || t('See trending') }}
-            </component>
+            <div class="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <article
+                v-for="highlight in displayHighlights"
+                :key="`${currentSlide.key}-${highlight.title}`"
+                class="rounded-[0.9rem] border border-white/10 bg-black/20 px-2.5 py-2"
+              >
+                <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ highlight.eyebrow }}</p>
+                <p class="mt-1 text-[0.72rem] font-bold leading-4 text-white">{{ highlight.title }}</p>
+                <p class="mt-1 text-[0.64rem] leading-4 text-white/70">{{ highlight.subtitle }}</p>
+              </article>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-[1.05fr_0.95fr] gap-2.5">
-          <div class="overflow-hidden rounded-[1.2rem] border border-white/10 bg-white/8 p-1.5 backdrop-blur sm:rounded-[1.45rem]">
-            <div class="relative h-full overflow-hidden rounded-[1rem] bg-[#1d1d1d] sm:rounded-[1.2rem]">
-              <img
-                v-if="hero.image"
-                :src="hero.image"
-                :alt="hero.title"
-                class="aspect-[0.95] h-full w-full object-cover"
-                loading="lazy"
-              />
-              <div v-else class="aspect-[0.95] h-full w-full bg-gradient-to-br from-[#2a2a2a] via-[#1a1a1a] to-[#101010]"></div>
-              <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/28 to-transparent p-2.5">
-                <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/55">{{ t('Simbazu picks') }}</p>
-                <p class="mt-1 text-[0.74rem] font-bold leading-4 text-white">{{ hero.callout || t('Low-friction best sellers') }}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid gap-2.5">
-            <article class="rounded-[1.1rem] bg-[#ff6b35] px-3 py-3 text-white">
-              <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/72">{{ t('Flash drop') }}</p>
-              <p class="mt-1 text-[1rem] font-black leading-none">{{ t('Up to 70% off') }}</p>
-              <p class="mt-1 text-[0.68rem] leading-4 text-white/80">{{ t('Limited-time Simbazu picks') }}</p>
-            </article>
-
-            <article class="rounded-[1.1rem] border border-white/10 bg-white/8 px-3 py-3 backdrop-blur">
-              <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/55">{{ t('Quick browse') }}</p>
-              <div v-if="chips.length" class="mt-2 flex flex-wrap gap-1.5">
-                <button
-                  v-for="chip in chips.slice(0, 4)"
-                  :key="chip.label"
-                  type="button"
-                  class="rounded-full border border-white/14 bg-black/18 px-2.5 py-1 text-[0.62rem] font-semibold text-white/86 transition hover:bg-black/24"
-                  @click="$emit('jump', chip.target)"
-                >
-                  {{ chip.label }}
-                </button>
-              </div>
-            </article>
-          </div>
-        </div>
+        <button
+          v-if="displaySlides.length > 1"
+          type="button"
+          class="absolute left-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:left-3"
+          @click="prevSlide"
+        >
+          ‹
+        </button>
+        <button
+          v-if="displaySlides.length > 1"
+          type="button"
+          class="absolute right-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:right-3"
+          @click="nextSlide"
+        >
+          ›
+        </button>
       </div>
 
-      <div class="grid grid-cols-3 gap-2">
-        <article
-          v-for="stat in stats"
-          :key="`footer-${stat.label}`"
-          class="rounded-[1rem] border border-white/10 bg-white/7 px-2.5 py-2 text-center backdrop-blur"
-        >
-          <p class="text-[0.52rem] uppercase tracking-[0.18em] text-white/52">{{ stat.label }}</p>
-          <p class="mt-1 text-[0.72rem] font-bold text-white sm:text-[0.8rem]">{{ stat.value }}</p>
-        </article>
+      <div class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1.5 pb-2 sm:pb-3">
+        <button
+          v-for="(slide, index) in displaySlides"
+          :key="`dot-${slide.key}`"
+          type="button"
+          class="h-2 rounded-full transition-all"
+          :class="index === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/45 hover:bg-white/70'"
+          @click="goToSlide(index)"
+        ></button>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 
 const emit = defineEmits(['jump'])
 
 const props = defineProps({
-  hero: { type: Object, required: true },
+  hero: { type: Object, default: null },
+  slides: { type: Array, default: () => [] },
   stats: { type: Array, default: () => [] },
   chips: { type: Array, default: () => [] },
   highlights: { type: Array, default: () => [] },
@@ -140,12 +145,49 @@ const props = defineProps({
 
 const { t } = useTranslations()
 
-const normalizedHighlights = computed(() => {
-  if (props.highlights?.length) return props.highlights
+const touchStartX = ref(0)
+const activeIndex = ref(0)
+
+const fallbackSlide = computed(() => ({
+  key: 'fallback',
+  kicker: props.hero?.kicker || t('Today only'),
+  badge: props.hero?.badge || '',
+  title: props.hero?.title || t('Hot picks, fast deals, new drops.'),
+  subtitle: props.hero?.subtitle || t('Shop Simbazu like a live fashion feed with limited-time offers, quick categories, and daily deal momentum.'),
+  image: props.hero?.image || null,
+  primary: props.hero?.primary || { label: t('Shop now'), href: '/products' },
+  secondary: props.hero?.secondary || { label: t('See trending'), href: '#trending' },
+  calloutBadge: props.hero?.calloutBadge || t('Hot'),
+}))
+
+const displaySlides = computed(() => {
+  if (props.slides?.length) {
+    return props.slides.map((slide, index) => ({
+      key: slide.key || `slide-${index}`,
+      kicker: slide.kicker || t('Today only'),
+      badge: slide.badge || '',
+      title: slide.title || fallbackSlide.value.title,
+      subtitle: slide.subtitle || fallbackSlide.value.subtitle,
+      image: slide.image || fallbackSlide.value.image,
+      primary: slide.primary || fallbackSlide.value.primary,
+      secondary: slide.secondary || fallbackSlide.value.secondary,
+      calloutBadge: slide.calloutBadge || fallbackSlide.value.calloutBadge,
+    }))
+  }
+
+  return [fallbackSlide.value]
+})
+
+const currentSlide = computed(() => displaySlides.value[activeIndex.value] || fallbackSlide.value)
+
+const displayHighlights = computed(() => {
+  if (props.highlights?.length) return props.highlights.slice(0, 4)
 
   return [
     { eyebrow: t('Fast delivery'), title: t('Low-friction checkout'), subtitle: t('Cart to payment without dead taps.') },
     { eyebrow: t('Trending'), title: t('High-velocity deals'), subtitle: t('Fresh promos and feed-first discovery.') },
+    { eyebrow: t('Social proof'), title: t('Popular products first'), subtitle: t('More product visibility per screen.') },
+    { eyebrow: t('Swipe'), title: t('Full-image drops'), subtitle: t('Carousel hero built for browse momentum.') },
   ]
 })
 
@@ -160,11 +202,37 @@ const createAction = (action, fallback) => {
   }
 }
 
-const primaryAction = computed(() => createAction(props.hero?.primary, '/products'))
-const secondaryAction = computed(() => createAction(props.hero?.secondary, '/promotions/flash-sales'))
+const primaryAction = computed(() => createAction(currentSlide.value?.primary, '/products'))
+const secondaryAction = computed(() => createAction(currentSlide.value?.secondary, '/promotions/flash-sales'))
 
 const handleAction = (action) => {
   if (!action?.isJump) return
   emit('jump', action.href.replace(/^#/, ''))
+}
+
+const goToSlide = (index) => {
+  activeIndex.value = index
+}
+
+const nextSlide = () => {
+  activeIndex.value = (activeIndex.value + 1) % displaySlides.value.length
+}
+
+const prevSlide = () => {
+  activeIndex.value = (activeIndex.value - 1 + displaySlides.value.length) % displaySlides.value.length
+}
+
+const onTouchStart = (event) => {
+  touchStartX.value = event.changedTouches?.[0]?.clientX || 0
+}
+
+const onTouchEnd = (event) => {
+  const endX = event.changedTouches?.[0]?.clientX || 0
+  const delta = endX - touchStartX.value
+
+  if (Math.abs(delta) < 30 || displaySlides.value.length <= 1) return
+
+  if (delta < 0) nextSlide()
+  else prevSlide()
 }
 </script>

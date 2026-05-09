@@ -61,6 +61,7 @@ class EditHomePageSetting extends EditRecord
                         'rail_cards' => $translated['rail_cards'] ?? [],
                         'category_highlights' => $translated['category_highlights'] ?? [],
                         'banner_strip' => $translated['banner_strip'] ?? [],
+                        'app_download' => $translated['app_download'] ?? [],
                     ];
 
                     $fr = HomePageSetting::query()
@@ -70,7 +71,7 @@ class EditHomePageSetting extends EditRecord
 
                     if ($fr) {
                         if (! $overwrite) {
-                            foreach (['top_strip', 'hero_slides', 'rail_cards', 'category_highlights', 'banner_strip'] as $field) {
+                            foreach (['top_strip', 'hero_slides', 'rail_cards', 'category_highlights', 'banner_strip', 'app_download'] as $field) {
                                 if ($this->isFilled($fr->{$field} ?? null)) {
                                     unset($payload[$field]);
                                 }

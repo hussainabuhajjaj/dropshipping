@@ -15,6 +15,7 @@ class HomePageSetting extends Model
         'rail_cards',
         'category_highlights',
         'banner_strip',
+        'app_download',
     ];
 
     protected $casts = [
@@ -23,6 +24,7 @@ class HomePageSetting extends Model
         'rail_cards' => 'array',
         'category_highlights' => 'array',
         'banner_strip' => 'array',
+        'app_download' => 'array',
     ];
 
     public static function latestForLocale(?string $locale): ?self

@@ -152,6 +152,39 @@ class HomePageSettingResource extends BaseResource
                     Forms\Components\TextInput::make('banner_strip.href')->label('CTA link')->required(),
                 ])
                 ->columns(2),
+            Section::make('App download popup')
+                ->schema([
+                    Forms\Components\Toggle::make('app_download.enabled')
+                        ->label('Enable popup')
+                        ->default(true),
+                    Forms\Components\TextInput::make('app_download.badge')
+                        ->default('App-only deals'),
+                    Forms\Components\TextInput::make('app_download.title')
+                        ->default('Unlock the full Simbazu app experience')
+                        ->required(),
+                    Forms\Components\Textarea::make('app_download.subtitle')
+                        ->rows(2)
+                        ->default('Get faster checkout, live order tracking, and app-only drops from your phone.')
+                        ->required(),
+                    Forms\Components\TextInput::make('app_download.ios_label')
+                        ->label('App Store label')
+                        ->default('Download on the App Store')
+                        ->required(),
+                    Forms\Components\TextInput::make('app_download.ios_href')
+                        ->label('App Store URL')
+                        ->url()
+                        ->placeholder('https://apps.apple.com/app/...'),
+                    Forms\Components\TextInput::make('app_download.android_label')
+                        ->label('Google Play label')
+                        ->default('Google Play coming soon')
+                        ->required(),
+                    Forms\Components\TextInput::make('app_download.android_href')
+                        ->label('Google Play URL')
+                        ->url()
+                        ->placeholder('https://play.google.com/store/apps/details?id=...'),
+                ])
+                ->columns(2)
+                ->collapsible(),
         ]);
     }
 
@@ -184,4 +217,3 @@ class HomePageSettingResource extends BaseResource
         ];
     }
 }
-

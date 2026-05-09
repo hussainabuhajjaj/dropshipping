@@ -109,6 +109,7 @@ class HomeController extends Controller
                 'hero_slides' => $heroSlides,
                 'rail_cards' => $homeContent->rail_cards,
                 'banner_strip' => $homeContent->banner_strip,
+                'app_download' => $homeContent->app_download,
             ] : null,
             'homepagePromotions' => $homepagePromotions,
         ]);

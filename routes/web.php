@@ -29,6 +29,7 @@ use App\Http\Controllers\Storefront\PromotionController;
 use App\Http\Controllers\Storefront\NewsletterController;
 use App\Http\Controllers\Storefront\NewsletterTrackingController;
 use App\Http\Controllers\Storefront\SupportChatController;
+use App\Http\Controllers\Storefront\MetaCatalogFeedController;
 
 // --- Webhook Controllers ---
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
@@ -71,6 +72,7 @@ Route::get('/locale/{locale}', function (string $locale, Request $request) {
 })->name('locale.set');
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
+Route::get('/feeds/meta-catalog.csv', MetaCatalogFeedController::class)->name('feeds.meta-catalog');
 
 // Short URL routes
 Route::get('/s/{code}', [ShortUrlController::class, 'redirect'])->name('short-url.redirect')->where('code', '.*');
