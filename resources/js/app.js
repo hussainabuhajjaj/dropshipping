@@ -1,7 +1,7 @@
 import '../css/app.css';
 import './bootstrap';
 
-import {createInertiaApp} from '@inertiajs/vue3';
+import {createInertiaApp, router} from '@inertiajs/vue3';
 import {resolvePageComponent} from 'laravel-vite-plugin/inertia-helpers';
 import {createApp, h} from 'vue';
 import { createPinia } from 'pinia';
@@ -17,6 +17,22 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
 
 const appName = import.meta.env.VITE_APP_NAME || 'Simbazu';
 const pinia = createPinia()
+
+const trackPageViewPixels = () => {
+    if (typeof window === 'undefined') return;
+
+    if (typeof window.ttq?.page === 'function') {
+        window.ttq.page();
+    }
+
+    if (typeof window.fbq === 'function') {
+        window.fbq('track', 'PageView');
+    }
+};
+
+router.on('success', () => {
+    trackPageViewPixels();
+});
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

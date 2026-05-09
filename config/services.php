@@ -161,6 +161,7 @@ return [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
         'redirect' => env('FACEBOOK_REDIRECT_URI'),
+        'pixel_id' => env('FACEBOOK_PIXEL_ID', '1025735920629525'),
     ],
 
     'apple' => [

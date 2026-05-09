@@ -34,21 +34,33 @@
         <!-- SEO Head -->
         <Head :title="seoTitle">
             <meta name="description" head-key="description" :content="seoDescription"/>
-            <link v-if="canonicalUrl" rel="canonical" :href="canonicalUrl"/>
+            <link v-if="canonicalUrl" head-key="canonical" rel="canonical" :href="canonicalUrl"/>
 
-            <meta property="og:title" :content="seoTitle"/>
-            <meta property="og:description" :content="seoDescription"/>
-            <meta property="og:type" content="website"/>
-            <meta v-if="canonicalUrl" property="og:url" :content="canonicalUrl"/>
-            <meta v-if="seoImage" property="og:image" :content="seoImage"/>
+            <meta property="og:title" head-key="og:title" :content="seoTitle"/>
+            <meta property="og:description" head-key="og:description" :content="seoDescription"/>
+            <meta property="og:type" head-key="og:type" content="website"/>
+            <meta v-if="canonicalUrl" property="og:url" head-key="og:url" :content="canonicalUrl"/>
+            <meta v-if="seoImage" property="og:image" head-key="og:image" :content="seoImage"/>
 
-            <meta name="twitter:card" content="summary_large_image"/>
-            <meta name="twitter:title" :content="seoTitle"/>
-            <meta name="twitter:description" :content="seoDescription"/>
-            <meta v-if="seoImage" name="twitter:image" :content="seoImage"/>
-            <link rel="alternate" hreflang="en" :href="canonicalUrl" />
-            <link rel="alternate" hreflang="fr" :href="canonicalUrl.replace(/\/$/, '') + '?locale=fr'" />
-            <link rel="alternate" hreflang="x-default" :href="canonicalUrl" />
+            <meta name="twitter:card" head-key="twitter:card" content="summary_large_image"/>
+            <meta name="twitter:title" head-key="twitter:title" :content="seoTitle"/>
+            <meta name="twitter:description" head-key="twitter:description" :content="seoDescription"/>
+            <meta v-if="seoImage" name="twitter:image" head-key="twitter:image" :content="seoImage"/>
+            <link v-if="canonicalUrl" rel="alternate" hreflang="en" head-key="hreflang:en" :href="canonicalUrl" />
+            <link v-if="frenchAlternateUrl" rel="alternate" hreflang="fr" head-key="hreflang:fr" :href="frenchAlternateUrl" />
+            <link v-if="canonicalUrl" rel="alternate" hreflang="x-default" head-key="hreflang:x-default" :href="canonicalUrl" />
+            <script
+                v-if="organizationSchema"
+                head-key="jsonld:organization"
+                type="application/ld+json"
+                v-html="organizationSchema"
+            />
+            <script
+                v-if="websiteSchema"
+                head-key="jsonld:website"
+                type="application/ld+json"
+                v-html="websiteSchema"
+            />
         </Head>
 
         <div aria-hidden="true" class="storefront-header-spacer" :style="headerSpacerStyle"></div>
@@ -818,7 +830,6 @@ import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
-import {useMultipleJsonLd} from '@/composables/useJsonLd.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
@@ -1221,9 +1232,12 @@ const showStorefrontPopups = computed(() => {
     return true
 })
 const appUrl = computed(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        return String(window.location.origin).replace(/\/$/, '')
+    }
+
     const configured = page.props.appUrl
     if (configured) return String(configured).replace(/\/$/, '')
-    if (typeof window !== 'undefined') return window.location.origin
     return ''
 })
 
@@ -1238,6 +1252,11 @@ const seoTitle = computed(() => page.props.seo?.title ?? `Discover Quality Essen
 const seoDescription = computed(() => page.props.seo?.description ?? t('Curated global essentials, delivered with clarity.'))
 const seoImage = computed(() => resolveAssetUrl(page.props.seo?.image))
 const canonicalUrl = computed(() => (appUrl.value ? `${appUrl.value}${currentPath.value || ''}` : null))
+const frenchAlternateUrl = computed(() => {
+    if (!canonicalUrl.value) return null
+
+    return `${canonicalUrl.value.replace(/\/$/, '')}?locale=fr`
+})
 
 const organizationSchema = computed(() => {
   const schema = {
@@ -1277,9 +1296,6 @@ const websiteSchema = computed(() => {
     },
   })
 })
-
-// Inject JSON-LD schemas (temporarily disabled due to initialization error)
-// useMultipleJsonLd([organizationSchema, websiteSchema])
 
 watch(
     () => page.props.categories,
