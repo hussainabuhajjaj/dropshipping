@@ -31,8 +31,14 @@ return new class extends Migration
         }
 
         if (! $this->indexExists('categories', 'idx_categories_active_parent')) {
-            Schema::table('categories', function (Blueprint $table) {
-                $table->index(['is_active', 'parent_id', 'deleted_at'], 'idx_categories_active_parent');
+            $columns = ['is_active', 'parent_id'];
+
+            if (Schema::hasColumn('categories', 'deleted_at')) {
+                $columns[] = 'deleted_at';
+            }
+
+            Schema::table('categories', function (Blueprint $table) use ($columns) {
+                $table->index($columns, 'idx_categories_active_parent');
             });
         }
 
