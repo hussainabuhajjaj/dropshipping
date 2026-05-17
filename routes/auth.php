@@ -30,7 +30,7 @@ Route::middleware('guest:customer')->group(function () {
     Route::get('auth/{provider}', [SocialAuthController::class, 'redirect'])
         ->name('social.redirect');
 
-    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])
+    Route::match(['get', 'post'], 'auth/{provider}/callback', [SocialAuthController::class, 'callback'])
         ->name('social.callback');
 
     Route::get('claim-account', [ClaimAccountController::class, 'create'])

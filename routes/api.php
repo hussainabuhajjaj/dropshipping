@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\Mobile\V1\ProductReviewController as MobileProductR
 use App\Http\Controllers\Api\Mobile\V1\CartController as MobileCartController;
 use App\Http\Controllers\Api\Mobile\V1\CheckoutController as MobileCheckoutController;
 use App\Http\Controllers\Api\Mobile\V1\PaymentMonitoringController;
+use App\Http\Controllers\Api\WhatsAppOrderIntentController;
 use Illuminate\Support\Facades\Route;
 
 if (app()->environment('local')) {
@@ -217,6 +218,7 @@ Route::prefix('mobile/v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('register', [MobileAuthController::class, 'register']);
         Route::post('login', [MobileAuthController::class, 'login']);
+        Route::post('social/exchange', [MobileAuthController::class, 'exchangeSocialCode']);
         Route::post('forgot-password', [MobileAuthController::class, 'forgotPassword']);
         Route::post('reset-password', [MobileAuthController::class, 'resetPassword']);
     });
@@ -242,16 +244,16 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('stories', [MobileStoryController::class, 'index']);
     Route::get('stories/{id}', [MobileStoryController::class, 'show']);
     Route::post('analytics/visit', [MobileVisitAnalyticsController::class, 'store']);
+    Route::post('whatsapp-intents', [WhatsAppOrderIntentController::class, 'store']);
+    Route::get('whatsapp-intents/{reference}', [WhatsAppOrderIntentController::class, 'show']);
+    Route::get('cart', [MobileCartController::class, 'show']);
+    Route::post('cart/items', [MobileCartController::class, 'store']);
+    Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
+    Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
+    Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
+    Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
 
     Route::middleware('auth:sanctum')->group(function () {
-        // Cart routes - now auth-only
-        Route::get('cart', [MobileCartController::class, 'show']);
-        Route::post('cart/items', [MobileCartController::class, 'store']);
-        Route::patch('cart/items/{itemId}', [MobileCartController::class, 'update']);
-        Route::delete('cart/items/{itemId}', [MobileCartController::class, 'destroy']);
-        Route::post('cart/apply-coupon', [MobileCartController::class, 'applyCoupon']);
-        Route::post('cart/remove-coupon', [MobileCartController::class, 'removeCoupon']);
-
         Route::prefix('auth')->group(function () {
             Route::post('logout', [MobileAuthController::class, 'logout']);
             Route::post('verify/resend', [MobileAuthController::class, 'resendVerification']);

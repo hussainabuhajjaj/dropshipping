@@ -63,6 +63,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\PushStorefrontAnnouncement::class,
         \App\Console\Commands\BackfillLogisticsRecords::class,
         ReconcilePaymentsCommand::class,
+        \App\Console\Commands\ExpireWhatsAppOrderIntents::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -141,6 +142,7 @@ class Kernel extends ConsoleKernel
             ->description('Reconcile pending Korapay payments (redirect-independent)');
         $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
         $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
+        $schedule->command('whatsapp-intents:expire')->everyTenMinutes();
     }
 
     protected function commands(): void

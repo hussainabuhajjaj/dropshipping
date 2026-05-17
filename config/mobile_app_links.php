@@ -7,6 +7,7 @@ return [
         'team_id' => env('MOBILE_APPLE_TEAM_ID'),
         'bundle_id' => env('MOBILE_IOS_BUNDLE_ID', 'net.simbazu.mobile'),
         'paths' => [
+            '/',
             '/products/*',
         ],
     ],

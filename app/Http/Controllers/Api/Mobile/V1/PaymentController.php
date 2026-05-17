@@ -108,6 +108,14 @@ class PaymentController extends ApiController
             'customer.phone' => 'nullable|string|max:20',
             'customer.mobile_provider' => 'nullable|string|max:50',
             'return_url' => 'nullable|string|max:2048',
+            'meta_ads' => 'nullable|array',
+            'meta_ads.platform' => 'nullable|in:ios,android',
+            'meta_ads.advertiser_tracking_enabled' => 'nullable|boolean',
+            'meta_ads.application_tracking_enabled' => 'nullable|boolean',
+            'meta_ads.anon_id' => 'nullable|string|max:255',
+            'meta_ads.madid' => 'nullable|string|max:255',
+            'meta_ads.extinfo' => 'nullable|array',
+            'meta_ads.extinfo.*' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -117,6 +125,7 @@ class PaymentController extends ApiController
         $data = $validator->validated();
         $customer = $request->user();
         $method = $data['method'];
+        $metaAds = is_array($data['meta_ads'] ?? null) ? $data['meta_ads'] : null;
 
         $order = Order::query()
             ->where('number', $data['order_number'])
@@ -150,8 +159,13 @@ class PaymentController extends ApiController
                     'type' => 'checkout_pending',
                     'payment_method' => $method,
                     'created_by' => 'mobile_initialize',
+                    'meta_ads' => $metaAds,
                 ],
             ]);
+        } elseif ($metaAds) {
+            $meta = is_array($payment->meta) ? $payment->meta : [];
+            $meta['meta_ads'] = $metaAds;
+            $payment->update(['meta' => $meta]);
         }
 
         try {

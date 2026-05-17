@@ -99,8 +99,16 @@ return new class extends Migration
 
     private function indexExists(string $table, string $indexName): bool
     {
-        $result = DB::selectOne('SHOW INDEX FROM `' . $table . '` WHERE Key_name = ?', [$indexName]);
+        $driver = DB::getDriverName();
 
-        return $result !== null;
+        return match ($driver) {
+            'sqlite' => collect(DB::select("PRAGMA index_list('{$table}')"))
+                ->contains(fn ($index) => ($index->name ?? null) === $indexName),
+            'pgsql' => DB::table('pg_indexes')
+                ->where('tablename', $table)
+                ->where('indexname', $indexName)
+                ->exists(),
+            default => DB::selectOne('SHOW INDEX FROM `' . $table . '` WHERE Key_name = ?', [$indexName]) !== null,
+        };
     }
 };

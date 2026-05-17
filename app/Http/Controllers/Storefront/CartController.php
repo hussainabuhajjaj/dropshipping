@@ -15,6 +15,7 @@ use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Services\Api\ApiException;
 use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
+use App\Services\Cart\CartIdentityService;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
@@ -30,11 +31,13 @@ use Illuminate\Support\Carbon;
 
 class CartController extends Controller
 {
+    public function __construct(
+        private readonly CartIdentityService $cartIdentityService,
+    ) {
+    }
+
     public function index(): Response
     {
-        if (! auth('customer')->check()) {
-            return redirect()->route('login');
-        }
         $cart = $this->getCart();
         $cart_items = $this->cart();
         $coupon = session('cart_coupon');
@@ -107,7 +110,7 @@ class CartController extends Controller
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shipping, $promotionModels, $couponModel);
         return Inertia::render('Cart/Index', [
             'lines' => $cartPayload,
-            'currency' => $cart[0]['currency'] ?? 'USD',
+            'currency' => $cart_items->first()?->variant?->currency ?? $cart_items->first()?->product?->currency ?? 'USD',
             'subtotal' => $subtotal,
             'shipping' => $shipping,
             'discount' => $discount,
@@ -124,9 +127,6 @@ class CartController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        if (! auth('customer')->check()) {
-            return redirect()->route('login')->withErrors(['cart' => 'Please log in to add items to your cart.']);
-        }
         $data = $request->validate([
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'variant_id' => ['nullable', 'integer'],
@@ -188,9 +188,6 @@ class CartController extends Controller
 
     public function destroy(string $lineId): RedirectResponse
     {
-        if (! auth('customer')->check()) {
-            return redirect()->route('login');
-        }
         $cart = $this->cart()->where('id', $lineId)->first();
         if (isset($cart)) {
             $cart->delete();
@@ -201,9 +198,6 @@ class CartController extends Controller
 
     public function update(string $lineId, Request $request): RedirectResponse
     {
-        if (! auth('customer')->check()) {
-            return redirect()->route('login');
-        }
         $request->validate([
             'quantity' => ['required', 'integer', 'min:1'],
         ]);
@@ -225,21 +219,9 @@ class CartController extends Controller
         return back();
     }
 
-    public function getCart()
+    public function getCart(): ?Cart
     {
-        $customerId = auth('customer')->id();
-        if (! $customerId) {
-            return null;
-        }
-
-        $cart = Cart::query()
-            ->where('user_id', $customerId)
-            ->orderByDesc('updated_at')
-            ->first();
-        if (!$cart) {
-            return Cart::createCart(['user_id' => $customerId]);
-        }
-        return $cart;
+        return $this->cartIdentityService->resolveCart(request(), auth('customer')->user(), true);
     }
 
     private function cart()

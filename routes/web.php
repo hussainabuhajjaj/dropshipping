@@ -30,6 +30,7 @@ use App\Http\Controllers\Storefront\NewsletterController;
 use App\Http\Controllers\Storefront\NewsletterTrackingController;
 use App\Http\Controllers\Storefront\SupportChatController;
 use App\Http\Controllers\Storefront\MetaCatalogFeedController;
+use App\Http\Controllers\Api\WhatsAppOrderIntentController;
 
 // --- Webhook Controllers ---
 use App\Http\Controllers\Webhooks\PaymentWebhookController;
@@ -73,6 +74,12 @@ Route::get('/locale/{locale}', function (string $locale, Request $request) {
 Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('/robots.txt', RobotsController::class)->name('robots');
 Route::get('/feeds/meta-catalog.csv', MetaCatalogFeedController::class)->name('feeds.meta-catalog');
+Route::post('/api/whatsapp-intents', [WhatsAppOrderIntentController::class, 'store'])->name('api.whatsapp-intents.store');
+Route::get('/api/whatsapp-intents/{reference}', [WhatsAppOrderIntentController::class, 'show'])->name('api.whatsapp-intents.show');
+Route::middleware('auth:admin')->group(function () {
+    Route::post('/api/whatsapp-intents/{reference}/convert', [WhatsAppOrderIntentController::class, 'convert'])->name('api.whatsapp-intents.convert');
+    Route::post('/api/whatsapp-intents/{reference}/expire', [WhatsAppOrderIntentController::class, 'expire'])->name('api.whatsapp-intents.expire');
+});
 
 // Short URL routes
 Route::get('/s/{code}', [ShortUrlController::class, 'redirect'])->name('short-url.redirect')->where('code', '.*');
@@ -137,14 +144,14 @@ Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('searc
 Route::get('/search', SearchController::class)->name('search');
 Route::get('/search/popular', [SearchController::class, 'getPopularSearches'])->name('search.popular');
 
-Route::middleware('auth:customer')->group(function () {
-    Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
-    Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
-    Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
-    Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
-    Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
-    Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
+Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
+Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
+Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
+Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
+Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 
+Route::middleware('auth:customer')->group(function () {
     Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
 
     Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');

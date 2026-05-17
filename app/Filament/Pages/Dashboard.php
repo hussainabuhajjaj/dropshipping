@@ -24,6 +24,9 @@ use App\Filament\Widgets\VisitorStatsOverview;
 use App\Filament\Widgets\MostViewedProductsTable;
 use App\Filament\Widgets\MostViewedCategoriesTable;
 use App\Filament\Widgets\MostViewedPagesTable;
+use App\Filament\Widgets\VisitorGeoMapWidget;
+use App\Filament\Widgets\VisitorCountriesChart;
+use App\Filament\Widgets\VisitorCitiesTable;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
@@ -34,6 +37,8 @@ class Dashboard extends BaseDashboard
             AdminStatsOverview::class,
             AnalyticsKPIWidget::class,
             VisitorStatsOverview::class,
+            VisitorGeoMapWidget::class,
+            VisitorCountriesChart::class,
             OperationsOverview::class,
             SalesTrendChart::class,
             OrderStatusChart::class,
@@ -50,6 +55,7 @@ class Dashboard extends BaseDashboard
             MostViewedProductsTable::class,
             MostViewedCategoriesTable::class,
             MostViewedPagesTable::class,
+            VisitorCitiesTable::class,
             LowStockProductsTable::class,
         ];
     }

@@ -13,17 +13,23 @@ use App\Http\Resources\Mobile\V1\AuthResponseResource;
 use App\Http\Resources\Mobile\V1\CustomerResource;
 use App\Http\Resources\Mobile\V1\StatusResource;
 use App\Models\Customer;
+use App\Services\Cart\CartIdentityService;
 use App\Notifications\EmailVerificationOtpNotification;
 use App\Notifications\PhoneVerificationOtpNotification;
 use App\Notifications\PasswordResetOtpNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends ApiController
 {
+    public function __construct(
+        private readonly CartIdentityService $cartIdentityService,
+    ) {
+    }
+
     public function register(RegisterRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -54,6 +60,8 @@ class AuthController extends ApiController
             now()->addDays(30)
         );
 
+        $this->cartIdentityService->mergeGuestCartIntoCustomer($request, $customer);
+
         return $this->created(new AuthResponseResource([
             'user' => $customer,
             'token' => $token->plainTextToken,
@@ -79,6 +87,49 @@ class AuthController extends ApiController
             ['*'],
             now()->addDays(30)
         );
+
+        $this->cartIdentityService->mergeGuestCartIntoCustomer($request, $customer);
+
+        return $this->success(new AuthResponseResource([
+            'user' => $customer,
+            'token' => $token->plainTextToken,
+            'token_type' => 'Bearer',
+            'expires_at' => $token->accessToken->expires_at?->toISOString(),
+        ]));
+    }
+
+    public function exchangeSocialCode(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'min:32'],
+            'provider' => ['required', 'string', 'in:google,facebook,apple'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $cacheKey = $this->mobileExchangeCacheKey($data['code']);
+        $cached = Cache::pull($cacheKey);
+
+        if (! is_array($cached) || ($cached['provider'] ?? null) !== $data['provider']) {
+            throw ValidationException::withMessages([
+                'code' => ['This social sign-in session has expired. Please try again.'],
+            ]);
+        }
+
+        $customer = Customer::query()->find($cached['customer_id'] ?? null);
+
+        if (! $customer) {
+            throw ValidationException::withMessages([
+                'code' => ['We could not find the account for this social sign-in.'],
+            ]);
+        }
+
+        $token = $customer->createToken(
+            $data['device_name'] ?? 'mobile',
+            ['*'],
+            now()->addDays(30)
+        );
+
+        $this->cartIdentityService->mergeGuestCartIntoCustomer($request, $customer);
 
         return $this->success(new AuthResponseResource([
             'user' => $customer,
@@ -351,5 +402,10 @@ class AuthController extends ApiController
         ])->save();
 
         $customer->notify(new PasswordResetOtpNotification($code));
+    }
+
+    private function mobileExchangeCacheKey(string $code): string
+    {
+        return 'mobile-social-auth:' . hash('sha256', $code);
     }
 }

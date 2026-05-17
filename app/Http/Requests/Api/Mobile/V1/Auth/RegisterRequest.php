@@ -32,6 +32,7 @@ class RegisterRequest extends BaseRequest
             'password' => ['required', 'string', 'min:6'],
             'device_name' => ['nullable', 'string', 'max:255'],
             'avatar' => ['nullable', 'string'],
+            'guest_token' => ['nullable', 'string', 'max:120'],
         ];
     }
 }

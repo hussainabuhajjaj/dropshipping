@@ -32,6 +32,7 @@ class VisitTrackingService
         $descriptor = $this->describeWebsiteRequest($request);
         $acquisition = $this->resolveAcquisition($request);
         $device = $this->resolveDeviceContext($request->userAgent());
+        $location = app(VisitorLocationResolver::class)->resolve($request);
 
         $this->recordVisit([
             'channel' => 'website',
@@ -50,6 +51,12 @@ class VisitTrackingService
             'browser_family' => $device['browser_family'],
             'os_family' => $device['os_family'],
             'ip_address' => $request->ip(),
+            'country_code' => $location['country_code'],
+            'country_name' => $location['country_name'],
+            'region_name' => $location['region_name'],
+            'city_name' => $location['city_name'],
+            'latitude' => $location['latitude'],
+            'longitude' => $location['longitude'],
             'user_agent' => $request->userAgent(),
             'customer' => auth('customer')->user(),
             'user' => auth()->user(),
@@ -82,6 +89,7 @@ class VisitTrackingService
         $entitySlug = isset($payload['entity_slug']) ? trim((string) $payload['entity_slug']) : null;
         $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : [];
         $device = $this->resolveDeviceContext($request->userAgent());
+        $location = app(VisitorLocationResolver::class)->resolve($request);
 
         $this->recordVisit([
             'channel' => 'app',
@@ -100,6 +108,12 @@ class VisitTrackingService
             'browser_family' => $device['browser_family'],
             'os_family' => $device['os_family'],
             'ip_address' => $request->ip(),
+            'country_code' => $location['country_code'],
+            'country_name' => $location['country_name'],
+            'region_name' => $location['region_name'],
+            'city_name' => $location['city_name'],
+            'latitude' => $location['latitude'],
+            'longitude' => $location['longitude'],
             'user_agent' => $request->userAgent(),
             'customer' => auth('sanctum')->user(),
             'user' => null,
@@ -143,6 +157,12 @@ class VisitTrackingService
             'browser_family' => $session->exists ? ($session->browser_family ?: ($data['browser_family'] ?? null)) : ($data['browser_family'] ?? null),
             'os_family' => $session->exists ? ($session->os_family ?: ($data['os_family'] ?? null)) : ($data['os_family'] ?? null),
             'ip_address' => $data['ip_address'] ?? null,
+            'country_code' => $session->exists ? ($session->country_code ?: ($data['country_code'] ?? null)) : ($data['country_code'] ?? null),
+            'country_name' => $session->exists ? ($session->country_name ?: ($data['country_name'] ?? null)) : ($data['country_name'] ?? null),
+            'region_name' => $session->exists ? ($session->region_name ?: ($data['region_name'] ?? null)) : ($data['region_name'] ?? null),
+            'city_name' => $session->exists ? ($session->city_name ?: ($data['city_name'] ?? null)) : ($data['city_name'] ?? null),
+            'latitude' => $session->exists ? ($session->latitude ?: ($data['latitude'] ?? null)) : ($data['latitude'] ?? null),
+            'longitude' => $session->exists ? ($session->longitude ?: ($data['longitude'] ?? null)) : ($data['longitude'] ?? null),
             'user_agent' => $this->truncateText($data['user_agent'] ?? null),
             'landing_route_name' => $session->exists ? ($session->landing_route_name ?: ($data['route_name'] ?? null)) : ($data['route_name'] ?? null),
             'landing_path' => $session->exists ? ($session->landing_path ?: ($data['path'] ?? null)) : ($data['path'] ?? null),

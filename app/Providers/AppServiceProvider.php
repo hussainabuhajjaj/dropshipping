@@ -21,6 +21,8 @@ use Dedoc\Scramble\Scramble;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
+use SocialiteProviders\Apple\Provider as AppleSocialiteProvider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerProductionCommandGuard();
+        $this->registerSocialiteProviders();
 
         Gate::define('viewApiDocs', function (User $user) {
             return in_array($user->email, ['admin@admin.com']);
@@ -136,5 +139,12 @@ class AppServiceProvider extends ServiceProvider
                 Livewire::component($alias, $class);
             }
         }
+    }
+
+    private function registerSocialiteProviders(): void
+    {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('apple', AppleSocialiteProvider::class);
+        });
     }
 }

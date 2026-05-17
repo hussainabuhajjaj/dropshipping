@@ -14,6 +14,7 @@ class LoginRequest extends BaseRequest
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'guest_token' => ['nullable', 'string', 'max:120'],
         ];
     }
 }

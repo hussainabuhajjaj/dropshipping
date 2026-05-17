@@ -16,6 +16,7 @@ class CartResource extends JsonResource
     {
         return [
             'lines' => CartItemResource::collection($this->resource['lines'] ?? []),
+            'guest_token' => $this->resource['guest_token'] ?? null,
             'currency' => $this->resource['currency'] ?? 'USD',
             'subtotal' => (float) ($this->resource['subtotal'] ?? 0),
             'shipping' => (float) ($this->resource['shipping'] ?? 0),

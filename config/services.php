@@ -164,6 +164,13 @@ return [
         'pixel_id' => env('FACEBOOK_PIXEL_ID'),
     ],
 
+    'meta_ads' => [
+        'dataset_id' => env('META_CAPI_DATASET_ID'),
+        'access_token' => env('META_CAPI_ACCESS_TOKEN'),
+        'api_version' => env('META_CAPI_API_VERSION', 'v21.0'),
+        'test_event_code' => env('META_CAPI_TEST_EVENT_CODE'),
+    ],
+
     'apple' => [
         'client_id' => env('APPLE_CLIENT_ID'),
         'client_secret' => env('APPLE_CLIENT_SECRET'),

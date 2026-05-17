@@ -29,6 +29,12 @@ class VisitorSession extends Model
         'browser_family',
         'os_family',
         'ip_address',
+        'country_code',
+        'country_name',
+        'region_name',
+        'city_name',
+        'latitude',
+        'longitude',
         'user_agent',
         'landing_route_name',
         'landing_path',
@@ -47,6 +53,8 @@ class VisitorSession extends Model
         'last_seen_at' => 'datetime',
         'hits_count' => 'int',
         'metadata' => 'array',
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     public function events(): HasMany

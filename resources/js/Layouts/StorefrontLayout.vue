@@ -49,18 +49,6 @@
             <link v-if="canonicalUrl" rel="alternate" hreflang="en" head-key="hreflang:en" :href="canonicalUrl" />
             <link v-if="frenchAlternateUrl" rel="alternate" hreflang="fr" head-key="hreflang:fr" :href="frenchAlternateUrl" />
             <link v-if="canonicalUrl" rel="alternate" hreflang="x-default" head-key="hreflang:x-default" :href="canonicalUrl" />
-            <script
-                v-if="organizationSchema"
-                head-key="jsonld:organization"
-                type="application/ld+json"
-                v-html="organizationSchema"
-            />
-            <script
-                v-if="websiteSchema"
-                head-key="jsonld:website"
-                type="application/ld+json"
-                v-html="websiteSchema"
-            />
         </Head>
 
         <div aria-hidden="true" class="storefront-header-spacer" :style="headerSpacerStyle"></div>
@@ -830,6 +818,7 @@ import {Head, Link, router, usePage} from '@inertiajs/vue3'
 import {DotLottieVue} from '@lottiefiles/dotlottie-vue'
 import {useUserPreferences} from '@/composables/useUserPreferences.js'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
+import {useMultipleJsonLd} from '@/composables/useJsonLd.js'
 import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
@@ -1296,6 +1285,8 @@ const websiteSchema = computed(() => {
     },
   })
 })
+
+useMultipleJsonLd([organizationSchema, websiteSchema])
 
 watch(
     () => page.props.categories,

@@ -122,6 +122,14 @@
                     >
                         {{ t('Secure checkout') }}
                     </button>
+                    <button
+                        :disabled="creatingIntent || !lines.length"
+                        class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[#25D366]/30 bg-[#25D366]/10 px-5 text-sm font-bold text-[#128C49] transition hover:bg-[#25D366]/15"
+                        :class="{ 'cursor-not-allowed opacity-60': creatingIntent || !lines.length }"
+                        @click="sendCartViaWhatsApp"
+                    >
+                        {{ creatingIntent ? t('Preparing...') : t('Send cart via WhatsApp') }}
+                    </button>
                     <p class="text-xs text-slate-500">
                         {{
                             t("Delivery to Cote d'Ivoire with transparent customs. Expect tracking within 24 to 48 hours after fulfillment.")
@@ -178,6 +186,7 @@ import { ref, computed } from 'vue'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
+import { useWhatsAppCheckout } from '@/composables/useWhatsAppCheckout.js'
 
 const props = defineProps({
     lines: {type: Array, required: true},
@@ -197,6 +206,7 @@ const props = defineProps({
 })
 
 const {t} = useTranslations()
+const { creatingIntent, startWhatsAppCheckout } = useWhatsAppCheckout({ t })
 const now = usePromoNow()
 const discountLabel = computed(() => props.discount_label)
 const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
@@ -236,6 +246,13 @@ const updateQty = (id, quantity) => {
     // } else {
     //     updateLineLocal(id, quantity)
     // }
+}
+
+const sendCartViaWhatsApp = async () => {
+    await startWhatsAppCheckout({
+        mode: 'cart',
+        channel: 'web',
+    })
 }
 
 const applyCoupon = () => {

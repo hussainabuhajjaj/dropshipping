@@ -18,6 +18,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\SiteSetting;
 use App\Services\CampaignManager;
+use App\Services\Cart\CartIdentityService;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
@@ -29,6 +30,11 @@ use Illuminate\Support\Facades\Log;
 
 class CartController extends ApiController
 {
+    public function __construct(
+        private readonly CartIdentityService $cartIdentityService,
+    ) {
+    }
+
     public function show(Request $request): JsonResponse
     {
         $cart = $this->resolveCart($request);
@@ -38,11 +44,6 @@ class CartController extends ApiController
 
     public function store(AddItemRequest $request): JsonResponse
     {
-        $customer = $request->user();
-        if (! $customer) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-
         $data = $request->validated();
 
         // Ensure quantity is properly set with fallback
@@ -106,11 +107,6 @@ class CartController extends ApiController
 
     public function update(UpdateItemRequest $request, string $itemId): JsonResponse
     {
-        $customer = $request->user();
-        if (! $customer) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-
         $cart = $this->resolveCart($request);
         $cartItem = $cart->items()->with(['product', 'variant'])->find($itemId);
 
@@ -135,11 +131,6 @@ class CartController extends ApiController
 
     public function destroy(Request $request, string $itemId): JsonResponse
     {
-        $customer = $request->user();
-        if (! $customer) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-
         $cart = $this->resolveCart($request);
         $cartItem = $cart->items()->find($itemId);
 
@@ -155,11 +146,6 @@ class CartController extends ApiController
 
     public function applyCoupon(ApplyCouponRequest $request): JsonResponse
     {
-        $customer = $request->user();
-        if (! $customer) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-
         $data = $request->validated();
 
         $now = Carbon::now();
@@ -199,11 +185,6 @@ class CartController extends ApiController
 
     public function removeCoupon(Request $request): JsonResponse
     {
-        $customer = $request->user();
-        if (! $customer) {
-            return $this->error('You must log in first to continue shopping.', 401);
-        }
-
         session()->forget('cart_coupon');
 
         $cart = $this->resolveCart($request);
@@ -213,23 +194,9 @@ class CartController extends ApiController
 
     private function resolveCart(Request $request): Cart
     {
-        $customer = $request->user();
-        if (! $customer) {
-            abort(response()->json(['message' => 'You must log in first to continue shopping.'], 401));
-        }
+        $cart = $this->cartIdentityService->resolveCart($request, $request->user(), true);
 
-        $cart = Cart::query()
-            ->where('user_id', $customer->id)
-            ->orderByDesc('updated_at')
-            ->first();
-
-        if (! $cart) {
-            $cart = Cart::query()->create([
-                'user_id' => $customer->id,
-            ]);
-        }
-
-        return $cart->loadMissing(['items.product.images', 'items.variant']);
+        return ($cart ?? Cart::createCart())->loadMissing(['items.product.images', 'items.variant']);
     }
 
     private function buildLine(Cart $cart, Product $product, ?ProductVariant $variant, int $quantity): array
@@ -254,6 +221,7 @@ class CartController extends ApiController
 
         return [
             'lines' => $cartItems,
+            'guest_token' => $this->cartIdentityService->guestTokenForRequest($request, $cart),
             'currency' => $summary['currency'] ?? 'USD',
             'subtotal' => (float)($summary['subtotal'] ?? 0),
             'shipping' => (float)($summary['shipping'] ?? 0),

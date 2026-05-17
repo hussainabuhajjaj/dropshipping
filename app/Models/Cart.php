@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 class Cart extends Model
 {
     protected $fillable = [
-        'user_id', 'session_id', 'product_id', 'fulfillment_provider_id',
+        'user_id', 'session_id', 'visitor_id', 'product_id', 'fulfillment_provider_id',
         'variant_id', 'quantity', 'stock_on_hand'
     ];
 
@@ -31,13 +31,16 @@ class Cart extends Model
         return $this->hasMany(CartShipping::class);
     }
 
-    public static function createCart(): self
+    public static function createCart(array $attributes = []): self
     {
-        if (auth('customer')->check()) {
-            return self::query()->create(['user_id' => auth('customer')->id()]);
-        } else {
-            return self::query()->create(['session_id' => session()->id()]);
-        }
+        $defaults = auth('customer')->check()
+            ? ['user_id' => auth('customer')->id()]
+            : [
+                'session_id' => session()->id(),
+                'visitor_id' => request()->cookie(\App\Services\Analytics\VisitTrackingService::WEBSITE_COOKIE),
+            ];
+
+        return self::query()->create(array_merge($defaults, $attributes));
     }
 
     public function subTotal()
@@ -420,87 +423,23 @@ class Cart extends Model
 
     public static function GetCustomerOrGuestCart()
     {
-        $customerId = auth('customer')->id();
-        $sessionId = session()->id();
-
-        return self::query()
-            ->when(
-                $customerId,
-                function ($query) use ($customerId, $sessionId) {
-                    $query->where(function ($scoped) use ($customerId, $sessionId) {
-                        $scoped->where('user_id', $customerId)
-                            ->orWhere(function ($guest) use ($sessionId) {
-                                $guest->whereNull('user_id')
-                                    ->where('session_id', $sessionId);
-                            });
-                    });
-                },
-                function ($query) use ($sessionId) {
-                    $query->whereNull('user_id')
-                        ->where('session_id', $sessionId);
-                }
-            )
-            ->orderByDesc('updated_at')
-            ->with('items')
-            ->first();
+        return app(\App\Services\Cart\CartIdentityService::class)->resolveCart(request(), auth('customer')->user());
     }
 
     public static function GetGuestCart()
     {
-        return self::query()
-            ->whereNull('user_id')
-            ->where('session_id', session()->id())
-            ->orderByDesc('updated_at')
-            ->with('items')
-            ->first();
+        return app(\App\Services\Cart\CartIdentityService::class)->resolveCart(request(), null);
     }
 
     public static function mergeCartAfterLogin($session_id)
     {
-        $userId = auth('customer')->id();
+        $customer = auth('customer')->user();
+        if (! $customer) {
+            return null;
+        }
 
-        DB::transaction(function () use ($session_id, $userId) {
-
-            // 1️⃣ Get session cart
-            $sessionCart = Cart::with('items')
-                ->where('session_id', $session_id)
-                ->whereNull('user_id')
-                ->first();
-
-            if (!$sessionCart) {
-                return;
-            }
-
-            // 2️⃣ Get user cart or create one
-            $userCart = Cart::firstOrCreate(
-                ['user_id' => $userId],
-                ['session_id' => null]
-            );
-
-            // 3️⃣ Merge items
-            foreach ($sessionCart->items as $item) {
-
-                $existingItem = $userCart->items()
-                    ->where('product_id', $item->product_id)
-                    ->where('variant_id', $item->variant_id)
-                    ->where('fulfillment_provider_id', $item->fulfillment_provider_id)
-                    ->first();
-
-                if ($existingItem) {
-                    // Increase quantity
-                    $existingItem->increment('qty', $item->qty);
-                } else {
-                    // Move item
-                    $item->update([
-                        'cart_id' => $userCart->id
-                    ]);
-                }
-            }
-
-            // 4️⃣ Delete session cart
-            $sessionCart->items()->delete();
-            $sessionCart->delete();
-        });
+        return app(\App\Services\Cart\CartIdentityService::class)
+            ->mergeGuestCartIntoCustomer(request(), $customer, $session_id);
     }
 
     public function getSummery()

@@ -257,6 +257,14 @@
             <button type="submit" class="btn-primary" :disabled="isOutOfStock">
               {{ form.processing ? t('Adding...') : isOutOfStock ? t('Out of stock') : t('Add to cart') }}
             </button>
+            <button
+              type="button"
+              class="inline-flex min-h-11 items-center justify-center rounded-full border border-[#25D366]/30 bg-[#25D366]/10 px-5 text-sm font-bold text-[#128C49] transition hover:bg-[#25D366]/15"
+              :disabled="creatingIntent"
+              @click="orderViaWhatsApp"
+            >
+              {{ creatingIntent ? t('Preparing...') : t('Order via WhatsApp') }}
+            </button>
             <ShareButton :product="product" />
           </div>
           <p v-if="successMessage" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
@@ -555,6 +563,7 @@ import { useTranslations } from '@/i18n'
 import { useProductCartForm } from '@/composables/useProductCartForm.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import { useWhatsAppCheckout } from '@/composables/useWhatsAppCheckout.js'
 import {usePage} from '@inertiajs/vue3'
 
 const page = usePage();
@@ -606,6 +615,8 @@ const {
   product: props.product,
   t,
 })
+
+const { creatingIntent, startWhatsAppCheckout } = useWhatsAppCheckout({ t })
 
 const basePriceForDisplay = computed(() => Number(selectedVariant.value?.price ?? props.product.price ?? 0))
 
@@ -1234,6 +1245,16 @@ const whatsappLink = computed(() => {
   const sanitized = phone.replace(/[^\d]/g, '')
   return `https://wa.me/${sanitized}?text=${text}`
 })
+
+const orderViaWhatsApp = async () => {
+  await startWhatsAppCheckout({
+    mode: 'product',
+    channel: 'web',
+    product_id: props.product.id,
+    variant_id: selectedVariantId.value,
+    quantity: Number(form.quantity || 1),
+  })
+}
 
 const metaTitle = computed(() => {
   if (props.product.meta_title) return props.product.meta_title
