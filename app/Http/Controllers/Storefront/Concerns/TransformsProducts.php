@@ -105,6 +105,10 @@ trait TransformsProducts
             'is_in_wishlist' => $wishlist->contains($product->id),
             'href' => route('products.show', $product, false),
             'url' => route('products.show', $product, false),
+            'shipping_estimate' => [
+                'cost' => (float) (is_array($product->pricing_meta) ? ($product->pricing_meta['cj_shipping'] ?? 0) : 0),
+                'days' => $product->shipping_estimate_days,
+            ],
         ];
 
         if ($includeMeta) {

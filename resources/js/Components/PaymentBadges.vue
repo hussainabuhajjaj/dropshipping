@@ -38,18 +38,15 @@ const { t } = useTranslations()
 const badges = computed(() => {
   const items = []
 
-  // if (props.showCard) {
-  //   items.push({ key: 'visa', label: 'Visa', src: '/images/payments/visa.svg' })
-  //   items.push({ key: 'mastercard', label: 'Mastercard', src: '/images/payments/mastercard.svg' })
-  // }
-
-  // if (props.showStripe) {
-  //   items.push({ key: 'stripe', label: 'Stripe', src: '/images/payments/stripe.svg' })
-  // }
+  if (props.showCard) {
+    items.push({ key: 'visa', label: 'Visa', src: '/images/payments/visa.svg' })
+    items.push({ key: 'mastercard', label: 'Mastercard', src: '/images/payments/mastercard.svg' })
+  }
 
   if (props.showMobileMoney) {
-    items.push({ key: 'orange-money', label: 'Orange Money', src: '/images/payments/payment.png' })
-    // items.push({ key: 'wave', label: 'Wave', src: '/images/payments/wave.svg' })
+    items.push({ key: 'orange-money', label: 'Orange Money', src: '/images/payments/orange-money.svg' })
+    items.push({ key: 'wave', label: 'Wave', src: '/images/payments/wave.svg' })
+    items.push({ key: 'mtn-momo', label: 'MTN MoMo', src: '/images/payments/payment.png' })
   }
 
   return items

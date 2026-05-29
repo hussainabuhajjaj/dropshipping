@@ -95,8 +95,14 @@
       </div>
     </div>
 
-    <p :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
-      {{ t('Shipping calculated after address entry; final totals refresh during checkout.') }}
+    <p v-if="shippingCost" :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
+      {{ t('Livraison Abidjan: ~:cost · :days jours', { cost: shippingCost, days: shippingDays }) }}
+    </p>
+    <p v-else-if="shippingDays" :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
+      {{ t('Livraison Abidjan: ~:days jours', { days: shippingDays }) }}
+    </p>
+    <p v-else :class="dense ? 'text-[0.6rem] leading-4 text-slate-500' : 'text-[0.65rem] text-slate-500'">
+      {{ t('Livraison disponible à Abidjan') }}
     </p>
   </article>
 
@@ -132,48 +138,6 @@ const isQuickAddOpen = ref(false)
 const now = usePromoNow()
 const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
-
-const readMetaCsrfToken = () =>
-  document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
-
-const writeMetaCsrfToken = (token) => {
-  if (!token) return
-
-  const existing = document.querySelector('meta[name="csrf-token"]')
-  if (existing) {
-    existing.setAttribute('content', token)
-    return
-  }
-
-  const meta = document.createElement('meta')
-  meta.setAttribute('name', 'csrf-token')
-  meta.setAttribute('content', token)
-  document.head.appendChild(meta)
-}
-
-const refreshCsrfToken = async () => {
-  if (typeof window === 'undefined') return ''
-
-  const response = await fetch(window.location.href, {
-    method: 'GET',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: {
-      Accept: 'text/html,application/xhtml+xml',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  })
-
-  const html = await response.text()
-  const match = html.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i)
-  const token = match?.[1] ?? ''
-
-  if (token) {
-    writeMetaCsrfToken(token)
-  }
-
-  return token
-}
 
 // Promotion logic
 const productPromotion = computed(() => {
@@ -246,6 +210,12 @@ const compareAtFormatted = computed(() =>
 )
 const rating = computed(() => props.product.rating ?? null)
 const ratingCount = computed(() => props.product.rating_count ?? null)
+const shippingCost = computed(() => {
+  const cost = props.product.shipping_estimate?.cost
+  if (!cost || cost <= 0) return null
+  return formatCurrency(convertCurrency(cost, 'USD', displayCurrency.value), displayCurrency.value)
+})
+const shippingDays = computed(() => props.product.shipping_estimate?.days ?? null)
 const isComplexProduct = computed(() => {
   const variants = Array.isArray(props.product.variants) ? props.product.variants : []
   if (variants.length > 12) return true
@@ -270,18 +240,9 @@ const addToWishlist = async () => {
 
   wishlistProcessing.value = true
 
-  let csrfToken = readMetaCsrfToken()
-
-  try {
-    csrfToken = await refreshCsrfToken() || csrfToken
-  } catch {
-    // Use the current token if the refresh request fails.
-  }
-
   if (wishlisted.value) {
     router.delete(`/account/wishlist/${props.product.id}`, {
       preserveScroll: true,
-      headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
       onSuccess: () => {
         wishlistProcessing.value = false
         wishlisted.value = false
@@ -301,7 +262,6 @@ const addToWishlist = async () => {
     { product_id: props.product.id },
     {
       preserveScroll: true,
-      headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
       onSuccess: () => {
         wishlistProcessing.value = false
         wishlisted.value = true

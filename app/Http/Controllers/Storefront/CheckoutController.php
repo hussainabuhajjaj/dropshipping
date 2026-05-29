@@ -47,12 +47,14 @@ class CheckoutController extends Controller
     public function getCartWithItems()
     {
         $customerId = auth('customer')->id();
-        if (! $customerId) {
-            return redirect()->route('login');
-        }
 
         $data['cart'] = Cart::query()
-            ->where('user_id', $customerId)
+            ->where(function ($q) use ($customerId) {
+                if ($customerId) {
+                    $q->where('user_id', $customerId);
+                }
+                $q->orWhere('session_id', session()->id());
+            })
             ->with('items')
             ->first();
 
@@ -285,9 +287,9 @@ class CheckoutController extends Controller
                 // user_id references internal users; storefront customers should only set customer_id.
                 'user_id' => null,
                 'customer_id' => $customer?->id,
-                'guest_name' => null,
-                'guest_phone' => null,
-                'is_guest' => false,
+                'guest_name' => $isGuest ? ($validatedData['first_name'] ?? null) : null,
+                'guest_phone' => $isGuest ? ($validatedData['phone'] ?? null) : null,
+                'is_guest' => $isGuest,
                 'email' => $validatedData['email'],
                 'locale' => $locale,
                 'status' => 'pending',

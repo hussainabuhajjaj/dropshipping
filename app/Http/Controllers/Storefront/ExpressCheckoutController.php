@@ -177,6 +177,7 @@ class ExpressCheckoutController extends Controller
                 ]);
 
                 // Create order
+                $isGuest = !$customer;
                 if ($customer && $customer->locale !== $locale) {
                     $customer->update(['locale' => $locale]);
                 }
@@ -185,9 +186,9 @@ class ExpressCheckoutController extends Controller
                     // user_id references internal users; storefront customers should only set customer_id.
                     'user_id' => null,
                     'customer_id' => $customer?->id,
-                    'guest_name' => null,
-                    'guest_phone' => null,
-                    'is_guest' => false,
+                    'guest_name' => $isGuest ? $data['shipping_address']['name'] : null,
+                    'guest_phone' => $isGuest ? $data['phone'] : null,
+                    'is_guest' => $isGuest,
                     'email' => $data['email'],
                     'locale' => $locale,
                     'status' => 'pending',

@@ -36,9 +36,6 @@ class PaymentController extends Controller
     public function index($type, $id = null)
     {
         $customer = auth('customer')->user();
-        if (! $customer) {
-            return redirect()->route('login');
-        }
 
         $item = $this->getItem($type, $id);
         if (! $item) {
@@ -61,15 +58,15 @@ class PaymentController extends Controller
 
         $finalTotal = (float) ($summery['raw']['total'] ?? $summery['total'] ?? 0);
 
-        $defaultAddress = $customer->addresses()
+        $defaultAddress = $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->first();
 
-        $addresses = $customer->addresses()
+        $addresses = $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
-            ->get();
+            ->get() ?? collect();
 
         return Inertia::render('Payments/Index', [
             'customer' => $customer,
@@ -100,9 +97,6 @@ class PaymentController extends Controller
     public function checkout(Request $request, $type, $id = null)
     {
         $customer = auth('customer')->user();
-        if (! $customer) {
-            return redirect()->route('login');
-        }
 
         $cart = $this->getItem($type, $id);
         if (! ($cart instanceof Cart)) {
@@ -141,14 +135,15 @@ class PaymentController extends Controller
                     throw new RuntimeException('Customer email missing for checkout.');
                 }
 
+                $isGuest = !$customer;
                 $addressId = $request->integer('address_id');
-                $shippingAddress = $addressId
+                $shippingAddress = $addressId && $customer
                     ? Address::query()
                         ->where('customer_id', $customer->id)
                         ->findOrFail($addressId)
                     : Address::query()->create([
                         'user_id' => null,
-                        'customer_id' => $customer->id,
+                        'customer_id' => $customer?->id,
                         'name' => trim(implode(' ', array_filter([
                             (string) ($requestBody['first_name'] ?? ''),
                             (string) ($requestBody['last_name'] ?? ''),
@@ -176,8 +171,10 @@ class PaymentController extends Controller
 
                 $order = Order::createWithGeneratedNumber([
                     'user_id' => null,
-                    'customer_id' => $customer->id,
-                    'is_guest' => false,
+                    'customer_id' => $customer?->id,
+                    'guest_name' => $isGuest ? trim(implode(' ', array_filter([$requestBody['first_name'] ?? '', $requestBody['last_name'] ?? '']))) : null,
+                    'guest_phone' => $isGuest ? ($requestBody['phone'] ?? null) : null,
+                    'is_guest' => $isGuest,
                     'email' => $email,
                     'locale' => app()->getLocale(),
                     'status' => 'pending',

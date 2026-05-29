@@ -521,13 +521,10 @@
       :title="product.name"
       :price="displayPriceFormatted"
       :compare-at="compareAtForDisplay ? compareAtFormatted : ''"
-      :quantity="Number(form.quantity || 1)"
-      :stock-badge="stockBadge"
       :cta-label="stickyCtaLabel"
       :disabled="stickyCtaDisabled"
-      @increment="incrementQty"
-      @decrement="decrementQty"
       @submit="submit"
+      @whatsapp="orderViaWhatsApp"
     />
   </StorefrontLayout>
 </template>
@@ -559,6 +556,7 @@ import ProductCard from '@/Components/ProductCard.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import Modal from '@/Components/Modal.vue'
 import ShareButton from '@/Components/ShareButton.vue'
+
 import { useTranslations } from '@/i18n'
 import { useProductCartForm } from '@/composables/useProductCartForm.js'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
@@ -1339,8 +1337,8 @@ const breadcrumbSchema = computed(() => {
   })
 })
 
-// Inject JSON-LD schemas (temporarily disabled due to initialization error)
-// useMultipleJsonLd([productSchema, breadcrumbSchema])
+// Inject JSON-LD schemas
+useMultipleJsonLd([productSchema, breadcrumbSchema])
 
 const imageAltText = computed(() => {
   const parts = [props.product.name]

@@ -153,14 +153,14 @@ Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('ca
 
 Route::middleware('auth:customer')->group(function () {
     Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
-
-    Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
-    Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
-    Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
-    Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
-    Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
-    Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 });
+
+Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
+Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
+Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
+Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
+Route::get('/orders/confirmation/{number}', [CheckoutController::class, 'confirmation'])->name('orders.confirmation');
 Route::get('/orders/track', TrackingPageController::class)->name('orders.track');
 Route::get('/promotions', [PromotionController::class, 'index'])->name('promotions.index');
 Route::get('/promotions/flash-sales', [PromotionController::class, 'flashSales'])->name('promotions.flash-sales');
@@ -347,7 +347,7 @@ Route::get('/aliexpress/oauth/redirect', [AliExpressOAuthController::class, 'red
 Route::get('/aliexpress/oauth/callback', [AliExpressOAuthController::class, 'callback'])->name('aliexpress.oauth.callback');
 Route::post('/aliexpress/oauth/refresh', [AliExpressOAuthController::class, 'refresh'])->name('aliexpress.oauth.refresh');
 
-Route::middleware('auth:customer')->prefix('pay/{type}')->name('pay.')->group(function () {
+Route::prefix('pay/{type}')->name('pay.')->group(function () {
     Route::get('/', [PaymentController::class, 'index'])->name('index');
     Route::post('/checkout', [PaymentController::class, 'checkout'])->name('checkout');
     Route::get('/redirect', [PaymentController::class, 'redirect'])->name('redirect');
@@ -357,7 +357,7 @@ Route::middleware('auth:customer')->prefix('pay/{type}')->name('pay.')->group(fu
 });
 
 // Paystack Routes
-Route::middleware(['auth:customer', 'throttle:30,1'])->prefix('paystack')->name('paystack.')->group(function () {
+Route::middleware(['throttle:30,1'])->prefix('paystack')->name('paystack.')->group(function () {
     Route::post('/initialize', [App\Http\Controllers\PaystackController::class, 'initialize'])->name('initialize');
     Route::post('/verify', [App\Http\Controllers\PaystackController::class, 'verify'])->name('verify');
     Route::post('/mobile-money/charge', [App\Http\Controllers\PaystackController::class, 'mobileMoneyCharge'])->name('mobile_money.charge');

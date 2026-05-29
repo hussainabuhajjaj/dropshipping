@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 const productPreviewCache = new Map()
+const MAX_PRELOADED_CATEGORIES = 3
+let preloadedCount = 0
 let hoverTimer = null
 let closeTimer = null
 
@@ -73,6 +75,12 @@ export const useCategoryStore = defineStore('category-discovery', () => {
         if (!slug || productPreviewCache.has(slug)) {
             return
         }
+
+        if (preloadedCount >= MAX_PRELOADED_CATEGORIES) {
+            return
+        }
+
+        preloadedCount++
 
         try {
             const { data } = await axios.get(`/api/storefront/categories/${encodeURIComponent(slug)}`, {

@@ -179,4 +179,15 @@ return [
     // Coming-soon bypass (developer access)
     'developer_bypass_token' => env('DEVELOPER_BYPASS_TOKEN'),
     'developer_bypass_ttl_hours' => (int) env('DEVELOPER_BYPASS_TTL_HOURS', 12),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mobile Subdomain
+    |--------------------------------------------------------------------------
+    |
+    | The subdomain where the React Native web app is served (e.g. m.simbazu.net).
+    | Mobile visitors to the main site will be redirected here.
+    |
+    */
+    'mobile_subdomain' => env('MOBILE_SUBDOMAIN', ''),
 ];

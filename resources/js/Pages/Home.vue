@@ -1,1050 +1,389 @@
 <template>
-    <StorefrontLayout>
-        <div class="bg-[#f7f3eb] pb-28 sm:pb-32">
+  <StorefrontLayout>
+    <div class="min-h-screen bg-white pb-28">
+      <!-- Category Pills -->
+      <div class="sticky top-0 z-40 overflow-x-auto border-b border-gray-100 bg-white/95 backdrop-blur [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div class="flex gap-2 px-4 py-3">
+          <Link
+            v-for="cat in scrollCategories"
+            :key="cat.id"
+            :href="cat.href"
+            class="shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition cursor-pointer"
+            :class="activeCategory === cat.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-200 text-slate-600 hover:border-slate-400 hover:text-slate-900'"
+            @click="activeCategory = cat.id"
+          >
+            {{ cat.name }}
+          </Link>
+        </div>
+      </div>
+
+      <!-- Hero Banner Slider (full-width) -->
+      <div
+        class="relative bg-gray-100"
+        @mouseenter="pauseAutoPlay"
+        @mouseleave="resumeAutoPlay"
+        @touchstart.passive="pauseAutoPlay"
+        @touchend.passive="resumeAutoPlay"
+      >
+        <div
+          class="flex transition-transform duration-500 ease-out"
+          :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
+        >
+          <div
+            v-for="(slide, idx) in heroSlides"
+            :key="idx"
+            class="relative w-full shrink-0"
+          >
             <div
-                class="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-2.5 py-3 sm:gap-6 sm:px-5 sm:py-4 lg:px-8"
+              v-if="slide.image"
+              class="aspect-[1.2/1] w-full bg-cover bg-center sm:aspect-[2.5/1]"
+              :style="{ backgroundImage: `url(${slide.image})` }"
             >
-                <section id="collections-hero" class="space-y-2.5">
-                    <div class="grid gap-2.5 xl:grid-cols-[0.82fr_1.36fr_0.82fr]">
-                        <div class="hidden xl:grid gap-2.5">
-                            <Link
-                                v-for="lane in leftCollectionLanes"
-                                :key="`left-${lane.title}`"
-                                :href="lane.href"
-                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-                            >
-                                <div class="grid h-full grid-cols-[0.42fr_0.58fr] items-stretch">
-                                    <div class="overflow-hidden bg-[#f3e9db]">
-                                        <img
-                                            v-if="lane.image"
-                                            :src="lane.image"
-                                            :alt="lane.title"
-                                            class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                    <div class="space-y-1.5 px-2.5 py-2.5">
-                                        <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
-                                            {{ lane.kicker }}
-                                        </p>
-                                        <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
-                                            {{ lane.title }}
-                                        </p>
-                                        <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
-                                            {{ lane.subtitle }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </Link>
-                        </div>
-
-                        <HeroBanner
-                            :hero="heroBanner"
-                            :slides="heroSlides"
-                            :stats="heroStats"
-                            :chips="heroChips"
-                            :highlights="heroHighlights"
-                            @jump="scrollToSection"
-                        />
-
-                        <div class="hidden xl:grid gap-2.5">
-                            <Link
-                                v-for="lane in rightCollectionLanes"
-                                :key="`right-${lane.title}`"
-                                :href="lane.href"
-                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-                            >
-                                <div class="grid h-full grid-cols-[0.58fr_0.42fr] items-stretch">
-                                    <div class="space-y-1.5 px-2.5 py-2.5">
-                                        <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
-                                            {{ lane.kicker }}
-                                        </p>
-                                        <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
-                                            {{ lane.title }}
-                                        </p>
-                                        <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
-                                            {{ lane.subtitle }}
-                                        </p>
-                                    </div>
-                                    <div class="overflow-hidden bg-[#f3e9db]">
-                                        <img
-                                            v-if="lane.image"
-                                            :src="lane.image"
-                                            :alt="lane.title"
-                                            class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                </div>
-                            </Link>
-                        </div>
-                    </div>
-
-                    <div v-if="collectionLanes.length" class="xl:hidden">
-                        <div class="mb-1.5 flex items-end justify-between gap-3">
-                            <div>
-                                <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">
-                                    {{ t("Collections edit") }}
-                                </p>
-                                <h2 class="text-[0.96rem] font-black tracking-[-0.03em] text-slate-950">
-                                    {{ t("Curated Simbazu collections") }}
-                                </h2>
-                            </div>
-                            <Link
-                                v-if="collectionsCtaHref"
-                                :href="collectionsCtaHref"
-                                class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
-                            >
-                                {{ t("Browse all") }}
-                            </Link>
-                        </div>
-
-                        <div class="flex gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <Link
-                                v-for="lane in collectionLanes"
-                                :key="`mobile-${lane.title}`"
-                                :href="lane.href"
-                                class="group block w-[198px] shrink-0 overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]"
-                            >
-                                <div class="aspect-[1.08] overflow-hidden bg-[#f3e9db]">
-                                    <img
-                                        v-if="lane.image"
-                                        :src="lane.image"
-                                        :alt="lane.title"
-                                        class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                        loading="lazy"
-                                    />
-                                </div>
-                                <div class="space-y-1.5 px-3 py-3">
-                                    <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]">
-                                        {{ lane.kicker }}
-                                    </p>
-                                    <p class="text-[0.84rem] font-black leading-4 tracking-[-0.02em] text-slate-950">
-                                        {{ lane.title }}
-                                    </p>
-                                    <p class="text-[0.68rem] leading-4 text-slate-600 line-clamp-3">
-                                        {{ lane.subtitle }}
-                                    </p>
-                                </div>
-                            </Link>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- <BottomNav :items="sectionNavItems" /> -->
-
-                <section
-                    id="categories"
-                    class="rounded-[1.6rem] bg-[#fcfaf7] px-3.5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:rounded-[2rem] sm:px-5 sm:py-5"
+              <div class="flex h-full flex-col justify-end bg-gradient-to-t from-black/50 to-transparent p-6 text-white">
+                <p v-if="slide.badge" class="mb-1 text-xs font-bold uppercase tracking-widest text-yellow-400">
+                  {{ slide.badge }}
+                </p>
+                <p class="text-xl font-black sm:text-3xl">{{ slide.title }}</p>
+                <p v-if="slide.subtitle" class="mt-1 text-sm text-white/80 line-clamp-2">{{ slide.subtitle }}</p>
+                <Link
+                  v-if="slide.primary"
+                  :href="slide.primary.href"
+                  class="mt-4 inline-flex h-10 w-fit items-center rounded-full bg-white px-6 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-gray-100 active:scale-95"
                 >
-                    <CategoryScroll :categories="scrollCategories" />
-                </section>
-
-                <section
-                    id="top-products"
-                    class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-5 sm:py-5"
-                >
-                    <div class="flex items-end justify-between gap-3">
-                        <div>
-                            <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">
-                                {{ t("Shop now") }}
-                            </p>
-                            <h2 class="text-[1.08rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.3rem]">
-                                {{ t("Bestsellers on the homepage") }}
-                            </h2>
-                        </div>
-                        <Link
-                            href="/products"
-                            class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
-                        >
-                            {{ t("Browse all") }}
-                        </Link>
-                    </div>
-
-                    <div class="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-2.5 lg:grid-cols-4">
-                        <ProductCard
-                            v-for="product in topProducts"
-                            :key="`top-${product.id}`"
-                            :product="product"
-                            :currency="currency"
-                        />
-                    </div>
-                </section>
-
-                <section
-                    id="mobile-app"
-                    class="rounded-[1.6rem] bg-[#fff7ed] px-3.5 py-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-5 sm:py-6"
-                >
-                    <div
-                        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                        <div>
-                            <p
-                                class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]"
-                            >
-                                {{ t("Download our app") }}
-                            </p>
-                            <h2
-                                class="mt-2 text-lg font-black tracking-[-0.03em] text-slate-950 sm:text-xl"
-                            >
-                                {{
-                                    t(
-                                        "Download the Simbazu app for faster shopping",
-                                    )
-                                }}
-                            </h2>
-                            <p
-                                class="mt-2 max-w-xl text-[0.92rem] leading-6 text-slate-600 sm:text-sm sm:leading-6"
-                            >
-                                {{
-                                    t(
-                                        "Push clients toward app installs with app-only drops, quicker checkout, and live tracking.",
-                                    )
-                                }}
-                            </p>
-                        </div>
-                        <div class="flex flex-wrap gap-3">
-                            <button
-                                type="button"
-                                class="inline-flex min-h-[44px] items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-slate-800"
-                                @click="openAppDownloadPopup"
-                            >
-                                {{ t("Open download popup") }}
-                            </button>
-                            <button
-                                type="button"
-                                class="inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-bold text-slate-400"
-                                disabled
-                            >
-                                {{ t("Google Play coming soon") }}
-                            </button>
-                        </div>
-                    </div>
-                </section>
-                <section
-                    id="intent"
-                    class="rounded-[1.35rem] bg-white px-3 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[1.6rem] sm:px-4 sm:py-4"
-                >
-                    <div
-                        class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
-                    >
-                        <div>
-                            <p
-                                class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#ff6b35]"
-                            >
-                                {{ t("Intent shortcuts") }}
-                            </p>
-                            <h2
-                                class="text-[1rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.1rem]"
-                            >
-                                {{ t("Tap-to-shop searches") }}
-                            </h2>
-                        </div>
-                        <p
-                            class="max-w-md text-[0.76rem] leading-4 text-slate-500 sm:text-[0.82rem] sm:leading-5"
-                        >
-                            {{
-                                t(
-                                    "Fast search chips for high-intent browsing.",
-                                )
-                            }}
-                        </p>
-                    </div>
-
-                    <div
-                        class="mt-2.5 flex flex-nowrap gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-3 sm:flex-wrap sm:gap-2"
-                    >
-                        <Link
-                            v-for="chip in searchIntentChips"
-                            :key="chip.label"
-                            :href="chip.href"
-                            class="inline-flex min-h-9 shrink-0 items-center rounded-full border border-[#ece0d4] bg-[#fcf7f0] px-3 text-[0.7rem] font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-[#ffcfbc] hover:bg-white sm:min-h-10 sm:px-3.5 sm:text-[0.78rem]"
-                        >
-                            {{ chip.label }}
-                        </Link>
-                    </div>
-                </section>
-
-               
-
-                <!-- <section class="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                    <section
-                        id="signals"
-                        class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-4 sm:py-5"
-                    >
-                        <div class="flex items-end justify-between gap-3">
-                            <div>
-                                <p
-                                    class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]"
-                                >
-                                    {{ t("Trust compressed") }}
-                                </p>
-                                <h2
-                                    class="text-lg font-black tracking-[-0.03em] text-slate-950 sm:text-xl"
-                                >
-                                    {{ t("Fewer doubts, faster taps") }}
-                                </h2>
-                            </div>
-                        </div>
-                        <div
-                            class="mt-3.5 grid gap-2.5 sm:mt-4 sm:gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3"
-                        >
-                            <article
-                                v-for="signal in proofSignals"
-                                :key="signal.title"
-                                class="rounded-[1.2rem] border border-[#f1e6da] bg-[#fffaf4] p-3.5 sm:rounded-[1.4rem] sm:p-4"
-                            >
-                                <p
-                                    class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#c55b24]"
-                                >
-                                    {{ signal.eyebrow }}
-                                </p>
-                                <p
-                                    class="mt-2 text-[0.95rem] font-black tracking-[-0.02em] text-slate-950 sm:text-base"
-                                >
-                                    {{ signal.title }}
-                                </p>
-                                <p
-                                    class="mt-1 text-[0.88rem] leading-5 text-slate-600 sm:text-sm sm:leading-6"
-                                >
-                                    {{ signal.subtitle }}
-                                </p>
-                            </article>
-                        </div>
-                    </section>
-
-                    <section id="flash">
-                        <FlashSale
-                            :deals="flashFeed"
-                            :currency="currency"
-                            :ends-at="flashEndsAt"
-                        />
-                    </section>
-                </section> -->
-
-                <section
-                    id="for-you"
-                    class="rounded-[1.6rem] bg-[#fcfaf7] px-3.5 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:rounded-[2rem] sm:px-5 sm:py-5"
-                >
-                    <ProductGrid
-                        :title="t('For you, not for everyone')"
-                        :subtitle="t('High-density feed')"
-                        :products="feedProducts"
-                        :currency="currency"
-                        :pills="feedPills"
-                    />
-                </section>
-
-                <section
-                    id="trending"
-                    class="grid gap-4 lg:grid-cols-[0.62fr_0.38fr]"
-                >
-                    <section
-                        class="rounded-[1.6rem] bg-white px-3.5 py-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:rounded-[2rem] sm:px-4 sm:py-5"
-                    >
-                        <div class="flex items-end justify-between gap-3">
-                            <div>
-                                <p
-                                    class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#ff6b35]"
-                                >
-                                    {{ t("Trending right now") }}
-                                </p>
-                                <h2
-                                    class="text-[1.08rem] font-black tracking-[-0.03em] text-slate-950 sm:text-[1.3rem]"
-                                >
-                                    {{ t("Trending lanes") }}
-                                </h2>
-                            </div>
-                            <Link
-                                href="/products"
-                                class="shrink-0 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950 sm:text-xs sm:tracking-[0.18em]"
-                            >
-                                {{ t("Browse all") }}
-                            </Link>
-                        </div>
-
-                        <div
-                            class="mt-2.5 grid gap-2 sm:mt-3 sm:gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
-                        >
-                            <Link
-                                v-for="lane in trendLanes"
-                                :key="lane.title"
-                                :href="lane.href"
-                                class="group overflow-hidden rounded-[1.25rem] border border-[#f0e7dc] bg-[#faf5ef] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-                            >
-                                <div
-                                    class="aspect-[1.12] overflow-hidden bg-[#f3e9db]"
-                                >
-                                    <img
-                                        v-if="lane.image"
-                                        :src="lane.image"
-                                        :alt="lane.title"
-                                        class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                        loading="lazy"
-                                    />
-                                </div>
-                                <div
-                                    class="space-y-1.5 px-3 py-3 sm:px-3.5 sm:py-3.5"
-                                >
-                                    <p
-                                        class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-[#c55b24]"
-                                    >
-                                        {{ lane.kicker }}
-                                    </p>
-                                    <p
-                                        class="text-[0.92rem] font-black tracking-[-0.02em] text-slate-950 sm:text-[1rem]"
-                                    >
-                                        {{ lane.title }}
-                                    </p>
-                                    <p
-                                        class="text-[0.74rem] leading-4 text-slate-600 sm:text-[0.8rem] sm:leading-5"
-                                    >
-                                        {{ lane.subtitle }}
-                                    </p>
-                                    <span
-                                        class="inline-flex rounded-full bg-white px-2.5 py-1.5 text-[0.58rem] font-bold uppercase tracking-[0.12em] text-slate-900 ring-1 ring-[#eadfce] sm:text-[0.62rem]"
-                                    >
-                                        {{ lane.cta }}
-                                    </span>
-                                </div>
-                            </Link>
-                        </div>
-                    </section>
-
-                    <section
-                        id="social"
-                        class="rounded-[1.35rem] bg-[#111111] px-3 py-3 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:rounded-[1.6rem] sm:px-3.5 sm:py-4"
-                    >
-                        <p
-                            class="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#facc15]"
-                        >
-                            {{ t("Social proof") }}
-                        </p>
-                        <h2
-                            class="mt-1.5 text-[1.05rem] font-black tracking-[-0.03em] sm:text-[1.25rem]"
-                        >
-                            {{ t("Why shoppers keep going") }}
-                        </h2>
-                        <div class="mt-3 space-y-2 sm:mt-3.5 sm:space-y-2.5">
-                            <article
-                                v-for="block in socialBlocks"
-                                :key="block.title"
-                                class="rounded-[1rem] border border-white/10 bg-white/8 p-3 backdrop-blur sm:rounded-[1.15rem] sm:p-3.5"
-                            >
-                                <p
-                                    class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/50"
-                                >
-                                    {{ block.eyebrow }}
-                                </p>
-                                <p
-                                    class="mt-1.5 text-[0.86rem] font-black sm:text-[0.92rem]"
-                                >
-                                    {{ block.title }}
-                                </p>
-                                <p
-                                    class="mt-1 text-[0.72rem] leading-4 text-white/74 sm:text-[0.78rem] sm:leading-5"
-                                >
-                                    {{ block.subtitle }}
-                                </p>
-                            </article>
-                        </div>
-                    </section>
-                </section>
-
-                <section
-                    v-if="bannerStrip"
-                    class="overflow-hidden rounded-[1.6rem] bg-[#111111] px-3.5 py-4 text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)] sm:rounded-[2rem] sm:px-5 sm:py-5"
-                >
-                    <div
-                        class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-                    >
-                        <div>
-                            <p
-                                class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]"
-                            >
-                                {{ bannerStrip.kicker }}
-                            </p>
-                            <h2
-                                class="mt-2 text-[1.35rem] font-black tracking-[-0.03em] sm:text-2xl"
-                            >
-                                {{ bannerStrip.title }}
-                            </h2>
-                        </div>
-                        <Link
-                            :href="bannerStrip.href"
-                            class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.82rem] font-bold text-white shadow-[0_12px_28px_rgba(255,107,53,0.38)] transition hover:-translate-y-0.5 hover:bg-[#ff5420] sm:min-h-12 sm:px-5 sm:text-sm"
-                        >
-                            {{ bannerStrip.cta }}
-                        </Link>
-                    </div>
-                </section>
+                  {{ slide.primary.label }}
+                </Link>
+              </div>
             </div>
+            <div v-else class="flex aspect-[1.2/1] w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 sm:aspect-[2.5/1]">
+              <div class="text-center">
+                <p class="text-lg font-bold text-slate-400">{{ t('Bienvenue sur Simbazu') }}</p>
+                <Link
+                  href="/products"
+                  class="mt-3 inline-flex h-10 items-center rounded-full bg-slate-900 px-6 text-sm font-bold text-white transition hover:bg-slate-800 active:scale-95"
+                >
+                  {{ t('Commencer') }}
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- <StickyCartBar /> -->
-        <AppDownloadPopup
-            ref="appDownloadPopupRef"
-            :settings="appDownloadSettings"
-            :hero-image="heroImage"
-        />
-    </StorefrontLayout>
+        <button
+          type="button"
+          class="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
+          @click="prevSlide"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button
+          type="button"
+          class="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
+          @click="nextSlide"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+
+        <div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+          <button
+            v-for="(_, idx) in heroSlides"
+            :key="idx"
+            type="button"
+            class="h-2 cursor-pointer rounded-full transition-all"
+            :class="idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/70'"
+            @click="currentSlide = idx"
+          />
+        </div>
+      </div>
+
+      <!-- Category Grid -->
+      <div v-if="scrollCategories.length" class="mt-6 grid grid-cols-4 gap-3 px-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+        <Link
+          v-for="cat in scrollCategories"
+          :key="cat.id"
+          :href="cat.href"
+          class="flex cursor-pointer flex-col items-center gap-1.5 transition active:scale-95"
+        >
+          <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100 shadow-sm ring-1 ring-gray-200/50 transition hover:shadow-md hover:ring-2 hover:ring-slate-300 sm:h-18 sm:w-18">
+            <img
+              v-if="cat.image"
+              :src="cat.image"
+              :alt="cat.name"
+              class="h-full w-full object-cover"
+              loading="lazy"
+            />
+            <span v-else class="text-lg font-bold text-gray-400">{{ cat.short }}</span>
+          </div>
+          <span class="text-center text-[0.6rem] font-semibold text-slate-600 leading-tight line-clamp-2 sm:text-xs">{{ cat.name }}</span>
+        </Link>
+      </div>
+
+      <!-- Flash Deals -->
+      <section v-if="flashFeed.length" class="mt-8 px-4">
+        <div class="mb-4 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-red-500 to-red-600 shadow-sm">
+              <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <div>
+              <h2 class="text-base font-black text-slate-900">{{ t('Bonnes Affaires') }}</h2>
+              <p class="text-xs text-slate-400">{{ t('Offres à durée limitée') }}</p>
+            </div>
+          </div>
+          <Link href="/promotions/flash-sales" class="shrink-0 text-xs font-bold text-red-500 transition hover:text-red-600 cursor-pointer">{{ t('Voir tout') }}</Link>
+        </div>
+        <div class="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link
+            v-for="product in flashFeed"
+            :key="product.id"
+            :href="product.href || `/products/${product.slug}`"
+            class="w-36 shrink-0"
+          >
+            <div class="overflow-hidden rounded-xl bg-gray-100 shadow-sm transition hover:shadow-md">
+              <img
+                v-if="product.media?.[0] || product.image"
+                :src="product.media?.[0] || product.image"
+                :alt="product.name"
+                class="aspect-[0.8] w-full object-cover transition duration-300 hover:scale-105"
+                loading="lazy"
+              />
+              <div v-else class="aspect-[0.8] bg-gradient-to-br from-gray-100 to-gray-200" />
+            </div>
+            <p class="mt-1.5 text-sm font-black text-slate-900">{{ displayPrice(product) }}</p>
+            <p v-if="product.compare_at_price" class="text-xs font-medium text-red-500 line-through">{{ displayCompareAt(product) }}</p>
+          </Link>
+        </div>
+      </section>
+
+      <!-- Featured -->
+      <section v-if="featuredProducts.length" class="mt-8 px-4">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-slate-900">{{ t('En Vedette') }}</h2>
+            <p class="text-xs text-slate-400">{{ t('Nos sélections du moment') }}</p>
+          </div>
+          <Link href="/products" class="shrink-0 text-xs font-bold text-slate-500 transition hover:text-slate-900 cursor-pointer">{{ t('Voir tout') }}</Link>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <ProductCard
+            v-for="product in featuredProducts"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+          />
+        </div>
+      </section>
+
+      <!-- Best Sellers -->
+      <section v-if="bestSellerProducts.length" class="mt-8 px-4">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-slate-900">{{ t('Meilleures Ventes') }}</h2>
+            <p class="text-xs text-slate-400">{{ t('Les plus populaires') }}</p>
+          </div>
+          <Link href="/products?sort=bestsellers" class="shrink-0 text-xs font-bold text-slate-500 transition hover:text-slate-900 cursor-pointer">{{ t('Voir tout') }}</Link>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <ProductCard
+            v-for="product in bestSellerProducts"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+          />
+        </div>
+      </section>
+
+      <!-- Recommended -->
+      <section v-if="recommendedProducts.length" class="mt-8 px-4">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-slate-900">{{ t('Vous Pourriez Aimer') }}</h2>
+            <p class="text-xs text-slate-400">{{ t('Recommandé pour vous') }}</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <ProductCard
+            v-for="product in recommendedProducts"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+          />
+        </div>
+      </section>
+    </div>
+
+    <AppDownloadPopup
+      ref="appDownloadPopupRef"
+      :settings="appDownloadSettings"
+      :hero-image="heroImage"
+    />
+  </StorefrontLayout>
 </template>
 
 <script setup>
-import AppDownloadPopup from "@/Components/homepage/AppDownloadPopup.vue";
-import BottomNav from "@/Components/homepage/BottomNav.vue";
-import CategoryScroll from "@/Components/homepage/CategoryScroll.vue";
-import FlashSale from "@/Components/homepage/FlashSale.vue";
-import HeroBanner from "@/Components/homepage/HeroBanner.vue";
-import ProductCard from "@/Components/homepage/ProductCard.vue";
-import ProductGrid from "@/Components/homepage/ProductGrid.vue";
-import StickyCartBar from "@/Components/homepage/StickyCartBar.vue";
-import {
-    formatCountdown,
-    usePromoNow,
-} from "@/composables/usePromoCountdown.js";
-import { useTranslations } from "@/i18n";
-import StorefrontLayout from "@/Layouts/StorefrontLayout.vue";
-import { Link } from "@inertiajs/vue3";
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import { useTranslations } from '@/i18n'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
+import ProductCard from '@/Components/homepage/ProductCard.vue'
+import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
 
 const props = defineProps({
-    featured: { type: Array, required: true },
-    bestSellers: { type: Array, required: true },
-    recommended: { type: Array, required: true },
-    bestValue: { type: Array, default: () => [] },
-    flashDeals: { type: Array, default: () => [] },
-    flashDealsViewAllHref: { type: String, default: "/promotions/flash-sales" },
-    categoryHighlights: { type: Array, default: () => [] },
-    featuredCategorySections: { type: Array, default: () => [] },
-    categories: { type: Array, default: () => [] },
-    featuredCategories: { type: Array, default: () => [] },
-    currency: { type: String, default: "USD" },
-    homeContent: { type: Object, default: null },
-    banners: { type: Object, default: () => ({}) },
-    seasonalDrops: { type: Array, default: () => [] },
-    seasonalDropsViewAllHref: { type: String, default: "/products" },
-    homeCollections: { type: Array, default: () => [] },
-    homeCollectionsViewAllHref: { type: String, default: "/collections" },
-    homepagePromotions: { type: Array, default: () => [] },
-    popularSearches: { type: Array, default: () => [] },
-});
+  featured: { type: Array, required: true },
+  bestSellers: { type: Array, required: true },
+  recommended: { type: Array, required: true },
+  bestValue: { type: Array, default: () => [] },
+  flashDeals: { type: Array, default: () => [] },
+  flashDealsViewAllHref: { type: String, default: '/promotions/flash-sales' },
+  categoryHighlights: { type: Array, default: () => [] },
+  featuredCategorySections: { type: Array, default: () => [] },
+  categories: { type: Array, default: () => [] },
+  featuredCategories: { type: Array, default: () => [] },
+  currency: { type: String, default: 'USD' },
+  homeContent: { type: Object, default: null },
+  banners: { type: Object, default: () => ({}) },
+  seasonalDrops: { type: Array, default: () => [] },
+  seasonalDropsViewAllHref: { type: String, default: '/products' },
+  homeCollections: { type: Array, default: () => [] },
+  homeCollectionsViewAllHref: { type: String, default: '/collections' },
+  homepagePromotions: { type: Array, default: () => [] },
+  popularSearches: { type: Array, default: () => [] },
+})
 
-const { t } = useTranslations();
-const now = usePromoNow();
-const appDownloadPopupRef = ref(null);
+const { t } = useTranslations()
+const appDownloadPopupRef = ref(null)
+const { currentCurrency, formatCurrency, convertCurrency } = useUserPreferences()
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
+
+const currentSlide = ref(0)
+const activeCategory = ref(null)
+let autoplayTimer = null
+
+const nextSlide = () => {
+  currentSlide.value = (currentSlide.value + 1) % heroSlides.value.length
+}
+
+const prevSlide = () => {
+  currentSlide.value = (currentSlide.value - 1 + heroSlides.value.length) % heroSlides.value.length
+}
+
+const pauseAutoPlay = () => {
+  if (autoplayTimer) {
+    clearInterval(autoplayTimer)
+    autoplayTimer = null
+  }
+}
+
+const resumeAutoPlay = () => {
+  pauseAutoPlay()
+  if (heroSlides.value.length > 1) {
+    autoplayTimer = setInterval(nextSlide, 5000)
+  }
+}
+
+onMounted(() => resumeAutoPlay())
+onBeforeUnmount(() => pauseAutoPlay())
 
 const buildShort = (name) => {
-    const initials = String(name || "")
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join("")
-        .toUpperCase();
-
-    return (
-        initials ||
-        String(name || "")
-            .slice(0, 2)
-            .toUpperCase()
-    );
-};
+  if (!name) return '?'
+  const clean = String(name)
+  const initials = clean.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  return initials || clean.slice(0, 2).toUpperCase()
+}
 
 const dedupeProducts = (items) => {
-    const seen = new Set();
+  const seen = new Set()
+  return items.filter(item => {
+    if (!item?.id || seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
+}
 
-    return items.filter((item) => {
-        if (!item?.id || seen.has(item.id)) return false;
-        seen.add(item.id);
-        return true;
-    });
-};
+const displayPrice = (product) => {
+  const price = product?.feed_price ?? product?.price ?? 0
+  return formatCurrency(price, displayCurrency.value)
+}
 
-const socialProofLabel = (product) => {
-    const reviews = Number(product?.rating_count ?? 0);
-    if (reviews >= 100) return t(":count reviews", { count: reviews });
-    if (reviews >= 10) return t(":count shopper reviews", { count: reviews });
-    if ((product?.rating ?? 0) >= 4.5) return t("Top-rated pick");
-    return t("Popular right now");
-};
-
-const urgencyLabel = (product) => {
-    const stock = Number(product?.variants?.[0]?.stock_on_hand ?? 0);
-    const threshold = Number(product?.variants?.[0]?.low_stock_threshold ?? 0);
-
-    if (stock > 0 && threshold > 0 && stock <= threshold) {
-        return t("Only :count left", { count: stock });
-    }
-
-    if (stock > 0 && stock <= 3) {
-        return t("Only :count left", { count: stock });
-    }
-
-    return "";
-};
-
-const promotionForProduct = (product) => {
-    return (
-        props.homepagePromotions.find((promotion) => {
-            const targets = Array.isArray(promotion?.targets)
-                ? promotion.targets
-                : [];
-            if (targets.length === 0 && promotion?.is_sitewide) return true;
-
-            return targets.some((target) => {
-                if (target?.target_type === "product")
-                    return Number(target.target_id) === Number(product.id);
-                if (target?.target_type === "category")
-                    return (
-                        Number(target.target_id) === Number(product.category_id)
-                    );
-                return false;
-            });
-        }) || null
-    );
-};
-
-const feedSources = computed(() => [
-    {
-        key: "flash",
-        label: t("Flash"),
-        badge: t("Hot deal"),
-        items: props.flashDeals,
-    },
-    {
-        key: "for-you",
-        label: t("For you"),
-        badge: t("For you"),
-        items: props.recommended,
-    },
-    {
-        key: "bestsellers",
-        label: t("Best sellers"),
-        badge: t("Bestseller"),
-        items: props.bestSellers,
-    },
-    {
-        key: "featured",
-        label: t("Trending"),
-        badge: t("Trending"),
-        items: props.featured,
-    },
-    {
-        key: "fresh",
-        label: t("New value"),
-        badge: t("Fresh drop"),
-        items: props.bestValue,
-    },
-]);
-
-const feedProducts = computed(() => {
-    const flattened = feedSources.value.flatMap((source) =>
-        (Array.isArray(source.items) ? source.items : []).map(
-            (product, index) => {
-                const promotion = promotionForProduct(product);
-                const countdown = promotion?.end_at
-                    ? formatCountdown(promotion.end_at, now.value)
-                    : "";
-
-                return {
-                    ...product,
-                    badge: promotion?.badge_text || source.badge,
-                    feedTag: source.key,
-                    sectionLabel: index < 2 ? source.label : "",
-                    proofLabel: socialProofLabel(product),
-                    urgencyLabel: urgencyLabel(product),
-                    anchorLabel:
-                        promotion?.value_type === "percentage"
-                            ? t("Anchor price unlocked")
-                            : promotion?.value_type === "fixed"
-                              ? t("Discount applied at quick add")
-                              : "",
-                    dealEndsAtLabel: countdown || "",
-                };
-            },
-        ),
-    );
-
-    return dedupeProducts(flattened);
-});
-
-const flashFeed = computed(() =>
-    feedProducts.value
-        .filter((product) => product.feedTag === "flash")
-        .slice(0, 8),
-);
-
-const flashEndsAt = computed(() => {
-    const flashPromotions = props.homepagePromotions
-        .filter(
-            (promotion) =>
-                promotion?.type === "flash_sale" && promotion?.end_at,
-        )
-        .map((promotion) => String(promotion.end_at))
-        .sort();
-
-    return flashPromotions[0] || null;
-});
+const displayCompareAt = (product) => {
+  const price = product?.compare_at_price ?? 0
+  return price ? formatCurrency(price, displayCurrency.value) : ''
+}
 
 const heroImage = computed(() => {
-    return (
-        props.banners?.hero?.[0]?.imagePath ||
-        props.banners?.carousel?.[0]?.imagePath ||
-        props.homeCollections?.[0]?.image ||
-        props.seasonalDrops?.[0]?.image ||
-        feedProducts.value[0]?.media?.[0] ||
-        feedProducts.value[0]?.image ||
-        null
-    );
-});
-
-const heroBanner = computed(() => {
-    const firstSlide = Array.isArray(props.homeContent?.hero_slides)
-        ? props.homeContent.hero_slides[0]
-        : null;
-
-    return {
-        kicker: firstSlide?.kicker || t("Today only"),
-        badge: firstSlide?.badge || t("Simbazu deals"),
-        title: firstSlide?.title || t("Hot picks, fast deals, new drops."),
-        subtitle:
-            firstSlide?.subtitle ||
-            t(
-                "Shop Simbazu like a live fashion feed with limited-time offers, quick categories, and daily deal momentum.",
-            ),
-        image: firstSlide?.image || heroImage.value,
-        primary: firstSlide?.primary || {
-            label: t("Shop the feed"),
-            href: "#for-you",
-        },
-        secondary: firstSlide?.secondary || {
-            label: t("Open flash sale"),
-            href: "#flash",
-        },
-        callout: t("Daily Simbazu finds"),
-        calloutBadge: t("Hot"),
-    };
-});
+  return props.banners?.hero?.[0]?.imagePath ||
+    props.banners?.carousel?.[0]?.imagePath ||
+    props.homeCollections?.[0]?.image ||
+    props.seasonalDrops?.[0]?.image ||
+    null
+})
 
 const heroSlides = computed(() => {
-    const cmsSlides = Array.isArray(props.homeContent?.hero_slides)
-        ? props.homeContent.hero_slides
-        : [];
+  const cmsSlides = Array.isArray(props.homeContent?.hero_slides) ? props.homeContent.hero_slides : []
+  if (cmsSlides.length) {
+    return cmsSlides.map((slide, idx) => ({
+      key: slide.id || `slide-${idx}`,
+      badge: slide.badge || '',
+      title: slide.title || t('Nouveautés'),
+      subtitle: slide.subtitle || '',
+      image: slide.image || heroImage.value,
+      primary: slide.primary || null,
+    }))
+  }
 
-    if (cmsSlides.length) {
-        return cmsSlides.map((slide, index) => ({
-            key: slide.id || `cms-slide-${index}`,
-            kicker: slide.kicker || t("Today only"),
-            badge: slide.badge || t("Simbazu deals"),
-            title: slide.title || t("Hot picks, fast deals, new drops."),
-            subtitle:
-                slide.subtitle ||
-                t(
-                    "Shop Simbazu like a live fashion feed with limited-time offers, quick categories, and daily deal momentum.",
-                ),
-            image: slide.image || heroImage.value,
-            primary: slide.primary || {
-                label: t("Shop the feed"),
-                href: "#for-you",
-            },
-            secondary: slide.secondary || {
-                label: t("Open flash sale"),
-                href: "#flash",
-            },
-            calloutBadge: slide.calloutBadge || t("Hot"),
-        }));
-    }
+  const fallbackImg = heroImage.value
+  if (fallbackImg) {
+    return [{
+      key: 'hero-0',
+      badge: t('Promo'),
+      title: t('Découvrez nos produits'),
+      subtitle: '',
+      image: fallbackImg,
+      primary: { label: t('Voir les produits'), href: '/products' },
+    }]
+  }
 
-    return [heroBanner.value];
-});
-
-const heroStats = computed(() => [
-    { label: t("Products surfaced"), value: `${feedProducts.value.length}+` },
-    { label: t("Fast lanes"), value: `${scrollCategories.value.length}` },
-    {
-        label: t("Urgency blocks"),
-        value: flashFeed.value.length ? t("Live") : t("Ready"),
-    },
-]);
-
-const heroChips = computed(() => [
-    { label: t("Flash sale"), target: "flash" },
-    { label: t("For you"), target: "for-you" },
-    { label: t("Trending lanes"), target: "trending" },
-    { label: t("Departments"), target: "categories" },
-]);
-
-const heroHighlights = computed(() => [
-    ...(Array.isArray(props.homeContent?.top_strip)
-        ? props.homeContent.top_strip
-        : []
-    )
-        .slice(0, 2)
-        .map((item) => ({
-            eyebrow: item.icon || t("Signal"),
-            title: item.title || t("Storefront signal"),
-            subtitle: item.subtitle || "",
-        })),
-]);
+  return [{
+    key: 'hero-0',
+    badge: '',
+    title: t('Bienvenue sur Simbazu'),
+    subtitle: '',
+    image: null,
+    primary: { label: t('Commencer'), href: '/products' },
+  }]
+})
 
 const scrollCategories = computed(() => {
-    const source = (
-        props.featuredCategories?.length
-            ? props.featuredCategories
-            : props.categories
-    ).slice(0, 12);
+  const source = (props.featuredCategories?.length ? props.featuredCategories : props.categories).slice(0, 12)
+  return source.map(cat => ({
+    ...cat,
+    name: cat.name,
+    image: cat.image || cat.heroImage || cat.hero_image || null,
+    short: buildShort(cat.name),
+    href: cat.slug ? `/categories/${encodeURIComponent(cat.slug)}` : '/products',
+  }))
+})
 
-    return source.map((category) => ({
-        ...category,
-        name: category.name,
-        image:
-            category.image || category.heroImage || category.hero_image || null,
-        short: buildShort(category.name),
-        href: category.slug
-            ? `/categories/${encodeURIComponent(category.slug)}`
-            : "/products",
-        meta: t(":count items", {
-            count: new Intl.NumberFormat().format(
-                Number(category.count ?? category.product_count ?? 0),
-            ),
-        }),
-    }));
-});
-
-const proofSignals = computed(() => [
-    {
-        eyebrow: t("Impulse"),
-        title: t("Quick add stays close to the product"),
-        subtitle: t(
-            "Users never have to hunt for the CTA after spotting something they want.",
-        ),
-    },
-    ...(Array.isArray(props.homeContent?.top_strip)
-        ? props.homeContent.top_strip
-        : []
-    )
-        .slice(0, 2)
-        .map((item) => ({
-            eyebrow: item.icon || t("Signal"),
-            title: item.title || t("Storefront signal"),
-            subtitle: item.subtitle || "",
-        })),
-]);
-
-const collectionLanes = computed(() => {
-    const collectionDrops = (
-        Array.isArray(props.homeCollections) ? props.homeCollections : []
-    )
-        .slice(0, 6)
-        .map((item) => ({
-            title: item.title,
-            kicker: item.kicker || item.tag || t("Collection"),
-            subtitle:
-                item.subtitle ||
-                t(
-                    "Curated edits built for faster browsing and stronger discovery.",
-                ),
-            image: item.image,
-            href: item.href || "/collections",
-            cta: t("Shop collection"),
-            tag: item.tag || t("Collection"),
-        }));
-
-    if (collectionDrops.length) {
-        return collectionDrops;
-    }
-
-    return (
-        Array.isArray(props.featuredCategorySections)
-            ? props.featuredCategorySections
-            : []
-    )
-        .slice(0, 6)
-        .map((section) => ({
-            title: section.title || section.name || t("Curated edit"),
-            kicker: t("Category edit"),
-            subtitle:
-                section.subtitle ||
-                t(
-                    "A merchandised lane built from top-performing storefront categories.",
-                ),
-            image:
-                section.image ||
-                section.products?.[0]?.media?.[0] ||
-                section.products?.[0]?.image ||
-                null,
-            href:
-                section.href ||
-                (section.slug
-                    ? `/categories/${encodeURIComponent(section.slug)}`
-                    : "/products"),
-            cta: t("Shop edit"),
-            tag: t("Edit"),
-        }));
-});
-
-const collectionsCtaHref = computed(
-    () =>
-        props.homeCollectionsViewAllHref ||
-        collectionLanes.value[0]?.href ||
-        null,
-);
-
-const leftCollectionLanes = computed(() => collectionLanes.value.slice(0, 3));
-const rightCollectionLanes = computed(() => collectionLanes.value.slice(3, 6));
-
-const trendLanes = computed(() => {
-    const seasonal = (
-        Array.isArray(props.seasonalDrops) ? props.seasonalDrops : []
-    ).slice(0, 3);
-
-    if (seasonal.length) {
-        return seasonal.map((item) => ({
-            title: item.title,
-            kicker: item.kicker || item.tag || t("Trend lane"),
-            subtitle:
-                item.subtitle ||
-                t(
-                    "Merchandised for high-intent shoppers chasing the current drop.",
-                ),
-            image: item.image,
-            href: item.href || props.seasonalDropsViewAllHref,
-            cta: t("Enter lane"),
-        }));
-    }
-
-    return scrollCategories.value.slice(0, 3).map((category) => ({
-        title: category.name,
-        kicker: t("Top category"),
-        subtitle: t(
-            "Jump into a curated lane with strong product density and faster discovery.",
-        ),
-        image: category.image,
-        href: category.href,
-        cta: t("Shop now"),
-    }));
-});
-
-const socialBlocks = computed(() => [
-    ...(Array.isArray(props.homeContent?.rail_cards)
-        ? props.homeContent.rail_cards
-        : []
-    )
-        .slice(0, 3)
-        .map((card) => ({
-            eyebrow: card.kicker || t("Storefront lane"),
-            title: card.title || t("Merchandising lane"),
-            subtitle: card.subtitle || "",
-        })),
-    {
-        eyebrow: t("Scroll depth"),
-        title: t("Infinite feed behavior"),
-        subtitle: t(
-            "The product grid reveals progressively, which keeps the page feeling fresh instead of finite.",
-        ),
-    },
-]);
-
-const feedPills = computed(() => [
-    { key: "all", label: t("All") },
-    ...feedSources.value
-        .filter((source) => Array.isArray(source.items) && source.items.length)
-        .map((source) => ({ key: source.key, label: source.label })),
-]);
-
-const sectionNavItems = computed(() => [
-    { id: "categories", label: t("Categories") },
-    { id: "collections-hero", label: t("Collections") },
-    { id: "intent", label: t("Intent") },
-    { id: "flash", label: t("Flash") },
-    { id: "for-you", label: t("For You") },
-    { id: "trending", label: t("Trending") },
-    { id: "social", label: t("Proof") },
-]);
-
-const searchIntentChips = computed(() => {
-    const searchTerms = (
-        Array.isArray(props.popularSearches) ? props.popularSearches : []
-    )
-        .slice(0, 6)
-        .map((item) => ({
-            label: item.query,
-            href: item.href || `/search?q=${encodeURIComponent(item.query)}`,
-        }));
-
-    const categoryTerms = scrollCategories.value
-        .slice(0, 4)
-        .map((category) => ({
-            label: t("Shop :name", { name: category.name }),
-            href: category.href,
-        }));
-
-    const productTerms = feedProducts.value.slice(0, 4).map((product) => ({
-        label: product.name,
-        href: product.href || `/products/${product.slug}`,
-    }));
-
-    return [...searchTerms, ...categoryTerms, ...productTerms].slice(0, 10);
-});
-
-const bannerStrip = computed(() => {
-    const strip = props.homeContent?.banner_strip;
-    if (!strip || typeof strip !== "object") return null;
-
-    return {
-        kicker: strip.kicker || t("Storefront picks"),
-        title: strip.title || t("Explore the storefront"),
-        cta: strip.cta || t("Browse now"),
-        href: strip.href || "/products",
-    };
-});
-
-const topProducts = computed(() => feedProducts.value.slice(0, 8));
+const featuredProducts = computed(() => dedupeProducts(props.featured).slice(0, 8))
+const bestSellerProducts = computed(() => dedupeProducts(props.bestSellers).slice(0, 8))
+const recommendedProducts = computed(() => dedupeProducts(props.recommended).slice(0, 8))
+const flashFeed = computed(() => (Array.isArray(props.flashDeals) ? props.flashDeals : []).slice(0, 8))
 
 const appDownloadSettings = computed(() => {
-    const settings = props.homeContent?.app_download;
-    if (!settings || typeof settings !== "object") {
-        return {
-            enabled: true,
-            badge: t("App-only deals"),
-            title: t("Unlock the full Simbazu app experience"),
-            subtitle: t(
-                "Get faster checkout, real-time order tracking, and mobile-only drops.",
-            ),
-            ios_label: t("Download on the App Store"),
-            ios_href: "",
-            android_label: t("Google Play coming soon"),
-            android_href: "",
-        };
-    }
-
-    return {
-        enabled: settings.enabled ?? true,
-        badge: settings.badge || t("App-only deals"),
-        title:
-            settings.title || t("Unlock the full Simbazu app experience"),
-        subtitle:
-            settings.subtitle ||
-            t(
-                "Get faster checkout, real-time order tracking, and mobile-only drops.",
-            ),
-        ios_label: settings.ios_label || t("Download on the App Store"),
-        ios_href: settings.ios_href || "",
-        android_label:
-            settings.android_label || t("Google Play coming soon"),
-        android_href: settings.android_href || "",
-    };
-});
-
-const scrollToSection = (id) => {
-    if (typeof window === "undefined") return;
-    const element = document.getElementById(id);
-    if (!element) return;
-    element.scrollIntoView({ behavior: "smooth", block: "start" });
-};
+  const settings = props.homeContent?.app_download
+  return {
+    enabled: settings?.enabled ?? true,
+    badge: settings?.badge || t('App-only deals'),
+    title: settings?.title || t('Unlock the full Simbazu app experience'),
+    subtitle: settings?.subtitle || t('Get faster checkout, real-time order tracking, and mobile-only drops.'),
+    ios_label: settings?.ios_label || t('Download on the App Store'),
+    ios_href: settings?.ios_href || '',
+    android_label: settings?.android_label || t('Google Play coming soon'),
+    android_href: settings?.android_href || '',
+  }
+})
 
 const openAppDownloadPopup = () => {
-    appDownloadPopupRef.value?.open?.();
-};
+  appDownloadPopupRef.value?.open?.()
+}
 </script>

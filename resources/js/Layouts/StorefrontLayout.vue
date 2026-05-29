@@ -806,6 +806,8 @@
         <PopupBannerModal v-if="showStorefrontPopups" :banners="popupBanners" />
         <NewsletterPopup v-if="showStorefrontPopups" :settings="newsletterPopupSettings" />
         <CookieConsentBanner />
+        <FloatingWhatsAppCTA />
+        <SocialProofPopup />
     </div>
 </template>
 
@@ -823,6 +825,8 @@ import PopupBannerModal from '@/Components/PopupBannerModal.vue'
 import NewsletterPopup from '@/Components/NewsletterPopup.vue'
 import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
+import FloatingWhatsAppCTA from '@/Components/FloatingWhatsAppCTA.vue'
+import SocialProofPopup from '@/Components/SocialProofPopup.vue'
 import MainNav from '@/Components/navigation/MainNav.vue'
 import MegaMenu from '@/Components/navigation/MegaMenu.vue'
 import { useCategoryStore } from '@/stores/category'
