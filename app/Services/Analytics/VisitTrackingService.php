@@ -17,6 +17,12 @@ class VisitTrackingService
 {
     public const WEBSITE_COOKIE = 'storefront_visitor_id';
 
+    private const ROUTE_NAME_MAX_LENGTH = 120;
+    private const PATH_MAX_LENGTH = 255;
+    private const PAGE_KEY_MAX_LENGTH = 255;
+    private const ENTITY_TYPE_MAX_LENGTH = 40;
+    private const ENTITY_SLUG_MAX_LENGTH = 191;
+
     public function generateVisitorKey(): string
     {
         return (string) Str::uuid();
@@ -135,6 +141,12 @@ class VisitTrackingService
     private function recordVisit(array $data): void
     {
         $now = now();
+        $routeName = $this->truncateText($data['route_name'] ?? null, self::ROUTE_NAME_MAX_LENGTH);
+        $path = $this->truncateText($data['path'] ?? '/', self::PATH_MAX_LENGTH) ?? '/';
+        $pageKey = $this->truncateText($data['page_key'] ?? $path, self::PAGE_KEY_MAX_LENGTH) ?? $path;
+        $entityType = $this->truncateText($data['entity_type'] ?? null, self::ENTITY_TYPE_MAX_LENGTH);
+        $entitySlug = $this->truncateText($data['entity_slug'] ?? null, self::ENTITY_SLUG_MAX_LENGTH);
+
         $session = VisitorSession::query()->firstOrNew([
             'channel' => $data['channel'],
             'visitor_key' => $data['visitor_key'],
@@ -164,12 +176,12 @@ class VisitTrackingService
             'latitude' => $session->exists ? ($session->latitude ?: ($data['latitude'] ?? null)) : ($data['latitude'] ?? null),
             'longitude' => $session->exists ? ($session->longitude ?: ($data['longitude'] ?? null)) : ($data['longitude'] ?? null),
             'user_agent' => $this->truncateText($data['user_agent'] ?? null),
-            'landing_route_name' => $session->exists ? ($session->landing_route_name ?: ($data['route_name'] ?? null)) : ($data['route_name'] ?? null),
-            'landing_path' => $session->exists ? ($session->landing_path ?: ($data['path'] ?? null)) : ($data['path'] ?? null),
-            'landing_page_key' => $session->exists ? ($session->landing_page_key ?: ($data['page_key'] ?? null)) : ($data['page_key'] ?? null),
-            'last_route_name' => $data['route_name'] ?? null,
-            'last_path' => $data['path'] ?? null,
-            'last_page_key' => $data['page_key'] ?? null,
+            'landing_route_name' => $session->exists ? ($session->landing_route_name ?: $routeName) : $routeName,
+            'landing_path' => $session->exists ? ($session->landing_path ?: $path) : $path,
+            'landing_page_key' => $session->exists ? ($session->landing_page_key ?: $pageKey) : $pageKey,
+            'last_route_name' => $routeName,
+            'last_path' => $path,
+            'last_page_key' => $pageKey,
             'hits_count' => max(0, (int) ($session->hits_count ?? 0)) + 1,
             'started_at' => $session->exists ? ($session->started_at ?? $now) : $now,
             'last_seen_at' => $now,
@@ -177,7 +189,6 @@ class VisitTrackingService
         ]);
         $session->save();
 
-        $pageKey = (string) ($data['page_key'] ?? $data['path']);
         $dedupeKey = implode(':', [
             'visitor-event',
             $data['channel'],
@@ -192,12 +203,12 @@ class VisitTrackingService
         VisitorEvent::query()->create([
             'visitor_session_id' => $session->id,
             'event_type' => $data['event_type'],
-            'route_name' => $data['route_name'] ?? null,
-            'path' => (string) $data['path'],
+            'route_name' => $routeName,
+            'path' => $path,
             'page_key' => $pageKey,
-            'entity_type' => $data['entity_type'] ?? null,
+            'entity_type' => $entityType,
             'entity_id' => $data['entity_id'] ?? null,
-            'entity_slug' => $data['entity_slug'] ?? null,
+            'entity_slug' => $entitySlug,
             'referrer' => $this->truncateText($data['referrer'] ?? null, 500),
             'referrer_host' => $data['referrer_host'] ?? null,
             'metadata' => $data['metadata'] ?? null,
