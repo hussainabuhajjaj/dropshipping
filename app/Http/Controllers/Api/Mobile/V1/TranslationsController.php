@@ -10,6 +10,8 @@ use App\Models\MobileTranslation;
 
 class TranslationsController extends ApiController
 {
+    private const MAX_TRANSLATION_KEY_LENGTH = 250;
+
     public function index(Request $request): JsonResponse
     {
         $supported = array_filter(array_map('trim', (array) config('services.translation_locales', ['en', 'fr'])));
@@ -42,15 +44,24 @@ class TranslationsController extends ApiController
         $uniqueKeys = collect($keys)
             ->filter(fn ($key) => is_string($key) && trim($key) !== '')
             ->map(fn ($key) => trim($key))
+            ->filter(fn ($key) => mb_strlen($key) <= self::MAX_TRANSLATION_KEY_LENGTH)
             ->unique()
             ->take(300)
             ->values();
 
-        foreach ($uniqueKeys as $key) {
-            MobileTranslation::firstOrCreate(
-                ['locale' => $locale, 'key' => $key],
-                ['value' => $key]
-            );
+        if ($uniqueKeys->isNotEmpty()) {
+            $now = now();
+            $rows = $uniqueKeys
+                ->map(fn (string $key): array => [
+                    'locale' => $locale,
+                    'key' => $key,
+                    'value' => $key,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])
+                ->all();
+
+            MobileTranslation::query()->insertOrIgnore($rows);
         }
 
         return $this->success(['count' => $uniqueKeys->count()]);
