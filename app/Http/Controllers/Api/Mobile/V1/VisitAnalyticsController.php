@@ -8,6 +8,7 @@ use App\Services\Analytics\VisitAnalyticsService;
 use App\Services\Analytics\VisitTrackingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class VisitAnalyticsController extends ApiController
 {
@@ -19,6 +20,8 @@ class VisitAnalyticsController extends ApiController
 
     public function store(Request $request): JsonResponse
     {
+        $request->merge($this->normalizeVisitPayload($request->all()));
+
         $validated = $request->validate([
             'visitor_key' => ['required', 'string', 'max:100'],
             'screen' => ['required', 'string', 'max:120'],
@@ -35,6 +38,24 @@ class VisitAnalyticsController extends ApiController
         return $this->success([
             'tracked' => true,
         ]);
+    }
+
+    private function normalizeVisitPayload(array $payload): array
+    {
+        foreach ([
+            'visitor_key' => 100,
+            'screen' => 120,
+            'path' => 255,
+            'platform' => 32,
+            'entity_type' => 40,
+            'entity_slug' => 191,
+        ] as $field => $limit) {
+            if (isset($payload[$field]) && is_string($payload[$field])) {
+                $payload[$field] = Str::substr(trim($payload[$field]), 0, $limit);
+            }
+        }
+
+        return $payload;
     }
 
     public function summary(): JsonResponse
