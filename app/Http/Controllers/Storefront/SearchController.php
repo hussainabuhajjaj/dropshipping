@@ -51,25 +51,7 @@ class SearchController extends Controller
         $booleanQuery = $this->toBooleanFullTextQuery($query);
         $useTypesense = config('typesense.enabled');
 
-        // Detect if a combined FULLTEXT index (name + description) exists
-        $hasCombinedFulltext = false;
-        if ($isMySql && $booleanQuery !== null) {
-            try {
-                $indexes = DB::select("SHOW INDEX FROM products WHERE Index_type = 'FULLTEXT'");
-                $indexColumns = [];
-                foreach ($indexes as $index) {
-                    $indexColumns[$index->Key_name][] = $index->Column_name;
-                }
-                foreach ($indexColumns as $columns) {
-                    if (count($columns) >= 2 && in_array('name', $columns, true) && in_array('description', $columns, true)) {
-                        $hasCombinedFulltext = true;
-                        break;
-                    }
-                }
-            } catch (\Throwable $e) {
-                $hasCombinedFulltext = false;
-            }
-        }
+        $hasCombinedFulltext = $this->fulltextWorks();
 
         $baseQuery = Product::query()
             ->where('is_active', true)
@@ -90,6 +72,7 @@ class SearchController extends Controller
                         ->orWhere('name', 'like', '%' . $query . '%')
                         ->orWhere('code', 'like', '%' . $query . '%')
                         ->orWhere('description', 'like', '%' . $query . '%')
+                        ->orWhere('products.searchable_text', 'like', '%' . $query . '%')
                         ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
                             $variantBuilder
                                 ->where('sku', 'like', '%' . $query . '%')
@@ -99,9 +82,11 @@ class SearchController extends Controller
                 ->orderByRaw('CASE 
                     WHEN name LIKE ? THEN 5
                     WHEN name LIKE ? THEN 3
+                    WHEN code = ? THEN 4
                     WHEN description LIKE ? THEN 1
+                    WHEN products.searchable_text LIKE ? THEN 1
                     ELSE 0
-                END DESC', [$query . '%', '%' . $query . '%', '%' . $query . '%'])
+                END + CASE WHEN products.stock_on_hand > 0 THEN 2 ELSE 0 END DESC', [$query . '%', '%' . $query . '%', $query, '%' . $query . '%', '%' . $query . '%'])
                 ->latest();
 
             // Build fulltext query only if the combined index exists
@@ -109,10 +94,10 @@ class SearchController extends Controller
                 $fulltextQuery = clone $baseQuery;
                 $fulltextQuery
                     ->select('products.*')
-                    ->selectRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
+                    ->selectRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
                     ->where(function (Builder $builder) use ($booleanQuery, $query) {
                         $builder
-                            ->whereRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->whereRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
                             ->orWhere('name', 'like', $query . '%')
                             ->orWhere('name', 'like', '%' . $query . '%')
                             ->orWhere('code', 'like', '%' . $query . '%')
@@ -125,6 +110,7 @@ class SearchController extends Controller
                     ->orderByDesc('search_relevance')
                     ->orderByRaw('name LIKE ? DESC', [$query . '%'])
                     ->orderByRaw('name LIKE ? DESC', ['%' . $query . '%'])
+                    ->orderByDesc('products.stock_on_hand')
                     ->latest();
                 $usedFulltext = true;
             }
@@ -132,23 +118,37 @@ class SearchController extends Controller
             $fallbackQuery->latest();
         }
 
+        $suggestion = null;
+
         if ($useTypesense && $query !== '') {
             try {
                 $results = app(TypesenseSearchService::class)
                     ->search($query, $perPage, (int) $request->query('page', 1))
                     ->through(fn (Product $product) => $this->transformProduct($product));
 
-                // If Typesense returns too few results, enrich with DB fallback for better recall
+                // If Typesense returns too few results, enrich with DB fallback
                 if ($results->total() < 3) {
+                    if ($hasCombinedFulltext) {
+                        $results = ($fulltextQuery ?? $fallbackQuery)
+                            ->paginate($perPage)
+                            ->through(fn (Product $product) => $this->transformProduct($product));
+                    }
+                    if ($results->isEmpty() || $results->total() < 3) {
+                        $results = $fallbackQuery
+                            ->paginate($perPage)
+                            ->through(fn (Product $product) => $this->transformProduct($product));
+                    }
+                }
+            } catch (\Throwable $e) {
+                report($e);
+                $results = ($fulltextQuery ?? $fallbackQuery)
+                    ->paginate($perPage)
+                    ->through(fn (Product $product) => $this->transformProduct($product));
+                if ($results->isEmpty()) {
                     $results = $fallbackQuery
                         ->paginate($perPage)
                         ->through(fn (Product $product) => $this->transformProduct($product));
                 }
-            } catch (\Throwable $e) {
-                report($e);
-                $results = $fallbackQuery
-                    ->paginate($perPage)
-                    ->through(fn (Product $product) => $this->transformProduct($product));
             }
         } else {
             try {
@@ -156,16 +156,15 @@ class SearchController extends Controller
                     ->paginate($perPage)
                     ->through(fn (Product $product) => $this->transformProduct($product));
 
-                // If we used FULLTEXT but got zero hits, retry with LIKE fallback for better recall
+                // If FULLTEXT gave zero hits, retry with LIKE fallback for better recall
                 if ($usedFulltext && $results->isEmpty()) {
                     $results = $fallbackQuery
                         ->paginate($perPage)
                         ->through(fn (Product $product) => $this->transformProduct($product));
                 }
             } catch (\Illuminate\Database\QueryException $e) {
-                $errCode = $e->errorInfo[1] ?? null; // MySQL driver error code
+                $errCode = $e->errorInfo[1] ?? null;
                 if ($errCode === 1191 || str_contains($e->getMessage(), '1191')) {
-                    // Retry with fallback LIKE query only
                     $results = $fallbackQuery
                         ->paginate($perPage)
                         ->through(fn (Product $product) => $this->transformProduct($product));
@@ -175,10 +174,19 @@ class SearchController extends Controller
             }
         }
 
+        // If everything returned zero results, try typo-tolerant enhanced search
+        if ($query !== '' && $results->isEmpty()) {
+            $results = $this->performEnhancedSearch($query, $perPage);
+            if ($results->isNotEmpty()) {
+                $suggestion = $this->suggestDidYouMean($query);
+            }
+        }
+
         return Inertia::render('Search', [
             'results' => $results,
             'query' => $query,
             'currency' => 'USD',
+            'suggestion' => $suggestion,
             'filters' => [
                 'q' => $query,
                 'page' => $results->currentPage(),
@@ -242,7 +250,8 @@ class SearchController extends Controller
                                 ->where('name', 'like', $query . '%')
                                 ->orWhere('name', 'like', '%' . $query . '%')
                                 ->orWhere('code', 'like', '%' . $query . '%')
-                                ->orWhere('description', 'like', '%' . $query . '%');
+                                ->orWhere('description', 'like', '%' . $query . '%')
+                                ->orWhere('products.searchable_text', 'like', '%' . $query . '%');
                         })
                         ->orderByRaw('name LIKE ? DESC', [$query . '%'])
                         ->limit($productsLimit - $products->count())
@@ -291,7 +300,8 @@ class SearchController extends Controller
                     ->where('name', 'like', $query . '%')
                     ->orWhere('name', 'like', '%' . $query . '%')
                     ->orWhere('code', 'like', '%' . $query . '%')
-                    ->orWhere('description', 'like', '%' . $query . '%');
+                    ->orWhere('description', 'like', '%' . $query . '%')
+                    ->orWhere('products.searchable_text', 'like', '%' . $query . '%');
             })
             ->orderByRaw('name LIKE ? DESC', [$query . '%'])
             ->limit($productsLimit)
@@ -354,6 +364,10 @@ class SearchController extends Controller
             ->filter(fn (string $term) => mb_strlen($term) >= 2)
             ->unique()
             ->map(function (string $term) {
+                $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $term);
+                return $normalized ?: $term;
+            })
+            ->map(function (string $term) {
                 // Handle exact phrases with quotes
                 if (str_starts_with($term, '"') && str_ends_with($term, '"')) {
                     return trim($term, '"');
@@ -375,54 +389,174 @@ class SearchController extends Controller
     }
     
     /**
-     * Generate typo-tolerant search variations
+     * Generate typo-tolerant search variations (French-friendly)
      */
     private function generateTypoVariations(string $query): array
     {
         $variations = [$query];
-        
-        // Common misspellings and variations
+        $lower = mb_strtolower($query);
+
+        // Accent-free variant (ASCII transliteration)
+        $noAccents = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $query);
+        if ($noAccents !== $query) {
+            $variations[] = $noAccents;
+        }
+
+        // French common misspellings and phonetic equivalents
         $commonTypos = [
-            'shoe' => ['shoes', 'shoo', 'shue'],
-            'shirt' => ['shrt', 'shrit', 'shert'],
-            'pants' => ['pant', 'pents', 'pans'],
-            'dress' => ['dres', 'dreses', 'dres'],
-            // Add more common typos as needed
+            'chaussure' => ['chaussur', 'chausure', 'chausur', 'saussure'],
+            'chaussures' => ['chaussur', 'chausure', 'chausur', 'saussures'],
+            'téléphone' => ['telephone', 'telefone', 'telphone', 'telepone'],
+            'ordinateur' => ['ordinatuer', 'ordi', 'ordinateur'],
+            'ordinateurs' => ['ordinatuers', 'ordis', 'ordinateur'],
+            'écran' => ['ecran', 'ecrant', 'écrant'],
+            'écrans' => ['ecrans', 'ecrant', 'écrant'],
+            'chaussette' => ['chausset', 'chausette', 'chausete'],
+            'chaussettes' => ['chausset', 'chausettes', 'chausetes'],
+            'sac' => ['sac', 'sak', 'sache'],
+            'sacs' => ['sak', 'sacs', 'sache'],
+            'montre' => ['montr', 'montres', 'montré'],
+            'montres' => ['montr', 'montre', 'montré'],
+            'collier' => ['colier', 'colye', 'kollier'],
+            'colliers' => ['coliers', 'colye', 'kolliers'],
+            'chemise' => ['chemis', 'chemises', 'chemize'],
+            'chemises' => ['chemis', 'chemise', 'chemize'],
+            'veste' => ['vest', 'vestes', 'vèste'],
+            'vestes' => ['vest', 'veste', 'vèste'],
+            'pantalon' => ['pantalons', 'pantallon', 'pentalon'],
+            'pantalons' => ['pantalon', 'pantallons', 'pentalons'],
+            'bijou' => ['bijoux', 'bijeau', 'bizou'],
+            'bijoux' => ['bijou', 'bijeaux', 'bizoux'],
+            'robe' => ['robes', 'robbe', 'robes'],
+            'robes' => ['robe', 'robbes', 'robe'],
+            'jupe' => ['jupes', 'jupe', 'juppe'],
+            'jupes' => ['jupe', 'jupes', 'juppes'],
         ];
-        
+
         foreach ($commonTypos as $correct => $typos) {
-            if (str_contains(strtolower($query), $correct)) {
+            if (str_contains($lower, $correct)) {
                 foreach ($typos as $typo) {
-                    $variations[] = str_replace($correct, $typo, $query);
+                    $variations[] = str_ireplace($correct, $typo, $query);
                 }
             }
         }
-        
-        return array_unique($variations);
+
+        // Strip repeated/duplicate words
+        $words = preg_split('/\s+/', $query) ?: [];
+        if (count($words) > 1) {
+            $deduped = implode(' ', array_unique($words));
+            if ($deduped !== $query) {
+                $variations[] = $deduped;
+            }
+        }
+
+        return array_values(array_unique($variations));
     }
-    
+
     /**
-     * Enhanced search with typo tolerance
+     * Enhanced search with typo tolerance — tries variations when original query yields zero results.
      */
-    private function performEnhancedSearch(string $query, int $limit = 5): array
+    private function performEnhancedSearch(string $query, int $perPage = 18): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
-        $results = [];
         $variations = $this->generateTypoVariations($query);
-        
+
         foreach ($variations as $variation) {
-            if (count($results) >= $limit) break;
-            
-            $variationResults = $this->performSearchSuggestion($variation);
-            
-            // Add results that aren't already included
-            foreach ($variationResults['products'] as $product) {
-                if (!in_array($product['id'], array_column($results, 'id')) && count($results) < $limit) {
-                    $results[] = $product;
+            if ($variation === $query) {
+                continue;
+            }
+
+            $booleanQuery = $this->toBooleanFullTextQuery($variation);
+            $hasFulltext = $booleanQuery !== null && $this->fulltextWorks();
+
+            $enhancedQuery = Product::query()
+                ->where('is_active', true)
+                ->with(['images', 'category', 'variants', 'translations'])
+                ->withAvg('reviews', 'rating')
+                ->withCount('reviews');
+
+            if ($hasFulltext) {
+                $enhancedQuery
+                    ->select('products.*')
+                    ->selectRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
+                    ->where(function (Builder $builder) use ($booleanQuery, $variation) {
+                        $builder
+                            ->whereRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->orWhere('name', 'like', $variation . '%')
+                            ->orWhere('name', 'like', '%' . $variation . '%');
+                    })
+                    ->orderByDesc('search_relevance')
+                    ->orderByDesc('products.stock_on_hand')
+                    ->latest();
+            } else {
+                $enhancedQuery
+                    ->where(function (Builder $builder) use ($variation) {
+                        $builder
+                            ->where('name', 'like', $variation . '%')
+                            ->orWhere('name', 'like', '%' . $variation . '%')
+                            ->orWhere('searchable_text', 'like', '%' . $variation . '%');
+                    })
+                    ->orderByRaw('CASE WHEN name LIKE ? THEN 5 ELSE 0 END + CASE WHEN products.stock_on_hand > 0 THEN 2 ELSE 0 END DESC', [$variation . '%'])
+                    ->latest();
+            }
+
+            $results = $enhancedQuery
+                ->paginate($perPage)
+                ->through(fn (Product $product) => $this->transformProduct($product));
+
+            if ($results->isNotEmpty()) {
+                return $results;
+            }
+        }
+
+        return Product::query()
+            ->whereRaw('0 = 1')
+            ->paginate($perPage)
+            ->through(fn (Product $product) => $this->transformProduct($product));
+    }
+
+    /**
+     * Suggest a corrected search query when zero results are found ("Did you mean?").
+     */
+    private function suggestDidYouMean(string $query): ?string
+    {
+        $lower = mb_strtolower(trim($query));
+        if ($lower === '') {
+            return null;
+        }
+
+        // Look up popular searches for nearby matches
+        $popular = Cache::get('popular_searches', collect());
+
+        $best = null;
+        $bestDistance = PHP_INT_MAX;
+
+        foreach ($popular->keys() as $popularQuery) {
+            $distance = levenshtein($lower, mb_strtolower($popularQuery), 1, 2, 2);
+            if ($distance < $bestDistance && $distance <= 3) {
+                $bestDistance = $distance;
+                $best = $popularQuery;
+            }
+        }
+
+        // If no match in popular searches, try matching against product names
+        if ($best === null) {
+            $closeSlugs = Product::query()
+                ->where('is_active', true)
+                ->select('name')
+                ->limit(50)
+                ->get()
+                ->pluck('name');
+
+            foreach ($closeSlugs as $name) {
+                $distance = levenshtein($lower, mb_strtolower($name), 1, 2, 2);
+                if ($distance < $bestDistance && $distance <= 3) {
+                    $bestDistance = $distance;
+                    $best = $name;
                 }
             }
         }
-        
-        return $results;
+
+        return $best;
     }
 
     private function fulltextWorks(): bool
@@ -433,7 +567,7 @@ class SearchController extends Controller
         }
 
         try {
-            DB::select("SELECT 1 FROM products WHERE MATCH(name, description) AGAINST (? IN BOOLEAN MODE) LIMIT 1", ['healthcheck']);
+            DB::select("SELECT 1 FROM products WHERE MATCH(name, description, code, meta_title, searchable_text) AGAINST (? IN BOOLEAN MODE) LIMIT 1", ['healthcheck']);
             $cached = true;
         } catch (\Throwable $e) {
             $cached = false;

@@ -32,6 +32,14 @@ class SearchController extends ApiController
         $productQuery = $this->applyProductSort($productQuery, $sort);
         $products = $productQuery->paginate($perPage);
 
+        // If zero results and query is non-empty, try enhanced search with typo tolerance
+        if ($query && $products->isEmpty()) {
+            $results = $this->performEnhancedSearch($query, $category, $minPrice, $maxPrice, $isMySql, $locale, $perPage, $sort);
+            if ($results->isNotEmpty()) {
+                $products = $results;
+            }
+        }
+
         $categoriesQuery = Category::query()
             ->active()
             ->withCount('products');
@@ -128,10 +136,10 @@ class SearchController extends ApiController
             if ($isMySql && $booleanQuery !== null) {
                 $productQuery
                     ->select('products.*')
-                    ->selectRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
+                    ->selectRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE) as search_relevance', [$booleanQuery])
                     ->where(function (Builder $builder) use ($booleanQuery, $query, $locale) {
                         $builder
-                            ->whereRaw('MATCH(products.name, products.description) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->whereRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
                             ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
                                 $translationBuilder
                                     ->where('locale', $locale)
@@ -156,7 +164,8 @@ class SearchController extends ApiController
                 $productQuery->where(function (Builder $builder) use ($query, $locale) {
                     $builder
                         ->where('name', 'like', '%' . $query . '%')
-                        ->orWhere('description', 'like', '%' . $query . '%');
+                        ->orWhere('description', 'like', '%' . $query . '%')
+                        ->orWhere('products.searchable_text', 'like', '%' . $query . '%');
                     $builder->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
                         $translationBuilder
                             ->where('locale', $locale)
@@ -175,7 +184,8 @@ class SearchController extends ApiController
                                     ->where('name', 'like', '%' . $query . '%');
                             });
                     });
-                });
+                })
+                ->orderByRaw('CASE WHEN products.stock_on_hand > 0 THEN 2 ELSE 0 END DESC');
             }
         }
 
@@ -225,6 +235,12 @@ class SearchController extends ApiController
             ->filter(fn (string $term) => mb_strlen($term) >= 2)
             ->unique()
             ->map(function (string $term) {
+                // Normalize accented characters for FULLTEXT matching
+                $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $term);
+
+                return $normalized ?: $term;
+            })
+            ->map(function (string $term) {
                 // Handle exact phrases with quotes
                 if (str_starts_with($term, '"') && str_ends_with($term, '"')) {
                     return trim($term, '"');
@@ -243,5 +259,82 @@ class SearchController extends ApiController
             ->all();
 
         return $tokens === [] ? null : implode(' ', $tokens);
+    }
+
+    /**
+     * Perform enhanced search with typo tolerance when initial query yields zero results.
+     */
+    private function performEnhancedSearch(
+        string $query,
+        ?string $category,
+        mixed $minPrice,
+        mixed $maxPrice,
+        bool $isMySql,
+        string $locale,
+        int $perPage,
+        string $sort
+    ): \Illuminate\Contracts\Pagination\LengthAwarePaginator {
+        $variations = $this->generateTypoVariations($query);
+
+        foreach ($variations as $variation) {
+            if ($variation === $query) {
+                continue;
+            }
+
+            $booleanQuery = $this->toBooleanFullTextQuery($variation);
+            $productQuery = $this->buildProductQuery($variation, $category, $minPrice, $maxPrice, $isMySql, $booleanQuery, $locale);
+            $productQuery = $this->applyProductSort($productQuery, $sort);
+
+            $results = $productQuery->paginate($perPage);
+
+            if ($results->isNotEmpty()) {
+                return $results;
+            }
+        }
+
+        return Product::query()->whereRaw('0 = 1')->paginate($perPage);
+    }
+
+    /**
+     * Generate typo-tolerant search variations (shared with Storefront SearchController).
+     */
+    private function generateTypoVariations(string $query): array
+    {
+        $variations = [$query];
+        $lower = mb_strtolower($query);
+
+        // Accent-free variant
+        $noAccents = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $query);
+        if ($noAccents !== $query) {
+            $variations[] = $noAccents;
+        }
+
+        $commonTypos = [
+            'chaussure' => ['chaussur', 'chausure', 'chausur', 'saussure'],
+            'chaussures' => ['chaussur', 'chausure', 'chausur', 'saussures'],
+            'téléphone' => ['telephone', 'telefone', 'telphone', 'telepone'],
+            'ordinateur' => ['ordinatuer', 'ordi', 'ordinateur'],
+            'écran' => ['ecran', 'ecrant', 'écrant'],
+            'chaussette' => ['chausset', 'chausette', 'chausete'],
+            'sac' => ['sac', 'sak', 'sache'],
+            'montre' => ['montr', 'montres', 'montré'],
+            'collier' => ['colier', 'colye', 'kollier'],
+            'chemise' => ['chemis', 'chemises', 'chemize'],
+            'veste' => ['vest', 'vestes', 'vèste'],
+            'pantalon' => ['pantalons', 'pantallon', 'pentalon'],
+            'bijou' => ['bijoux', 'bijeau', 'bizou'],
+            'robe' => ['robes', 'robbe', 'robes'],
+            'jupe' => ['jupes', 'jupe', 'juppe'],
+        ];
+
+        foreach ($commonTypos as $correct => $typos) {
+            if (str_contains($lower, $correct)) {
+                foreach ($typos as $typo) {
+                    $variations[] = str_ireplace($correct, $typo, $query);
+                }
+            }
+        }
+
+        return array_values(array_unique($variations));
     }
 }

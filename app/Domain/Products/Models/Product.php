@@ -72,6 +72,7 @@ class Product extends Model
         'translation_status',
         'translated_locales',
         'last_translation_at',
+        'searchable_text',
     ];
 
     protected $casts = [
@@ -344,6 +345,28 @@ SQL;
                 $product->code = self::generateProductCode();
             }
         });
+
+        static::saving(function (self $product): void {
+            $product->searchable_text = $product->generateSearchableText();
+        });
+    }
+
+    public function generateSearchableText(): string
+    {
+        $parts = array_filter([
+            $this->name,
+            $this->description,
+            $this->meta_title,
+            $this->meta_description,
+            $this->code,
+            $this->category?->name,
+        ]);
+
+        $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', implode(' ', $parts));
+        $text = preg_replace('/[^a-zA-Z0-9\s]/', ' ', $text);
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        return mb_strtolower(trim((string) $text));
     }
 
     /**

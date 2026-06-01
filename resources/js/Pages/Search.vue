@@ -1,84 +1,121 @@
 <template>
   <StorefrontLayout>
-    <section class="space-y-6">
-  <div class="space-y-2">
-    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Search') }}</p>
-    <h1 class="text-3xl font-semibold tracking-tight text-slate-900">
-      {{ t('Results for ":query"', { query: query || t('All products') }) }}
-    </h1>
-    <p class="text-sm text-slate-600">
-      {{ t(':count items found', { count: resultsPager.total ?? 0 }) }}
-    </p>
-  </div>
+    <div class="min-h-screen bg-[#f7f3eb] pb-24 sm:pb-28">
+      <div class="mx-auto max-w-7xl space-y-4 px-3 pt-4 sm:space-y-5 sm:px-4 sm:pt-5 lg:px-6">
 
-  <div v-if="results.length" class="space-y-4">
-    <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-3">
-      <ProductCard
-        v-for="product in results"
-        :key="product.id"
-        :product="product"
-        :currency="currency"
-      />
-    </div>
-    <div class="pager-bar">
-      <div class="pager-meta">
-        <p class="pager-strong">
-          {{ t('Showing :from–:to of :total', {
-            from: resultsPager.from ?? 1,
-            to: resultsPager.to ?? results.length,
-            total: resultsPager.total ?? results.length,
-          }) }}
-        </p>
-        <p class="pager-muted">
-          {{ t('Page :page of :pages', { page: resultsPager.current_page ?? 1, pages: resultsPager.last_page ?? 1 }) }}
-        </p>
-      </div>
-      <div class="pager-actions">
-        <button
-          type="button"
-          class="pager-button"
-          :disabled="resultsPager.current_page <= 1"
-          @click="goToPage((resultsPager.current_page ?? 1) - 1)"
-        >
-          ‹ {{ t('Prev') }}
-        </button>
-
-        <div class="pager-pill">
-          <label class="sr-only" :for="`search-page-select`">{{ t('Go to page') }}</label>
-          <select
-            :id="`search-page-select`"
-            :value="resultsPager.current_page ?? 1"
-            @change="goToPage(Number($event.target.value))"
-          >
-            <option v-for="pageNumber in resultsPager.last_page ?? 1" :key="`page-${pageNumber}`" :value="pageNumber">
-              {{ t('Page :page', { page: pageNumber }) }}
-            </option>
-          </select>
+        <!-- Header -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 class="text-xl font-black tracking-[-0.03em] text-slate-900 sm:text-2xl">
+              {{ query ? t(':query', { query }) : t('All products') }}
+            </h1>
+            <p class="mt-0.5 text-sm text-slate-500">
+              {{ t(':count results', { count: resultsPager.total ?? 0 }) }}
+            </p>
+          </div>
+          <div v-if="suggestion" class="flex items-center gap-1.5 rounded-full bg-amber-50 px-4 py-1.5 text-sm">
+            <span class="text-amber-700">{{ t('Did you mean') }}</span>
+            <Link :href="`/search?q=${encodeURIComponent(suggestion)}`" class="font-bold text-amber-600 underline transition hover:text-amber-700">
+              {{ suggestion }}
+            </Link>
+            <span class="text-amber-400">?</span>
+          </div>
         </div>
 
-        <button
-          type="button"
-          class="pager-button"
-          :disabled="! hasMore"
-          @click="goToPage((resultsPager.current_page ?? 1) + 1)"
+        <!-- Toolbar -->
+        <BrowseToolbar
+          :total-count="resultsPager.total ?? 0"
+          :search="query"
+          :sort="currentSort"
+          :sort-options="sortOptions"
+          :show-filter-button="false"
+          search-placeholder="Search products..."
+          @update:search="onSearchChange"
+          @update:sort="onSortChange"
+          @submit-search="onSubmitSearch"
+        />
+
+        <!-- Product grid -->
+        <div v-if="results.length">
+          <div class="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
+            <ProductCard
+              v-for="product in results"
+              :key="product.id"
+              :product="product"
+              :currency="currency"
+            />
+          </div>
+
+          <!-- Pagination -->
+          <div class="mt-6 flex flex-col items-center gap-4 rounded-2xl border border-[#eadfce] bg-white px-4 py-4 shadow-sm sm:flex-row sm:justify-between">
+            <p class="text-xs text-slate-500">
+              {{ t('Showing :from–:to of :total', {
+                from: resultsPager.from ?? 1,
+                to: resultsPager.to ?? results.length,
+                total: resultsPager.total ?? results.length,
+              }) }}
+            </p>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfce] text-slate-600 transition hover:bg-[#fff4e8] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                :disabled="(resultsPager.current_page ?? 1) <= 1"
+                @click="goToPage((resultsPager.current_page ?? 1) - 1)"
+              >
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
+
+              <div class="flex items-center gap-1">
+                <button
+                  v-for="p in visiblePages"
+                  :key="p"
+                  type="button"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition"
+                  :class="p === (resultsPager.current_page ?? 1)
+                    ? 'bg-[#ff6b35] text-white'
+                    : 'text-slate-600 hover:bg-[#fff4e8] hover:text-slate-900'"
+                  @click="goToPage(p)"
+                >
+                  {{ p }}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfce] text-slate-600 transition hover:bg-[#fff4e8] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                :disabled="(resultsPager.current_page ?? 1) >= (resultsPager.last_page ?? 1)"
+                @click="goToPage((resultsPager.current_page ?? 1) + 1)"
+              >
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <EmptyState
+          v-else
+          :eyebrow="t('Search')"
+          :title="t('Nothing matched that search')"
+          :message="t('Try a different keyword or browse curated collections instead.')"
+          class="rounded-2xl border border-[#eadfce] bg-white p-8 shadow-sm"
         >
-          {{ t('Next') }} ›
-        </button>
+          <template #actions>
+            <Link href="/products" class="inline-flex min-h-11 items-center rounded-full bg-[#ff6b35] px-6 text-sm font-bold text-white transition hover:bg-[#e55a2b]">
+              {{ t('Browse catalog') }}
+            </Link>
+            <Link href="/support" class="inline-flex min-h-11 items-center rounded-full border border-[#eadfce] bg-[#fffaf4] px-6 text-sm font-bold text-slate-700 transition hover:border-slate-300">
+              {{ t('Ask for help') }}
+            </Link>
+          </template>
+        </EmptyState>
       </div>
     </div>
-  </div>
-      <EmptyState
-        v-else
-        :eyebrow="t('Search')"
-        :title="t('Nothing matched that search')"
-        :message="t('Try a different keyword or browse curated collections instead.')"
-      >
-        <template #actions>
-          <Link href="/products" class="btn-primary">{{ t('Browse catalog') }}</Link>
-          <Link href="/support" class="btn-ghost">{{ t('Ask for help') }}</Link>
-        </template>
-      </EmptyState>
-    </section>
   </StorefrontLayout>
 </template>
 
@@ -86,8 +123,9 @@
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
+import BrowseToolbar from '@/Components/storefront/BrowseToolbar.vue'
 import { Link, router } from '@inertiajs/vue3'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTranslations } from '@/i18n'
 
 const { t } = useTranslations()
@@ -96,17 +134,49 @@ const props = defineProps({
   results: { type: Object, default: () => ({ data: [] }) },
   query: { type: String, default: '' },
   currency: { type: String, default: 'USD' },
+  suggestion: { type: String, default: null },
 })
+
+const currentSort = ref('relevance')
+
+const sortOptions = [
+  { value: 'relevance', label: t('Relevance') },
+  { value: 'price_asc', label: t('Price: Low to High') },
+  { value: 'price_desc', label: t('Price: High to Low') },
+  { value: 'newest', label: t('Newest') },
+]
 
 const query = computed(() => props.query ?? '')
 const resultsPager = computed(() => props.results ?? { data: [] })
 const results = computed(() => resultsPager.value.data ?? [])
-const hasMore = computed(() => (resultsPager.value.current_page ?? 1) < (resultsPager.value.last_page ?? 1))
+
+const visiblePages = computed(() => {
+  const current = resultsPager.value.current_page ?? 1
+  const last = resultsPager.value.last_page ?? 1
+  const pages = []
+  const start = Math.max(1, current - 2)
+  const end = Math.min(last, current + 2)
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  return pages
+})
 
 const goToPage = (page) => {
-  if (page < 1 || page > (resultsPager.value.last_page ?? 1)) {
-    return
-  }
-  router.get('/search', { q: props.query, page }, { preserveState: true })
+  if (page < 1 || page > (resultsPager.value.last_page ?? 1)) return
+  router.get('/search', { q: props.query, page, sort: currentSort.value }, { preserveState: true, preserveScroll: true })
+}
+
+const onSearchChange = (val) => {
+  router.get('/search', { q: val, sort: currentSort.value }, { preserveState: true, preserveScroll: true })
+}
+
+const onSortChange = (val) => {
+  currentSort.value = val
+  router.get('/search', { q: props.query, sort: val }, { preserveState: true, preserveScroll: true })
+}
+
+const onSubmitSearch = () => {
+  router.get('/search', { q: props.query, sort: currentSort.value }, { preserveScroll: true })
 }
 </script>

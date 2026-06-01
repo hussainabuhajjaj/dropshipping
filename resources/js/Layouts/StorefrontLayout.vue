@@ -164,43 +164,17 @@
                                 {{ t('Search') }}
                             </button>
 
-                            <div
+                            <SearchSuggestions
                                 v-if="showSearchSuggestions"
-                                class="search-suggestions-panel absolute left-0 right-0 top-full mt-2 rounded-xl border border-slate-200 bg-white shadow-xl"
-                            >
-                                <div v-if="isFetchingSuggestions" class="search-suggestion-loading">
-                                    {{ t('Searching...') }}
-                                </div>
-                                <div v-else class="py-1">
-                                    <div v-if="isShowingRecentSuggestions" class="search-suggestions-header">
-                                        <span>{{ t('Recent searches') }}</span>
-                                        <button type="button" class="text-xs text-slate-500 transition hover:text-slate-900" @click="clearRecentSearches">
-                                            {{ t('Clear') }}
-                                        </button>
-                                    </div>
-
-                                    <button
-                                        v-for="(item, index) in searchSuggestionItems"
-                                        :key="`${item.type}-${item.id || item.href}-${index}`"
-                                        type="button"
-                                        class="search-suggestion-item"
-                                        :class="selectedSuggestionIndex === index ? 'search-suggestion-item-active' : ''"
-                                        @mousedown.prevent
-                                        @click="selectSuggestion(item)"
-                                    >
-                                        <img v-if="item.image" :src="item.image" :alt="item.label" class="h-8 w-8 rounded-md object-cover"/>
-                                        <span v-else class="search-suggestion-icon">{{ item.type === 'category' ? 'C' : item.type === 'view_all' ? '↵' : 'P' }}</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block truncate text-sm font-semibold text-slate-900">{{ item.label }}</span>
-                                            <span v-if="item.meta" class="block truncate text-xs text-slate-500">{{ item.meta }}</span>
-                                        </span>
-                                    </button>
-
-                                    <div v-if="showNoSuggestionsState" class="search-no-results">
-                                        {{ t('No quick matches found. Press Enter to see full results.') }}
-                                    </div>
-                                </div>
-                            </div>
+                                :items="searchSuggestionItems"
+                                :is-fetching="isFetchingSuggestions"
+                                :show-no-results="showNoSuggestionsState"
+                                :is-showing-recent="isShowingRecentSuggestions"
+                                :selected-index="selectedSuggestionIndex"
+                                @select="selectSuggestion"
+                                @hover="selectedSuggestionIndex = $event"
+                                @clear-recent="clearRecentSearches"
+                            />
                         </div>
                     </form>
 
@@ -485,43 +459,17 @@
                                   d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
                         </svg>
 
-                        <div
+                        <SearchSuggestions
                             v-if="showSearchSuggestions"
-                            class="search-suggestions-panel absolute left-0 right-0 top-full mt-2 rounded-xl border border-slate-200 bg-white shadow-xl"
-                        >
-                            <div v-if="isFetchingSuggestions" class="search-suggestion-loading">
-                                {{ t('Searching...') }}
-                            </div>
-                            <div v-else class="py-1">
-                                <div v-if="isShowingRecentSuggestions" class="search-suggestions-header">
-                                    <span>{{ t('Recent searches') }}</span>
-                                    <button type="button" class="text-xs text-slate-500 transition hover:text-slate-900" @click="clearRecentSearches">
-                                        {{ t('Clear') }}
-                                    </button>
-                                </div>
-
-                                <button
-                                    v-for="(item, index) in searchSuggestionItems"
-                                    :key="`mobile-${item.type}-${item.id || item.href}-${index}`"
-                                    type="button"
-                                    class="search-suggestion-item"
-                                    :class="selectedSuggestionIndex === index ? 'search-suggestion-item-active' : ''"
-                                    @mousedown.prevent
-                                    @click="selectSuggestion(item)"
-                                >
-                                    <img v-if="item.image" :src="item.image" :alt="item.label" class="h-8 w-8 rounded-md object-cover"/>
-                                    <span v-else class="search-suggestion-icon">{{ item.type === 'category' ? 'C' : item.type === 'view_all' ? '↵' : 'P' }}</span>
-                                    <span class="min-w-0 flex-1">
-                                        <span class="block truncate text-sm font-semibold text-slate-900">{{ item.label }}</span>
-                                        <span v-if="item.meta" class="block truncate text-xs text-slate-500">{{ item.meta }}</span>
-                                    </span>
-                                </button>
-
-                                <div v-if="showNoSuggestionsState" class="search-no-results">
-                                    {{ t('No quick matches found. Press Enter to see full results.') }}
-                                </div>
-                            </div>
-                        </div>
+                            :items="searchSuggestionItems"
+                            :is-fetching="isFetchingSuggestions"
+                            :show-no-results="showNoSuggestionsState"
+                            :is-showing-recent="isShowingRecentSuggestions"
+                            :selected-index="selectedSuggestionIndex"
+                            @select="selectSuggestion"
+                            @hover="selectedSuggestionIndex = $event"
+                            @clear-recent="clearRecentSearches"
+                        />
                     </div>
 
                     <button type="submit"
@@ -827,6 +775,7 @@ import CookieConsentBanner from '@/Components/CookieConsentBanner.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
 import FloatingWhatsAppCTA from '@/Components/FloatingWhatsAppCTA.vue'
 import SocialProofPopup from '@/Components/SocialProofPopup.vue'
+import SearchSuggestions from '@/Components/SearchSuggestions.vue'
 import MainNav from '@/Components/navigation/MainNav.vue'
 import MegaMenu from '@/Components/navigation/MegaMenu.vue'
 import { useCategoryStore } from '@/stores/category'
@@ -1583,7 +1532,7 @@ watch(search, (value) => {
     searchSuggestionsTimer = setTimeout(() => {
         console.log('Timer fired, fetching suggestions for:', query)
         fetchSearchSuggestions(query)
-    }, 220)
+    }, 350)
 })
 
 const submitSearch = () => {
@@ -1936,64 +1885,6 @@ onBeforeUnmount(() => {
 .mobile-app-tab-active {
     color: rgb(15 23 42);
     background: linear-gradient(180deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.08) 100%);
-}
-
-.search-suggestions-panel {
-    z-index: 90;
-    max-height: min(22rem, 60vh);
-    overflow-y: auto;
-}
-
-.search-suggestion-loading {
-    padding: 0.75rem 0.9rem;
-    font-size: 0.8rem;
-    color: rgb(71 85 105);
-}
-
-.search-suggestion-item {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.6rem 0.85rem;
-    text-align: left;
-    transition: background-color 120ms ease;
-}
-
-.search-suggestion-item:hover,
-.search-suggestion-item-active {
-    background: rgb(248 250 252);
-}
-
-.search-suggestions-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.35rem 0.85rem 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(100 116 139);
-}
-
-.search-suggestion-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.5rem;
-    background: rgb(241 245 249);
-    color: rgb(51 65 85);
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.search-no-results {
-    padding: 0.6rem 0.9rem 0.8rem;
-    font-size: 0.75rem;
-    color: rgb(100 116 139);
 }
 
 .mobile-search-wrap,
