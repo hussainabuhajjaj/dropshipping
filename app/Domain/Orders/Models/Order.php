@@ -17,6 +17,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -56,6 +57,7 @@ class Order extends Model
         'cost_calculated_at',
         'tax_total',
         'discount_total',
+        'gift_card_amount',
         'discount_snapshot',
         'discount_source',
         'grand_total',
@@ -206,6 +208,13 @@ class Order extends Model
         return Address::softDeletesAvailable()
             ? $relation->withTrashed()
             : $relation;
+    }
+
+    public function giftCards(): BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\GiftCard::class, 'order_gift_card')
+            ->withPivot('amount_applied')
+            ->withTimestamps();
     }
 
     public function notificationLocale(): string

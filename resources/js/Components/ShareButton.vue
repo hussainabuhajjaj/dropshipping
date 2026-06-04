@@ -106,6 +106,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useTranslations } from '@/i18n'
+import { toastAlert } from '@/utils/toast'
 
 const props = defineProps({
   product: {
@@ -188,13 +189,11 @@ const shareOnTwitter = () => {
 const copyLink = async () => {
   try {
     await navigator.clipboard.writeText(shortUrl.value)
-    // You could add a toast notification here
-    alert(t('Link copied to clipboard'))
+    toastAlert('success', t('Link copied to clipboard'))
   } catch (err) {
-    // Fallback for older browsers
     urlInput.value?.select()
     document.execCommand('copy')
-    alert(t('Link copied to clipboard'))
+    toastAlert('success', t('Link copied to clipboard'))
   }
   isOpen.value = false
 }

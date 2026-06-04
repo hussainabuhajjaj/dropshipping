@@ -42,6 +42,29 @@
                         @address-selected="changeAddress"
                     />
 
+                    <div class="rounded-xl border border-[#eadfce] bg-white p-4">
+                        <h3 class="text-sm font-semibold text-slate-900">{{ t('Voucher / Gift card') }}</h3>
+                        <div v-if="!giftCard && !couponApplied" class="mt-3">
+                            <div class="flex gap-2">
+                                <input v-model="voucherCode" type="text" placeholder="Code promo ou carte cadeau" class="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                                <button type="button" @click="applyVoucher" :disabled="voucherApplying || !voucherCode.trim()" class="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50">
+                                    {{ voucherApplying ? t('Vérification...') : t('Appliquer') }}
+                                </button>
+                            </div>
+                            <p v-if="voucherError" class="mt-1 text-xs text-rose-600">{{ voucherError }}</p>
+                            <p v-if="voucherSuccess" class="mt-1 text-xs text-emerald-600">{{ voucherSuccess }}</p>
+                        </div>
+                        <div v-if="giftCard" class="mt-3 flex items-center justify-between text-sm">
+                            <span class="text-purple-700 font-medium">{{ t('Carte cadeau') }}: {{ giftCard.code }}</span>
+                            <button type="button" @click="removeGiftCard" :disabled="giftCardRemoving" class="text-xs text-rose-600 hover:text-rose-700 underline disabled:opacity-50">
+                                {{ giftCardRemoving ? '...' : t('Retirer') }}
+                            </button>
+                        </div>
+                        <div v-if="couponApplied" class="mt-3 flex items-center justify-between text-sm">
+                            <span class="text-green-700 font-medium">{{ t('Code promo') }}: {{ couponCode }}</span>
+                        </div>
+                    </div>
+
                     <PaymentMethods
                         :amount="final_total"
                         :formatted-amount="displayAmount(final_total)"
@@ -79,7 +102,7 @@
 
 <script setup>
 import {computed, onMounted, ref} from 'vue'
-import {usePage} from '@inertiajs/vue3'
+import {router, usePage} from '@inertiajs/vue3'
 import axios from 'axios'
 import {useTranslations} from '@/i18n'
 import {usePromoNow, formatCountdown} from '@/composables/usePromoCountdown.js'
@@ -100,6 +123,8 @@ const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
 const type = page.props.type
 const summery = page.props.summery
 const final_total = Number(page.props.final_total || 0)
+const giftCard = page.props.gift_card || null
+const giftCardDeduction = Number(page.props.gift_card_deduction || 0)
 const customer = page.props.customer
 const defaultAddress = page.props.defaultAddress
 const userAddresses = page.props.addresses || []
@@ -111,6 +136,58 @@ const displayPromotions = computed(() => summery?.appliedPromotions?.length ? su
 const displayCurrency = computed(() => 'XOF')
 const totalItems = computed(() => items.value.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
 const mobileMoneyProviders = computed(() => paystackConfig.paystackMobileMoney?.XOF || ['orange', 'wave', 'mtn'])
+
+const couponApplied = computed(() => discount.value > 0)
+const couponCode = computed(() => summery?.coupon?.code || '')
+
+const voucherCode = ref('')
+const voucherApplying = ref(false)
+const voucherError = ref('')
+const voucherSuccess = ref('')
+const giftCardRemoving = ref(false)
+
+const applyVoucher = () => {
+    if (!voucherCode.value.trim()) return
+    voucherApplying.value = true
+    voucherError.value = ''
+    voucherSuccess.value = ''
+
+    router.post('/checkout/apply-gift-card', { code: voucherCode.value.trim() }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            voucherApplying.value = false
+            voucherCode.value = ''
+        },
+        onError: (errors) => {
+            if (errors.gift_card) {
+                router.post(route('cart.coupon.apply'), { code: voucherCode.value.trim() }, {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        voucherApplying.value = false
+                        voucherCode.value = ''
+                        voucherSuccess.value = 'Code promo appliqué !'
+                    },
+                    onError: (couponErrors) => {
+                        voucherError.value = couponErrors?.code || 'Code invalide.'
+                        voucherApplying.value = false
+                    },
+                })
+            } else {
+                voucherError.value = errors.gift_card || 'Code invalide.'
+                voucherApplying.value = false
+            }
+        },
+    })
+}
+
+const removeGiftCard = () => {
+    giftCardRemoving.value = true
+    router.post('/checkout/remove-gift-card', {}, {
+        preserveScroll: true,
+        onSuccess: () => { giftCardRemoving.value = false },
+        onError: () => { giftCardRemoving.value = false },
+    })
+}
 
 const selectedMethod = ref(mobileMoneyProviders.value.length ? 'mobile_money' : 'card')
 const selectedMethodName = ref('')

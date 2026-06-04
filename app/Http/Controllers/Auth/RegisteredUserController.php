@@ -64,6 +64,10 @@ class RegisteredUserController extends Controller
 
         Cart::mergeCartAfterLogin($session_id);
 
-        return redirect(route('account.index', absolute: false));
+        $redirectUrl = $request->query('redirect');
+
+        return $redirectUrl
+            ? redirect($redirectUrl)
+            : redirect(route('account.index', absolute: false));
     }
 }

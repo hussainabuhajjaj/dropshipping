@@ -157,6 +157,8 @@ Route::middleware('auth:customer')->group(function () {
 
 Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::post('/checkout/apply-gift-card', [CheckoutController::class, 'applyGiftCard'])->name('checkout.apply-gift-card');
+Route::post('/checkout/remove-gift-card', [CheckoutController::class, 'removeGiftCard'])->name('checkout.remove-gift-card');
 Route::post('/express-checkout/payment-intent', [ExpressCheckoutController::class, 'createPaymentIntent'])->name('express-checkout.payment-intent');
 Route::post('/express-checkout/complete', [ExpressCheckoutController::class, 'complete'])->name('express-checkout.complete');
 Route::get('/payments/paystack/callback', PaystackCallbackController::class)->name('payments.paystack.callback');
@@ -388,5 +390,11 @@ Route::get('/api/preferences', [App\Http\Controllers\Storefront\SessionControlle
 Route::get('aa', function () {
     return view('payment');
 });
+
+// QR Campaign / Reward Claim routes
+Route::get('/r/{slug}', [App\Http\Controllers\Storefront\ClaimController::class, 'show'])->name('rewards.claim');
+Route::post('/r/{slug}/claim', [App\Http\Controllers\Storefront\ClaimController::class, 'claim'])
+    ->middleware('auth:customer')
+    ->name('rewards.claim.submit');
 
 require __DIR__ . '/auth.php';

@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderShipping;
 use App\Models\Payment;
+use App\Models\GiftCard;
 use App\Models\SiteSetting;
 use App\Services\AbandonedCartService;
 use App\Services\Currency\CurrencyConversionService;
@@ -58,6 +59,35 @@ class PaymentController extends Controller
 
         $finalTotal = (float) ($summery['raw']['total'] ?? $summery['total'] ?? 0);
 
+        $appliedGiftCard = session('cart_gift_card');
+        $giftCardDeduction = 0;
+        $giftCardData = null;
+        if ($appliedGiftCard && $customer) {
+            $giftCard = GiftCard::find($appliedGiftCard['id']);
+            if ($giftCard && $giftCard->status === 'active' && (float) $giftCard->balance > 0) {
+                // Convert gift card from USD to XOF (store uses XOF for checkout)
+                $giftCardUsd = (float) $appliedGiftCard['amount'];
+                $giftCardXof = app(CurrencyConversionService::class)->convertAmount($giftCardUsd, 'USD', 'XOF') ?? $giftCardUsd;
+                $giftCardDeduction = min($giftCardXof, max(0, $finalTotal));
+                $giftCardData = [
+                    'code' => $giftCard->code,
+                    'amount' => $giftCardUsd,
+                    'amount_xof' => $giftCardDeduction,
+                ];
+                $finalTotal = max(0, $finalTotal - $giftCardDeduction);
+                // Update summery raw total so PaymentSummary reflects the reduced total
+                $summery['total'] = $finalTotal;
+                $summery['raw']['total'] = $finalTotal;
+                $summery['gift_card'] = [
+                    'code' => $giftCard->code,
+                    'amount' => $giftCardDeduction,
+                    'label' => 'Carte cadeau (' . $giftCard->code . ')',
+                ];
+            } else {
+                session()->forget('cart_gift_card');
+            }
+        }
+
         $defaultAddress = $customer?->addresses()
             ->orderByDesc('is_default')
             ->orderBy('id')
@@ -87,6 +117,8 @@ class PaymentController extends Controller
             'id' => $id,
             'summery' => $summery,
             'final_total' => $finalTotal,
+            'gift_card' => $giftCardData,
+            'gift_card_deduction' => $giftCardDeduction,
             'items' => $items,
             'successMessage' => session('success'),
             'errorMessage' => session('error'),

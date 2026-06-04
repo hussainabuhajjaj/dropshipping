@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Domain\Common\Models\Address;
 use App\Domain\Payments\PaymentService;
 use App\Infrastructure\Payments\Paystack\PaystackService;
+use App\Models\GiftCard;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\Currency\CurrencyConversionService;
@@ -112,6 +113,25 @@ class PaystackController extends Controller
 
             $address = $this->resolveShippingAddress($request, $customer?->id);
 
+            // Handle gift card deduction
+            $giftCardAmount = 0;
+            $appliedGiftCard = session('cart_gift_card');
+            if ($appliedGiftCard && $customer) {
+                $giftCard = GiftCard::find($appliedGiftCard['id']);
+                if ($giftCard && $giftCard->status === 'active' && (float) $giftCard->balance > 0) {
+                    $giftCardAmount = min((float) $appliedGiftCard['amount'], (float) $giftCard->balance, $amount);
+                    if ($giftCardAmount > 0) {
+                        $giftCard->decrement('balance', $giftCardAmount);
+                        if ((float) $giftCard->balance <= 0) {
+                            $giftCard->update(['status' => 'redeemed']);
+                        }
+                    }
+                }
+                session()->forget('cart_gift_card');
+            }
+
+            $orderAmount = max(0, $amount - $giftCardAmount);
+
             // Create order with backend-validated amount
             $order = Order::create([
                 'number' => 'ORD-' . uniqid(),
@@ -120,19 +140,25 @@ class PaystackController extends Controller
                 'status' => 'pending',
                 'payment_status' => 'pending',
                 'currency' => 'XOF',
-                'grand_total' => $amount, // Backend-validated amount from summary.raw.total
+                'grand_total' => $amount,
+                'gift_card_amount' => $giftCardAmount > 0 ? $giftCardAmount : null,
                 'shipping_address_id' => $address->id,
                 'billing_address_id' => $address->id,
             ]);
 
-            // Create payment with backend-validated amount
+            if ($giftCardAmount > 0 && isset($giftCard)) {
+                $order->giftCards()->attach($giftCard->id, ['amount_applied' => $giftCardAmount]);
+            }
+
+            // Create payment with backend-validated amount (after gift card)
             $payment = Payment::create([
                 'order_id' => $order->id,
                 'provider' => 'paystack',
                 'status' => 'pending',
                 'provider_reference' => 'pstk_' . uniqid(),
-                'amount' => $amount, // Backend-validated amount from summary.raw.total
+                'amount' => $orderAmount,
                 'currency' => 'XOF',
+                'meta' => $giftCardAmount > 0 ? ['gift_card_amount' => $giftCardAmount] : null,
             ]);
 
             $result = $this->paystackService->initializeTransaction(

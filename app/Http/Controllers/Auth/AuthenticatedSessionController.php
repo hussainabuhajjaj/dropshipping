@@ -39,7 +39,11 @@ class AuthenticatedSessionController extends Controller
 
         Cart::mergeCartAfterLogin($session_id);
 
-        return redirect()->intended(route('account.index', absolute: false));
+        $redirectUrl = $request->query('redirect');
+
+        return $redirectUrl
+            ? redirect($redirectUrl)
+            : redirect()->intended(route('account.index', absolute: false));
     }
 
     /**

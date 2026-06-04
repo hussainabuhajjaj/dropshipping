@@ -72,6 +72,26 @@
           </section>
 
           <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+            <h2 class="text-sm font-semibold text-slate-900">{{ t('Gift card') }}</h2>
+            <div v-if="!gift_card" class="mt-3">
+              <div class="flex gap-2">
+                <input v-model="giftCardCode" type="text" placeholder="Gift card code" class="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <button type="button" @click="applyGiftCard" :disabled="giftCardApplying || !giftCardCode.trim()" class="shrink-0 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50">
+                  {{ giftCardApplying ? '...' : t('Apply') }}
+                </button>
+              </div>
+              <p v-if="giftCardError" class="mt-1 text-xs text-rose-600">{{ giftCardError }}</p>
+              <p v-if="page.props.flash?.status && !gift_card" class="mt-1 text-xs text-emerald-600">{{ page.props.flash.status }}</p>
+            </div>
+            <div v-else class="mt-3 flex items-center justify-between text-sm">
+              <span class="text-purple-700 font-medium">{{ gift_card.code }} ({{ t('applied') }})</span>
+              <button type="button" @click="removeGiftCard" :disabled="giftCardRemoving" class="text-xs text-rose-600 hover:text-rose-700 underline disabled:opacity-50">
+                {{ giftCardRemoving ? '...' : t('Remove') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
             <label class="flex items-start gap-3 text-sm text-slate-600">
               <input v-model="form.accept_terms" type="checkbox" />
               <span>
@@ -89,54 +109,61 @@
         </form>
         </div>
 
-        <aside class="sticky top-28 space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-          <div class="flex items-center justify-between text-sm">
-            <span>{{ t('Subtotal') }}</span>
-            <span class="font-semibold text-slate-900">{{ displayAmount(subtotal) }}</span>
-          </div>
-          <div v-if="discount > 0" class="flex items-center justify-between text-sm text-green-700">
-            <span>
-              {{ t('Discount') }}
-              <span v-if="discount_label" class="text-xs text-slate-500">({{ discount_label }})</span>
-            </span>
-            <span>- {{ displayAmount(discount) }}</span>
-          </div>
-          <div v-if="displayPromotions.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-slate-700">
-            <div class="mb-1 font-semibold text-amber-700">{{ t('Promotions applied:') }}</div>
-            <ul class="space-y-1">
-              <li v-for="promo in displayPromotions" :key="promo.id">
-                <span class="font-semibold">{{ promo.name }}</span>
-                <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
-                <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
-                <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ displayAmount(Number(promo.value ?? 0)) }}</span>
-                <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
-                  {{ t('Ends in') }} {{ promoCountdown(promo) }}
-                </span>
-              </li>
-            </ul>
-          </div>
-          <div class="flex items-center justify-between text-sm">
-            <span>
-              {{ t('Shipping') }} <span class="text-xs text-slate-400">({{ shipping_method }})</span>
-            </span>
-            <span class="text-slate-600">{{ displayAmount(shipping) }}</span>
-          </div>
-          <p class="text-[0.65rem] text-slate-500">
-            {{ t('Your order may arrive in multiple packages and tracking numbers may update separately.') }}
-          </p>
-          <p class="text-[0.65rem] text-slate-500">
-            {{ t('Shipping costs are estimated until you provide an address; the total will refresh before payment once final rates are fetched.') }}
-          </p>
-          <div class="flex items-center justify-between text-sm">
-            <span>
-              {{ tax_label }} <span v-if="tax_included" class="text-xs text-slate-400">({{ t('included') }})</span>
-            </span>
-            <span class="text-slate-600">{{ displayAmount(tax_total) }}</span>
-          </div>
-          <div class="flex items-center justify-between border-t border-[#eadfce] pt-4 text-base font-semibold text-slate-900">
-            <span>{{ t('Total') }}</span>
-            <span>{{ displayAmount(total) }}</span>
-          </div>
+          <aside class="sticky top-28 space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+            <div class="flex items-center justify-between text-sm">
+              <span>{{ t('Subtotal') }}</span>
+              <span class="font-semibold text-slate-900">{{ displayAmount(subtotal) }}</span>
+            </div>
+            <div v-if="discount > 0" class="flex items-center justify-between text-sm text-green-700">
+              <span>
+                {{ t('Discount') }}
+                <span v-if="discount_label" class="text-xs text-slate-500">({{ discount_label }})</span>
+              </span>
+              <span>- {{ displayAmount(discount) }}</span>
+            </div>
+            <div v-if="displayPromotions.length" class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-slate-700">
+              <div class="mb-1 font-semibold text-amber-700">{{ t('Promotions applied:') }}</div>
+              <ul class="space-y-1">
+                <li v-for="promo in displayPromotions" :key="promo.id">
+                  <span class="font-semibold">{{ promo.name }}</span>
+                  <span class="ml-1">({{ promo.type === 'flash_sale' ? t('Flash Sale') : t('Auto Discount') }})</span>
+                  <span class="ml-2" v-if="promo.value_type === 'percentage'">-{{ promo.value }}%</span>
+                  <span class="ml-2" v-else-if="promo.value_type === 'fixed'">-{{ displayAmount(Number(promo.value ?? 0)) }}</span>
+                  <span v-if="promoCountdown(promo)" class="ml-2 text-[10px] font-semibold text-amber-700">
+                    {{ t('Ends in') }} {{ promoCountdown(promo) }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span>
+                {{ t('Shipping') }} <span class="text-xs text-slate-400">({{ shipping_method }})</span>
+              </span>
+              <span class="text-slate-600">{{ displayAmount(shipping) }}</span>
+            </div>
+            <p class="text-[0.65rem] text-slate-500">
+              {{ t('Your order may arrive in multiple packages and tracking numbers may update separately.') }}
+            </p>
+            <p class="text-[0.65rem] text-slate-500">
+              {{ t('Shipping costs are estimated until you provide an address; the total will refresh before payment once final rates are fetched.') }}
+            </p>
+            <div class="flex items-center justify-between text-sm">
+              <span>
+                {{ tax_label }} <span v-if="tax_included" class="text-xs text-slate-400">({{ t('included') }})</span>
+              </span>
+              <span class="text-slate-600">{{ displayAmount(tax_total) }}</span>
+            </div>
+            <div v-if="gift_card_deduction > 0" class="flex items-center justify-between text-sm text-purple-700">
+              <span>
+                {{ t('Gift card') }}
+                <span v-if="gift_card" class="text-xs text-slate-500">({{ gift_card.code }})</span>
+              </span>
+              <span>- {{ displayAmount(gift_card_deduction) }}</span>
+            </div>
+            <div class="flex items-center justify-between border-t border-[#eadfce] pt-4 text-base font-semibold text-slate-900">
+              <span>{{ t('Total') }}</span>
+              <span>{{ displayAmount(total) }}</span>
+            </div>
           <div class="space-y-4 pt-2">
             <DeliveryTimeline compact />
             <TrustBadges compact />
@@ -151,9 +178,9 @@
 </template>
 
 <script setup>
-import { computed, toRefs, watch } from 'vue'
+import { computed, ref, toRefs, watch } from 'vue'
 import { usePersistentCart } from '@/composables/usePersistentCart.js'
-import { useForm } from '@inertiajs/vue3'
+import { router, useForm, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import ExpressCheckoutButtons from '@/Components/ExpressCheckoutButtons.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
@@ -165,6 +192,7 @@ import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const paystackConfig = window.paystackConfig || {}
+const page = usePage()
 const props = defineProps({
   subtotal: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
@@ -184,6 +212,8 @@ const props = defineProps({
   shipping: { type: Number, default: 0 },
   stripeKey: { type: String, default: '' },
   paystackKey: { type: String, default: '' },
+  gift_card: { type: Object, default: null },
+  gift_card_deduction: { type: Number, default: 0 },
 })
 
 const { t } = useTranslations()
@@ -238,6 +268,34 @@ watch(mobileMoneyProviders, (providers) => {
 }, { immediate: true })
 
 const { cart: persistentCart } = usePersistentCart()
+
+const giftCardCode = ref('')
+const giftCardApplying = ref(false)
+const giftCardRemoving = ref(false)
+const giftCardError = ref('')
+
+const applyGiftCard = () => {
+  if (!giftCardCode.value.trim()) return
+  giftCardApplying.value = true
+  giftCardError.value = ''
+  router.post('/checkout/apply-gift-card', { code: giftCardCode.value.trim() }, {
+    preserveScroll: true,
+    onSuccess: () => { giftCardApplying.value = false },
+    onError: (errors) => {
+      giftCardError.value = errors.gift_card || 'Failed to apply gift card.'
+      giftCardApplying.value = false
+    },
+  })
+}
+
+const removeGiftCard = () => {
+  giftCardRemoving.value = true
+  router.post('/checkout/remove-gift-card', {}, {
+    preserveScroll: true,
+    onSuccess: () => { giftCardRemoving.value = false },
+    onError: () => { giftCardRemoving.value = false },
+  })
+}
 
 // Watch for guest email entry and send abandoned cart
 watch(

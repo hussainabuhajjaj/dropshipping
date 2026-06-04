@@ -160,7 +160,7 @@ return [
     'facebook' => [
         'client_id' => env('FACEBOOK_CLIENT_ID'),
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
-        'redirect' => env('FACEBOOK_REDIRECT_URI'),
+        'redirect' => env('FACEBOOK_REDIRECT_URI', rtrim((string) env('APP_URL', ''), '/') . '/auth/facebook/callback'),
         'pixel_id' => env('FACEBOOK_PIXEL_ID'),
     ],
 
@@ -174,7 +174,13 @@ return [
     'apple' => [
         'client_id' => env('APPLE_CLIENT_ID'),
         'client_secret' => env('APPLE_CLIENT_SECRET'),
-        'redirect' => env('APPLE_REDIRECT_URI'),
+        'redirect' => env('APPLE_REDIRECT_URI', rtrim((string) env('APP_URL', ''), '/') . '/auth/apple/callback'),
+        'key_id' => env('APPLE_KEY_ID'),
+        'team_id' => env('APPLE_TEAM_ID'),
+        'private_key' => env('APPLE_PRIVATE_KEY'),
+        'passphrase' => env('APPLE_PASSPHRASE'),
+        'signer' => env('APPLE_SIGNER'),
+        'jwt_issued_time_leeway' => env('APPLE_JWT_ISSUED_TIME_LEEWAY', 'PT3S'),
     ],
 
     'whatsapp' => [

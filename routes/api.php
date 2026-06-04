@@ -243,6 +243,7 @@ Route::prefix('mobile/v1')->group(function () {
     Route::get('legal/{slug}', [MobileLegalController::class, 'show']);
     Route::get('stories', [MobileStoryController::class, 'index']);
     Route::get('stories/{id}', [MobileStoryController::class, 'show']);
+    Route::get('rewards/claim/{slug}', [MobileRewardsController::class, 'showClaim']);
     Route::post('analytics/visit', [MobileVisitAnalyticsController::class, 'store']);
     Route::post('whatsapp-intents', [WhatsAppOrderIntentController::class, 'store']);
     Route::get('whatsapp-intents/{reference}', [WhatsAppOrderIntentController::class, 'show']);
@@ -308,7 +309,9 @@ Route::prefix('mobile/v1')->group(function () {
         Route::middleware('mobile.email.verified')->group(function () {
             Route::get('rewards/summary', [MobileRewardsController::class, 'summary']);
             Route::get('rewards/vouchers', [MobileRewardsController::class, 'vouchers']);
-            Route::get('wallet', [MobileWalletController::class, 'show']);
+            Route::get('rewards/claim/{slug}', [MobileRewardsController::class, 'showClaim']);
+    Route::post('rewards/claim/{slug}', [MobileRewardsController::class, 'claim']);
+    Route::get('wallet', [MobileWalletController::class, 'show']);
 
             // Legacy Korapay routes (for backward compatibility)
             Route::post('payments/korapay/init', [MobilePaymentController::class, 'init']);

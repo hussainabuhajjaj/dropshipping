@@ -117,6 +117,13 @@ export function usePaymentSummary(summaryData) {
                     type: 'tax',
                     included: data.tax_included
                 },
+                ...(data.gift_card ? [{
+                    id: 'gift_card',
+                    label: data.gift_card.label || 'Gift card',
+                    amount: -data.gift_card.amount,
+                    formatted: `-${formatPrice(data.gift_card.amount, data.currency)}`,
+                    type: 'gift_card'
+                }] : []),
                 {
                     id: 'total',
                     label: 'Total',

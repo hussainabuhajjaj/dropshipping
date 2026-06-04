@@ -37,6 +37,12 @@ class SocialAuthController extends Controller
             return $isMobile ? $this->mobileErrorRedirect('Social sign-in is not configured yet.') : $this->missingProvider();
         }
 
+        $redirectAfter = $request->query('redirect');
+
+        if ($redirectAfter) {
+            session(['social_login_redirect' => $redirectAfter]);
+        }
+
         $driver = \Laravel\Socialite\Facades\Socialite::driver($provider);
 
         if ($isMobile) {
@@ -76,6 +82,14 @@ class SocialAuthController extends Controller
             }
 
             Auth::guard('customer')->login($customer, true);
+
+            $redirectUrl = session('social_login_redirect');
+
+            if ($redirectUrl && ! str_contains($redirectUrl, 'auth/')) {
+                session()->forget('social_login_redirect');
+
+                return redirect()->to($redirectUrl);
+            }
 
             return redirect()->intended(route('account.index', absolute: false));
         } catch (\Throwable $exception) {

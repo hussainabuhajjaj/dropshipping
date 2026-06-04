@@ -16,6 +16,7 @@ use App\Models\OrderShipping;
 use App\Models\Payment;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
+use App\Models\GiftCard;
 use App\Models\PromotionUsage;
 use App\Models\SiteSetting;
 use App\Domain\Orders\Models\OrderAuditLog;
@@ -116,6 +117,10 @@ class CheckoutController extends Controller
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shipping - $discount + ($taxIncluded ? 0 : $taxTotal);
 
+        $appliedGiftCard = $this->getAppliedGiftCard();
+        $giftCardDeduction = $appliedGiftCard ? min($appliedGiftCard['amount'], max(0, $total)) : 0;
+        $totalAfterGiftCard = max(0, $total - $giftCardDeduction);
+
         $promotionEngine = app(PromotionEngine::class);
         $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
         $locale = app()->getLocale();
@@ -153,7 +158,13 @@ class CheckoutController extends Controller
             'tax_total' => $taxTotal,
             'tax_label' => $settings?->tax_label ?? 'Tax',
             'tax_included' => $taxIncluded,
-            'total' => $total,
+            'total' => $totalAfterGiftCard,
+            'gift_card' => $appliedGiftCard ? [
+                'code' => $appliedGiftCard['code'],
+                'amount' => $giftCardDeduction,
+                'remaining_balance' => $appliedGiftCard['remaining_balance'],
+            ] : null,
+            'gift_card_deduction' => $giftCardDeduction,
             'currency' => app(\App\Services\User\UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF',
             'shipping_method' => $selectedMethod,
             'stripeKey' => config('services.stripe.key'),
@@ -239,6 +250,10 @@ class CheckoutController extends Controller
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
+
+        $appliedGiftCard = $this->getAppliedGiftCard();
+        $giftCardDeduction = $appliedGiftCard ? min($appliedGiftCard['amount'], max(0, $grandTotal)) : 0;
+        $amountDue = max(0, $grandTotal - $giftCardDeduction);
 
         $cartContext = $this->buildCartContext($cart_items, $subtotal);
         $promotionEngine = app(PromotionEngine::class);
@@ -401,7 +416,7 @@ class CheckoutController extends Controller
                 'provider' => $paymentProvider,
                 'status' => 'pending',
                 'provider_reference' => null,
-                'amount' => $order->grand_total,
+                'amount' => $amountDue,
                 'currency' => $order->currency,
                 'paid_at' => null,
                 'meta' => [
@@ -409,8 +424,23 @@ class CheckoutController extends Controller
                     'payment_method' => $validatedData['payment_method'],
                     'mobile_money_provider' => $validatedData['mobile_money_provider'] ?? null,
                     'coupon_code' => $coupon['code'] ?? null,
+                    'gift_card_amount' => $giftCardDeduction,
                 ],
             ]);
+
+            if ($giftCardDeduction > 0) {
+                $giftCard = GiftCard::find($appliedGiftCard['id']);
+                if ($giftCard) {
+                    $giftCard->decrement('balance', $giftCardDeduction);
+                    if ((float) $giftCard->balance <= 0) {
+                        $giftCard->update(['status' => 'redeemed']);
+                    }
+                    $order->giftCards()->attach($giftCard->id, ['amount_applied' => $giftCardDeduction]);
+                    $order->update(['gift_card_amount' => $giftCardDeduction]);
+                }
+            }
+
+            session()->forget('cart_gift_card');
 
             event(new OrderPlaced($order));
 
@@ -847,5 +877,93 @@ class CheckoutController extends Controller
 
         // If no local stock data, assume stock is available
         return true;
+    }
+
+    private function getAppliedGiftCard(): ?array
+    {
+        return session('cart_gift_card');
+    }
+
+    public function applyGiftCard(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'code' => 'required|string|max:255',
+        ]);
+
+        $customer = auth('customer')->user();
+        if (!$customer) {
+            return back()->withErrors(['gift_card' => 'Please sign in to use a gift card.']);
+        }
+
+        $giftCard = GiftCard::query()
+            ->where('code', $data['code'])
+            ->active()
+            ->forCustomer($customer->id)
+            ->first();
+
+        if (!$giftCard) {
+            session()->forget('cart_gift_card');
+            return back()->withErrors(['gift_card' => 'Gift card not found, inactive, expired, or not assigned to you.']);
+        }
+
+        $subtotal = $this->getCartWithItems();
+        if ($subtotal instanceof RedirectResponse) {
+            return $subtotal;
+        }
+        $cart = $subtotal['cart'];
+        $subtotalAmount = $cart->subTotal();
+
+        $amountToApply = min((float) $giftCard->balance, $subtotalAmount);
+
+        session(['cart_gift_card' => [
+            'id' => $giftCard->id,
+            'code' => $giftCard->code,
+            'amount' => $amountToApply,
+            'remaining_balance' => (float) $giftCard->balance - $amountToApply,
+        ]]);
+
+        return back()->with('status', __('Gift card :code applied (:amount).', [
+            'code' => $giftCard->code,
+            'amount' => number_format($amountToApply, 2),
+        ]));
+    }
+
+    public function removeGiftCard(): RedirectResponse
+    {
+        session()->forget('cart_gift_card');
+        return back()->with('status', __('Gift card removed.'));
+    }
+
+    private function processGiftCardDeduction(Order $order, float $grandTotal): float
+    {
+        $appliedGiftCard = $this->getAppliedGiftCard();
+        if (!$appliedGiftCard) {
+            return $grandTotal;
+        }
+
+        $giftCard = GiftCard::find($appliedGiftCard['id']);
+        if (!$giftCard || $giftCard->status !== 'active' || (float) $giftCard->balance <= 0) {
+            session()->forget('cart_gift_card');
+            return $grandTotal;
+        }
+
+        $amountToDeduct = min($appliedGiftCard['amount'], (float) $giftCard->balance, $grandTotal);
+
+        if ($amountToDeduct <= 0) {
+            session()->forget('cart_gift_card');
+            return $grandTotal;
+        }
+
+        $giftCard->decrement('balance', $amountToDeduct);
+        if ((float) $giftCard->balance <= 0) {
+            $giftCard->update(['status' => 'redeemed']);
+        }
+
+        $order->giftCards()->attach($giftCard->id, ['amount_applied' => $amountToDeduct]);
+        $order->update(['gift_card_amount' => $amountToDeduct]);
+
+        session()->forget('cart_gift_card');
+
+        return max(0, $grandTotal - $amountToDeduct);
     }
 }

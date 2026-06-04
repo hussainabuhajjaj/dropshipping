@@ -89,6 +89,10 @@ class TrackStorefrontVisit
             return false;
         }
 
+        if ($this->isBot($request)) {
+            return false;
+        }
+
         // Visitor tracking is treated as "necessary/essential" for storefront health metrics and fraud/debugging.
         // This keeps visit counters working even when the user chooses "Essential only" (analytics = false).
         if (! $this->hasNecessaryConsent($request) && ! $this->shouldTrackWithoutConsent($request)) {
@@ -114,6 +118,49 @@ class TrackStorefrontVisit
         }
 
         return true;
+    }
+
+    private function isBot(Request $request): bool
+    {
+        $userAgent = mb_strtolower((string) $request->userAgent());
+        if ($userAgent === '') {
+            return true;
+        }
+
+        $botPatterns = [
+            'googlebot', 'google-inspectiontool', 'google-sites',
+            'bingbot', 'msnbot', 'ms Search',
+            'slurp', 'duckduckbot', 'baiduspider', 'yandexbot', 'yandeximages',
+            'sogou', 'facebookexternalhit', 'facebot',
+            'twitterbot', 'slackbot', 'discordbot', 'telegrambot',
+            'semrushbot', 'ahrefsbot', 'majestic-12', 'mj12bot',
+            'dotbot', 'rogerbot', 'exabot', 'gigabot',
+            'adsbot', 'adsbot-google',
+            'applebot',
+            'bytespider', 'claude-web', 'gptbot', 'ccbot', 'anthropic-ai',
+            'yeti', 'seznambot',
+            'bingpreview',
+            'google-site-verification',
+            'pingdom', 'uptimerobot', 'newrelicpinger',
+            'datadog', 'statuscake',
+            'whatsapp', 'skypeuripreview',
+            'curl', 'python-requests', 'python-urllib', 'wget',
+            'scrapy', 'go-http-client', 'okhttp',
+            'archive.org_bot', 'ia_archiver',
+            'headless', 'phantomjs', 'puppeteer',
+            'lighthouse', 'pagespeed',
+            'chrome-lighthouse',
+            'axios', 'aiohttp',
+            'netcraftsurvey', 'zgrab',
+        ];
+
+        foreach ($botPatterns as $pattern) {
+            if (str_contains($userAgent, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isTrackableResponse(Response $response): bool
