@@ -6,11 +6,13 @@ namespace App\Http\Controllers\Api\Mobile\V1;
 
 use App\Http\Resources\Mobile\V1\ProductResource;
 use App\Models\Category;
+use App\Models\Product;
 use App\Models\StorefrontCollection;
 use App\Services\Storefront\MobileCollectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CollectionController extends ApiController
@@ -45,6 +47,10 @@ class CollectionController extends ApiController
         $requestFilters = $this->requestFilters($request);
 
         if (! $collection) {
+            if ($slug === 'flash-sale') {
+                return $this->flashSaleResponse($request, $locale, $requestFilters);
+            }
+
             $fallbackCategorySlug = $this->legacyCollectionCategorySlug($slug);
 
             if ($fallbackCategorySlug) {
@@ -96,6 +102,75 @@ class CollectionController extends ApiController
                 'collection' => $this->transformDetail($collection, $locale),
                 'products' => $productPayload,
                 'filters' => $filters,
+            ],
+            null,
+            200,
+            [
+                'currentPage' => $page,
+                'lastPage' => $lastPage,
+                'perPage' => $perPage,
+                'total' => $total,
+            ]
+        );
+    }
+
+    private function flashSaleResponse(Request $request, string $locale, array $requestFilters): JsonResponse
+    {
+        $perPage = min((int) ($request->query('per_page', 18)), 50);
+        $page = max((int) ($request->query('page', 1)), 1);
+
+        $query = Product::query()
+            ->where('is_active', true)
+            ->where('is_visible', true)
+            ->whereColumn('compare_at_price', '>', 'price');
+
+        $sort = $requestFilters['sort'] ?? null;
+
+        if ($sort === 'price_asc') {
+            $query->orderBy('price');
+        } elseif ($sort === 'price_desc') {
+            $query->orderByDesc('price');
+        } elseif ($sort === 'rating') {
+            $query->orderByDesc('rating');
+        } elseif ($sort === 'popularity') {
+            $query->orderByDesc('sales_count');
+        } else {
+            $query->orderByDesc(\DB::raw('CAST(compare_at_price AS SIGNED) - CAST(price AS SIGNED)'))->orderByDesc('sales_count');
+        }
+
+        $total = $query->count();
+        $lastPage = max((int) ceil($total / $perPage), 1);
+        $items = $query->forPage($page, $perPage)->get();
+        $productPayload = ProductResource::collection($items)->resolve();
+
+        return $this->success(
+            [
+                'collection' => [
+                    'id' => 'flash-sale',
+                    'slug' => 'flash-sale',
+                    'type' => 'collection',
+                    'title' => __('Flash Sale'),
+                    'description' => __('Limited-time discounts updated daily.'),
+                    'hero_kicker' => __('Flash Sale'),
+                    'hero_subtitle' => null,
+                    'hero_image' => null,
+                    'hero_cta_label' => null,
+                    'hero_cta_url' => null,
+                    'content' => null,
+                    'seo_title' => __('Flash Sale - Limited Time Offers'),
+                    'seo_description' => __('Shop limited-time flash sale deals with discounts on top products.'),
+                    'starts_at' => null,
+                    'ends_at' => null,
+                ],
+                'products' => $productPayload,
+                'filters' => [
+                    'price_range' => [
+                        'min' => null,
+                        'max' => null,
+                    ],
+                    'attributeDefs' => [],
+                    'brands' => [],
+                ],
             ],
             null,
             200,
