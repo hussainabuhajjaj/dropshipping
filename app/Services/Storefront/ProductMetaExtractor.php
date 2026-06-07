@@ -51,18 +51,36 @@ class ProductMetaExtractor
         return $this->finalize($state);
     }
 
-    public function extractFromQuery(Builder $query, int $chunkSize = 250): array
+    public function extractFromQuery(Builder $query, int $chunkSize = 250, int $maxProducts = 2000): array
     {
         $state = $this->emptyState();
 
-        (clone $query)
-            ->select(['id', 'attributes'])
+        $ids = (clone $query)
+            ->select(['id'])
             ->orderBy('id')
-            ->chunkById($chunkSize, function ($products) use (&$state): void {
-                foreach ($products as $product) {
-                    $this->ingestProduct($state, $product);
-                }
-            });
+            ->limit($maxProducts)
+            ->pluck('id')
+            ->all();
+
+        if ($ids === []) {
+            return $this->finalize($state);
+        }
+
+        $idChunks = array_chunk($ids, $chunkSize);
+        foreach ($idChunks as $chunk) {
+            if (memory_get_usage(true) > 80 * 1024 * 1024) {
+                break;
+            }
+
+            $products = Product::query()
+                ->select(['id', 'attributes'])
+                ->whereIn('id', $chunk)
+                ->get();
+
+            foreach ($products as $product) {
+                $this->ingestProduct($state, $product);
+            }
+        }
 
         return $this->finalize($state);
     }
