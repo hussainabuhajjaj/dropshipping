@@ -432,7 +432,7 @@ class StorefrontCollection extends Model
         }
 
         $minRating = Arr::get($rules, 'min_rating');
-        if ($minRating !== null && is_numeric($minRating)) {
+        if ($minRating !== null && is_numeric($minRating) && $withRelations) {
             $query->having('reviews_avg_rating', '>=', (float) $minRating);
         }
 

@@ -72,9 +72,20 @@ class CollectionController extends ApiController
         $page = max((int) ($request->query('page', 1)), 1);
         $items = collect();
         $productPayload = [];
-        $filters = $collection->availableFilters($locale);
+        $filters = [];
         $total = 0;
         $lastPage = 1;
+
+        try {
+            $filters = $collection->availableFilters($locale);
+        } catch (\Throwable $exception) {
+            Log::error('Mobile collection filters failed', [
+                'collection_id' => $collection->id,
+                'collection_slug' => $collection->slug,
+                'locale' => $locale,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         try {
             $resolvedProducts = $collection->paginateFilteredProducts(
@@ -121,22 +132,21 @@ class CollectionController extends ApiController
 
         $query = Product::query()
             ->where('is_active', true)
-            ->where('is_visible', true)
-            ->whereColumn('compare_at_price', '>', 'price');
+            ->where('status', 'published')
+            ->whereHas('variants', function ($q) {
+                $q->whereColumn('compare_at_price', '>', 'price');
+            })
+            ->with(['variants' => function ($q) {
+                $q->whereColumn('compare_at_price', '>', 'price')
+                  ->orderByDesc(\DB::raw('CAST(compare_at_price AS SIGNED) - CAST(price AS SIGNED)'));
+            }]);
 
-        $sort = $requestFilters['sort'] ?? null;
-
-        if ($sort === 'price_asc') {
-            $query->orderBy('price');
-        } elseif ($sort === 'price_desc') {
-            $query->orderByDesc('price');
-        } elseif ($sort === 'rating') {
-            $query->orderByDesc('rating');
-        } elseif ($sort === 'popularity') {
-            $query->orderByDesc('sales_count');
-        } else {
-            $query->orderByDesc(\DB::raw('CAST(compare_at_price AS SIGNED) - CAST(price AS SIGNED)'))->orderByDesc('sales_count');
-        }
+        $query->orderByDesc(
+            Product::query()->selectRaw('COALESCE(MAX(CAST(variants.compare_at_price AS SIGNED) - CAST(variants.price AS SIGNED)), 0)')
+                ->from('variants')
+                ->whereColumn('variants.product_id', 'products.id')
+                ->limit(1)
+        );
 
         $total = $query->count();
         $lastPage = max((int) ceil($total / $perPage), 1);
