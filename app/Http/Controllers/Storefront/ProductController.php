@@ -284,6 +284,10 @@ class ProductController extends Controller
             ->relatedProducts($product, 4)
             ->map(fn (Product $relatedProduct) => $this->transformProduct($relatedProduct));
 
+        $bundleProducts = $recommendationService
+            ->frequentlyBoughtTogether($product, 3)
+            ->map(fn (Product $bundleProduct) => $this->transformProduct($bundleProduct));
+
         $customer = Auth::guard('customer')->user();
         $reviewableItems = [];
 
@@ -353,6 +357,7 @@ class ProductController extends Controller
             'breadcrumbs' => $this->buildProductBreadcrumbs($product, $locale),
             'reviewHighlights' => $reviewHighlights,
             'relatedProducts' => $related,
+            'bundleProducts' => $bundleProducts,
             'personalizedProducts' => $personalized,
             'reviewableItems' => $reviewableItems,
         ]);

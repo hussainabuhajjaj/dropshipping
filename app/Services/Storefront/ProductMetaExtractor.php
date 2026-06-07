@@ -51,7 +51,7 @@ class ProductMetaExtractor
         return $this->finalize($state);
     }
 
-    public function extractFromQuery(Builder $query, int $chunkSize = 250, int $maxProducts = 2000): array
+    public function extractFromQuery(Builder $query, int $chunkSize = 250, int $maxProducts = 1500): array
     {
         $state = $this->emptyState();
 
@@ -67,8 +67,8 @@ class ProductMetaExtractor
         }
 
         $idChunks = array_chunk($ids, $chunkSize);
-        foreach ($idChunks as $chunk) {
-            if (memory_get_usage(true) > 80 * 1024 * 1024) {
+        foreach ($idChunks as $index => $chunk) {
+            if (memory_get_usage(true) > 60 * 1024 * 1024) {
                 break;
             }
 
@@ -79,6 +79,11 @@ class ProductMetaExtractor
 
             foreach ($products as $product) {
                 $this->ingestProduct($state, $product);
+            }
+
+            unset($products);
+            if ($index % 2 === 0) {
+                gc_collect_cycles();
             }
         }
 

@@ -5,6 +5,12 @@
                 <h1 class="text-3xl font-bold text-slate-900">{{ t('Payment') }}</h1>
             </div>
 
+            <FreeShippingBar
+                :threshold="freeShippingThreshold"
+                :subtotal="summery?.subtotal || 0"
+                :currency="displayCurrency"
+            />
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div class="lg:col-span-2 space-y-6">
                     <OrderSummary
@@ -94,6 +100,7 @@
                         :selected-method="selectedMethod"
                         :method-name="selectedMethodName"
                     />
+                    <CheckoutTrustBadges />
                 </div>
             </div>
         </div>
@@ -111,6 +118,8 @@ import OrderSummary from '@/Components/payment/OrderSummary.vue'
 import PaymentMethods from '@/Components/payment/PaymentMethods.vue'
 import PaymentSummary from '@/Components/payment/PaymentSummary.vue'
 import Address from '@/Components/payment/Address.vue'
+import FreeShippingBar from '@/Components/FreeShippingBar.vue'
+import CheckoutTrustBadges from '@/Components/CheckoutTrustBadges.vue'
 import {toastAlert} from '@/utils/toast.js'
 
 const page = usePage()
@@ -125,6 +134,7 @@ const summery = page.props.summery
 const final_total = Number(page.props.final_total || 0)
 const giftCard = page.props.gift_card || null
 const giftCardDeduction = Number(page.props.gift_card_deduction || 0)
+const freeShippingThreshold = Number(page.props.free_shipping_threshold || 0)
 const customer = page.props.customer
 const defaultAddress = page.props.defaultAddress
 const userAddresses = page.props.addresses || []

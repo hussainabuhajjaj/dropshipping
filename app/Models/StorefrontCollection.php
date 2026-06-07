@@ -303,16 +303,65 @@ class StorefrontCollection extends Model
                 ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
                 ->first();
 
+            $priceRange = [
+                'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
+                'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
+            ];
+
+            $total = (clone $metaQuery)->count();
+
+            if ($total > 5000) {
+                return [
+                    'price_range' => $priceRange,
+                    'attributeDefs' => [],
+                    'brands' => null,
+                ];
+            }
+
             return [
-                'price_range' => [
-                    'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
-                    'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
-                ],
+                'price_range' => $priceRange,
                 ...app(ProductMetaExtractor::class)->extractFromQuery($metaQuery),
             ];
         }
 
-        return $this->filtersFromResolvedProducts($this->resolveProducts($locale));
+        $rules = $this->rules ?? [];
+        $query = $this->buildRuleQuery($rules, [], $locale, [], false);
+
+        if ($query) {
+            $metaQuery = (clone $query)
+                ->setEagerLoads([])
+                ->reorder();
+
+            $aggregate = (clone $metaQuery)
+                ->selectRaw('MIN(selling_price) as min_price, MAX(selling_price) as max_price')
+                ->first();
+
+            $priceRange = [
+                'min' => is_numeric($aggregate?->min_price) ? round((float) $aggregate->min_price, 2) : null,
+                'max' => is_numeric($aggregate?->max_price) ? round((float) $aggregate->max_price, 2) : null,
+            ];
+
+            $total = (clone $metaQuery)->count();
+
+            if ($total > 5000) {
+                return [
+                    'price_range' => $priceRange,
+                    'attributeDefs' => [],
+                    'brands' => null,
+                ];
+            }
+
+            return [
+                'price_range' => $priceRange,
+                ...app(ProductMetaExtractor::class)->extractFromQuery($metaQuery),
+            ];
+        }
+
+        return [
+            'price_range' => ['min' => null, 'max' => null],
+            'attributeDefs' => [],
+            'brands' => null,
+        ];
     }
 
     private function loadRuleProducts(array $rules, array $excludeIds, ?int $limit, ?string $locale)

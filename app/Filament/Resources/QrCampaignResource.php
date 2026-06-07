@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace App\Filament\Resources;
 
 use App\Domain\Marketing\Models\QrCampaign;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\QrCampaignResource\Pages;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -68,14 +68,14 @@ class QrCampaignResource extends BaseResource
                             ->afterStateUpdated(fn ($set) => $set('product_id', null)),
                         TextInput::make('reward_value')
                             ->numeric()
-                            ->visible(fn ($get) => in_array($get('reward_type'), ['money', 'points']))
-                            ->required(fn ($get) => in_array($get('reward_type'), ['money', 'points']))
+                            ->visible(fn ($state, $get) => in_array($get('reward_type'), ['money', 'points']))
+                            ->required(fn ($state, $get) => in_array($get('reward_type'), ['money', 'points']))
                             ->helperText('Enter amount (e.g. 5000 for FCFA, 100 for points)'),
                         Select::make('product_id')
                             ->relationship('product', 'name')
                             ->searchable()
-                            ->visible(fn ($get) => $get('reward_type') === 'product')
-                            ->required(fn ($get) => $get('reward_type') === 'product'),
+                            ->visible(fn ($state, $get) => $get('reward_type') === 'product')
+                            ->required(fn ($state, $get) => $get('reward_type') === 'product'),
                     ])
                     ->columns(2),
 
@@ -108,10 +108,8 @@ class QrCampaignResource extends BaseResource
                         'product' => 'success',
                         'money' => 'warning',
                         'points' => 'info',
-                    }),
-                Tables\Columns\TextColumn::make('reward_type')
-                    ->label('Reward')
-                    ->formatStateUsing(fn ($state, $record) => $record->rewardLabel()),
+                    })
+                    ->formatStateUsing(fn (string $state, $record) => $record->rewardLabel()),
                 Tables\Columns\TextColumn::make('claim_count')
                     ->sortable()
                     ->label('Claims'),
@@ -146,6 +144,13 @@ class QrCampaignResource extends BaseResource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            QrCampaignResource\RelationManagers\ClaimsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

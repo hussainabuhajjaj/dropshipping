@@ -38,6 +38,44 @@ class ProductRecommendationService
         return $products->take($limit);
     }
 
+    public function frequentlyBoughtTogether(Product $product, int $limit = 3): Collection
+    {
+        $variantIds = $product->variants()->pluck('product_variants.id');
+
+        if ($variantIds->isEmpty()) {
+            return collect();
+        }
+
+        $frequentlyBoughtIds = OrderItem::query()
+            ->selectRaw('product_variant_id, COUNT(*) as frequency')
+            ->whereIn('order_id', function ($query) use ($variantIds) {
+                $query->select('order_id')
+                    ->from('order_items')
+                    ->whereIn('product_variant_id', $variantIds);
+            })
+            ->whereNotIn('product_variant_id', $variantIds)
+            ->groupBy('product_variant_id')
+            ->orderByDesc('frequency')
+            ->limit($limit * 2)
+            ->pluck('product_variant_id');
+
+        if ($frequentlyBoughtIds->isEmpty()) {
+            return collect();
+        }
+
+        $products = Product::query()
+            ->whereHas('variants', function ($query) use ($frequentlyBoughtIds) {
+                $query->whereIn('product_variants.id', $frequentlyBoughtIds);
+            })
+            ->where('is_active', true)
+            ->whereKeyNot($product->id)
+            ->with(['images', 'category', 'translations'])
+            ->take($limit)
+            ->get();
+
+        return $products;
+    }
+
     public function personalized(Customer $customer, int $limit = 6): Collection
     {
         $recentProductIds = OrderItem::query()

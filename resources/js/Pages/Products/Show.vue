@@ -490,6 +490,21 @@
       </div>
     </div>
 
+    <section v-if="bundleProducts.length" class="mt-12 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-slate-900">{{ t('Frequently bought together') }}</h2>
+      </div>
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <ProductCard
+          v-for="item in bundleProducts"
+          :key="item.id"
+          :product="item"
+          :currency="currency"
+          :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
+        />
+      </div>
+    </section>
+
     <section class="mt-12 space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-semibold text-slate-900">{{ t('Related products') }}</h2>
@@ -572,6 +587,7 @@ const props = defineProps({
   reviewSummary: { type: Object, default: () => ({ count: 0, average: 0, breakdown: {} }) },
   reviewHighlights: { type: Array, default: () => [] },
   relatedProducts: { type: Array, default: () => [] },
+  bundleProducts: { type: Array, default: () => [] },
   reviewableItems: { type: Array, default: () => [] },
   breadcrumbs: { type: Array, default: () => [] },
 })
@@ -1294,10 +1310,20 @@ const productSchema = computed(() => {
     schema.image = Array.isArray(props.product.media) ? props.product.media : [productImage.value]
   }
   
+  if (props.product.code) {
+    schema.mpn = props.product.code
+    schema.sku = props.product.code
+  }
+
+  if (selectedVariant.value?.sku && selectedVariant.value.sku !== props.product.code) {
+    schema.sku = selectedVariant.value.sku
+  }
+
   if (props.product.price) {
+    const offerPrice = selectedVariant.value?.price ?? props.product.price
     schema.offers = {
       '@type': 'Offer',
-      price: props.product.price,
+      price: offerPrice,
       priceCurrency: props.currency || 'USD',
       availability: props.product.stock_on_hand > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       url: productUrl.value,

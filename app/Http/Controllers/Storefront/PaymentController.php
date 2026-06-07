@@ -98,6 +98,8 @@ class PaymentController extends Controller
             ->orderBy('id')
             ->get() ?? collect();
 
+        $settings = SiteSetting::query()->first();
+
         return Inertia::render('Payments/Index', [
             'customer' => $customer,
             'defaultAddress' => $defaultAddress,
@@ -123,6 +125,7 @@ class PaymentController extends Controller
             'successMessage' => session('success'),
             'errorMessage' => session('error'),
             'errors' => session('errors') ? session('errors')->toArray() : (object) [],
+            'free_shipping_threshold' => (float) ($settings?->free_shipping_threshold ?? 0),
         ]);
     }
 

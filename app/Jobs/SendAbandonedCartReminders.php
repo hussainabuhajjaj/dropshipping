@@ -60,25 +60,56 @@ class SendAbandonedCartReminders implements ShouldQueue
             ->whereNotNull('reminder_sent_at')
             ->where('reminder_sent_at', '<=', $twentyFourHoursAgo)
             ->where('abandoned_at', '<=', $twentyFourHoursAgo)
-            ->where('abandoned_at', '>=', now()->subDays(2)) // Within last 2 days
+            ->where('abandoned_at', '>=', now()->subDays(2))
             ->whereNotNull('email')
             ->get();
 
         foreach ($secondReminders as $cart) {
             try {
                 if ($cart->customer) {
-                    Notification::send($cart->customer, new AbandonedCartNotification($cart));
+                    Notification::send($cart->customer, new AbandonedCartNotification($cart, 2));
                 } else {
                     Notification::route('mail', $cart->email)
-                        ->notify(new AbandonedCartNotification($cart));
+                        ->notify(new AbandonedCartNotification($cart, 2));
                 }
-                
+
                 Log::info('Sent second abandoned cart reminder', [
                     'cart_id' => $cart->id,
                     'email' => $cart->email,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send second abandoned cart reminder', [
+                    'cart_id' => $cart->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Send third reminder for carts abandoned 72 hours ago (last chance)
+        $seventyTwoHoursAgo = now()->subHours(72);
+        $thirdReminders = AbandonedCart::query()
+            ->whereNull('recovered_at')
+            ->where('reminder_sent_at', '<=', now()->subDay())
+            ->where('abandoned_at', '<=', $seventyTwoHoursAgo)
+            ->where('abandoned_at', '>=', now()->subDays(4))
+            ->whereNotNull('email')
+            ->get();
+
+        foreach ($thirdReminders as $cart) {
+            try {
+                if ($cart->customer) {
+                    Notification::send($cart->customer, new AbandonedCartNotification($cart, 3));
+                } else {
+                    Notification::route('mail', $cart->email)
+                        ->notify(new AbandonedCartNotification($cart, 3));
+                }
+
+                Log::info('Sent third (last chance) abandoned cart reminder', [
+                    'cart_id' => $cart->id,
+                    'email' => $cart->email,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed to send third abandoned cart reminder', [
                     'cart_id' => $cart->id,
                     'error' => $e->getMessage(),
                 ]);
