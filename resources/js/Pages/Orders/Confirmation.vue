@@ -63,6 +63,23 @@
         </div>
       </div>
 
+      <div v-if="upsellProducts?.length" class="rounded-xl border border-amber-100 bg-amber-50 p-5 text-left">
+        <h3 class="text-sm font-semibold text-amber-900">{{ t('Complete your look') }}</h3>
+        <p class="mt-1 text-xs text-amber-700">{{ t('Add these items to your order at no extra shipping cost') }}</p>
+        <div class="mt-4 space-y-3">
+          <div v-for="product in upsellProducts" :key="product.id" class="flex items-center gap-3 rounded-lg border border-amber-200 bg-white p-3">
+            <img v-if="product.image" :src="product.image" :alt="product.name" class="h-14 w-14 rounded-lg object-cover" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-slate-900 truncate">{{ product.name }}</p>
+              <p class="text-xs font-semibold text-amber-700">{{ product.currency }} {{ Number(product.price).toFixed(2) }}</p>
+            </div>
+            <Link :href="`/cart/add/${product.id}`" class="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700">
+              {{ t('Add') }}
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <div class="flex flex-col justify-center gap-3 sm:flex-row">
         <Link
           :href="`/orders/track?number=${order.number}&email=${order.email}`"
@@ -114,6 +131,7 @@ import axios from 'axios'
 
 defineProps({
   order: { type: Object, required: true },
+  upsellProducts: { type: Array, default: () => [] },
 })
 
 const page = usePage()

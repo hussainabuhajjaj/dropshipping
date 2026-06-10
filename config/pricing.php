@@ -61,9 +61,15 @@ return [
         'platform' => env('PRICING_PLATFORM_FEE', 5.0),
     ],
 
+    'category_margin_tiers' => [
+        // Example: ['category_ids' => [1], 'margin_percent' => 55],
+        // Each entry: category_ids + margin_percent to apply
+    ],
+
     'queues' => [
         'validation' => env('PRICING_VALIDATION_QUEUE', 'pricing'),
         'bulk_margin' => env('PRICING_BULK_MARGIN_QUEUE', 'pricing'),
+        'compare_at' => env('PRICING_COMPARE_AT_QUEUE', 'pricing'),
     ],
 
     'alerts' => [

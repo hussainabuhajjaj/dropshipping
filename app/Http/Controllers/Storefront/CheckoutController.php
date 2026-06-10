@@ -38,6 +38,8 @@ use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
 use App\Support\ResolvesStorefrontVariantLabels;
+use App\Models\Product;
+use App\Services\ProductRecommendationService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -500,13 +502,33 @@ class CheckoutController extends Controller
 
     public function confirmation(string $number): Response
     {
-// dump(1);
         $order = Order::query()
             ->where('number', $number)
             ->with(['shippingAddress', 'billingAddress', 'orderItems'])
             ->firstOrFail();
 
-        // dd($order);
+        $upsellProducts = collect();
+        if ($order->orderItems->isNotEmpty()) {
+            $firstItemProductId = $order->orderItems->first()?->product_id;
+            if ($firstItemProductId) {
+                $product = Product::find($firstItemProductId);
+                if ($product) {
+                    $recommendationService = app(ProductRecommendationService::class);
+                    $upsellProducts = $recommendationService
+                        ->frequentlyBoughtTogether($product, 2)
+                        ->map(fn (Product $p) => [
+                            'id' => $p->id,
+                            'name' => $p->name,
+                            'slug' => $p->slug,
+                            'price' => $p->selling_price,
+                            'image' => $p->image?->url ?? $p->images?->first()?->url ?? null,
+                            'currency' => $p->currency ?? 'USD',
+                            'url' => $p->url ?? '/products/' . $p->slug,
+                        ]);
+                }
+            }
+        }
+
         return Inertia::render('Orders/Confirmation', [
             'order' => [
                 'id' => $order->id,
@@ -542,6 +564,7 @@ class CheckoutController extends Controller
                     'phone' => $order->billingAddress?->phone,
                 ],
             ],
+            'upsellProducts' => $upsellProducts,
         ]);
     }
 

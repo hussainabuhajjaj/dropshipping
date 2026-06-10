@@ -12,21 +12,21 @@ class CurrencyConversionServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_converts_usd_to_xaf(): void
+    public function test_converts_usd_to_xof(): void
     {
-        config()->set('currency.rates.USD_XAF', 600);
-        config()->set('currency.decimals.XAF', 0);
+        config()->set('currency.rates.USD_XOF', 600);
+        config()->set('currency.decimals.XOF', 0);
 
         $service = new CurrencyConversionService();
 
-        $this->assertSame(600.0, $service->convertUsdToXaf(1.0));
-        $this->assertSame(6150.0, $service->convertUsdToXaf(10.25));
+        $this->assertSame(600.0, $service->convertUsdToXof(1.0));
+        $this->assertSame(6150.0, $service->convertUsdToXof(10.25));
     }
 
-    public function test_converts_product_and_variants_to_xaf(): void
+    public function test_converts_product_and_variants_to_xof(): void
     {
-        config()->set('currency.rates.USD_XAF', 600);
-        config()->set('currency.decimals.XAF', 0);
+        config()->set('currency.rates.USD_XOF', 600);
+        config()->set('currency.decimals.XOF', 0);
 
         $product = Product::factory()->create([
             'selling_price' => 10.25,
@@ -43,16 +43,16 @@ class CurrencyConversionServiceTest extends TestCase
         ]);
 
         $service = new CurrencyConversionService();
-        $service->convertProductPricesToXaf($product);
+        $service->convertProductPricesToXof($product);
 
         $product->refresh();
         $variant->refresh();
 
-        $this->assertSame('XAF', $product->currency);
+        $this->assertSame('XOF', $product->currency);
         $this->assertSame(6150.0, (float) $product->selling_price);
         $this->assertSame(3330.0, (float) $product->cost_price);
 
-        $this->assertSame('XAF', $variant->currency);
+        $this->assertSame('XOF', $variant->currency);
         $this->assertSame(7794.0, (float) $variant->price);
         $this->assertSame(9594.0, (float) $variant->compare_at_price);
         $this->assertSame(3900.0, (float) $variant->cost_price);

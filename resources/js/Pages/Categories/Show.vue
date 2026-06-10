@@ -231,22 +231,45 @@
       </div>
     </section>
 
-    <PaginationRail
-      v-if="products.length"
-      :current-page="productsPager.current_page ?? 1"
-      :last-page="productsPager.last_page ?? 1"
-      :can-next="hasMore"
-      :loading="false"
-      :show-sort="false"
-      @prev="goToPage(Math.max(1, (productsPager.current_page ?? 1) - 1))"
-      @next="goToPage(Math.min(productsPager.last_page ?? 1, (productsPager.current_page ?? 1) + 1))"
-      @filter="() => { filtersOpen = true }"
-    />
+    <template v-if="products.length">
+      <nav v-if="lastPage > 1" class="flex items-center justify-center gap-1 py-6">
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage <= 1"
+          @click="goToPage(currentPage - 1)"
+        >
+          ‹
+        </button>
+        <template v-for="(p, i) in pageNumbers" :key="i">
+          <span v-if="p === '...'" class="px-1 text-xs text-slate-400">...</span>
+          <button
+            v-else
+            type="button"
+            class="flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-sm font-medium transition"
+            :class="p === currentPage
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+            @click="goToPage(p)"
+          >
+            {{ p }}
+          </button>
+        </template>
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage >= lastPage"
+          @click="goToPage(currentPage + 1)"
+        >
+          ›
+        </button>
+      </nav>
+    </template>
     <EmptyState
       v-else
       :eyebrow="t('Category')"
       :title="t('No products here yet')"
-      :message="t('This collection is getting curated. Browse other categories or check back soon.')"
+      :message="t('This collection is currently being selected. Browse other categories or check back soon.')"
     >
       <template #actions>
         <Link href="/products" class="btn-primary">{{ t('Browse catalog') }}</Link>
@@ -265,7 +288,7 @@ import Breadcrumbs from '@/Components/Breadcrumbs.vue'
 import FilterSidebar from '@/Components/FilterSidebar.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
-import PaginationRail from '@/Components/PaginationRail.vue'
+
 import { useJsonLd } from '@/composables/useJsonLd.js'
 import BrowseToolbar from '@/Components/storefront/BrowseToolbar.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
@@ -456,7 +479,6 @@ const subcategories = computed(() => {
   if (!sources) return []
   return sources.map(mapSubcategory)
 })
-const hasMore = computed(() => (productsPager.value.current_page ?? 1) < (productsPager.value.last_page ?? 1))
 
 const normalizeTree = (nodes = []) =>
   nodes.map((node) => ({
@@ -500,6 +522,25 @@ const toggleExpand = (id) => {
   else set.add(id)
   expandedCategories.value = set
 }
+
+const currentPage = computed(() => productsPager.value.current_page ?? 1)
+const lastPage = computed(() => productsPager.value.last_page ?? 1)
+
+const pageNumbers = computed(() => {
+  const current = currentPage.value
+  const last = lastPage.value
+  if (last <= 7) {
+    return Array.from({ length: last }, (_, i) => i + 1)
+  }
+  const pages = [1]
+  if (current > 3) pages.push('...')
+  const start = Math.max(2, current - 1)
+  const end = Math.min(last - 1, current + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
+  if (current < last - 2) pages.push('...')
+  pages.push(last)
+  return pages
+})
 
 const goToPage = (page) => {
   if (page < 1 || page > (productsPager.value.last_page ?? 1)) {

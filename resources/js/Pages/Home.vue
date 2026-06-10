@@ -1,25 +1,39 @@
 <template>
   <StorefrontLayout>
     <div class="min-h-screen bg-white pb-28">
-      <!-- Category Pills -->
-      <div class="sticky top-0 z-40 overflow-x-auto border-b border-gray-100 bg-white/95 backdrop-blur [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div class="flex gap-2 px-4 py-3">
-          <Link
-            v-for="cat in scrollCategories"
-            :key="cat.id"
-            :href="cat.href"
-            class="shrink-0 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-medium transition cursor-pointer"
-            :class="activeCategory === cat.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-200 text-slate-600 hover:border-slate-400 hover:text-slate-900'"
-            @click="activeCategory = cat.id"
-          >
-            {{ cat.name }}
-          </Link>
+      <!-- Delivery Promise Bar -->
+      <div class="border-b border-gray-100 bg-[#f8fafc]">
+        <div class="flex items-center justify-center gap-6 overflow-x-auto px-4 py-2.5 text-xs font-medium text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <span class="flex shrink-0 items-center gap-1.5">
+            <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            {{ t('Secure checkout') }}
+          </span>
+          <span class="flex shrink-0 items-center gap-1.5">
+            <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            {{ t('Delivery in 7-18 days') }}
+          </span>
+          <span class="flex shrink-0 items-center gap-1.5">
+            <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-4-4 4m0 0-4-4m4 4V4" />
+            </svg>
+            {{ t('Easy returns') }}
+          </span>
+          <span class="flex shrink-0 items-center gap-1.5">
+            <svg class="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7m16 0v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5m16 0h-2.586a1 1 0 0 0-.707.293l-2.414 2.414a1 1 0 0 1-.707.293h-3.172a1 1 0 0 1-.707-.293l-2.414-2.414A1 1 0 0 0 6.586 13H4" />
+            </svg>
+            {{ t('Real-time tracking') }}
+          </span>
         </div>
       </div>
 
-      <!-- Hero Banner Slider (full-width) -->
+      <!-- Hero Banner Slider (SHEIN-style full-width lifestyle) -->
       <div
-        class="relative bg-gray-100"
+        class="relative overflow-hidden bg-gray-100"
         @mouseenter="pauseAutoPlay"
         @mouseleave="resumeAutoPlay"
         @touchstart.passive="pauseAutoPlay"
@@ -36,25 +50,25 @@
           >
             <div
               v-if="slide.image"
-              class="aspect-[1.2/1] w-full bg-cover bg-center sm:aspect-[2.5/1]"
+              class="aspect-[1/1.3] w-full bg-cover bg-center sm:aspect-[2.8/1]"
               :style="{ backgroundImage: `url(${slide.image})` }"
             >
-              <div class="flex h-full flex-col justify-end bg-gradient-to-t from-black/50 to-transparent p-6 text-white">
-                <p v-if="slide.badge" class="mb-1 text-xs font-bold uppercase tracking-widest text-yellow-400">
+              <div class="flex h-full flex-col justify-center bg-gradient-to-r from-black/65 via-black/30 to-transparent px-6 text-white sm:px-12">
+                <p v-if="slide.badge" class="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-amber-400">
                   {{ slide.badge }}
                 </p>
-                <p class="text-xl font-black sm:text-3xl">{{ slide.title }}</p>
-                <p v-if="slide.subtitle" class="mt-1 text-sm text-white/80 line-clamp-2">{{ slide.subtitle }}</p>
+                <p class="max-w-xs text-2xl font-black leading-tight sm:text-4xl sm:max-w-md">{{ slide.title }}</p>
+                <p v-if="slide.subtitle" class="mt-2 max-w-xs text-sm text-white/75 sm:text-base">{{ slide.subtitle }}</p>
                 <Link
                   v-if="slide.primary"
                   :href="slide.primary.href"
-                  class="mt-4 inline-flex h-10 w-fit items-center rounded-full bg-white px-6 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-gray-100 active:scale-95"
+                  class="mt-5 inline-flex h-11 w-fit items-center rounded-full bg-white px-7 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-gray-100 active:scale-95"
                 >
                   {{ slide.primary.label }}
                 </Link>
               </div>
             </div>
-            <div v-else class="flex aspect-[1.2/1] w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 sm:aspect-[2.5/1]">
+            <div v-else class="flex aspect-[1/1.3] w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 sm:aspect-[2.8/1]">
               <div class="text-center">
                 <p class="text-lg font-bold text-slate-400">{{ t('Bienvenue sur Simbazu') }}</p>
                 <Link
@@ -69,6 +83,7 @@
         </div>
 
         <button
+          v-if="heroSlides.length > 1"
           type="button"
           class="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
           @click="prevSlide"
@@ -76,6 +91,7 @@
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
         </button>
         <button
+          v-if="heroSlides.length > 1"
           type="button"
           class="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
           @click="nextSlide"
@@ -83,7 +99,7 @@
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
         </button>
 
-        <div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+        <div v-if="heroSlides.length > 1" class="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
           <button
             v-for="(_, idx) in heroSlides"
             :key="idx"
@@ -95,29 +111,31 @@
         </div>
       </div>
 
-      <!-- Category Grid -->
-      <div v-if="scrollCategories.length" class="mt-6 grid grid-cols-4 gap-3 px-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
-        <Link
-          v-for="cat in scrollCategories"
-          :key="cat.id"
-          :href="cat.href"
-          class="flex cursor-pointer flex-col items-center gap-1.5 transition active:scale-95"
-        >
-          <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100 shadow-sm ring-1 ring-gray-200/50 transition hover:shadow-md hover:ring-2 hover:ring-slate-300 sm:h-18 sm:w-18">
-            <img
-              v-if="cat.image"
-              :src="cat.image"
-              :alt="cat.name"
-              class="h-full w-full object-cover"
-              loading="lazy"
-            />
-            <span v-else class="text-lg font-bold text-gray-400">{{ cat.short }}</span>
-          </div>
-          <span class="text-center text-[0.6rem] font-semibold text-slate-600 leading-tight line-clamp-2 sm:text-xs">{{ cat.name }}</span>
-        </Link>
+      <!-- Category Scroll Strip (SHEIN-style horizontal scroll) -->
+      <div v-if="scrollCategories.length" class="mt-6">
+        <div class="flex gap-3 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link
+            v-for="cat in scrollCategories"
+            :key="cat.id"
+            :href="cat.href"
+            class="flex w-[72px] shrink-0 cursor-pointer flex-col items-center gap-1.5 transition active:scale-95"
+          >
+            <div class="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-full bg-gray-100 shadow-sm ring-1 ring-gray-200/50 transition hover:shadow-md hover:ring-2 hover:ring-slate-300">
+              <img
+                v-if="cat.image"
+                :src="cat.image"
+                :alt="cat.name"
+                class="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <span v-else class="text-lg font-bold text-gray-400">{{ cat.short }}</span>
+            </div>
+            <span class="whitespace-nowrap text-[0.6rem] font-semibold text-slate-600 sm:text-xs">{{ cat.name }}</span>
+          </Link>
+        </div>
       </div>
 
-      <!-- Flash Deals -->
+      <!-- Flash Deals with countdown (SHEIN-style urgency) -->
       <section v-if="flashFeed.length" class="mt-8 px-4">
         <div class="mb-4 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
@@ -126,7 +144,8 @@
             </div>
             <div>
               <h2 class="text-base font-black text-slate-900">{{ t('Bonnes Affaires') }}</h2>
-              <p class="text-xs text-slate-400">{{ t('Offres à durée limitée') }}</p>
+              <p v-if="countdown" class="text-xs font-semibold text-red-500">{{ countdown }}</p>
+              <p v-else class="text-xs text-slate-400">{{ t('Offres à durée limitée') }}</p>
             </div>
           </div>
           <Link href="/promotions/flash-sales" class="shrink-0 text-xs font-bold text-red-500 transition hover:text-red-600 cursor-pointer">{{ t('Voir tout') }}</Link>
@@ -138,7 +157,13 @@
             :href="product.href || `/products/${product.slug}`"
             class="w-36 shrink-0"
           >
-            <div class="overflow-hidden rounded-xl bg-gray-100 shadow-sm transition hover:shadow-md">
+            <div class="relative overflow-hidden rounded-xl bg-gray-100 shadow-sm transition hover:shadow-md">
+              <div
+                v-if="product.compare_at_price"
+                class="absolute left-1.5 top-1.5 z-10 rounded bg-red-500 px-1.5 py-0.5 text-[0.6rem] font-bold text-white shadow-xs"
+              >
+                -{{ discountPercent(product) }}%
+              </div>
               <img
                 v-if="product.media?.[0] || product.image"
                 :src="product.media?.[0] || product.image"
@@ -148,23 +173,43 @@
               />
               <div v-else class="aspect-[0.8] bg-gradient-to-br from-gray-100 to-gray-200" />
             </div>
-            <p class="mt-1.5 text-sm font-black text-slate-900">{{ displayPrice(product) }}</p>
-            <p v-if="product.compare_at_price" class="text-xs font-medium text-red-500 line-through">{{ displayCompareAt(product) }}</p>
+            <p class="mt-1.5 text-sm font-black text-red-500">{{ displayPrice(product) }}</p>
+            <p v-if="product.compare_at_price" class="text-xs font-medium text-slate-400 line-through">{{ displayCompareAt(product) }}</p>
           </Link>
         </div>
       </section>
 
-      <!-- Featured -->
-      <section v-if="featuredProducts.length" class="mt-8 px-4">
-        <div class="mb-4 flex items-center justify-between">
-          <div>
-            <h2 class="text-base font-black text-slate-900">{{ t('En Vedette') }}</h2>
-            <p class="text-xs text-slate-400">{{ t('Nos sélections du moment') }}</p>
-          </div>
-          <Link href="/products" class="shrink-0 text-xs font-bold text-slate-500 transition hover:text-slate-900 cursor-pointer">{{ t('Voir tout') }}</Link>
+      <!-- Collections scroll strip (SHEIN-style) -->
+      <section v-if="homeCollections.length" class="mt-6">
+        <div class="flex gap-3 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link
+            v-for="col in homeCollections"
+            :key="col.id ?? col.slug ?? col.name"
+            :href="col.href ?? `/collections/${col.slug ?? col.id}`"
+            class="relative w-40 shrink-0 overflow-hidden rounded-lg sm:w-52"
+          >
+            <img
+              v-if="col.image"
+              :src="col.image"
+              :alt="col.name"
+              class="aspect-[3/4] w-full object-cover"
+              loading="lazy"
+            />
+            <div v-else class="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <p class="absolute bottom-2 left-2 right-2 text-sm font-bold text-white leading-tight">{{ col.name }}</p>
+          </Link>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <ProductCard
+      </section>
+
+      <!-- New Arrivals -->
+      <section v-if="featuredProducts.length" class="mt-5 px-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Nouveautés') }}</h2>
+          <Link href="/products?sort=newest" class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer">{{ t('Voir tout') }}</Link>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <CompactProductCard
             v-for="product in featuredProducts"
             :key="product.id"
             :product="product"
@@ -174,16 +219,13 @@
       </section>
 
       <!-- Best Sellers -->
-      <section v-if="bestSellerProducts.length" class="mt-8 px-4">
-        <div class="mb-4 flex items-center justify-between">
-          <div>
-            <h2 class="text-base font-black text-slate-900">{{ t('Meilleures Ventes') }}</h2>
-            <p class="text-xs text-slate-400">{{ t('Les plus populaires') }}</p>
-          </div>
-          <Link href="/products?sort=bestsellers" class="shrink-0 text-xs font-bold text-slate-500 transition hover:text-slate-900 cursor-pointer">{{ t('Voir tout') }}</Link>
+      <section v-if="bestSellerProducts.length" class="mt-5 px-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Meilleures Ventes') }}</h2>
+          <Link href="/products?sort=bestsellers" class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer">{{ t('Voir tout') }}</Link>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <ProductCard
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <CompactProductCard
             v-for="product in bestSellerProducts"
             :key="product.id"
             :product="product"
@@ -192,22 +234,61 @@
         </div>
       </section>
 
-      <!-- Recommended -->
-      <section v-if="recommendedProducts.length" class="mt-8 px-4">
-        <div class="mb-4 flex items-center justify-between">
-          <div>
-            <h2 class="text-base font-black text-slate-900">{{ t('Vous Pourriez Aimer') }}</h2>
-            <p class="text-xs text-slate-400">{{ t('Recommandé pour vous') }}</p>
+      <!-- Featured Category Sections -->
+      <template v-for="section in featuredCategorySections" :key="section.id">
+        <section class="mt-5 px-4">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-900">{{ section.name }}</h2>
+            <Link
+              v-if="section.viewAllHref"
+              :href="section.viewAllHref"
+              class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer"
+            >
+              {{ t('Voir tout') }}
+            </Link>
           </div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <CompactProductCard
+              v-for="product in section.products"
+              :key="product.id"
+              :product="product"
+              :currency="currency"
+            />
+          </div>
+        </section>
+      </template>
+
+      <!-- Recommended -->
+      <section v-if="recommendedProducts.length" class="mt-5 px-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Vous Pourriez Aimer') }}</h2>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <ProductCard
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <CompactProductCard
             v-for="product in recommendedProducts"
             :key="product.id"
             :product="product"
             :currency="currency"
           />
         </div>
+      </section>
+
+      <!-- Newsletter -->
+      <section class="mt-6 mx-4 rounded-xl bg-slate-900 px-5 py-6 text-center text-white">
+        <p class="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-amber-400">{{ t('Newsletter') }}</p>
+        <p class="mt-1 text-xs text-white/70">{{ t('New drops, promos, and delivery updates straight to your inbox.') }}</p>
+        <form class="mx-auto mt-3 flex max-w-xs gap-2" @submit.prevent="submitNewsletter">
+          <input
+            v-model="newsletterEmail"
+            type="email"
+            required
+            :placeholder="t('Your email address')"
+            class="min-w-0 flex-1 rounded-lg border-0 px-3 py-2 text-xs text-slate-900 placeholder-slate-400"
+          />
+          <button type="submit" class="shrink-0 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-slate-900 transition hover:bg-amber-400 active:scale-95">
+            {{ newsletterSubmitted ? t('Done!') : t('Subscribe') }}
+          </button>
+        </form>
       </section>
     </div>
 
@@ -225,7 +306,7 @@ import { Link } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
-import ProductCard from '@/Components/homepage/ProductCard.vue'
+import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
 
 const props = defineProps({
@@ -257,6 +338,59 @@ const displayCurrency = computed(() => currentCurrency.value || props.currency)
 
 const currentSlide = ref(0)
 const activeCategory = ref(null)
+
+const countdown = ref('')
+let countdownTimer = null
+
+const tickCountdown = () => {
+  const now = new Date()
+  const end = new Date(now)
+  end.setHours(23, 59, 59, 999)
+  const diff = end.getTime() - now.getTime()
+  if (diff <= 0) {
+    countdown.value = ''
+    return
+  }
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const s = Math.floor((diff % 60000) / 1000)
+  countdown.value = `${t('Ends in')} ${h}h ${m}m ${s}s`
+}
+
+const discountPercent = (product) => {
+  const current = product?.feed_price ?? product?.price ?? 0
+  const original = product?.compare_at_price ?? 0
+  if (!original || !current) return 0
+  return Math.round(((original - current) / original) * 100)
+}
+
+const newsletterEmail = ref('')
+const newsletterSubmitted = ref(false)
+const newsletterNotice = ref('')
+
+const submitNewsletter = async () => {
+  if (!newsletterEmail.value) return
+  try {
+    const response = await fetch('/newsletter/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+      },
+      body: JSON.stringify({ email: newsletterEmail.value, source: 'homepage_inline' }),
+    })
+    if (response.ok) {
+      newsletterNotice.value = t('Thanks for subscribing!')
+      newsletterSubmitted.value = true
+      newsletterEmail.value = ''
+    } else {
+      newsletterNotice.value = t('Please check your email and try again.')
+    }
+  } catch {
+    newsletterNotice.value = t('Unable to subscribe right now.')
+  }
+}
 let autoplayTimer = null
 
 const nextSlide = () => {
@@ -281,8 +415,17 @@ const resumeAutoPlay = () => {
   }
 }
 
-onMounted(() => resumeAutoPlay())
-onBeforeUnmount(() => pauseAutoPlay())
+onMounted(() => {
+  resumeAutoPlay()
+  if (flashFeed.value.length) {
+    tickCountdown()
+    countdownTimer = setInterval(tickCountdown, 1000)
+  }
+})
+onBeforeUnmount(() => {
+  pauseAutoPlay()
+  if (countdownTimer) clearInterval(countdownTimer)
+})
 
 const buildShort = (name) => {
   if (!name) return '?'

@@ -125,7 +125,7 @@ class PricingService
         $cjShippingAmount = max(0, (float) ($cjShipping ?? 0));
 
         $ratePerKg = $warehouse?->shipping_cost_per_kg
-            ?? (float) config('pricing.default_shipping_per_kg', 7);
+            ?? (float) config('pricing.default_shipping_per_kg', 14);
 
         if (! $warehouse || $warehouse->shipping_cost_per_kg === null) {
             Log::warning('Missing warehouse for pricing', [
@@ -137,9 +137,56 @@ class PricingService
         }
 
         $externalShipping = round($weightKg * $ratePerKg, 4);
+
+        if ($warehouse) {
+            $baseCost = (float) ($warehouse->shipping_base_cost ?? 0);
+            $additionalCost = (float) ($warehouse->shipping_additional_cost ?? 0);
+            $minCharge = (float) ($warehouse->shipping_min_charge ?? 0);
+
+            if ($baseCost > 0 || $additionalCost > 0) {
+                $externalShipping = $baseCost + ($weightKg * ($ratePerKg + $additionalCost));
+            }
+
+            if ($minCharge > 0 && $externalShipping < $minCharge) {
+                $externalShipping = $minCharge;
+            }
+        }
+
         $landedCost = $productCost + $cjShippingAmount + $externalShipping;
+
+        if ($currency === 'XOF') {
+            $xofBufferPercent = (float) config('pricing.currency.xof_buffer_percent', 5);
+            $landedCost *= (1 + $xofBufferPercent / 100);
+        }
+
         $marginUsed = $this->resolveMarginByWeight($weightKg);
         $sellingPrice = $this->calculateSellingPriceFromLandedCost($landedCost, $marginUsed, $currency);
+
+        $categoryId = isset($options['category_id']) && is_scalar($options['category_id']) ? (int) $options['category_id'] : null;
+        if ($categoryId !== null) {
+            $categoryMultiplier = $this->getCategoryMultiplier($categoryId);
+            $sellingPrice = $this->roundForCurrency($sellingPrice * $categoryMultiplier, $currency);
+        }
+
+        $meta = [
+            'warehouse_id' => $warehouse?->id,
+            'shipping_rate_per_kg' => $ratePerKg,
+            'external_shipping' => round($externalShipping, 2),
+            'cj_shipping' => round($cjShippingAmount, 2),
+            'weight_kg' => round($weightKg, 4),
+            'landed_cost' => round($landedCost, 2),
+            'margin_used' => $marginUsed,
+            'margin_source' => 'weight_based',
+        ];
+
+        if ($categoryId !== null) {
+            $meta['category_id'] = $categoryId;
+            $meta['category_multiplier'] = $categoryMultiplier;
+        }
+
+        if ($currency === 'XOF') {
+            $meta['xof_buffer_percent'] = $xofBufferPercent ?? 5;
+        }
 
         return new PricingResultDTO(
             costPrice: $productCost,
@@ -152,16 +199,7 @@ class PricingService
             basePrice: $sellingPrice,
             currency: $currency,
             marginPercent: $marginUsed * 100,
-            pricingMeta: [
-                'warehouse_id' => $warehouse?->id,
-                'shipping_rate_per_kg' => $ratePerKg,
-                'external_shipping' => round($externalShipping, 2),
-                'cj_shipping' => round($cjShippingAmount, 2),
-                'weight_kg' => round($weightKg, 4),
-                'landed_cost' => round($landedCost, 2),
-                'margin_used' => $marginUsed,
-                'margin_source' => 'weight_based',
-            ],
+            pricingMeta: $meta,
         );
     }
 

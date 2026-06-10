@@ -34,7 +34,7 @@ class GenerateProductCompareAtJob implements ShouldQueue
      */
     public function queue(): string
     {
-        return 'pricing';
+        return config('pricing.queues.compare_at', 'pricing');
     }
 
     public function handle(ProductCompareAtService $service): void

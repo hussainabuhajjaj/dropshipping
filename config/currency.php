@@ -30,7 +30,8 @@ return [
 
     // Aliases for common mis-typed codes
     'aliases' => [
-        'XFC' => 'XAF',
-        'XFA' => 'XAF',
+        'XAF' => 'XOF',
+        'XFC' => 'XOF',
+        'XFA' => 'XOF',
     ],
 ];

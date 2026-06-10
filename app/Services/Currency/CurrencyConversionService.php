@@ -35,9 +35,9 @@ class CurrencyConversionService
         return $this->roundForCurrency($amount * $rate, $toCode);
     }
 
-    public function convertUsdToXaf(?float $amount): ?float
+    public function convertUsdToXof(?float $amount): ?float
     {
-        return $this->convertAmount($amount, 'USD', 'XAF');
+        return $this->convertAmount($amount, 'USD', 'XOF');
     }
 
     public function normalize(string $code): string
@@ -45,11 +45,11 @@ class CurrencyConversionService
         return $this->normalizeCurrency($code);
     }
 
-    public function convertProductPricesToXaf(Product $product, bool $includeVariants = true, bool $includeCost = true, bool $includeCompareAt = true): void
+    public function convertProductPricesToXof(Product $product, bool $includeVariants = true, bool $includeCost = true, bool $includeCompareAt = true): void
     {
         $productCurrency = $product->currency ?? config('currency.base', 'USD');
         $fromCurrency = $this->normalizeCurrency($productCurrency);
-        $toCurrency = $this->normalizeCurrency('XAF');
+        $toCurrency = $this->normalizeCurrency('XOF');
 
         if ($fromCurrency === $toCurrency) {
             return;
@@ -86,14 +86,14 @@ class CurrencyConversionService
 
         $product->loadMissing('variants');
         foreach ($product->variants ?? [] as $variant) {
-            $this->convertVariantPricesToXaf($variant, $fromCurrency, $includeCost, $includeCompareAt);
+            $this->convertVariantPricesToXof($variant, $fromCurrency, $includeCost, $includeCompareAt);
         }
     }
 
-    public function convertVariantPricesToXaf(ProductVariant $variant, ?string $fallbackFrom = null, bool $includeCost = true, bool $includeCompareAt = true): void
+    public function convertVariantPricesToXof(ProductVariant $variant, ?string $fallbackFrom = null, bool $includeCost = true, bool $includeCompareAt = true): void
     {
         $fromCurrency = $this->normalizeCurrency($variant->currency ?? $fallbackFrom ?? config('currency.base', 'USD'));
-        $toCurrency = $this->normalizeCurrency('XAF');
+        $toCurrency = $this->normalizeCurrency('XOF');
 
         if ($fromCurrency === $toCurrency) {
             return;
