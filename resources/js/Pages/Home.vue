@@ -187,7 +187,7 @@
 
       <!-- Category Scroll Strip (SHEIN-style horizontal scroll) -->
       <div v-if="scrollCategories.length" class="mt-6">
-        <div class="flex gap-3 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div class="flex gap-6 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Link
             v-for="cat in scrollCategories"
             :key="cat.id"
