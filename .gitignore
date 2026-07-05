@@ -38,4 +38,5 @@ mobile/src/api/*adminsdk*.json
 mobile/src/api/*firebase*.json
 *.txt
 /docs
+/.agents
 
