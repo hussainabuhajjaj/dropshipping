@@ -31,84 +31,158 @@
         </div>
       </div>
 
-      <!-- Hero Banner Slider (SHEIN-style full-width lifestyle) -->
-      <div
-        class="relative overflow-hidden bg-gray-100"
-        @mouseenter="pauseAutoPlay"
-        @mouseleave="resumeAutoPlay"
-        @touchstart.passive="pauseAutoPlay"
-        @touchend.passive="resumeAutoPlay"
-      >
+      <!-- Hero: Center Slider + Left/Right Collections -->
+      <div class="lg:grid lg:grid-cols-[180px_1fr_180px] xl:grid-cols-[200px_1fr_200px] lg:gap-2 xl:gap-3 lg:px-4">
+        <!-- Left Collections (desktop only) -->
+        <div v-if="leftCollections.length" class="hidden lg:flex flex-col gap-2">
+          <Link
+            v-for="col in leftCollections"
+            :key="col.id ?? col.href"
+            :href="col.href ?? '/collections'"
+            class="group relative block overflow-hidden rounded-lg"
+          >
+            <img
+              v-if="col.image"
+              :src="col.image"
+              :alt="col.title"
+              class="aspect-[3/2] w-full object-cover transition duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div v-else class="aspect-[3/2] bg-gradient-to-br from-slate-100 to-slate-200" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p v-if="col.kicker" class="text-[0.5rem] font-bold uppercase tracking-[0.15em] text-amber-400">{{ col.kicker }}</p>
+              <p class="text-[0.65rem] font-bold text-white leading-tight sm:text-xs">{{ col.title }}</p>
+            </div>
+          </Link>
+        </div>
+
+        <!-- Center Slider -->
         <div
-          class="flex transition-transform duration-500 ease-out"
-          :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
+          class="relative overflow-hidden bg-gray-100 lg:rounded-xl"
+          @mouseenter="pauseAutoPlay"
+          @mouseleave="resumeAutoPlay"
+          @touchstart.passive="pauseAutoPlay"
+          @touchend.passive="resumeAutoPlay"
         >
           <div
-            v-for="(slide, idx) in heroSlides"
-            :key="idx"
-            class="relative w-full shrink-0"
+            class="flex transition-transform duration-500 ease-out"
+            :style="{ transform: `translateX(-${currentSlide * 100}%)` }"
           >
             <div
-              v-if="slide.image"
-              class="aspect-[1/1.3] w-full bg-cover bg-center sm:aspect-[2.8/1]"
-              :style="{ backgroundImage: `url(${slide.image})` }"
+              v-for="(slide, idx) in heroSlides"
+              :key="idx"
+              class="relative w-full shrink-0"
             >
-              <div class="flex h-full flex-col justify-center bg-gradient-to-r from-black/65 via-black/30 to-transparent px-6 text-white sm:px-12">
-                <p v-if="slide.badge" class="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-amber-400">
-                  {{ slide.badge }}
-                </p>
-                <p class="max-w-xs text-2xl font-black leading-tight sm:text-4xl sm:max-w-md">{{ slide.title }}</p>
-                <p v-if="slide.subtitle" class="mt-2 max-w-xs text-sm text-white/75 sm:text-base">{{ slide.subtitle }}</p>
-                <Link
-                  v-if="slide.primary"
-                  :href="slide.primary.href"
-                  class="mt-5 inline-flex h-11 w-fit items-center rounded-full bg-white px-7 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-gray-100 active:scale-95"
-                >
-                  {{ slide.primary.label }}
-                </Link>
+              <div
+                v-if="slide.image"
+                class="aspect-[1/1.3] w-full bg-cover bg-center sm:aspect-[2/1]"
+                :style="{ backgroundImage: `url(${slide.image})` }"
+              >
+                <div class="flex h-full flex-col justify-center bg-gradient-to-r from-black/65 via-black/30 to-transparent px-6 text-white sm:px-10">
+                  <p v-if="slide.badge" class="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-amber-400">
+                    {{ slide.badge }}
+                  </p>
+                  <p class="max-w-[75%] text-xl font-black leading-tight sm:text-3xl">{{ slide.title }}</p>
+                  <p v-if="slide.subtitle" class="mt-1.5 max-w-xs text-xs text-white/75 sm:text-sm">{{ slide.subtitle }}</p>
+                  <Link
+                    v-if="slide.primary"
+                    :href="slide.primary.href"
+                    class="mt-4 inline-flex h-10 w-fit items-center rounded-full bg-white px-6 text-sm font-bold text-slate-900 shadow-lg transition hover:bg-gray-100 active:scale-95"
+                  >
+                    {{ slide.primary.label }}
+                  </Link>
+                </div>
               </div>
-            </div>
-            <div v-else class="flex aspect-[1/1.3] w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 sm:aspect-[2.8/1]">
-              <div class="text-center">
-                <p class="text-lg font-bold text-slate-400">{{ t('Bienvenue sur Simbazu') }}</p>
-                <Link
-                  href="/products"
-                  class="mt-3 inline-flex h-10 items-center rounded-full bg-slate-900 px-6 text-sm font-bold text-white transition hover:bg-slate-800 active:scale-95"
-                >
-                  {{ t('Commencer') }}
-                </Link>
+              <div v-else class="flex aspect-[1/1.3] w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 sm:aspect-[2/1]">
+                <div class="text-center">
+                  <p class="text-lg font-bold text-slate-400">{{ t('Bienvenue sur Simbazu') }}</p>
+                  <Link
+                    href="/products"
+                    class="mt-3 inline-flex h-10 items-center rounded-full bg-slate-900 px-6 text-sm font-bold text-white transition hover:bg-slate-800 active:scale-95"
+                  >
+                    {{ t('Commencer') }}
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <button
-          v-if="heroSlides.length > 1"
-          type="button"
-          class="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
-          @click="prevSlide"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <button
-          v-if="heroSlides.length > 1"
-          type="button"
-          class="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
-          @click="nextSlide"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
-        </button>
-
-        <div v-if="heroSlides.length > 1" class="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
           <button
-            v-for="(_, idx) in heroSlides"
-            :key="idx"
+            v-if="heroSlides.length > 1"
             type="button"
-            class="h-2 cursor-pointer rounded-full transition-all"
-            :class="idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/70'"
-            @click="currentSlide = idx"
-          />
+            class="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
+            @click="prevSlide"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button
+            v-if="heroSlides.length > 1"
+            type="button"
+            class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-lg backdrop-blur transition hover:bg-white active:scale-90 cursor-pointer"
+            @click="nextSlide"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+
+          <div v-if="heroSlides.length > 1" class="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+            <button
+              v-for="(_, idx) in heroSlides"
+              :key="idx"
+              type="button"
+              class="h-1.5 cursor-pointer rounded-full transition-all"
+              :class="idx === currentSlide ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/70'"
+              @click="currentSlide = idx"
+            />
+          </div>
         </div>
+
+        <!-- Right Collections (desktop only) -->
+        <div v-if="rightCollections.length" class="hidden lg:flex flex-col gap-2">
+          <Link
+            v-for="col in rightCollections"
+            :key="col.id ?? col.href"
+            :href="col.href ?? '/collections'"
+            class="group relative block overflow-hidden rounded-lg"
+          >
+            <img
+              v-if="col.image"
+              :src="col.image"
+              :alt="col.title"
+              class="aspect-[3/2] w-full object-cover transition duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div v-else class="aspect-[3/2] bg-gradient-to-br from-slate-100 to-slate-200" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div class="absolute bottom-0 left-0 right-0 p-2">
+              <p v-if="col.kicker" class="text-[0.5rem] font-bold uppercase tracking-[0.15em] text-amber-400">{{ col.kicker }}</p>
+              <p class="text-[0.65rem] font-bold text-white leading-tight sm:text-xs">{{ col.title }}</p>
+            </div>
+          </Link>
+        </div>
+      </div>
+
+      <!-- Mobile: Collections scroll strip below hero -->
+      <div v-if="homeCollections.length" class="mt-3 flex gap-3 overflow-x-auto px-4 pb-1 lg:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Link
+          v-for="col in homeCollections"
+          :key="col.id ?? col.href"
+          :href="col.href ?? '/collections'"
+          class="w-32 shrink-0"
+        >
+          <div class="relative overflow-hidden rounded-xl">
+            <img
+              v-if="col.image"
+              :src="col.image"
+              :alt="col.title"
+              class="aspect-[3/4] w-full object-cover"
+              loading="lazy"
+            />
+            <div v-else class="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <p class="absolute bottom-1.5 left-2 right-2 text-xs font-bold text-white leading-tight">{{ col.title }}</p>
+          </div>
+        </Link>
       </div>
 
       <!-- Category Scroll Strip (SHEIN-style horizontal scroll) -->
@@ -202,7 +276,23 @@
         </div>
       </section>
 
-      <!-- New Arrivals -->
+      <!-- Best Products -->
+      <section v-if="bestSellerProducts.length" class="mt-5 px-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Meilleures Ventes') }}</h2>
+          <Link href="/products?sort=bestsellers" class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer">{{ t('Voir tout') }}</Link>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <CompactProductCard
+            v-for="product in bestSellerProducts"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+          />
+        </div>
+      </section>
+
+      <!-- New Products -->
       <section v-if="featuredProducts.length" class="mt-5 px-4">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-bold text-slate-900">{{ t('Nouveautés') }}</h2>
@@ -218,15 +308,15 @@
         </div>
       </section>
 
-      <!-- Best Sellers -->
-      <section v-if="bestSellerProducts.length" class="mt-5 px-4">
+      <!-- Trendy Products -->
+      <section v-if="trendyProducts.length" class="mt-5 px-4">
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-bold text-slate-900">{{ t('Meilleures Ventes') }}</h2>
-          <Link href="/products?sort=bestsellers" class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer">{{ t('Voir tout') }}</Link>
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Tendance') }}</h2>
+          <Link href="/products?sort=trending" class="shrink-0 text-xs font-semibold text-red-500 cursor-pointer">{{ t('Voir tout') }}</Link>
         </div>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           <CompactProductCard
-            v-for="product in bestSellerProducts"
+            v-for="product in trendyProducts"
             :key="product.id"
             :product="product"
             :currency="currency"
@@ -329,6 +419,7 @@ const props = defineProps({
   homeCollectionsViewAllHref: { type: String, default: '/collections' },
   homepagePromotions: { type: Array, default: () => [] },
   popularSearches: { type: Array, default: () => [] },
+  trending: { type: Array, default: () => [] },
 })
 
 const { t } = useTranslations()
@@ -510,7 +601,18 @@ const scrollCategories = computed(() => {
 const featuredProducts = computed(() => dedupeProducts(props.featured).slice(0, 8))
 const bestSellerProducts = computed(() => dedupeProducts(props.bestSellers).slice(0, 8))
 const recommendedProducts = computed(() => dedupeProducts(props.recommended).slice(0, 8))
+const trendyProducts = computed(() => dedupeProducts(props.trending).slice(0, 8))
 const flashFeed = computed(() => (Array.isArray(props.flashDeals) ? props.flashDeals : []).slice(0, 8))
+
+const allCollections = computed(() => {
+  const cols = Array.isArray(props.homeCollections) ? props.homeCollections : []
+  if (cols.length >= 6) return cols
+  const padded = [...cols]
+  while (padded.length < 6) padded.push(...cols)
+  return padded.slice(0, 6)
+})
+const leftCollections = computed(() => allCollections.value.slice(0, 3))
+const rightCollections = computed(() => allCollections.value.slice(3, 6))
 
 const appDownloadSettings = computed(() => {
   const settings = props.homeContent?.app_download

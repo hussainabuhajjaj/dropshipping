@@ -27,6 +27,18 @@ export default {
         extend: {
             fontFamily: {
                 sans: ['Manrope', ...defaultTheme.fontFamily.sans],
+                heading: ['Syne', 'sans-serif'],
+            },
+            colors: {
+                brand: {
+                    primary: '#0F172A',
+                    accent: '#EF4444',
+                    'accent-hover': '#DC2626',
+                    muted: '#64748B',
+                    light: '#F8FAFC',
+                    border: '#E2E8F0',
+                    surface: '#FFFFFF',
+                },
             },
         },
     },

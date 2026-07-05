@@ -1,78 +1,113 @@
 <template>
-  <form :class="wrapperClass" @submit.prevent="$emit('apply')">
-    <div class="space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Filters') }}</p>
-      <p class="text-sm text-slate-600">{{ description || t('Narrow results by category, price, rating, brand, or attributes.') }}</p>
+  <div :class="wrapperClass">
+    <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+      <h3 class="text-sm font-bold text-slate-900">{{ t('Filters') }}</h3>
+      <button type="button" class="text-xs font-semibold text-red-500 transition hover:text-red-600" @click="$emit('reset')">{{ t('Reset') }}</button>
     </div>
 
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Category') }}</label>
-      <div v-if="hasCategoryTree" class="tree-container">
-        <CategoryTreeCheckbox
-          :nodes="categoryTree"
-          :selected="selectedCategories"
-          :expanded="expandedCategories"
-          @toggle="$emit('toggle-category', $event)"
-          @toggle-expand="$emit('toggle-expand', $event)"
-        />
+    <div class="mt-4 space-y-5">
+      <!-- Category tree -->
+      <div v-if="hasCategoryTree">
+        <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="toggleSection('category')">
+          {{ t('Category') }}
+          <svg class="h-3.5 w-3.5 transition" :class="openSections.category ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div v-if="openSections.category" class="mt-3 tree-container">
+          <CategoryTreeCheckbox
+            :nodes="categoryTree"
+            :selected="selectedCategories"
+            :expanded="expandedCategories"
+            @toggle="$emit('toggle-category', $event)"
+            @toggle-expand="$emit('toggle-expand', $event)"
+          />
+        </div>
       </div>
-      <p v-else class="text-xs text-slate-500">{{ t('No category filters available') }}</p>
-    </div>
 
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Search') }}</label>
-      <input :value="modelValue.q" type="search" :placeholder="t('Search products')" class="input-base" @input="updateField('q', $event.target.value)" />
-    </div>
-
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Price range') }}</label>
-      <div class="flex gap-2">
-        <input :value="modelValue.min_price" type="number" min="0" :placeholder="t('Min')" class="input-base" @input="updateField('min_price', $event.target.value)" />
-        <input :value="modelValue.max_price" type="number" min="0" :placeholder="t('Max')" class="input-base" @input="updateField('max_price', $event.target.value)" />
+      <!-- Search -->
+      <div>
+        <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="toggleSection('search')">
+          {{ t('Search') }}
+          <svg class="h-3.5 w-3.5 transition" :class="openSections.search ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div v-if="openSections.search" class="mt-3">
+          <div class="relative">
+            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/></svg>
+            <input :value="modelValue.q" type="search" :placeholder="t('Search...')" class="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none" @input="updateField('q', $event.target.value)" />
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Rating') }}</label>
-      <select :value="modelValue.rating" class="input-base" @change="updateField('rating', $event.target.value)">
-        <option value="">{{ t('Any rating') }}</option>
-        <option v-for="r in [5, 4, 3, 2, 1]" :key="r" :value="r">{{ t('At least :r stars', { r }) }}</option>
-      </select>
-    </div>
+      <!-- Price range -->
+      <div>
+        <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="toggleSection('price')">
+          {{ t('Price') }}
+          <svg class="h-3.5 w-3.5 transition" :class="openSections.price ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div v-if="openSections.price" class="mt-3">
+          <div class="flex items-center gap-2">
+            <input :value="modelValue.min_price" type="number" min="0" :placeholder="t('Min')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @input="updateField('min_price', $event.target.value)" />
+            <span class="text-xs text-slate-400">—</span>
+            <input :value="modelValue.max_price" type="number" min="0" :placeholder="t('Max')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @input="updateField('max_price', $event.target.value)" />
+          </div>
+        </div>
+      </div>
 
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Stock') }}</label>
-      <select :value="modelValue.in_stock" class="input-base" @change="updateField('in_stock', $event.target.value)">
-        <option value="">{{ t('All') }}</option>
-        <option value="1">{{ t('In stock only') }}</option>
-      </select>
-    </div>
+      <!-- Dynamic attributes (Size/Color shown as buttons, others as select) -->
+      <div v-for="attr in attributes" :key="attr.key">
+        <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="toggleSection(attr.key)">
+          <span class="flex items-center gap-2">
+            {{ attr.label }}
+            <span v-if="isVariantAttribute(attr)" class="rounded bg-slate-200 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-normal text-slate-500">{{ t('Variant') }}</span>
+          </span>
+          <svg class="h-3.5 w-3.5 transition" :class="openSections[attr.key] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div v-if="openSections[attr.key]" class="mt-3">
+          <template v-if="isSizeAttribute(attr)">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="option in attr.options"
+                :key="option"
+                type="button"
+                class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                :class="modelValue[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                @click="toggleAttrValue(attr.key, option)"
+              >
+                {{ option }}
+              </button>
+            </div>
+          </template>
+          <template v-else-if="isColorAttribute(attr)">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="option in attr.options"
+                :key="option"
+                type="button"
+                class="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                :class="modelValue[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                @click="toggleAttrValue(attr.key, option)"
+              >
+                <span class="h-3.5 w-3.5 rounded-full border border-slate-200" :style="{ backgroundColor: colorToHex(option) }" />
+                {{ option }}
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <select :value="modelValue[attr.key]" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @change="updateField(attr.key, $event.target.value)">
+              <option value="">{{ t('All') }}</option>
+              <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </template>
+        </div>
+      </div>
 
-    <div class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ t('Brand') }}</label>
-      <select :value="modelValue.brand" class="input-base" @change="updateField('brand', $event.target.value)">
-        <option value="">{{ t('All brands') }}</option>
-        <option v-for="brand in brands" :key="brand" :value="brand">{{ brand }}</option>
-      </select>
+      <!-- Apply button -->
+      <button type="button" class="btn-red w-full" @click="$emit('apply')">{{ applyLabel || t('Apply') }}</button>
     </div>
-
-    <div v-for="attr in attributes" :key="attr.key" class="space-y-2">
-      <label class="text-xs font-semibold text-slate-600">{{ attr.label }}</label>
-      <select :value="modelValue[attr.key]" class="input-base" @change="updateField(attr.key, $event.target.value)">
-        <option value="">{{ t('Any') }}</option>
-        <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
-      </select>
-    </div>
-
-    <div class="flex gap-2">
-      <button type="submit" class="btn-secondary flex-1">{{ applyLabel || t('Apply') }}</button>
-      <button type="button" class="btn-ghost flex-1" @click="$emit('reset')">{{ resetLabel || t('Reset') }}</button>
-    </div>
-  </form>
+  </div>
 </template>
 
 <script setup>
-import { computed, defineComponent } from 'vue'
+import { computed, defineComponent, reactive } from 'vue'
 import { useTranslations } from '@/i18n'
 
 const props = defineProps({
@@ -86,6 +121,7 @@ const props = defineProps({
   description: { type: String, default: '' },
   applyLabel: { type: String, default: '' },
   resetLabel: { type: String, default: '' },
+  variantAttributeKeys: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue', 'apply', 'reset', 'toggle-category', 'toggle-expand'])
@@ -93,11 +129,49 @@ const { t } = useTranslations()
 
 const hasCategoryTree = computed(() => (props.categoryTree?.length ?? 0) > 0)
 
+const openSections = reactive({
+  category: true,
+  search: false,
+  price: true,
+})
+
+for (const attr of props.attributes) {
+  openSections[attr.key] = true
+}
+
+const sizeKeys = ['size', 'taille', 's']
+const colorKeys = ['color', 'colour', 'couleur']
+
+const isSizeAttribute = (attr) => sizeKeys.includes(attr.key.toLowerCase())
+const isColorAttribute = (attr) => colorKeys.includes(attr.key.toLowerCase())
+const isVariantAttribute = (attr) => props.variantAttributeKeys.includes(attr.key)
+
+const colorToHex = (name) => {
+  const map = {
+    red: '#EF4444', blue: '#3B82F6', green: '#22C55E', black: '#000000', white: '#FFFFFF',
+    gray: '#6B7280', grey: '#6B7280', yellow: '#EAB308', orange: '#F97316', purple: '#A855F7',
+    pink: '#EC4899', brown: '#92400E', beige: '#F5F5DC', cream: '#FFFDD0', navy: '#000080',
+    maroon: '#800000', teal: '#0D9488', gold: '#D4A017', silver: '#C0C0C0', khaki: '#C3B091',
+    turquoise: '#40E0D0', coral: '#FF7F50', burgundy: '#800020', charcoal: '#36454F',
+    nude: '#E3BC9A', camel: '#C19A6B', olive: '#808000', mint: '#98FB98', lavender: '#E6E6FA',
+    peach: '#FFDAB9', wine: '#722F37', rose: '#FF007F', lilac: '#C8A2C8',
+  }
+  const lower = name.toLowerCase().trim()
+  return map[lower] || '#CBD5E1'
+}
+
+const toggleSection = (key) => {
+  openSections[key] = !openSections[key]
+}
+
+const toggleAttrValue = (key, value) => {
+  const current = props.modelValue[key]
+  const newVal = current === value ? '' : value
+  emit('update:modelValue', { ...props.modelValue, [key]: newVal })
+}
+
 const updateField = (key, value) => {
-  emit('update:modelValue', {
-    ...props.modelValue,
-    [key]: value,
-  })
+  emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
 const CategoryTreeCheckbox = defineComponent({
@@ -112,45 +186,21 @@ const CategoryTreeCheckbox = defineComponent({
   setup(localProps, { emit: localEmit }) {
     const isExpanded = (id) => localProps.expanded.has(id)
     const nodeId = (node) => node.id || node.slug || node.name
-    return {
-      isExpanded,
-      nodeId,
-      toggleSelect: (id) => localEmit('toggle', id),
-      toggleOpen: (id) => localEmit('toggle-expand', id),
-    }
+    return { isExpanded, nodeId, toggleSelect: (id) => localEmit('toggle', id), toggleOpen: (id) => localEmit('toggle-expand', id) }
   },
   template: `
-    <div class="space-y-1">
-      <div v-for="node in nodes" :key="nodeId(node)" class="space-y-1">
-        <div class="flex items-center gap-2" :style="{ paddingLeft: (level * 14) + 'px' }">
-          <button
-            v-if="node.children && node.children.length"
-            type="button"
-            class="tree-expander"
-            @click="toggleOpen(nodeId(node))"
-          >
+    <div class="space-y-0.5">
+      <div v-for="node in nodes" :key="nodeId(node)" class="space-y-0.5">
+        <div class="flex items-center gap-1.5" :style="{ paddingLeft: (level * 12) + 'px' }">
+          <button v-if="node.children && node.children.length" type="button" class="flex h-4 w-4 items-center justify-center rounded text-[0.55rem] font-bold text-slate-500 hover:bg-slate-100" @click="toggleOpen(nodeId(node))">
             <span v-if="isExpanded(nodeId(node))">−</span>
             <span v-else>+</span>
           </button>
-          <span v-else class="tree-expander placeholder"></span>
-          <input
-            type="checkbox"
-            class="tree-checkbox"
-            :value="nodeId(node)"
-            :checked="selected.includes(nodeId(node))"
-            @change="toggleSelect(nodeId(node))"
-          />
-          <span class="tree-label">{{ node.name }}</span>
+          <span v-else class="w-4" />
+          <input type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-0" :value="nodeId(node)" :checked="selected.includes(nodeId(node))" @change="toggleSelect(nodeId(node))" />
+          <span class="text-xs font-medium text-slate-700">{{ node.name }}</span>
         </div>
-        <CategoryTreeCheckbox
-          v-if="node.children && node.children.length && isExpanded(nodeId(node))"
-          :nodes="node.children"
-          :level="level + 1"
-          :selected="selected"
-          :expanded="expanded"
-          @toggle="toggleSelect"
-          @toggle-expand="toggleOpen"
-        />
+        <CategoryTreeCheckbox v-if="node.children && node.children.length && isExpanded(nodeId(node))" :nodes="node.children" :level="level + 1" :selected="selected" :expanded="expanded" @toggle="toggleSelect" @toggle-expand="toggleOpen" />
       </div>
     </div>
   `,
@@ -159,39 +209,7 @@ const CategoryTreeCheckbox = defineComponent({
 
 <style scoped>
 .tree-container {
-  max-height: 260px;
+  max-height: 220px;
   overflow-y: auto;
-  padding: 6px 4px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.tree-expander {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: #f8fafc;
-  font-weight: 800;
-  color: #111827;
-  line-height: 1;
-}
-
-.tree-expander.placeholder {
-  border: none;
-  background: transparent;
-}
-
-.tree-checkbox {
-  width: 16px;
-  height: 16px;
-  border: 1px solid #cbd5e1;
-}
-
-.tree-label {
-  font-weight: 700;
-  color: #0f172a;
-  font-size: 13px;
 }
 </style>

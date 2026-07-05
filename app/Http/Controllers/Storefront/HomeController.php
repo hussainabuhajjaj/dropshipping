@@ -60,6 +60,7 @@ class HomeController extends Controller
         $bestSellers = $sections['bestSellers'] ?? collect();
         $recommended = $sections['recommended'] ?? collect();
         $bestValue = $sections['bestValue'] ?? collect();
+        $trending = $sections['trending'] ?? collect();
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
         $featuredCategories = $this->featuredCategoriesForHome($locale, $homeBuilder);
@@ -82,6 +83,7 @@ class HomeController extends Controller
             'bestSellers' => $bestSellers->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'recommended' => $recommended->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'bestValue' => $bestValue->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'trending' => $trending->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'flashDeals' => $flashDealsPayload['items'],
             'flashDealsViewAllHref' => $flashDealsPayload['viewAllHref'],
             'categories' => $categoryList,

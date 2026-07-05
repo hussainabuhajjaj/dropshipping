@@ -54,6 +54,8 @@ class CategoryController extends Controller
             ->values()
             ->all();
 
+        $variantAttributeKeys = $meta['variantAttributeKeys'] ?? [];
+
         // Remove brand and CJ fields from filters
         $filters = collect($filters)
             ->except([
@@ -72,7 +74,7 @@ class CategoryController extends Controller
         }
 
         // IMPORTANT: pass $categoryIds (descendants), not just $category->id
-        $productQuery = $this->buildProductQuery($filters, $attributeDefs, $categoryIds, $locale);
+        $productQuery = $this->buildProductQuery($filters, $attributeDefs, $categoryIds, $locale, $variantAttributeKeys);
 
         $products = $productQuery
             ->paginate($perPage)
@@ -135,6 +137,7 @@ class CategoryController extends Controller
             'promotions' => $promotions,
             'filters' => $filters,
             'attributes' => $attributeDefs,
+            'variantAttributeKeys' => $variantAttributeKeys,
             'breadcrumbs' => [
                 ['label' => 'Home', 'href' => '/'],
                 ['label' => 'Products', 'href' => '/products'],
@@ -176,7 +179,7 @@ class CategoryController extends Controller
         return array_values(array_unique($ids));
     }
 
-    private function buildProductQuery(array $filters, array $attributeDefs, int|array $categoryIds, string $locale)
+    private function buildProductQuery(array $filters, array $attributeDefs, int|array $categoryIds, string $locale, array $variantAttributeKeys = [])
     {
         $categoryIds = is_array($categoryIds) ? $categoryIds : [$categoryIds];
 
@@ -260,11 +263,22 @@ class CategoryController extends Controller
             $productQuery->where('status', $filters['status']);
         }
 
-        // Dynamic attribute filters
+        // Dynamic attribute filters (product-level + variant-level)
         foreach ($attributeDefs as $attr) {
             $key = $attr['key'];
-            if (!empty($filters[$key])) {
-                $productQuery->whereJsonContains('attributes->' . $key, $filters[$key]);
+            $value = $filters[$key] ?? null;
+            if (empty($value)) {
+                continue;
+            }
+            if (in_array($key, $variantAttributeKeys, true)) {
+                $productQuery->whereHas('variants', function ($q) use ($key, $value) {
+                    $q->where(function ($vq) use ($key, $value) {
+                        $vq->whereJsonContains('options->' . $key, $value)
+                           ->orWhereJsonContains('options->properties->' . $key, $value);
+                    });
+                });
+            } else {
+                $productQuery->whereJsonContains('attributes->' . $key, $value);
             }
         }
 

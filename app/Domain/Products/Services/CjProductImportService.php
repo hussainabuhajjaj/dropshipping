@@ -1872,10 +1872,44 @@ class CjProductImportService
 
         // variantKey sometimes contains a single option string
         if (($variant['variantKey'] ?? '') !== '' && $options === []) {
-            $options['Option'] = trim((string) $variant['variantKey']);
+            $compound = $this->tryParseCompoundOption(trim((string) $variant['variantKey']));
+            if ($compound !== null) {
+                $options = $compound;
+            } else {
+                $options['Option'] = trim((string) $variant['variantKey']);
+            }
         }
 
         return $options;
+    }
+
+    private function tryParseCompoundOption(string $value): ?array
+    {
+        $separators = [' / ', ' - ', '/', '-'];
+
+        foreach ($separators as $separator) {
+            if (! str_contains($value, $separator)) {
+                continue;
+            }
+
+            $parts = explode($separator, $value);
+            $parts = array_map('trim', $parts);
+            $parts = array_values(array_filter($parts, fn ($p) => $p !== ''));
+
+            if (count($parts) < 2) {
+                continue;
+            }
+
+            $result = [];
+            $labels = ['Option1', 'Option2', 'Option3'];
+            foreach ($parts as $i => $part) {
+                $result[$labels[$i] ?? 'Option' . ($i + 1)] = $part;
+            }
+
+            return $result;
+        }
+
+        return null;
     }
 
     private function formatProductOptions(array $optionMap): array

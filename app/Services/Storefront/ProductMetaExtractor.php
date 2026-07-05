@@ -46,6 +46,7 @@ class ProductMetaExtractor
 
         foreach ($products as $product) {
             $this->ingestProduct($state, $product);
+            $this->ingestVariantProperties($state, $product);
         }
 
         return $this->finalize($state);
@@ -68,17 +69,19 @@ class ProductMetaExtractor
 
         $idChunks = array_chunk($ids, $chunkSize);
         foreach ($idChunks as $index => $chunk) {
-            if (memory_get_usage(true) > 60 * 1024 * 1024) {
+            if (memory_get_usage(true) > 192 * 1024 * 1024) {
                 break;
             }
 
             $products = Product::query()
                 ->select(['id', 'attributes'])
+                ->with(['variants' => fn ($q) => $q->select(['id', 'product_id', 'options'])])
                 ->whereIn('id', $chunk)
                 ->get();
 
             foreach ($products as $product) {
                 $this->ingestProduct($state, $product);
+                $this->ingestVariantProperties($state, $product);
             }
 
             unset($products);
@@ -110,6 +113,7 @@ class ProductMetaExtractor
             'attributeKeys' => [],
             'attributeOptions' => [],
             'brands' => [],
+            'variantAttributeKeys' => [],
         ];
     }
 
@@ -161,11 +165,78 @@ class ProductMetaExtractor
         }
     }
 
+    private function ingestVariantProperties(array &$state, mixed $product): void
+    {
+        try {
+            $variants = $product->variants;
+            if (! $variants || $variants->isEmpty()) {
+                return;
+            }
+
+            foreach ($variants as $variant) {
+                $options = $variant->options;
+                if (! is_array($options)) {
+                    continue;
+                }
+
+                $properties = $options['properties'] ?? null;
+                $sourceKeys = is_array($properties) ? $properties : $options;
+
+                foreach ($sourceKeys as $key => $value) {
+                    if (! is_string($key) || $this->shouldSkipVariantKey($key)) {
+                        continue;
+                    }
+
+                    $state['attributeKeys'][$key] = true;
+                    $state['variantAttributeKeys'][$key] = true;
+                    if (! isset($state['attributeOptions'][$key])) {
+                        $state['attributeOptions'][$key] = [];
+                    }
+
+                    if (is_string($value) && $value !== '') {
+                        $state['attributeOptions'][$key][$value] = true;
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            return;
+        }
+    }
+
+    private function shouldSkipVariantKey(string $key): bool
+    {
+        $normalized = strtolower(trim($key));
+
+        $skip = [
+            'sku_code', 'sku_attr', 'sku_label', 'option', 'properties',
+            'cj_vid', 'supplier_sku', 'source_sku',
+        ];
+
+        if (in_array($normalized, $skip, true)) {
+            return true;
+        }
+
+        return $this->shouldSkipAttributeKey($key);
+    }
+
     private function finalize(array $state): array
     {
+        $seen = [];
         $attributeDefs = [];
 
         foreach (array_keys($state['attributeKeys']) as $key) {
+            $seen[$key] = true;
+            $attributeDefs[] = [
+                'key' => $key,
+                'label' => ucwords(str_replace('_', ' ', $key)),
+                'options' => array_values(array_filter(array_keys($state['attributeOptions'][$key] ?? []), fn ($v) => $v !== '')),
+            ];
+        }
+
+        foreach (array_keys($state['variantAttributeKeys']) as $key) {
+            if (isset($seen[$key])) {
+                continue;
+            }
             $attributeDefs[] = [
                 'key' => $key,
                 'label' => ucwords(str_replace('_', ' ', $key)),
@@ -181,6 +252,7 @@ class ProductMetaExtractor
         return [
             'attributeDefs' => $attributeDefs,
             'brands' => $brands,
+            'variantAttributeKeys' => array_keys($state['variantAttributeKeys']),
         ];
     }
 }

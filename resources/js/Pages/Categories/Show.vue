@@ -4,279 +4,161 @@
       <meta name="description" head-key="description" :content="metaDescription" />
     </Head>
 
-    <div class="space-y-5 bg-[#f7f3eb] pb-24 sm:space-y-6 sm:pb-28">
-      <Breadcrumbs :items="breadcrumbs" class="px-1" />
+    <div class="min-h-screen bg-white pb-28">
+      <Breadcrumbs :items="breadcrumbs" class="px-4" />
 
-      <section class="overflow-hidden rounded-[1.8rem] bg-[#111111] text-white shadow-[0_20px_48px_rgba(15,23,42,0.16)]">
-        <div class="grid gap-3 p-4 sm:p-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch lg:p-6">
-          <div class="space-y-3">
-            <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span class="shrink-0 rounded-full bg-[#ff6b35] px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.2em] text-white">{{ t('Category') }}</span>
-              <span class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ t(':count products', { count: productsPager.total ?? 0 }) }}</span>
-              <span v-if="subcategories.length" class="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-white/90">{{ t(':count subcategories', { count: subcategories.length }) }}</span>
-            </div>
-
-            <div class="rounded-[1.35rem] border border-white/10 bg-white/8 p-4 backdrop-blur">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <h1 class="text-[1.5rem] font-black leading-[0.95] tracking-[-0.04em] sm:text-[2rem]">{{ displayTitle }}</h1>
-                  <p v-if="displaySubtitle" class="mt-2 max-w-2xl text-sm leading-6 text-white/74">{{ displaySubtitle }}</p>
-                  <p v-else-if="metaDescription" class="mt-2 max-w-2xl text-sm leading-6 text-white/74">{{ metaDescription }}</p>
-                </div>
-                <div class="shrink-0 rounded-[1rem] bg-[#facc15] px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-slate-950">
-                  {{ categoryPromoCountdown ? t('Live') : t('Hot') }}
-                </div>
-              </div>
-
-              <div v-if="categoryPromotion" class="mt-3 flex flex-wrap items-center gap-2 rounded-[1rem] border border-[#f7c16d]/40 bg-[#fffbf2] px-3 py-2 text-xs font-semibold text-amber-900">
-                <span>{{ categoryPromotion.badge_text || categoryPromotion.name }}</span>
-                <span v-if="categoryPromotion.value_type === 'percentage'">-{{ categoryPromotion.value }}%</span>
-                <span v-else-if="categoryPromotion.value_type === 'fixed'">-{{ categoryPromotion.value }}</span>
-                <span v-if="categoryPromotion.apply_hint" class="text-[11px] font-medium text-amber-800">
-                  {{ categoryPromotion.apply_hint }}
-                </span>
-                <span v-if="categoryPromoCountdown" class="text-[11px] font-semibold text-amber-700">
-                  {{ t('Ends in') }} {{ categoryPromoCountdown }}
-                </span>
-              </div>
-
-              <div class="mt-3 grid grid-cols-3 gap-2">
-                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
-                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Results') }}</p>
-                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ productsPager.total ?? 0 }}</p>
-                </article>
-                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
-                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Subcats') }}</p>
-                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ subcategories.length }}</p>
-                </article>
-                <article class="rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2.5">
-                  <p class="text-[0.56rem] font-bold uppercase tracking-[0.18em] text-white/52">{{ t('Sort') }}</p>
-                  <p class="mt-1 text-[0.82rem] font-bold text-white">{{ sortLabel }}</p>
-                </article>
-              </div>
-
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Link
-                  v-if="category.hero_cta_label && category.hero_cta_link"
-                  :href="category.hero_cta_link"
-                  class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.78rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420]"
-                >
-                  {{ category.hero_cta_label }}
-                </Link>
-                <button
-                  type="button"
-                  class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/16 bg-white/8 px-4 text-[0.78rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 lg:hidden"
-                  @click="filtersOpen = true"
-                >
-                  {{ t('Open filters') }}
-                </button>
-              </div>
-            </div>
-
-            <TrustBadges compact :columns="3" tone="muted" class="pt-1" />
-          </div>
-
-          <div class="grid gap-3">
-            <div v-if="category.hero_image" class="overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/8 p-1.5 backdrop-blur">
-              <img :src="category.hero_image" :alt="category.name" class="aspect-[1.12] w-full rounded-[1.1rem] object-cover" />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <article class="rounded-[1.25rem] bg-[#ff6b35] px-3 py-3 text-white">
-                <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/72">{{ t('Fast browse') }}</p>
-                <p class="mt-1 text-sm font-black leading-4">{{ t('Quick category entry') }}</p>
-                <p class="mt-1 text-[0.7rem] leading-4 text-white/80">{{ t('Jump from subcategory to products in one tap.') }}</p>
-              </article>
-              <article class="rounded-[1.25rem] border border-white/10 bg-white/8 px-3 py-3 backdrop-blur">
-                <p class="text-[0.54rem] font-bold uppercase tracking-[0.18em] text-white/55">{{ t('Buying cues') }}</p>
-                <p class="mt-1 text-sm font-black leading-4 text-white">{{ t('Price, stock, reviews') }}</p>
-                <p class="mt-1 text-[0.7rem] leading-4 text-white/72">{{ t('Everything visible before product entry.') }}</p>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="space-y-5">
-      <!-- Subcategory cards -->
-      <div v-if="subcategories.length" class="rounded-[1.6rem] bg-white p-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
-        <div class="flex items-end justify-between gap-3">
+      <div class="mx-auto mt-4 max-w-7xl px-4">
+        <!-- Category Header -->
+        <div class="flex items-center justify-between">
           <div>
-            <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#ff6b35]">{{ t('Subcategories') }}</p>
-            <h2 class="text-lg font-black tracking-[-0.03em] text-slate-950">{{ t('Jump into a more specific lane') }}</h2>
+            <h1 class="text-xl font-bold text-slate-900 sm:text-2xl">{{ displayTitle }}</h1>
+            <p v-if="displaySubtitle" class="mt-1 text-sm text-slate-500">{{ displaySubtitle }}</p>
+            <p v-else class="mt-1 text-xs text-slate-400">{{ productsPager.total ?? 0 }} {{ t('products') }}</p>
           </div>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 lg:hidden"
+            @click="filtersOpen = true"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+            {{ t('Filters') }}
+            <span v-if="activeFilters.length" class="ml-0.5 rounded-full bg-red-500 px-1.5 text-[0.55rem] font-bold text-white">{{ activeFilters.length }}</span>
+          </button>
         </div>
-        <div class="mt-3 flex gap-3 overflow-x-auto pb-1 sm:mt-4 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-4 xl:grid-cols-5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+        <!-- Subcategory horizontal scroll -->
+        <div v-if="subcategories.length" class="mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           <Link
             v-for="sub in subcategories"
             :key="sub.id || sub.slug || sub.name"
             :href="`/categories/${encodeURIComponent(sub.slug || sub.id || sub.name)}`"
-            class="subcat-card shrink-0 w-[152px] sm:w-auto"
+            class="flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
           >
-            <div class="subcat-thumb" v-if="sub.image"><img :src="sub.image" :alt="sub.name" loading="lazy" /></div>
-            <div class="subcat-fallback" v-else>{{ sub.name?.slice(0,2) || 'SC' }}</div>
-            <p class="subcat-name">{{ sub.name }}</p>
-            <p v-if="sub.product_count" class="subcat-count">{{ t(':count products', { count: sub.product_count }) }}</p>
+            <span v-if="sub.image" class="h-5 w-5 overflow-hidden rounded-full">
+              <img :src="sub.image" :alt="sub.name" class="h-full w-full object-cover" />
+            </span>
+            {{ sub.name }}
+            <span v-if="sub.product_count" class="text-[0.6rem] text-slate-400">({{ sub.product_count }})</span>
           </Link>
         </div>
       </div>
 
-      <div v-if="products.length" class="space-y-4">
-      <div class="flex flex-col gap-5 lg:flex-row lg:gap-8">
-        <!-- Sidebar Filters -->
-        <aside class="hidden lg:block min-w-[260px] max-w-xs">
-          <FilterSidebar
-            :model-value="form"
-            wrapper-class="sticky top-28 rounded-[1.6rem] border border-[#eadfce] bg-white h-fit space-y-4 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
-            :brands="brands"
-            :attributes="attributes"
-            :category-tree="categoryTree"
-            :expanded-categories="expandedCategories"
-            :selected-categories="selectedCategories"
-            @update:modelValue="updateForm"
-            @apply="applyFilters"
-            @reset="resetFilters"
-            @toggle-category="toggleCategorySelection"
-            @toggle-expand="toggleExpand"
-          />
-        </aside>
-
-        <div class="flex-1 space-y-4">
-          <BrowseToolbar
-            :total-count="productsPager.total ?? products.length"
-            :active-filter-count="activeFilters.length"
-            :search="form.q"
-            :search-placeholder="t('Search in this category')"
-            :sort="form.sort"
-            :sort-options="sortOptions"
-            :filter-button-label="t('Filters')"
-            @update:search="form.q = $event"
-            @update:sort="handleSortChange"
-            @open-filters="filtersOpen = true"
-            @submit-search="applyFilters"
-          />
-
-          <!-- Active filters chips -->
-          <div v-if="activeFilters.length" class="flex flex-wrap gap-2">
-            <button
-              v-for="filter in activeFilters"
-              :key="filter.key"
-              type="button"
-              class="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#eadfce] bg-[#fffaf4] px-3 text-[0.72rem] font-semibold text-slate-700 transition hover:border-slate-300"
-              @click="clearFilter(filter.key)"
-            >
-              {{ filter.label }}
-              <span class="text-slate-400">x</span>
-            </button>
-            <button type="button" class="btn-ghost text-xs" @click="resetFilters">
-              {{ t('Clear all') }}
-            </button>
-          </div>
-
-          <!-- Product grid -->
-          <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
-            <ProductCard
-              v-for="product in products"
-              :key="product.id"
-              :product="product"
-              :currency="currency"
-              :promotions="(page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []"
+      <!-- Main content: sidebar filters + product grid -->
+      <div v-if="products.length" class="mx-auto mt-6 max-w-7xl px-4">
+        <div class="flex flex-col gap-6 lg:flex-row lg:gap-8">
+          <!-- Desktop Sidebar Filters -->
+          <aside class="hidden w-60 shrink-0 lg:block">
+            <FilterSidebar
+              :model-value="form"
+              wrapper-class="sticky top-28 space-y-4"
+              :attributes="attributes"
+              :category-tree="categoryTree"
+              :expanded-categories="expandedCategories"
+              :selected-categories="selectedCategories"
+              :variant-attribute-keys="variantAttributeKeys"
+              @update:modelValue="updateForm"
+              @apply="applyFilters"
+              @reset="resetFilters"
+              @toggle-category="toggleCategorySelection"
+              @toggle-expand="toggleExpand"
             />
-          </div>
+          </aside>
 
+          <div class="min-w-0 flex-1">
+            <!-- Sort + browse toolbar -->
+            <div class="flex items-center justify-between gap-4">
+              <p class="text-xs text-slate-500">{{ productsPager.total ?? 0 }} {{ t('products') }}</p>
+              <select
+                :value="form.sort"
+                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 focus:border-slate-400 focus:outline-none"
+                @change="handleSortChange($event.target.value)"
+              >
+                <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+
+            <!-- Active filter chips -->
+            <div v-if="activeFilters.length" class="mt-3 flex flex-wrap gap-2">
+              <button
+                v-for="filter in activeFilters"
+                :key="filter.key"
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[0.65rem] font-semibold text-slate-600 transition hover:bg-slate-100"
+                @click="clearFilter(filter.key)"
+              >
+                {{ filter.label }}
+                <svg class="h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+              </button>
+              <button type="button" class="text-xs font-semibold text-red-500 hover:text-red-600" @click="resetFilters">
+                {{ t('Clear all') }}
+              </button>
+            </div>
+
+            <!-- Product grid -->
+            <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              <ProductCard
+                v-for="product in products"
+                :key="product.id"
+                :product="product"
+                :currency="currency"
+                :promotions="promotionList"
+              />
+            </div>
+
+            <!-- Pagination -->
+            <nav v-if="lastPage > 1" class="mt-8 flex items-center justify-center gap-1">
+              <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <template v-for="(p, i) in pageNumbers" :key="i">
+                <span v-if="p === '...'" class="px-1 text-xs text-slate-400">...</span>
+                <button v-else type="button" class="flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-xs font-semibold transition"
+                  :class="p === currentPage ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="goToPage(p)">{{ p }}</button>
+              </template>
+              <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="currentPage >= lastPage" @click="goToPage(currentPage + 1)">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
 
-      <!-- Mobile Filters Modal -->
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div v-if="filtersOpen" class="fixed inset-0 z-[60] lg:hidden">
-          <div class="absolute inset-0 bg-slate-900/20" @click="filtersOpen = false" />
-        </div>
-      </Transition>
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="translate-y-4 opacity-0"
-        enter-to-class="translate-y-0 opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="translate-y-0 opacity-100"
-        leave-to-class="translate-y-4 opacity-0"
-      >
-        <div v-if="filtersOpen" class="fixed inset-x-0 bottom-0 z-[70] rounded-t-3xl border-t border-slate-200 bg-white p-6 lg:hidden">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-slate-900">{{ t('Filters') }}</p>
-            <button type="button" class="btn-ghost text-xs" @click="filtersOpen = false">{{ t('Close') }}</button>
-          </div>
-          <FilterSidebar
-            :model-value="form"
-            wrapper-class="mt-4 max-h-[70vh] space-y-4 overflow-y-auto pb-6"
-            :brands="brands"
-            :attributes="attributes"
-            :category-tree="categoryTree"
-            :expanded-categories="expandedCategories"
-            :selected-categories="selectedCategories"
-            @update:modelValue="updateForm"
-            @apply="applyFilters"
-            @reset="resetFilters"
-            @toggle-category="toggleCategorySelection"
-            @toggle-expand="toggleExpand"
-          />
-        </div>
-      </Transition>
-      </div>
-    </section>
-
-    <template v-if="products.length">
-      <nav v-if="lastPage > 1" class="flex items-center justify-center gap-1 py-6">
-        <button
-          type="button"
-          class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage <= 1"
-          @click="goToPage(currentPage - 1)"
-        >
-          ‹
-        </button>
-        <template v-for="(p, i) in pageNumbers" :key="i">
-          <span v-if="p === '...'" class="px-1 text-xs text-slate-400">...</span>
-          <button
-            v-else
-            type="button"
-            class="flex h-9 min-w-[2.25rem] items-center justify-center rounded-lg border px-2 text-sm font-medium transition"
-            :class="p === currentPage
-              ? 'border-slate-900 bg-slate-900 text-white'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
-            @click="goToPage(p)"
-          >
-            {{ p }}
-          </button>
+      <EmptyState v-else :eyebrow="t('Category')" :title="t('No products here yet')" :message="t('This collection is currently being selected. Browse other categories or check back soon.')">
+        <template #actions>
+          <Link href="/products" class="btn-primary">{{ t('Browse catalog') }}</Link>
         </template>
-        <button
-          type="button"
-          class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage >= lastPage"
-          @click="goToPage(currentPage + 1)"
-        >
-          ›
-        </button>
-      </nav>
-    </template>
-    <EmptyState
-      v-else
-      :eyebrow="t('Category')"
-      :title="t('No products here yet')"
-      :message="t('This collection is currently being selected. Browse other categories or check back soon.')"
-    >
-      <template #actions>
-        <Link href="/products" class="btn-primary">{{ t('Browse catalog') }}</Link>
-        <Link href="/support" class="btn-ghost">{{ t('Request a product') }}</Link>
-      </template>
-    </EmptyState>
+      </EmptyState>
     </div>
+
+    <!-- Mobile Filters Bottom Sheet -->
+    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+      <div v-if="filtersOpen" class="fixed inset-0 z-[60] lg:hidden">
+        <div class="absolute inset-0 bg-slate-900/20" @click="filtersOpen = false" />
+      </div>
+    </Transition>
+    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="translate-y-4 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-4 opacity-0">
+      <div v-if="filtersOpen" class="fixed inset-x-0 bottom-0 z-[70] max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white p-5 pb-8 lg:hidden">
+        <div class="flex items-center justify-between pb-3">
+          <p class="text-sm font-bold text-slate-900">{{ t('Filters') }}</p>
+          <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100" @click="filtersOpen = false">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+          </button>
+        </div>
+        <FilterSidebar
+          :model-value="form"
+          :attributes="attributes"
+          :category-tree="categoryTree"
+          :expanded-categories="expandedCategories"
+          :selected-categories="selectedCategories"
+          :variant-attribute-keys="variantAttributeKeys"
+          @update:modelValue="updateForm"
+          @apply="applyFilters"
+          @reset="resetFilters"
+          @toggle-category="toggleCategorySelection"
+          @toggle-expand="toggleExpand"
+        />
+      </div>
+    </Transition>
   </StorefrontLayout>
 </template>
 
@@ -288,12 +170,8 @@ import Breadcrumbs from '@/Components/Breadcrumbs.vue'
 import FilterSidebar from '@/Components/FilterSidebar.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
-
 import { useJsonLd } from '@/composables/useJsonLd.js'
-import BrowseToolbar from '@/Components/storefront/BrowseToolbar.vue'
-import TrustBadges from '@/Components/TrustBadges.vue'
 import { useTranslations } from '@/i18n'
-import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 
 const props = defineProps({
   category: { type: Object, required: true },
@@ -304,26 +182,12 @@ const props = defineProps({
   attributes: { type: Array, default: () => [] },
   subcategories: { type: Array, default: () => [] },
   breadcrumbs: { type: Array, default: () => [] },
+  variantAttributeKeys: { type: Array, default: () => [] },
 })
 
 const { t } = useTranslations()
-const page = usePage ? usePage() : null
-const now = usePromoNow()
-
-const activePromotions = computed(() => {
-  return (page && page.props && (page.props.promotions || page.props.homepagePromotions)) ? (page.props.promotions || page.props.homepagePromotions) : []
-})
-
-const categoryPromotion = computed(() => {
-  if (!activePromotions.value.length) return null
-  return activePromotions.value.find((promo) => {
-    const targets = promo.targets || []
-    if (targets.length === 0) return promo.is_sitewide
-    return targets.some((target) => target.target_type === 'category' && target.target_id == props.category.id)
-  }) ?? null
-})
-
-const categoryPromoCountdown = computed(() => formatCountdown(categoryPromotion.value?.end_at, now.value))
+const page = usePage()
+const promotionList = computed(() => (page?.props?.promotions || page?.props?.homepagePromotions || []))
 
 const form = reactive({
   q: props.filters.q ?? '',
@@ -331,31 +195,25 @@ const form = reactive({
   max_price: props.filters.max_price ?? '',
   rating: props.filters.rating ?? '',
   in_stock: props.filters.in_stock ?? '',
-  brand: props.filters.brand ?? '',
   sort: props.filters.sort ?? '',
   page: props.filters.page ?? 1,
   categories: Array.isArray(props.filters.categories) ? props.filters.categories : [],
-  // Dynamic attributes
   ...Object.fromEntries((props.attributes || []).map(attr => [attr.key, props.filters[attr.key] ?? ''])),
 })
 
-
 const filtersOpen = ref(false)
 
-const updateForm = (next) => {
-  Object.assign(form, next)
-}
+const updateForm = (next) => Object.assign(form, next)
 
 const activeFilters = computed(() => {
   const items = []
   if (form.q) items.push({ key: 'q', label: t('Search: :value', { value: form.q }) })
-  if (form.min_price) items.push({ key: 'min_price', label: t('Min: :value', { value: form.min_price }) })
-  if (form.max_price) items.push({ key: 'max_price', label: t('Max: :value', { value: form.max_price }) })
-  if (form.rating) items.push({ key: 'rating', label: t('Rating: :value+', { value: form.rating }) })
-  if (form.in_stock) items.push({ key: 'in_stock', label: t('In stock only') })
-  if (form.brand) items.push({ key: 'brand', label: t('Brand: :value', { value: form.brand }) })
-  (props.attributes || []).forEach(attr => {
-    if (form[attr.key]) items.push({ key: attr.key, label: t(attr.label + ': :value', { value: form[attr.key] }) })
+  if (form.min_price) items.push({ key: 'min_price', label: form.min_price + '+ CFA' })
+  if (form.max_price) items.push({ key: 'max_price', label: t('Up to :value', { value: form.max_price }) })
+  if (form.rating) items.push({ key: 'rating', label: form.rating + '+ ' + t('stars') })
+  if (form.in_stock) items.push({ key: 'in_stock', label: t('In stock') })
+  ;(props.attributes || []).forEach(attr => {
+    if (form[attr.key]) items.push({ key: attr.key, label: form[attr.key] })
   })
   return items
 })
@@ -372,11 +230,8 @@ const resetFilters = () => {
   form.max_price = ''
   form.rating = ''
   form.in_stock = ''
-  form.brand = ''
   form.sort = ''
-  ;(props.attributes || []).forEach(attr => {
-    form[attr.key] = ''
-  })
+  ;(props.attributes || []).forEach(attr => { form[attr.key] = '' })
   filtersOpen.value = false
   form.page = 1
   applyFilters()
@@ -392,26 +247,15 @@ const metaTitle = computed(() => props.category.meta_title || `${props.category.
 const metaDescription = computed(() => props.category.meta_description || '')
 const displayTitle = computed(() => props.category.hero_title || props.category.name)
 const displaySubtitle = computed(() => props.category.hero_subtitle || props.category.description || '')
+
 const sortOptions = computed(() => [
   { value: '', label: t('Relevance') },
+  { value: 'newest', label: t('Newest') },
   { value: 'price_asc', label: t('Price: Low to High') },
   { value: 'price_desc', label: t('Price: High to Low') },
-  { value: 'newest', label: t('Newest') },
   { value: 'rating', label: t('Rating') },
   { value: 'popularity', label: t('Popularity') },
 ])
-const sortLabel = computed(() => {
-  const labels = {
-    '': t('Relevance'),
-    price_asc: t('Low-high'),
-    price_desc: t('High-low'),
-    newest: t('Newest'),
-    rating: t('Rating'),
-    popularity: t('Popular'),
-  }
-
-  return labels[form.sort ?? ''] || t('Relevance')
-})
 
 const handleSortChange = (value) => {
   form.sort = value
@@ -427,37 +271,23 @@ const categorySchema = computed(() => {
     description: metaDescription.value || displaySubtitle.value,
     url: `${baseUrl}/categories/${props.category.slug}`,
   }
-  
-  if (props.category.hero_image) {
-    schema.image = props.category.hero_image
-  }
-  
+  if (props.category.hero_image) schema.image = props.category.hero_image
   if (products.value.length > 0) {
     schema.mainEntity = {
       '@type': 'ItemList',
       itemListElement: products.value.slice(0, 10).map((product, index) => ({
         '@type': 'ListItem',
         position: index + 1,
-        item: {
-          '@type': 'Product',
-          name: product.name,
-          url: product.url || `${baseUrl}/products/${product.slug}`,
-          image: product.image,
-          price: product.price ? `${props.currency} ${product.price}` : undefined,
-        },
+        item: { '@type': 'Product', name: product.name, url: product.url || `${baseUrl}/products/${product.slug}`, image: product.image },
       })),
     }
   }
-  
   return JSON.stringify(schema)
 })
 
-// Inject JSON-LD schema (temporarily disabled due to initialization error)
-// useJsonLd(categorySchema)
-
 const productsPager = computed(() => props.products ?? { data: [] })
 const products = computed(() => productsPager.value.data ?? [])
-const breadcrumbs = computed(() => props.breadcrumbs ?? [])
+
 const mapSubcategory = (node) => ({
   ...node,
   id: node.id ?? node.slug ?? node.name,
@@ -469,38 +299,17 @@ const mapSubcategory = (node) => ({
 })
 
 const subcategories = computed(() => {
-  const sources = [
-    props.subcategories,
-    props.category?.subcategories,
-    props.category?.children,
-    props.category?.children_recursive,
-  ].find((arr) => Array.isArray(arr) && arr.length)
-
-  if (!sources) return []
-  return sources.map(mapSubcategory)
+  const sources = [props.subcategories, props.category?.subcategories, props.category?.children, props.category?.children_recursive].find((arr) => Array.isArray(arr) && arr.length)
+  return sources ? sources.map(mapSubcategory) : []
 })
 
-const normalizeTree = (nodes = []) =>
-  nodes.map((node) => ({
-    ...node,
-    id: node.id ?? node.slug ?? node.name,
-    name: node.name,
-    children: Array.isArray(node.children) ? normalizeTree(node.children) : [],
-  }))
+const normalizeTree = (nodes = []) => nodes.map((node) => ({ ...node, id: node.id ?? node.slug ?? node.name, name: node.name, children: Array.isArray(node.children) ? normalizeTree(node.children) : [] }))
 
-const categoryTree = computed(() => normalizeTree(
-  props.category.children
-  || props.category.subcategories
-  || props.category.children_recursive
-  || props.subcategories
-  || (page?.props?.categories ?? [])
-  || []
-))
+const categoryTree = computed(() => normalizeTree(props.category.children || props.category.subcategories || props.category.children_recursive || props.subcategories || (page?.props?.categories ?? []) || []))
 
 const expandedCategories = ref(new Set())
 const selectedCategories = computed(() => Array.isArray(form.categories) ? form.categories : [])
 
-// Auto-expand first level when tree loads
 watch(categoryTree, (nodes) => {
   const set = new Set(expandedCategories.value)
   nodes.slice(0, 5).forEach((n) => set.add(n.id))
@@ -509,8 +318,7 @@ watch(categoryTree, (nodes) => {
 
 const toggleCategorySelection = (id) => {
   const set = new Set(selectedCategories.value)
-  if (set.has(id)) set.delete(id)
-  else set.add(id)
+  if (set.has(id)) set.delete(id); else set.add(id)
   form.categories = Array.from(set)
   form.page = 1
   applyFilters()
@@ -518,8 +326,7 @@ const toggleCategorySelection = (id) => {
 
 const toggleExpand = (id) => {
   const set = new Set(expandedCategories.value)
-  if (set.has(id)) set.delete(id)
-  else set.add(id)
+  if (set.has(id)) set.delete(id); else set.add(id)
   expandedCategories.value = set
 }
 
@@ -529,9 +336,7 @@ const lastPage = computed(() => productsPager.value.last_page ?? 1)
 const pageNumbers = computed(() => {
   const current = currentPage.value
   const last = lastPage.value
-  if (last <= 7) {
-    return Array.from({ length: last }, (_, i) => i + 1)
-  }
+  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1)
   const pages = [1]
   if (current > 3) pages.push('...')
   const start = Math.max(2, current - 1)
@@ -543,57 +348,8 @@ const pageNumbers = computed(() => {
 })
 
 const goToPage = (page) => {
-  if (page < 1 || page > (productsPager.value.last_page ?? 1)) {
-    return
-  }
+  if (page < 1 || page > (productsPager.value.last_page ?? 1)) return
   form.page = page
   router.get(`/categories/${props.category.slug}`, { ...form }, { preserveState: true, replace: true })
 }
 </script>
-
-<style scoped>
-.subcat-card {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #fff;
-  transition: transform 150ms ease, box-shadow 150ms ease;
-}
-.subcat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
-}
-.subcat-thumb {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #f8fafc;
-}
-.subcat-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.subcat-fallback {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  background: #f8fafc;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #0f172a;
-}
-.subcat-name {
-  font-weight: 700;
-  color: #0f172a;
-  font-size: 13px;
-}
-.subcat-count {
-  font-size: 12px;
-  color: #64748b;
-}
-</style>

@@ -2,57 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-.bg-brand-header {
-    background: linear-gradient(
-        90deg,
-        rgba(245, 149, 15, 1) 0%,
-        rgba(246, 225, 109, 1) 50%,
-        rgba(240, 236, 214, 1) 100%
-    );
-}
-
-.brand-theme,
-.brand-theme * {
-    font-family: "Big Shoulders", sans-serif !important;
-    font-optical-sizing: auto;
-    font-weight: 700;
-    font-style: normal;
-}
-
-.brand-theme {
-    font-size: 1.5rem;
-}
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700&display=swap');
 
 @layer base {
     :root {
-        --accent: #f59e0b;
-        --accent-strong: #d97706;
-        --text-strong: #0f172a;
-        --text-muted: #475569;
-        --border-muted: #e2e8f0;
-        --surface: #ffffff;
-        --surface-muted: #f8fafc;
+        --accent: #EF4444;
+        --accent-strong: #DC2626;
+        --text-strong: #0F172A;
+        --text-muted: #64748B;
+        --border-muted: #E2E8F0;
+        --surface: #FFFFFF;
+        --surface-muted: #F8FAFC;
     }
 
     html {
-        font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+        font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
         color: var(--text-strong);
         background-color: #ffffff;
+        scroll-behavior: smooth;
     }
 
     body {
         background-color: #ffffff;
-        background-image: none;
         line-height: 1.6;
     }
 
     img {
         display: block;
     }
-}
-
-.brand-theme {
-    background-color: #ffffff;
 }
 
 @layer components {
@@ -78,7 +55,7 @@
     .btn-primary {
         @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition duration-200;
         background-color: var(--accent);
-        color: #111827;
+        color: white;
     }
 
     .btn-primary:hover {
@@ -106,6 +83,10 @@
         @apply text-slate-900;
     }
 
+    .btn-red {
+        @apply inline-flex items-center justify-center rounded-lg bg-red-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-600 active:scale-95;
+    }
+
     .input-base {
         @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none;
     }
@@ -114,10 +95,8 @@
         @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600;
     }
 
-    .badge-accent {
-        @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
-        background-color: var(--accent);
-        color: #111827;
+    .badge-red {
+        @apply inline-flex items-center rounded bg-red-500 px-1.5 py-0.5 text-[0.6rem] font-bold text-white;
     }
 
     .breadcrumbs-nav {
@@ -141,7 +120,7 @@
     }
 
     .breadcrumbs-current {
-        @apply rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-slate-900;
+        @apply rounded-full bg-red-50 px-2.5 py-1 font-semibold text-slate-900;
     }
 
     .pager-bar {
@@ -228,5 +207,21 @@
         color: inherit;
         padding: 2px 4px;
         outline: none;
+    }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    .price-red {
+        @apply text-sm font-black text-red-500;
+    }
+
+    .price-strikethrough {
+        @apply text-xs font-medium text-slate-400 line-through;
     }
 }

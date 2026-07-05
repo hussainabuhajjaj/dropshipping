@@ -56,7 +56,7 @@
         <!-- Marketplace Header -->
         <header
             ref="headerRef"
-            class="storefront-header fixed top-0 inset-x-0 z-[100] shadow-md bg-slate-950 text-white"
+            class="storefront-header fixed top-0 inset-x-0 z-[100] border-b border-slate-200 bg-white shadow-sm text-slate-900"
             :class="[
                 mobileHeaderCompact ? 'mobile-header-compact' : '',
                 headerHidden ? 'storefront-header--hidden' : '',
@@ -66,59 +66,48 @@
 
             <!-- Top row -->
             <div class="container-base">
-                <div class="flex items-center gap-3 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
+                <div class="flex items-center gap-2 transition-all duration-200" :class="mobileHeaderCompact ? 'py-2' : 'py-3'">
                     <!-- Mobile Menu Toggle -->
                     <button
                         type="button"
-                        class="inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b] lg:hidden"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 lg:hidden"
                         @click="mobileOpen = true"
                     >
                         <span class="sr-only">{{ t('Open menu') }}</span>
-                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
                     </button>
 
                     <!-- Brand Logo -->
-                    <Link href="/" class="flex items-center gap-2">
-                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="w-auto transition-all duration-200" :class="mobileHeaderCompact ? 'h-8' : 'h-10'"/>
-                        <span v-else class="text-xl font-bold text-white">{{ brandName }}</span>
+                    <Link href="/" class="flex shrink-0 items-center gap-2">
+                        <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="w-auto transition-all duration-200" :class="mobileHeaderCompact ? 'h-7' : 'h-9'"/>
+                        <span v-else class="text-lg font-bold font-heading text-slate-900">{{ brandName }}</span>
                     </Link>
 
                     <!-- Location Selector (desktop) -->
                     <button
                         type="button"
-                        class="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm text-white transition hover:bg-slate-800 lg:flex"
+                        class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-slate-100 lg:flex"
                         @click="locationOpen = !locationOpen"
                     >
-                        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-                            />
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
                         </svg>
-                        <div class="text-left leading-tight">
-                            <div class="text-xs text-slate-400">{{ t('Deliver to') }}</div>
-                            <div class="font-semibold">{{ selectedLocation }}</div>
-                        </div>
-                        <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor">
-                            <path
-                                fill-rule="evenodd"
-                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
+                        <span class="font-medium text-slate-700">{{ selectedLocation }}</span>
                     </button>
 
                     <!-- Large Search Bar (desktop) -->
                     <form class="hidden flex-1 items-center lg:flex" @submit.prevent="submitSearch">
-                        <div ref="desktopSearchRef" class="relative mx-auto w-full max-w-3xl">
+                        <div ref="desktopSearchRef" class="relative mx-auto w-full max-w-2xl">
+                            <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
+                            </svg>
                             <input
                                 v-model="search"
                                 type="search"
-                                :placeholder="t('What are you looking for?')"
-                                class="w-full rounded-lg border-2 border-slate-600 bg-white px-5 py-3 pl-12 text-sm text-slate-900 placeholder-slate-500 focus:border-[#f59e0b] focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
+                                :placeholder="t('Search products...')"
+                                class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder-slate-400 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-0"
                                 :aria-label="t('Search products')"
                                 @focus="handleSearchFocus"
                                 @keydown.down.prevent="handleSuggestionNext"
@@ -126,20 +115,9 @@
                                 @keydown.enter.prevent="handleSearchEnter"
                                 @keydown.esc.prevent="closeSearchSuggestions"
                             />
-                            <svg
-                                viewBox="0 0 24 24"
-                                class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                      d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
-                            </svg>
-
                             <button
                                 type="submit"
-                                class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-[#f59e0b] px-6 py-2 text-sm font-semibold text-white transition hover:bg-[#d97706]"
+                                class="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-red-500 px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
                             >
                                 {{ t('Search') }}
                             </button>
@@ -159,15 +137,15 @@
                     </form>
 
                     <!-- Right Side Icons -->
-                    <div class="ml-auto flex items-center gap-3">
+                    <div class="ml-auto flex items-center gap-1">
                         <!-- Language Toggle (desktop) -->
-                        <div class="hidden items-center gap-1 lg:flex">
+                        <div class="hidden items-center gap-0.5 lg:flex">
                             <button
                                 v-for="option in getLocaleOptions"
                                 :key="option.code"
                                 type="button"
                                 class="rounded px-2 py-1 text-xs font-semibold uppercase transition"
-                                :class="option.code === currentLanguage ? 'bg-[#f59e0b] text-white' : 'text-slate-300 hover:text-white'"
+                                :class="option.code === currentLanguage ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-800'"
                                 :title="option.label"
                                 @click="setLanguage(option.code)"
                             >
@@ -180,7 +158,7 @@
                             v-if="displaySettings?.show_currency_selector"
                             v-model="currentCurrency"
                             @change="onCurrencyChange"
-                            class="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-white focus:border-[#f59e0b] focus:outline-none hidden lg:block"
+                            class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-red-500 focus:outline-none hidden lg:block"
                         >
                             <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
                                 {{ currency }}
@@ -190,46 +168,37 @@
                         <!-- Wishlist -->
                         <Link
                             href="/account/wishlist"
-                            class="relative inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"
+                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
                             :aria-label="t('Wishlist')"
                         >
-                            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                                />
+                            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                             </svg>
                             <span
                                 v-if="wishlistCount"
-                                class="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1.5 text-[0.6rem] font-semibold text-white"
+                                class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.55rem] font-bold text-white"
                             >
-                {{ wishlistCount }}
-              </span>
+                                {{ wishlistCount }}
+                            </span>
                         </Link>
 
                         <!-- Account -->
                         <div ref="accountRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-10 w-10 items-center justify-center overflow-visible text-white transition hover:text-[#f59e0b]"
+                                class="relative inline-flex h-9 w-9 items-center justify-center overflow-visible rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
                                 :aria-label="t('Account')"
                                 :aria-expanded="accountOpen"
                                 @click.stop="toggleAccount"
                             >
                                 <span
                                     v-if="unreadNotifications"
-                                    class="absolute -right-1 -top-1 z-10 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[0.55rem] font-semibold text-white shadow"
+                                    class="absolute -right-0.5 -top-0.5 z-10 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 py-0.5 text-[0.5rem] font-bold text-white shadow"
                                 >
                                     {{ unreadNotifications > 99 ? '99+' : unreadNotifications }}
                                 </span>
-                                <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor"
-                                     stroke-width="2">
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                                    />
+                                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
                                 </svg>
                             </button>
 
@@ -246,77 +215,33 @@
                                     class="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-lg"
                                 >
                                     <div v-if="authUser" class="space-y-1 border-b border-slate-100 pb-3">
-                                        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{
-                                                t('Signed in')
-                                            }}</p>
+                                        <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ t('Signed in') }}</p>
                                         <p class="font-semibold text-slate-900">{{ authUser.name }}</p>
                                         <p class="text-xs text-slate-500">{{ authUser.email }}</p>
                                     </div>
 
                                     <div class="mt-3 grid gap-2">
-                                        <Link v-if="authUser" :href="route('account.index')"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Account overview') }}
+                                        <Link v-if="authUser" :href="route('account.index')" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Account overview') }}</Link>
+                                        <Link v-if="authUser" href="/account/notifications" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
+                                            <span class="flex w-full items-center justify-between">
+                                                <span>{{ t('Notifications') }}</span>
+                                                <span v-if="unreadNotifications" class="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">{{ unreadNotifications }}</span>
+                                            </span>
                                         </Link>
-                                        <Link v-if="authUser" href="/account/notifications"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                      <span class="flex w-full items-center justify-between">
-                        <span>{{ t('Notifications') }}</span>
-                        <span v-if="unreadNotifications"
-                              class="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
-                          {{ unreadNotifications }}
-                        </span>
-                      </span>
+                                        <Link v-if="authUser" href="/orders" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('My orders') }}</Link>
+                                        <Link v-if="authUser" href="/account/addresses" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Addresses') }}</Link>
+                                        <Link v-if="authUser" href="/account/payments" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Payments') }}</Link>
+                                        <Link v-if="authUser" href="/account/wallet" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Wallet') }}</Link>
+                                        <Link v-if="authUser" href="/account/refunds" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Refunds') }}</Link>
+                                        <Link v-if="authUser" href="/account/wishlist" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
+                                            <span class="flex items-center justify-between">
+                                                <span>{{ t('Wishlist') }}</span>
+                                                <span v-if="wishlistCount" class="ml-2 rounded-full bg-slate-900 px-2 py-0.5 text-[0.6rem] font-semibold text-white">{{ wishlistCount }}</span>
+                                            </span>
                                         </Link>
-                                        <Link v-if="authUser" href="/orders"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('My orders') }}
-                                        </Link>
-                                        <Link v-if="authUser" href="/account/addresses"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Addresses') }}
-                                        </Link>
-                                        <Link v-if="authUser" href="/account/payments"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Payments') }}
-                                        </Link>
-                                        <Link v-if="authUser" href="/account/wallet"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Wallet') }}
-                                        </Link>
-                                        <Link v-if="authUser" href="/account/refunds"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Refunds') }}
-                                        </Link>
-                                        <Link v-if="authUser" href="/account/wishlist"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                      <span class="flex items-center justify-between">
-                        <span>{{ t('Wishlist') }}</span>
-                        <span v-if="wishlistCount"
-                              class="ml-2 rounded-full bg-slate-900 px-2 py-0.5 text-[0.6rem] font-semibold text-white">
-                          {{ wishlistCount }}
-                        </span>
-                      </span>
-                                        </Link>
-
-                                        <Link v-if="!authUser" :href="route('login')"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Sign in') }}
-                                        </Link>
-                                        <Link v-if="!authUser" :href="route('register')"
-                                              class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-                                            {{ t('Create account') }}
-                                        </Link>
-
-                                        <Link
-                                            v-if="authUser"
-                                            :href="route('logout')"
-                                            method="post"
-                                            as="button"
-                                            class="rounded-lg px-3 py-2 text-left text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                                        >
-                                            {{ t('Sign out') }}
-                                        </Link>
+                                        <Link v-if="!authUser" :href="route('login')" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Sign in') }}</Link>
+                                        <Link v-if="!authUser" :href="route('register')" class="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Create account') }}</Link>
+                                        <Link v-if="authUser" :href="route('logout')" method="post" as="button" class="rounded-lg px-3 py-2 text-left text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">{{ t('Sign out') }}</Link>
                                     </div>
                                 </div>
                             </Transition>
@@ -326,26 +251,20 @@
                         <div ref="cartRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-[#f59e0b]"
+                                class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
                                 :aria-label="t('Cart')"
                                 :aria-expanded="cartOpen"
                                 @click.stop="toggleCart"
                             >
-                                <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor"
-                                     stroke-width="2">
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-                                    />
+                                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/>
                                 </svg>
-
                                 <span
                                     v-if="cartCount"
-                                    class="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1.5 text-[0.6rem] font-semibold text-white"
+                                    class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.55rem] font-bold text-white"
                                 >
-                  {{ cartCount }}
-                </span>
+                                    {{ cartCount }}
+                                </span>
                             </button>
 
                             <Transition
@@ -411,16 +330,17 @@
             </div>
 
             <!-- Mobile Search Bar -->
-            <div
-                class="border-t border-slate-700/50 px-4 py-3 lg:hidden"
-            >
+            <div class="border-t border-slate-100 px-4 py-2.5 lg:hidden">
                 <form class="flex items-center gap-2" @submit.prevent="submitSearch">
                     <div ref="mobileSearchRef" class="relative w-full">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
+                        </svg>
                         <input
                             v-model="search"
                             type="search"
-                            :placeholder="t('What are you looking for?')"
-                            class="w-full rounded-lg border-2 border-slate-600 bg-white px-4 py-2 pl-10 text-sm text-slate-900 placeholder-slate-500 focus:border-[#f59e0b] focus:outline-none"
+                            :placeholder="t('Search products...')"
+                            class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2 pl-9 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none"
                             :aria-label="t('Search products')"
                             @focus="handleSearchFocus"
                             @keydown.down.prevent="handleSuggestionNext"
@@ -428,17 +348,6 @@
                             @keydown.enter.prevent="handleSearchEnter"
                             @keydown.esc.prevent="closeSearchSuggestions"
                         />
-                        <svg
-                            viewBox="0 0 24 24"
-                            class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                  d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/>
-                        </svg>
-
                         <SearchSuggestions
                             v-if="showSearchSuggestions"
                             :items="searchSuggestionItems"
@@ -451,11 +360,6 @@
                             @clear-recent="clearRecentSearches"
                         />
                     </div>
-
-                    <button type="submit"
-                            class="rounded-md bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#d97706]">
-                        {{ t('Go') }}
-                    </button>
                 </form>
             </div>
 
@@ -581,12 +485,12 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                         </svg>
 
-                        <span
-                            v-if="tab.key === 'cart' && cartCount"
-                            class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.6rem] font-semibold text-white"
-                        >
-                            {{ cartCount > 99 ? '99+' : cartCount }}
-                        </span>
+                            <span
+                                v-if="tab.key === 'cart' && cartCount"
+                                class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white"
+                            >
+                                {{ cartCount > 99 ? '99+' : cartCount }}
+                            </span>
                     </span>
                     <span class="text-[0.65rem] font-semibold tracking-wide">{{ tab.label }}</span>
                 </Link>
