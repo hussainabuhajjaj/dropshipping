@@ -9,7 +9,7 @@
       <div
         v-if="selectedImage"
         class="w-full"
-        style="aspect-ratio: 4 / 3; max-height: min(50vh, 500px);"
+        style="aspect-ratio: 4 / 3;"
       >
         <img
           :src="selectedImage"
@@ -22,10 +22,8 @@
       <div
         v-else
         class="flex items-center justify-center text-xs text-slate-400"
-        style="aspect-ratio: 4 / 3; max-height: min(50vh, 500px);"
+        style="aspect-ratio: 4 / 3;"
       >
-        {{ t('Image coming soon') }}
-      </div>
 
       <div
         v-if="images.length > 1"
