@@ -9,7 +9,7 @@
       <div
         v-if="selectedImage"
         class="w-full"
-        style="aspect-ratio: 4 / 3;"
+        style="aspect-ratio: 3 / 4;"
       >
         <img
           :src="selectedImage"
@@ -22,7 +22,7 @@
       <div
         v-else
         class="flex items-center justify-center text-xs text-slate-400"
-        style="aspect-ratio: 4 / 3;"
+        style="aspect-ratio: 3 / 4;"
       >
         {{ t('Image coming soon') }}
       </div>
@@ -59,7 +59,7 @@
 
     <div v-if="images.length > 1" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
       <button
-        v-for="(img, idx) in displayedThumbnails"
+        v-for="(img, idx) in visibleThumbnails"
         :key="idx"
         type="button"
         class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition"
@@ -68,11 +68,10 @@
       >
         <img :src="img" :alt="`${t('Image')} ${idx + 1}`" class="h-full w-full object-cover" />
         <div
-          v-if="showMoreBadge && idx === MAX_VISIBLE_THUMBNAILS - 1"
-          class="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 text-[11px] font-bold text-white hover:bg-black/60"
-          @click.stop="showAllThumbnails = true"
+          v-if="showMoreBadge && idx === VISIBLE_COUNT - 1"
+          class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50 text-[11px] font-bold text-white"
         >
-          +{{ images.length - MAX_VISIBLE_THUMBNAILS }}
+          +{{ images.length - VISIBLE_COUNT }}
         </div>
       </button>
     </div>
@@ -99,7 +98,7 @@
 import { ref, computed } from 'vue'
 import { useTranslations } from '@/i18n'
 
-const MAX_VISIBLE_THUMBNAILS = 9
+const VISIBLE_COUNT = 5
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
@@ -108,18 +107,11 @@ const props = defineProps({
   videos: { type: Array, default: () => [] },
 })
 
-const showAllThumbnails = ref(false)
-
-const displayedThumbnails = computed(() => {
-  if (showAllThumbnails.value || props.images.length <= MAX_VISIBLE_THUMBNAILS) {
-    return props.images
-  }
-  return props.images.slice(0, MAX_VISIBLE_THUMBNAILS)
-})
-
-const showMoreBadge = computed(() =>
-  !showAllThumbnails.value && props.images.length > MAX_VISIBLE_THUMBNAILS
+const visibleThumbnails = computed(() =>
+  props.images.length > VISIBLE_COUNT ? props.images.slice(0, VISIBLE_COUNT) : props.images
 )
+
+const showMoreBadge = computed(() => props.images.length > VISIBLE_COUNT)
 
 const emit = defineEmits(['select-image', 'prev-image', 'next-image'])
 
