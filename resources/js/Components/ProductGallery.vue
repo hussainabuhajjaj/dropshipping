@@ -1,19 +1,21 @@
 <template>
   <div class="space-y-3">
     <div
-      class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 touch-pan-y select-none cursor-grab active:cursor-grabbing aspect-[4/3] sm:aspect-square"
+      class="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 touch-pan-y select-none cursor-grab active:cursor-grabbing"
       @pointerdown="onPointerDown"
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     >
-      <img
-        v-if="selectedImage"
-        :src="selectedImage"
-        :alt="imageAlt"
-        class="h-full w-full object-cover"
-        draggable="false"
-        @dragstart.prevent
-      />
+      <div class="flex items-center justify-center w-full aspect-[4/3] sm:aspect-square">
+        <img
+          v-if="selectedImage"
+          :src="selectedImage"
+          :alt="imageAlt"
+          class="max-h-full max-w-full object-contain"
+          draggable="false"
+          @dragstart.prevent
+        />
+      </div>
       <div
         v-else
         class="flex aspect-[4/3] items-center justify-center text-xs text-slate-400"
