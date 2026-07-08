@@ -24,6 +24,8 @@
         class="flex items-center justify-center text-xs text-slate-400"
         style="aspect-ratio: 4 / 3;"
       >
+        {{ t('Image coming soon') }}
+      </div>
 
       <div
         v-if="images.length > 1"
@@ -57,14 +59,21 @@
 
     <div v-if="images.length > 1" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
       <button
-        v-for="(img, idx) in images"
+        v-for="(img, idx) in displayedThumbnails"
         :key="idx"
         type="button"
-        class="h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition"
+        class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition"
         :class="img === selectedImage ? 'border-slate-900' : 'border-slate-200 hover:border-slate-400'"
         @click="$emit('select-image', img)"
       >
         <img :src="img" :alt="`${t('Image')} ${idx + 1}`" class="h-full w-full object-cover" />
+        <div
+          v-if="showMoreBadge && idx === MAX_VISIBLE_THUMBNAILS - 1"
+          class="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 text-[11px] font-bold text-white hover:bg-black/60"
+          @click.stop="showAllThumbnails = true"
+        >
+          +{{ images.length - MAX_VISIBLE_THUMBNAILS }}
+        </div>
       </button>
     </div>
 
@@ -87,8 +96,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useTranslations } from '@/i18n'
+
+const MAX_VISIBLE_THUMBNAILS = 9
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
@@ -96,6 +107,19 @@ const props = defineProps({
   imageAlt: { type: String, default: '' },
   videos: { type: Array, default: () => [] },
 })
+
+const showAllThumbnails = ref(false)
+
+const displayedThumbnails = computed(() => {
+  if (showAllThumbnails.value || props.images.length <= MAX_VISIBLE_THUMBNAILS) {
+    return props.images
+  }
+  return props.images.slice(0, MAX_VISIBLE_THUMBNAILS)
+})
+
+const showMoreBadge = computed(() =>
+  !showAllThumbnails.value && props.images.length > MAX_VISIBLE_THUMBNAILS
+)
 
 const emit = defineEmits(['select-image', 'prev-image', 'next-image'])
 
