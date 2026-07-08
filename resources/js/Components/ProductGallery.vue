@@ -6,9 +6,11 @@
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     >
-      <div class="flex items-center justify-center w-full aspect-[4/3] sm:aspect-square">
+      <div
+        v-if="selectedImage"
+        class="flex items-center justify-center w-full aspect-[4/3] sm:aspect-square"
+      >
         <img
-          v-if="selectedImage"
           :src="selectedImage"
           :alt="imageAlt"
           class="max-h-full max-w-full object-contain"
