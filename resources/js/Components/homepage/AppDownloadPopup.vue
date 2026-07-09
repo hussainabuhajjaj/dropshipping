@@ -136,7 +136,7 @@ const props = defineProps({
 
 const { t } = useTranslations();
 const visible = ref(false);
-const dismissedKey = "simbazu_app_download_popup_seen_at";
+const dismissedKey = "simbazu_app_download_popup_seen";
 
 const resolvedBadge = computed(
     () => props.settings?.badge || t("App-only deals"),
@@ -171,7 +171,7 @@ const androidButtonLabel = computed(() => {
 
 const hasSeen = () => {
     try {
-        return Boolean(localStorage.getItem(dismissedKey));
+        return Boolean(sessionStorage.getItem(dismissedKey));
     } catch {
         return false;
     }
@@ -179,7 +179,7 @@ const hasSeen = () => {
 
 const markSeen = () => {
     try {
-        localStorage.setItem(dismissedKey, new Date().toISOString());
+        sessionStorage.setItem(dismissedKey, '1');
     } catch {
         // ignore
     }

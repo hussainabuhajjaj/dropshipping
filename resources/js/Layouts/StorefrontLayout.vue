@@ -475,6 +475,9 @@
                         <svg v-else-if="tab.icon === 'categories'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
                         </svg>
+                        <svg v-else-if="tab.icon === 'download'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
                         <svg v-else-if="tab.icon === 'search'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
                         </svg>
@@ -1294,6 +1297,12 @@ const mobileTabs = computed(() => [
         icon: 'categories',
     },
     {
+        key: 'download',
+        href: '/download',
+        label: t('Download'),
+        icon: 'download',
+    },
+    {
         key: 'search',
         href: '/search',
         label: t('Search'),
@@ -1317,6 +1326,7 @@ const isMobileTabActive = (tab) => {
     const path = currentPath.value || '/'
     if (tab.key === 'home') return path === '/'
     if (tab.key === 'categories') return path.startsWith('/products') || path.startsWith('/categories')
+    if (tab.key === 'download') return path.startsWith('/download')
     if (tab.key === 'search') return path.startsWith('/search')
     if (tab.key === 'cart') return path.startsWith('/cart') || path.startsWith('/checkout')
     if (tab.key === 'account') return path.startsWith('/account') || path.startsWith('/orders')
