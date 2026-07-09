@@ -73,6 +73,17 @@
                         <Link href="/orders/track" class="btn-ghost">{{ t('Track existing order') }}</Link>
                     </template>
                 </EmptyState>
+                <section v-if="!lines.length && recentlyViewed.length" class="mt-6 space-y-3">
+                    <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{{ t('Recently Viewed') }}</h3>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        <CompactProductCard
+                            v-for="(product, idx) in recentlyViewed"
+                            :key="product.id"
+                            :product="product"
+                            :currency="currency"
+                        />
+                    </div>
+                </section>
 
                 <aside class="sticky top-28 space-y-4 rounded-[1.8rem] border border-[#eadfce] bg-[#fffaf4] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
                     <div class="space-y-3">
@@ -208,6 +219,7 @@ function displayPrice(amount) {
 import { Link, router } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CartLineItem from '@/Components/CartLineItem.vue'
+import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import EmptyState from '@/Components/EmptyState.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
@@ -217,6 +229,7 @@ import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useWhatsAppCheckout } from '@/composables/useWhatsAppCheckout.js'
+import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 
 const props = defineProps({
     lines: {type: Array, required: true},
@@ -317,4 +330,6 @@ const canCheckout = computed(() => (!minimumRequirement.value || minimumRequirem
 const freeShippingThreshold = 50
 const freeShippingRemaining = computed(() => Math.max(0, freeShippingThreshold - props.subtotal))
 const freeShippingPercent = computed(() => Math.min(100, (props.subtotal / freeShippingThreshold) * 100))
+
+const { recentlyViewed } = useRecentlyViewed()
 </script>

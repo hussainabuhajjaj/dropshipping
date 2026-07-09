@@ -188,11 +188,15 @@ import ProductDetailTabs from '@/Components/ProductDetailTabs.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import ProductStickyBar from '@/Components/ProductStickyBar.vue'
 import LoginRequiredModal from '@/Components/LoginRequiredModal.vue'
+import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 
 const page = usePage()
 const { t } = useTranslations()
 const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
+
+const { addProduct } = useRecentlyViewed()
+addProduct(props.product)
 
 const props = defineProps({
   product: { type: Object, required: true },

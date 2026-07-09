@@ -457,6 +457,30 @@
         </section>
       </template>
 
+      <!-- Recently Viewed -->
+      <section v-if="recentlyViewed.length" class="mt-6 px-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-900">{{ t('Recently Viewed') }}</h2>
+          <button
+            type="button"
+            class="shrink-0 text-[0.55rem] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600"
+            @click="clearRecentlyViewed"
+          >
+            {{ t('Clear') }}
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <CompactProductCard
+            v-for="(product, idx) in recentlyViewed"
+            :key="product.id"
+            :product="product"
+            :currency="currency"
+            :featured="idx === 0"
+            @quick-add="openQuickAdd"
+          />
+        </div>
+      </section>
+
       <!-- Recommended -->
       <section v-if="recommendedProducts.length" class="mt-6 px-4">
         <div class="mb-3 flex items-center justify-between">
@@ -598,6 +622,7 @@ import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import ProductQuickAddSheet from '@/Components/ProductQuickAddSheet.vue'
 import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
+import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 
 const props = defineProps({
   featured: { type: Array, required: true },
@@ -842,6 +867,8 @@ const appDownloadSettings = computed(() => {
 const openAppDownloadPopup = () => {
   appDownloadPopupRef.value?.open?.()
 }
+
+const { recentlyViewed, clearRecentlyViewed } = useRecentlyViewed()
 </script>
 
 <style scoped>
