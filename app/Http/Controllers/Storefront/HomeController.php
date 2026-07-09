@@ -54,13 +54,14 @@ class HomeController extends Controller
     public function index(PromotionHomepageService $promotionHomepageService, HomeBuilderService $homeBuilder): Response
     {
         $locale = app()->getLocale();
-        $sections = $homeBuilder->buildProductSections(6);
+        $sections = $homeBuilder->buildProductSections(16);
 
         $featured = $sections['featured'] ?? collect();
         $bestSellers = $sections['bestSellers'] ?? collect();
         $recommended = $sections['recommended'] ?? collect();
         $bestValue = $sections['bestValue'] ?? collect();
         $trending = $sections['trending'] ?? collect();
+        $newArrivals = $sections['newArrivals'] ?? collect();
 
         $categoryList = $this->rootCategoriesTree(['children', 'children.children']);
         $featuredCategories = $this->featuredCategoriesForHome($locale, $homeBuilder);
@@ -84,6 +85,7 @@ class HomeController extends Controller
             'recommended' => $recommended->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'bestValue' => $bestValue->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'trending' => $trending->map(fn (Product $product) => $this->transformProduct($product))->values(),
+            'newArrivals' => $newArrivals->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'flashDeals' => $flashDealsPayload['items'],
             'flashDealsViewAllHref' => $flashDealsPayload['viewAllHref'],
             'categories' => $categoryList,

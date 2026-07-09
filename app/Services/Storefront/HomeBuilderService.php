@@ -119,7 +119,7 @@ class HomeBuilderService
 
     public function topSellingProductIds(int $limit = 6): array
     {
-        return Cache::remember('home:top-selling-product-ids', now()->addMinutes(8), function () use ($limit) {
+        return Cache::remember('home:top-selling-product-ids:' . $limit, now()->addMinutes(8), function () use ($limit) {
             return OrderItem::query()
                 ->select('product_variants.product_id', DB::raw('SUM(order_items.quantity) as units'))
                 ->join('product_variants', 'product_variants.id', '=', 'order_items.product_variant_id')
