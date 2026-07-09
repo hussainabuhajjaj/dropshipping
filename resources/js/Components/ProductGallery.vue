@@ -56,6 +56,13 @@
       </div>
 
       <div
+        v-if="images.length > 1"
+        class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-2.5 py-1 text-[0.55rem] font-semibold text-white backdrop-blur"
+      >
+        {{ selectedIndex + 1 }} / {{ images.length }}
+      </div>
+
+      <div
         class="absolute right-2 top-2 z-10 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100"
       >
         <button
@@ -91,16 +98,54 @@
       </div>
     </div>
 
-    <div v-if="images.length > 1" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-      <button
-        v-for="(img, idx) in images"
-        :key="idx"
-        type="button"
-        class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition"
-        :class="img === selectedImage ? 'border-slate-900' : 'border-slate-200 hover:border-slate-400'"
-        @click="selectThumbnail(img)"
+    <div v-if="images.length > 1" class="relative">
+      <div
+        ref="thumbStripRef"
+        class="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth"
+        @scroll="onThumbScroll"
       >
-        <img :src="img" :alt="`${t('Image')} ${idx + 1}`" class="h-full w-full object-cover" />
+        <button
+          v-for="(img, idx) in visibleThumbnails"
+          :key="idx"
+          type="button"
+          class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition"
+          :class="img === selectedImage ? 'border-slate-900' : 'border-slate-200 hover:border-slate-400'"
+          @click="selectThumbnail(img)"
+        >
+          <img :src="img" :alt="`${t('Image')} ${thumbStart + idx + 1}`" class="h-full w-full object-cover" />
+          <div
+            v-if="showMoreBadge && idx === PER_PAGE - 1"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50 text-[11px] font-bold text-white"
+          >
+            +{{ images.length - thumbStart - PER_PAGE + 1 }}
+          </div>
+        </button>
+      </div>
+
+      <button
+        v-if="thumbStart > 0"
+        type="button"
+        class="absolute left-0 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
+        @click="scrollThumbs(-1)"
+      >
+        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.78 15.53a.75.75 0 01-1.06 0l-5-5a.75.75 0 010-1.06l5-5a.75.75 0 111.06 1.06L8.31 10l4.47 4.47a.75.75 0 010 1.06z"/></svg>
+      </button>
+      <button
+        v-if="canScrollForward"
+        type="button"
+        class="absolute right-0 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
+        @click="scrollThumbs(1)"
+      >
+        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.22 4.47a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L11.69 10 7.22 5.53a.75.75 0 010-1.06z"/></svg>
+      </button>
+
+      <button
+        v-if="images.length > PER_PAGE"
+        type="button"
+        class="mt-1.5 w-full rounded-lg border border-slate-200 py-1.5 text-[0.6rem] font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700 active:scale-[0.98]"
+        @click="openLightbox"
+      >
+        {{ t('View all :count photos', { count: images.length }) }}
       </button>
     </div>
 
@@ -131,7 +176,7 @@
       >
         <div
           v-if="lightboxOpen"
-          class="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-sm"
+          class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm"
           @click="closeLightbox"
         >
           <button
@@ -158,7 +203,7 @@
           <img
             :src="lightboxImage"
             :alt="imageAlt"
-            class="max-h-[90vh] max-w-[90vw] object-contain"
+            class="max-h-[85vh] max-w-[90vw] object-contain"
             @click.stop
           />
 
@@ -173,7 +218,7 @@
             </svg>
           </button>
 
-          <div class="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 text-xs text-white/60">
+          <div class="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white/15 px-4 py-1.5 text-xs text-white/80 backdrop-blur">
             {{ lightboxIndex + 1 }} / {{ images.length }}
           </div>
         </div>
@@ -209,6 +254,8 @@
 import { computed, ref, watch } from 'vue'
 import { useTranslations } from '@/i18n'
 
+const PER_PAGE = 5
+
 const props = defineProps({
   images: { type: Array, default: () => [] },
   selectedImage: { type: String, default: null },
@@ -221,11 +268,50 @@ const emit = defineEmits(['select-image', 'prev-image', 'next-image'])
 const { t } = useTranslations()
 
 const imageContainer = ref(null)
+const thumbStripRef = ref(null)
 const isDragging = ref(false)
 
 const pointerStartX = ref(0)
 const pointerStartY = ref(0)
 const pointerId = ref(null)
+
+const thumbStart = ref(0)
+
+const selectedIndex = computed(() => {
+  const idx = props.images.indexOf(props.selectedImage)
+  return idx >= 0 ? idx : 0
+})
+
+const visibleThumbnails = computed(() => {
+  const end = Math.min(thumbStart.value + PER_PAGE, props.images.length)
+  return props.images.slice(thumbStart.value, end)
+})
+
+const showMoreBadge = computed(() => props.images.length > thumbStart.value + PER_PAGE)
+
+const canScrollForward = computed(() => thumbStart.value + PER_PAGE < props.images.length)
+
+const scrollThumbs = (direction) => {
+  const newStart = thumbStart.value + direction * PER_PAGE
+  thumbStart.value = Math.max(0, Math.min(newStart, props.images.length - 1))
+}
+
+const onThumbScroll = () => {
+  // Sync thumbStart with scroll position if user manually scrolls
+}
+
+const selectThumbnail = (img) => {
+  emit('select-image', img)
+}
+
+watch(() => props.selectedImage, () => {
+  isZoomVisible.value = false
+  // Ensure selected thumbnail is visible in the strip
+  const idx = props.images.indexOf(props.selectedImage)
+  if (idx >= 0 && (idx < thumbStart.value || idx >= thumbStart.value + PER_PAGE)) {
+    thumbStart.value = Math.floor(idx / PER_PAGE) * PER_PAGE
+  }
+})
 
 // Zoom
 const isZoomVisible = ref(false)
@@ -306,10 +392,6 @@ const nextLightbox = () => {
   lightboxIndex.value = (lightboxIndex.value + 1) % props.images.length
 }
 
-const selectThumbnail = (img) => {
-  emit('select-image', img)
-}
-
 const onPointerDown = (event) => {
   if (props.images.length < 2) return
   if (!event.isPrimary) return
@@ -351,8 +433,4 @@ const onPointerCancel = () => {
   pointerId.value = null
   isDragging.value = false
 }
-
-watch(() => props.selectedImage, () => {
-  isZoomVisible.value = false
-})
 </script>
