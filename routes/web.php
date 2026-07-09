@@ -151,9 +151,7 @@ Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.up
 Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
 Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 
-Route::middleware('auth:customer')->group(function () {
-    Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
-});
+Route::post('/cart/abandon', [CartController::class, 'abandon'])->name('cart.abandon');
 
 Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
 Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');

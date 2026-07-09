@@ -13,7 +13,7 @@ use BackedEnum;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use UnitEnum;
 
-class ChargebackCaseResource extends Resource
+class ChargebackCaseResource extends BaseResource
 {
     protected static ?string $model = ChargebackCase::class;
 

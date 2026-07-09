@@ -12,7 +12,7 @@ use App\Filament\Resources\MessageTemplateResource\Pages;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
@@ -24,7 +24,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use UnitEnum;
 
-class MessageTemplateResource extends Resource
+class MessageTemplateResource extends BaseResource
 {
     protected static ?string $model = MessageTemplate::class;
 

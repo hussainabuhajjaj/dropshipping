@@ -9,8 +9,7 @@ use App\Models\Promotion;
 use BackedEnum;
 use Filament\Forms;
 use Filament\Forms\Components\Placeholder;
-use Filament\Resources\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -19,7 +18,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Carbon;
 use UnitEnum;
 
-class PromotionResource extends Resource
+class PromotionResource extends BaseResource
 {
     protected static ?string $model = Promotion::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-bolt';

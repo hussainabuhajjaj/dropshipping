@@ -16,7 +16,7 @@ use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\BadgeColumn;
@@ -27,7 +27,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
-class ShipmentExceptionResource extends Resource
+class ShipmentExceptionResource extends BaseResource
 {
     protected static ?string $model = Shipment::class;
 

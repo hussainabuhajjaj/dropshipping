@@ -512,13 +512,27 @@ const productSchema = computed(() => {
     schema.sku = props.product.code
   }
 
+  if (props.product.brand) {
+    schema.brand = {
+      '@type': 'Brand',
+      name: props.product.brand,
+    }
+  }
+
   if (selectedVariant.value?.sku && selectedVariant.value.sku !== props.product.code) {
     schema.sku = selectedVariant.value.sku
   }
 
+  if (selectedVariant.value?.gtin) {
+    schema.gtin = selectedVariant.value.gtin
+  } else if (props.product.gtin) {
+    schema.gtin = props.product.gtin
+  }
+
   if (props.product.price) {
     const offerPrice = selectedVariant.value?.price ?? props.product.price
-    schema.offers = {
+    const compareAt = selectedVariant.value?.compare_at_price ?? props.product.compare_at_price
+    const offer = {
       '@type': 'Offer',
       price: offerPrice,
       priceCurrency: props.currency || 'USD',
@@ -527,7 +541,48 @@ const productSchema = computed(() => {
           ? 'https://schema.org/InStock'
           : 'https://schema.org/OutOfStock',
       url: productUrl.value,
+      priceValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     }
+    if (compareAt && Number(compareAt) > Number(offerPrice)) {
+      offer.priceSpecification = {
+        '@type': 'UnitPriceSpecification',
+        price: offerPrice,
+        priceCurrency: props.currency || 'USD',
+      }
+    }
+    schema.offers = offer
+  }
+
+  schema.hasMerchantReturnPolicy = {
+    '@type': 'MerchantReturnPolicy',
+    applicableCountry: 'US',
+    returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+    merchantReturnDays: 30,
+    returnMethod: 'https://schema.org/ReturnByMail',
+    returnFees: 'https://schema.org/FreeReturn',
+  }
+
+  schema.shippingDetails = {
+    '@type': 'OfferShippingDetails',
+    shippingDestination: {
+      '@type': 'DefinedRegion',
+      addressCountry: 'US',
+    },
+    deliveryTime: {
+      '@type': 'ShippingDeliveryTime',
+      handlingTime: {
+        '@type': 'QuantitativeValue',
+        minValue: 1,
+        maxValue: 3,
+        unitCode: 'DAY',
+      },
+      transitTime: {
+        '@type': 'QuantitativeValue',
+        minValue: 7,
+        maxValue: 18,
+        unitCode: 'DAY',
+      },
+    },
   }
 
   if (props.reviewSummary.count > 0) {

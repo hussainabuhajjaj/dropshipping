@@ -21,6 +21,7 @@ use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -307,17 +308,35 @@ class CartController extends Controller
         return back()->with('cart_notice', 'Coupon removed.');
     }
 
+    public function abandon(Request $request): JsonResponse
+    {
+        $cart = $this->cart();
+        if ($cart->isEmpty()) {
+            return response()->json(['status' => 'ok', 'message' => 'Cart is empty']);
+        }
+
+        $email = $request->input('email') ?: Auth::guard('customer')->user()?->email;
+
+        app(AbandonedCartService::class)->capture(
+            $cart->toArray(),
+            $email,
+            Auth::guard('customer')->id()
+        );
+
+        return response()->json(['status' => 'ok']);
+    }
+
     private function captureAbandonedCart($cart): void
     {
-//        if (empty($cart)) {
-//            return;
-//        }
-//
-//        app(AbandonedCartService::class)->capture(
-//            $cart,
-//            Auth::guard('customer')->user()?->email,
-//            Auth::guard('customer')->id()
-//        );
+        if (empty($cart)) {
+            return;
+        }
+
+        app(AbandonedCartService::class)->capture(
+            $cart->toArray(),
+            Auth::guard('customer')->user()?->email,
+            Auth::guard('customer')->id()
+        );
     }
 
     private function hasCjStock(array $line, int $desiredQty): bool

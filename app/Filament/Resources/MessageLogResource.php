@@ -9,13 +9,13 @@ use BackedEnum;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
-use Filament\Resources\Resource;
+use App\Filament\Resources\BaseResource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Actions\ViewAction;
 use UnitEnum;
 
-class MessageLogResource extends Resource
+class MessageLogResource extends BaseResource
 {
     protected static ?string $model = MessageLog::class;
 
