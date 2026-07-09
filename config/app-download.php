@@ -3,14 +3,14 @@
 return [
     'android' => [
         'package_name' => env('MOBILE_ANDROID_PACKAGE_NAME', 'com.simbazu.mobile'),
-        'version_name' => env('APK_VERSION_NAME', '1.0.0'),
-        'version_code' => env('APK_VERSION_CODE', 1),
+        'version_name' => env('APK_VERSION_NAME', '1.0.8'),
+        'version_code' => env('APK_VERSION_CODE', 10),
         'filename' => env('APK_FILENAME', 'simbazu-v1.0.0.apk'),
-        'size_mb' => env('APK_SIZE_MB', 25),
+        'size_mb' => env('APK_SIZE_MB', 115),
         'min_sdk' => env('APK_MIN_SDK', 24),
         'target_sdk' => env('APK_TARGET_SDK', 34),
         'updated_at' => env('APK_UPDATED_AT', '2026-07-10'),
-        'changelog' => env('APK_CHANGELOG', 'Initial release.'),
+        'changelog' => env('APK_CHANGELOG', 'Faster checkout, real-time tracking, push notifications, and mobile-only deals.'),
         'download_url' => env('APK_DOWNLOAD_URL', '/download/apk'),
     ],
     'ios' => [
