@@ -16,17 +16,30 @@
 
         <div class="mt-8 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
           <a
+            v-if="android.file_exists"
             :href="downloadUrl"
             class="inline-flex min-h-14 w-full max-w-xs items-center justify-center gap-3 rounded-2xl bg-slate-900 px-8 text-white shadow-lg transition hover:bg-slate-800 active:scale-[0.98]"
           >
-            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M5 3h4l3 5-3 5H5l3-5zm14 0h-4l-3 5 3 5h4l-3-5zm-7 13l-3 5h4l3-5z"/>
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
             <div class="text-left">
               <p class="text-[0.55rem] font-semibold uppercase tracking-wider text-white/60">{{ t('Download for Android') }}</p>
               <p class="text-sm font-bold">{{ t('APK v:version', { version: android.version_name }) }}</p>
             </div>
           </a>
+          <div
+            v-else
+            class="inline-flex min-h-14 w-full max-w-xs items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-8 text-slate-400"
+          >
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+            <div class="text-left">
+              <p class="text-[0.55rem] font-semibold uppercase tracking-wider">{{ t('Android App') }}</p>
+              <p class="text-sm font-bold">{{ t('Coming soon') }}</p>
+            </div>
+          </div>
 
           <a
             v-if="ios.appstore_url"
@@ -133,6 +146,6 @@ const canDownloadDirectly = computed(() => {
 })
 
 const downloadUrl = computed(() => {
-  return props.android.download_url || route('download.apk')
+  return route('download.apk')
 })
 </script>

@@ -14,9 +14,12 @@ class DownloadController extends Controller
     public function index()
     {
         $appConfig = config('app-download');
+        $apkPath = public_path('apk/' . $appConfig['android']['filename']);
 
         return Inertia::render('Download', [
-            'android' => $appConfig['android'],
+            'android' => array_merge($appConfig['android'], [
+                'file_exists' => file_exists($apkPath),
+            ]),
             'ios' => $appConfig['ios'],
             'features' => $appConfig['features'],
         ]);
@@ -28,7 +31,11 @@ class DownloadController extends Controller
         $path = public_path("apk/{$filename}");
 
         if (! file_exists($path)) {
-            abort(404, 'APK file not found. The Android app is being prepared for download.');
+            if ($request->wantsJson()) {
+                return response()->json(['error' => 'APK not available yet'], 404);
+            }
+
+            return redirect()->route('download')->with('notice', 'The APK is being prepared. Check back soon.');
         }
 
         return Response::download($path, $filename, [

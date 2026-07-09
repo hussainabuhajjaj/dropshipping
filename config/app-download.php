@@ -11,7 +11,7 @@ return [
         'target_sdk' => env('APK_TARGET_SDK', 34),
         'updated_at' => env('APK_UPDATED_AT', '2026-07-10'),
         'changelog' => env('APK_CHANGELOG', 'Initial release.'),
-        'download_url' => env('APK_DOWNLOAD_URL', '/apk/simbazu-v1.0.0.apk'),
+        'download_url' => env('APK_DOWNLOAD_URL', '/download/apk'),
     ],
     'ios' => [
         'bundle_id' => env('MOBILE_IOS_BUNDLE_ID', 'net.simbazu.mobile'),
