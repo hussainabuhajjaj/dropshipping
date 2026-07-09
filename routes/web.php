@@ -395,4 +395,8 @@ Route::post('/r/{slug}/claim', [App\Http\Controllers\Storefront\ClaimController:
     ->middleware('auth:customer')
     ->name('rewards.claim.submit');
 
+Route::get('/download', [App\Http\Controllers\Storefront\DownloadController::class, 'index'])->name('download');
+Route::get('/download/apk', [App\Http\Controllers\Storefront\DownloadController::class, 'downloadApk'])->name('download.apk');
+Route::get('/api/app/latest', [App\Http\Controllers\Storefront\DownloadController::class, 'latestApkInfo'])->name('api.app.latest');
+
 require __DIR__ . '/auth.php';

@@ -95,23 +95,14 @@
                                 </p>
                             </div>
                             <a
-                                v-if="androidEnabled"
-                                :href="settings.android_href"
+                                :href="androidHref"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-900 bg-white px-4 text-[0.76rem] font-bold uppercase tracking-[0.14em] text-slate-950 transition hover:bg-slate-50"
                                 @click="markConverted"
                             >
-                                {{ t("Open") }}
+                                {{ androidButtonLabel }}
                             </a>
-                            <button
-                                v-else
-                                type="button"
-                                disabled
-                                class="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 bg-slate-100 px-4 text-[0.76rem] font-bold uppercase tracking-[0.14em] text-slate-400"
-                            >
-                                {{ t("Coming soon") }}
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -167,6 +158,16 @@ const resolvedAndroidLabel = computed(
 const iosEnabled = computed(() => Boolean(props.settings?.ios_href));
 const androidEnabled = computed(() => Boolean(props.settings?.android_href));
 const isEnabled = computed(() => Boolean(props.settings?.enabled));
+
+const androidHref = computed(() => {
+  if (props.settings?.android_href) return props.settings.android_href
+  return '/download'
+})
+
+const androidButtonLabel = computed(() => {
+  if (props.settings?.android_label && props.settings?.android_href) return props.settings.android_label
+  return t('Download APK')
+})
 
 const hasSeen = () => {
     try {
