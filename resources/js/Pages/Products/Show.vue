@@ -157,6 +157,9 @@
       :compare-at="compareAtForDisplay ? compareAtFormatted : ''"
       :cta-label="stickyCtaLabel"
       :disabled="stickyCtaDisabled"
+      :rating="reviewSummary.count > 0 ? reviewSummary.average : null"
+      :stock-label="stockBadge.label ?? ''"
+      :in-stock="!isOutOfStock"
       @submit="submit"
       @whatsapp="orderViaWhatsApp"
     />

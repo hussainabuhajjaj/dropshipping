@@ -20,6 +20,36 @@
                 <div class="shrink-0 rounded-full bg-white px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Fast checkout') }}</div>
             </div>
 
+            <!-- Free Shipping Progress Bar -->
+            <div v-if="lines.length" class="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-slate-700">
+                  <template v-if="freeShippingRemaining > 0">
+                    {{ t('Add :amount more for free shipping', { amount: displayPrice(freeShippingRemaining) }) }}
+                  </template>
+                  <template v-else>
+                    <span class="flex items-center gap-1.5 text-emerald-700">
+                      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      {{ t('You qualify for free shipping!') }}
+                    </span>
+                  </template>
+                </span>
+                <span class="font-semibold text-slate-500">{{ displayPrice(subtotal) }}</span>
+              </div>
+              <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  class="h-full rounded-full transition-all duration-700 ease-out"
+                  :class="freeShippingRemaining <= 0 ? 'bg-emerald-500' : 'bg-slate-900'"
+                  :style="{ width: freeShippingPercent + '%' }"
+                />
+              </div>
+              <p class="mt-1 text-right text-[0.55rem] font-semibold uppercase tracking-wider text-slate-400">
+                {{ t('Free shipping on orders over :amount', { amount: displayPrice(freeShippingThreshold) }) }}
+              </p>
+            </div>
+
             <div class="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
                 <div v-if="lines.length" class="space-y-3">
                     <CartLineItem
@@ -283,4 +313,8 @@ const minimumMessage = computed(() => {
     return null
 })
 const canCheckout = computed(() => (!minimumRequirement.value || minimumRequirement.value.passes) && props.lines.length > 0)
+
+const freeShippingThreshold = 50
+const freeShippingRemaining = computed(() => Math.max(0, freeShippingThreshold - props.subtotal))
+const freeShippingPercent = computed(() => Math.min(100, (props.subtotal / freeShippingThreshold) * 100))
 </script>
