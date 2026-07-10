@@ -42,15 +42,6 @@ class RedirectMobile
 
     public function handle(Request $request, Closure $next): Response
     {
-        $host = $request->getHost();
-
-        if ($host === 'm.simbazu.net' || $host === 'www.m.simbazu.net') {
-            return redirect()->away(
-                'https://simbazu.net' . $request->getRequestUri(),
-                301
-            );
-        }
-
         if (!$this->shouldSkip($request)) {
             $mobileDomain = config('app.mobile_subdomain');
 
