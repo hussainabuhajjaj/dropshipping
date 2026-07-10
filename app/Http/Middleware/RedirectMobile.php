@@ -42,6 +42,8 @@ class RedirectMobile
 
     public function handle(Request $request, Closure $next): Response
     {
+        $host = $request->getHost();
+
         if (!$this->shouldSkip($request)) {
             $mobileDomain = config('app.mobile_subdomain');
 
