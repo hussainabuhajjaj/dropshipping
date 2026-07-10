@@ -6,7 +6,7 @@ return [
         'version_name' => env('APK_VERSION_NAME', '1.0.8'),
         'version_code' => env('APK_VERSION_CODE', 10),
         'filename' => env('APK_FILENAME', 'simbazu-v1.0.0.apk'),
-        'size_mb' => env('APK_SIZE_MB', 115),
+        'size_mb' => env('APK_SIZE_MB', 119),
         'min_sdk' => env('APK_MIN_SDK', 24),
         'target_sdk' => env('APK_TARGET_SDK', 34),
         'updated_at' => env('APK_UPDATED_AT', '2026-07-10'),

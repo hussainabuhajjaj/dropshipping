@@ -193,10 +193,6 @@ import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 const page = usePage()
 const { t } = useTranslations()
 const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
-const displayCurrency = computed(() => currentCurrency.value || props.currency)
-
-const { addProduct } = useRecentlyViewed()
-addProduct(props.product)
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -209,6 +205,11 @@ const props = defineProps({
   reviewableItems: { type: Array, default: () => [] },
   breadcrumbs: { type: Array, default: () => [] },
 })
+
+const displayCurrency = computed(() => currentCurrency.value || props.currency)
+
+const { addProduct } = useRecentlyViewed()
+addProduct(props.product)
 
 const activeTab = ref('description')
 const selectedImage = ref(null)

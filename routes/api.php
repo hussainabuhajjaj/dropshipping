@@ -214,6 +214,15 @@ Route::prefix('storefront')->group(function () {
     });
 });
 
+// Backward compatibility: alias /api/mobile/auth/* (without v1) to the same controllers
+Route::prefix('mobile/auth')->group(function () {
+    Route::post('register', [MobileAuthController::class, 'register']);
+    Route::post('login', [MobileAuthController::class, 'login']);
+    Route::post('social/exchange', [MobileAuthController::class, 'exchangeSocialCode']);
+    Route::post('forgot-password', [MobileAuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [MobileAuthController::class, 'resetPassword']);
+});
+
 Route::prefix('mobile/v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('register', [MobileAuthController::class, 'register']);
@@ -223,7 +232,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('reset-password', [MobileAuthController::class, 'resetPassword']);
     });
 
-    Route::get('onboarding', [MobileOnboardingController::class, 'index']);
+Route::get('onboarding', [MobileOnboardingController::class, 'index']);
     Route::get('announcements', [MobileAnnouncementController::class, 'index']);
     Route::get('home', [MobileHomeController::class, 'index']);
     Route::get('categories', [MobileCategoryController::class, 'index']);

@@ -308,7 +308,15 @@ class AuthController extends ApiController
             'email_verification_expires_at' => now()->addMinutes(10),
         ])->save();
 
-        $customer->notify(new EmailVerificationOtpNotification($code));
+        try {
+            $customer->notify(new EmailVerificationOtpNotification($code));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to send email OTP notification', [
+                'customer_id' => $customer->id,
+                'email' => $customer->email,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function deleteAccount(Request $request): JsonResponse
