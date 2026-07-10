@@ -15,6 +15,7 @@ use App\Events\Orders\RefundProcessed;
 use App\Events\Orders\ReturnApproved;
 use App\Events\Orders\ReturnRejected;
 use App\Events\Customers\CustomerRegistered;
+use App\Listeners\Affiliates\LinkAffiliateReferralToCustomer;
 use App\Listeners\Affiliates\ProcessAffiliateOrderReferral;
 use App\Listeners\Orders\SendOrderConfirmedNotification;
 use App\Listeners\Orders\ClearCustomerCartOnOrderPaid;
@@ -92,6 +93,7 @@ class EventServiceProvider extends ServiceProvider
         ],
         CustomerRegistered::class => [
             SendWelcomeNotification::class,
+            LinkAffiliateReferralToCustomer::class,
         ],
     ];
 

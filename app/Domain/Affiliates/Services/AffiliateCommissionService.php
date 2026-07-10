@@ -14,7 +14,7 @@ class AffiliateCommissionService
     public function createCommission(Order $order, OrderItem $item, Affiliate $affiliate): AffiliateCommission
     {
         return DB::transaction(function () use ($order, $item, $affiliate) {
-            $baseAmount = $item->price;
+            $baseAmount = $item->unit_price ?? $item->price;
             $commissionRate = $affiliate->commission_rate ?? config('affiliate.default_commission_rate', 0.10);
             $commissionAmount = $baseAmount * $commissionRate;
 

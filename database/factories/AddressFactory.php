@@ -27,7 +27,7 @@ class AddressFactory extends Factory
             'line1' => $this->faker->streetAddress(),
             'line2' => $this->faker->optional()->secondaryAddress(),
             'city' => $this->faker->city(),
-            'state' => $this->faker->state(),
+            'state' => $this->faker->city(),
             'postal_code' => $this->faker->postcode(),
             'country' => $this->faker->countryCode(),
             'type' => $this->faker->randomElement(['shipping', 'billing']),

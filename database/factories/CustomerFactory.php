@@ -18,7 +18,7 @@ class CustomerFactory extends Factory
             'phone' => $this->faker->phoneNumber(),
             'country_code' => $this->faker->countryCode(),
             'city' => $this->faker->city(),
-            'region' => $this->faker->state(),
+            'region' => $this->faker->city(),
             'address_line1' => $this->faker->streetAddress(),
             'address_line2' => $this->faker->optional()->secondaryAddress(),
             'postal_code' => $this->faker->postcode(),

@@ -2,6 +2,7 @@
 
 namespace App\Services\Payments;
 
+use App\Domain\Affiliates\Services\AffiliateReferralDiscountService;
 use App\Domain\Common\Models\Address;
 use App\Events\Orders\OrderPlaced;
 use App\Models\Cart;
@@ -81,6 +82,8 @@ class PaymentResultService
             if ($email === '') {
                 throw new \RuntimeException('Customer email missing for order creation.');
             }
+
+            app(AffiliateReferralDiscountService::class)->autoApplyReferralCoupon();
 
             $summery = $cart->getSummery();
 

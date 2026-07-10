@@ -14,6 +14,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\PromotionUsage;
 use App\Models\SiteSetting;
+use App\Domain\Affiliates\Services\AffiliateReferralDiscountService;
 use App\Domain\Common\Models\Address;
 use App\Domain\Orders\Models\OrderAuditLog;
 use App\Events\Orders\OrderPlaced;
@@ -60,11 +61,13 @@ class ExpressCheckoutController extends Controller
             $shipping = $shippingQuote['shipping_total'] ?? 0;
         }
 
+        app(AffiliateReferralDiscountService::class)->autoApplyReferralCoupon();
+
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
         $discount = $discounts['amount'];
         $coupon = $discounts['coupon'] ?? null;
-        
+
         $settings = SiteSetting::query()->first();
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool) ($settings?->tax_included ?? false);
@@ -137,6 +140,8 @@ class ExpressCheckoutController extends Controller
                 if ((bool) ($shippingQuote['unavailable'] ?? false)) {
                     throw new \RuntimeException($shippingQuote['error'] ?? 'Shipping is unavailable for one or more items in your cart.');
                 }
+                app(AffiliateReferralDiscountService::class)->autoApplyReferralCoupon();
+
                 $coupon = session('cart_coupon');
                 $discounts = $this->calculateDiscounts($cart, $coupon, $customer, $subtotal);
                 $discount = $discounts['amount'];

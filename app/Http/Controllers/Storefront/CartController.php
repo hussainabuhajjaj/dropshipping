@@ -17,6 +17,7 @@ use App\Services\AbandonedCartService;
 use App\Services\CampaignManager;
 use App\Services\Cart\CartIdentityService;
 use App\Services\CartMinimumService;
+use App\Domain\Affiliates\Services\AffiliateReferralDiscountService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\Promotions\PromotionHomepageService;
@@ -41,6 +42,9 @@ class CartController extends Controller
     {
         $cart = $this->getCart();
         $cart_items = $this->cart();
+
+        app(AffiliateReferralDiscountService::class)->autoApplyReferralCoupon();
+
         $coupon = session('cart_coupon');
         $subtotal = $cart->subTotal();
         $customer = auth('customer')->user();

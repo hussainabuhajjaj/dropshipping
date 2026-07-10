@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Domain\Affiliates\Models\Affiliate;
 use App\Domain\Orders\Models\Order;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
@@ -28,6 +30,8 @@ class Coupon extends Model
         'applicable_to',
         'exclude_on_sale',
         'is_one_time_per_customer',
+        'affiliate_id',
+        'affects_affiliate_commission',
     ];
 
     protected $casts = [
@@ -36,11 +40,17 @@ class Coupon extends Model
         'is_active' => 'boolean',
         'exclude_on_sale' => 'boolean',
         'is_one_time_per_customer' => 'boolean',
+        'affects_affiliate_commission' => 'boolean',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'meta' => 'array',
         'locale_overrides' => 'array',
     ];
+
+    public function affiliate(): BelongsTo
+    {
+        return $this->belongsTo(Affiliate::class);
+    }
 
     public function redemptions(): HasMany
     {

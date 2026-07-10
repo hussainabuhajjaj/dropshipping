@@ -4,7 +4,7 @@ namespace App\Domain\Affiliates\Tests\Unit;
 
 use App\Domain\Affiliates\Services\AffiliateCouponService;
 use App\Domain\Affiliates\Models\Affiliate;
-use App\Domain\Coupons\Models\Coupon;
+use App\Models\Coupon;
 use Tests\TestCase;
 
 class AffiliateCouponServiceTest extends TestCase
@@ -40,8 +40,8 @@ class AffiliateCouponServiceTest extends TestCase
         $this->assertNotEquals($code1, $code2);
         $this->assertStringStartsWith('TEST123', $code1);
         $this->assertStringStartsWith('TEST123', $code2);
-        $this->assertEquals(11, strlen($code1)); // TEST123 + 3 digits
-        $this->assertEquals(11, strlen($code2));
+        $this->assertEquals(10, strlen($code1)); // TEST123 + 3 chars
+        $this->assertEquals(10, strlen($code2));
     }
 
     public function test_create_standard_affiliate_coupon(): void
@@ -68,14 +68,11 @@ class AffiliateCouponServiceTest extends TestCase
 
         $coupon = Coupon::factory()->create(['affiliate_id' => $affiliate1->id]);
 
-        // Valid assignment
         $this->assertTrue($service->validateAffiliateCouponAssignment($coupon, $affiliate1));
 
-        // Invalid assignment - different affiliate
         $this->assertFalse($service->validateAffiliateCouponAssignment($coupon, $affiliate2));
 
-        // Invalid assignment - inactive affiliate
-        $affiliate1->update(['is_active' => false]);
-        $this->assertFalse($service->validateAffiliateCouponAssignment($coupon, $affiliate1));
+        $affiliate1->update(['status' => 'suspended']);
+        $this->assertFalse($service->validateAffiliateCouponAssignment($coupon->fresh(), $affiliate1));
     }
 }

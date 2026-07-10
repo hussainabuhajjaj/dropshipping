@@ -24,6 +24,7 @@ use App\Http\Controllers\Storefront\ProductReviewController;
 use App\Http\Controllers\Storefront\ReviewHelpfulController;
 use App\Http\Controllers\Storefront\ReturnRequestController;
 use App\Http\Controllers\Storefront\ReturnLabelController;
+use App\Http\Controllers\Storefront\AffiliateController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PromotionController;
 use App\Http\Controllers\Storefront\NewsletterController;
@@ -398,5 +399,16 @@ Route::post('/r/{slug}/claim', [App\Http\Controllers\Storefront\ClaimController:
 Route::get('/download', [App\Http\Controllers\Storefront\DownloadController::class, 'index'])->name('download');
 Route::get('/download/apk', [App\Http\Controllers\Storefront\DownloadController::class, 'downloadApk'])->name('download.apk');
 Route::get('/api/app/latest', [App\Http\Controllers\Storefront\DownloadController::class, 'latestApkInfo'])->name('api.app.latest');
+
+// Affiliate routes
+Route::middleware('guest')->group(function () {
+    Route::get('/affiliate/signup', [AffiliateController::class, 'signupForm'])->name('affiliate.signup');
+    Route::post('/affiliate/signup', [AffiliateController::class, 'signup'])->name('affiliate.signup.store');
+});
+
+Route::middleware('auth:affiliate')->prefix('affiliate')->name('affiliate.')->group(function () {
+    Route::get('/', [AffiliateController::class, 'dashboard'])->name('dashboard');
+    Route::post('/withdrawal', [AffiliateController::class, 'requestWithdrawal'])->name('withdrawal.request');
+});
 
 require __DIR__ . '/auth.php';

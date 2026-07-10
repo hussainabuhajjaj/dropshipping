@@ -23,8 +23,8 @@ class AffiliateCommission extends \Illuminate\Database\Eloquent\Model
     ];
 
     protected $casts = [
-        'commission_rate' => 'decimal',
-        'commission_amount' => 'decimal',
+        'commission_rate' => 'decimal:4',
+        'commission_amount' => 'decimal:2',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];

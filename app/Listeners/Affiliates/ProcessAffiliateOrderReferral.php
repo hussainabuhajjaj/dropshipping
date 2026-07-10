@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Listeners\Affiliates;
 
+use App\Domain\Affiliates\Models\Affiliate;
 use App\Domain\Affiliates\Models\AffiliateCommission;
 use App\Domain\Affiliates\Models\AffiliateReferral;
 use App\Domain\Affiliates\Services\AffiliateCommissionService;
+use App\Domain\Affiliates\Services\CommissionService;
 use App\Events\Orders\OrderPaid;
 use App\Events\Orders\OrderPlaced;
 use App\Mail\AffiliateCommissionEarned;
+use App\Models\Coupon;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -18,7 +21,8 @@ use Illuminate\Support\Facades\Session;
 class ProcessAffiliateOrderReferral
 {
     public function __construct(
-        private AffiliateCommissionService $commissionService,
+        private readonly AffiliateCommissionService $commissionService,
+        private readonly CommissionService $commissionCalculationService,
     ) {
     }
 
@@ -26,44 +30,32 @@ class ProcessAffiliateOrderReferral
     {
         $order = $event->order->loadMissing('orderItems');
 
-        $visitorToken = Session::get('affiliate_referral_token')
-            ?? Cookie::get('affiliate_referral');
+        $affiliate = $this->resolveAffiliate($order);
 
-        if (! $visitorToken || Session::get('affiliate_referral_processed')) {
-            return;
-        }
-
-        $referral = AffiliateReferral::query()
-            ->where('visitor_token', $visitorToken)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if (! $referral) {
-            return;
-        }
-
-        $affiliate = $referral->affiliate;
         if (! $affiliate || $affiliate->status === 'suspended') {
             return;
         }
 
-        $createdCommission = [];
+        if (AffiliateCommission::query()->where('order_id', $order->id)->exists()) {
+            return;
+        }
+
+        $createdCommissions = [];
 
         foreach ($order->orderItems as $item) {
             if (AffiliateCommission::query()->where('order_item_id', $item->id)->exists()) {
                 continue;
             }
 
-            $createdCommission[] = $this->commissionService->createCommission($order, $item, $affiliate);
+            $createdCommissions[] = $this->commissionService->createCommission($order, $item, $affiliate);
         }
 
-        if (empty($createdCommission)) {
+        if (empty($createdCommissions)) {
             Session::put('affiliate_referral_processed', true);
-
             return;
         }
 
-        foreach ($createdCommission as $commission) {
+        foreach ($createdCommissions as $commission) {
             $recipient = $commission->affiliate?->email;
 
             if (! $recipient) {
@@ -83,5 +75,46 @@ class ProcessAffiliateOrderReferral
 
         Session::put('affiliate_referral_processed', true);
         Session::forget(['affiliate_referral_token', 'affiliate_referral_code']);
+    }
+
+    private function resolveAffiliate($order): ?Affiliate
+    {
+        if ($order->coupon_code) {
+            $coupon = Coupon::query()
+                ->where('code', $order->coupon_code)
+                ->whereNotNull('affiliate_id')
+                ->first();
+
+            if ($coupon && $coupon->affiliate_id) {
+                $affiliate = $coupon->affiliate;
+                if ($affiliate && $affiliate->status !== 'suspended') {
+                    return $affiliate;
+                }
+            }
+        }
+
+        $visitorToken = Session::get('affiliate_referral_token')
+            ?? Cookie::get('affiliate_referral');
+
+        if (! $visitorToken || Session::get('affiliate_referral_processed')) {
+            return null;
+        }
+
+        $referral = AffiliateReferral::query()
+            ->where('visitor_token', $visitorToken)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $referral) {
+            return null;
+        }
+
+        $affiliate = $referral->affiliate;
+
+        if (! $affiliate || $affiliate->status === 'suspended') {
+            return null;
+        }
+
+        return $affiliate;
     }
 }

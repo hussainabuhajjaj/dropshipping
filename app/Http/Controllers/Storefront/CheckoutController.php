@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Domain\Affiliates\Services\AffiliateReferralDiscountService;
 use App\Domain\Common\Models\Address;
 use App\Events\Orders\OrderPlaced;
 use App\Http\Controllers\Controller;
@@ -239,6 +240,7 @@ class CheckoutController extends Controller
         }
         $shipping = (float) ($shippingQuote['total'] ?? 0);
 
+        app(AffiliateReferralDiscountService::class)->autoApplyReferralCoupon();
 
         $coupon = session('cart_coupon');
         $discounts = $this->calculateDiscounts($cart, $cart_items, $coupon, $customer, $subtotal);

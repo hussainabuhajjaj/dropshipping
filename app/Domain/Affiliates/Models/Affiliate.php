@@ -2,6 +2,7 @@
 
 namespace App\Domain\Affiliates\Models;
 
+use App\Models\Coupon;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -68,6 +69,11 @@ class Affiliate extends Authenticatable implements FilamentUser
     public function withdrawals(): HasMany
     {
         return $this->hasMany(AffiliateWithdrawal::class);
+    }
+
+    public function coupons(): HasMany
+    {
+        return $this->hasMany(Coupon::class, 'affiliate_id');
     }
 
     public function canAccessPanel(Panel $panel): bool
