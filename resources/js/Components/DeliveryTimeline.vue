@@ -41,7 +41,7 @@ const props = defineProps({
 const { t } = useTranslations()
 const page = usePage()
 
-const deliveryWindow = computed(() => page?.props?.site?.delivery_window ?? t('7 to 18 business days'))
+const deliveryWindow = computed(() => page?.props?.site?.delivery_window ?? t('7 to 30 business days'))
 
 const resolvedSteps = computed(() => {
   if (Array.isArray(props.steps) && props.steps.length) {

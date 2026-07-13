@@ -112,7 +112,7 @@
         <ul class="mt-2 space-y-1">
           <li>{{ t('We confirm payment and place your order with the supplier.') }}</li>
           <li>{{ t('Tracking is shared once the supplier dispatches.') }}</li>
-          <li>{{ t("Delivery to Cote d'Ivoire typically takes 7 to 18 business days.") }}</li>
+          <li>{{ t("Delivery to Cote d'Ivoire typically takes 7 to 30 business days.") }}</li>
         </ul>
         <p class="mt-3 text-xs text-slate-500">
           {{ t('Need help? WhatsApp :number with your order number.', { number: supportWhatsApp }) }}

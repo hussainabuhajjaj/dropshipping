@@ -507,3 +507,14 @@ Schedule::call(function () {
     }
 })->everyMinute()->name('cj:poll-fulfillment');
 Schedule::command('queue:work --tries=3 --timeout=1200 --stop-when-empty --queue=cj-import,default')->everyMinute();
+
+// ─── Campaign Lifecycle ─────────────────────────────────────────
+Schedule::command('campaigns:check-lifecycle')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(4)
+    ->runInBackground();
+
+Schedule::command('campaigns:source-products')
+    ->everySixHours()
+    ->withoutOverlapping(60)
+    ->runInBackground();

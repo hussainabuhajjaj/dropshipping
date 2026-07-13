@@ -64,6 +64,6 @@ import { useTranslations } from '@/i18n'
 const site = usePage().props.site
 const { t } = useTranslations()
 const policyHtml = (site?.shipping_policy ?? '').trim()
-const deliveryWindow = site?.delivery_window ?? '7 to 18 business days'
+const deliveryWindow = site?.delivery_window ?? '7 to 30 business days'
 const supportEmail = site?.support_email ?? 'support@dispatch.store'
 </script>

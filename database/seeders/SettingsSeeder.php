@@ -28,7 +28,7 @@ class SettingsSeeder extends Seeder
             'support_whatsapp' => '+22500000000',
             'support_phone' => '+22500000000',
             'support_hours' => 'Mon-Sat, 9:00-18:00 GMT',
-            'delivery_window' => '7-18 business days',
+            'delivery_window' => '7-30 business days',
             'shipping_message' => 'Standard tracked delivery to Cote dIvoire.',
             'customs_message' => 'Duties and VAT are disclosed before payment when available.',
             'tax_label' => 'VAT',
@@ -50,7 +50,7 @@ class SettingsSeeder extends Seeder
                 <h2>What Makes Us Different</h2>
                 <ul>
                     <li><strong>Complete Transparency:</strong> All costs, including customs duties and taxes, are clearly shown before you complete your purchase. No surprises at delivery.</li>
-                    <li><strong>Reliable Shipping:</strong> We partner with trusted carriers to ensure your orders arrive safely within 7-18 business days.</li>
+                    <li><strong>Reliable Shipping:</strong> We partner with trusted carriers to ensure your orders arrive safely within 7-30 business days.</li>
                     <li><strong>Quality Assurance:</strong> Every product is carefully selected and verified before being listed in our store.</li>
                     <li><strong>Outstanding Support:</strong> Our customer service team is available Mon-Sat to help with any questions or concerns.</li>
                 </ul>
@@ -85,7 +85,7 @@ class SettingsSeeder extends Seeder
                 <p>Orders are typically processed within 1-3 business days after payment confirmation. You will receive an email notification once your order has been shipped with tracking information.</p>
                 
                 <h2>Delivery Times</h2>
-                <p>Standard delivery to Côte d\'Ivoire takes approximately <strong>7-18 business days</strong> from the date of shipment. Delivery times may vary depending on:</p>
+                <p>Standard delivery to Côte d\'Ivoire takes approximately <strong>7-30 business days</strong> from the date of shipment. Delivery times may vary depending on:</p>
                 <ul>
                     <li>Product availability and location</li>
                     <li>Customs clearance procedures</li>
@@ -534,7 +534,7 @@ class SettingsSeeder extends Seeder
             'value_props' => [
                 [
                     'title' => "Delivery built for Cote d'Ivoire",
-                    'body' => 'Standard delivery in 7 to 18 business days with proactive tracking updates.',
+                    'body' => 'Standard delivery in 7 to 30 business days with proactive tracking updates.',
                 ],
                 [
                     'title' => 'Smart sourcing, safer spending',

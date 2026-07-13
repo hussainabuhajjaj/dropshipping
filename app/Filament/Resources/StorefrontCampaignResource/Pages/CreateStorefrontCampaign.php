@@ -15,6 +15,20 @@ class CreateStorefrontCampaign extends CreateRecord
 {
     protected static string $resource = StorefrontCampaignResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $this->productQueryData = $data['productQuery'] ?? [];
+        unset($data['productQuery']);
+        return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        $this->saveProductQuery($this->record);
+    }
+
+    private array $productQueryData = [];
+
     protected function getHeaderActions(): array
     {
         return [
@@ -103,5 +117,27 @@ class CreateStorefrontCampaign extends CreateRecord
                         ->send();
                 }),
         ];
+    }
+
+    private function saveProductQuery(StorefrontCampaign $campaign): void
+    {
+        $data = $this->productQueryData;
+        if (empty($data)) {
+            return;
+        }
+
+        $query = $campaign->productQuery ?? new CampaignProductQuery(['storefront_campaign_id' => $campaign->id]);
+        $query->fill([
+            'keywords' => $data['keywords'] ?? null,
+            'cj_category_id' => $data['cj_category_id'] ?? null,
+            'min_price' => $data['min_price'] ?? null,
+            'max_price' => $data['max_price'] ?? null,
+            'max_products' => $data['max_products'] ?? 50,
+            'margin_percent' => $data['margin_percent'] ?? 60,
+            'auto_activate' => $data['auto_activate'] ?? true,
+            'sort_by' => $data['sort_by'] ?? null,
+            'status' => 'pending',
+        ]);
+        $query->save();
     }
 }

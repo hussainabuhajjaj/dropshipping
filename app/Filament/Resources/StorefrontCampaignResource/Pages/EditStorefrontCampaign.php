@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Filament\Resources\StorefrontCampaignResource\Pages;
 
 use App\Filament\Resources\StorefrontCampaignResource;
+use App\Models\CampaignProductQuery;
 use App\Models\MarketingContentDraft;
+use App\Models\StorefrontCampaign;
 use App\Services\AI\ContentTranslationService;
 use Filament\Actions;
 use Filament\Forms;
@@ -15,6 +17,28 @@ use Filament\Resources\Pages\EditRecord;
 class EditStorefrontCampaign extends EditRecord
 {
     protected static string $resource = StorefrontCampaignResource::class;
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        if ($this->record->relationLoaded('productQuery') && $this->record->productQuery) {
+            $data['productQuery'] = $this->record->productQuery->toArray();
+        }
+        return $data;
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $this->productQueryData = $data['productQuery'] ?? [];
+        unset($data['productQuery']);
+        return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        $this->saveProductQuery($this->record);
+    }
+
+    private array $productQueryData = [];
 
     protected function getHeaderActions(): array
     {
@@ -208,5 +232,26 @@ class EditStorefrontCampaign extends EditRecord
                 }),
             Actions\DeleteAction::make(),
         ];
+    }
+
+    private function saveProductQuery(StorefrontCampaign $campaign): void
+    {
+        $data = $this->productQueryData;
+        if (empty($data)) {
+            return;
+        }
+
+        $query = $campaign->productQuery ?? new CampaignProductQuery(['storefront_campaign_id' => $campaign->id]);
+        $query->fill([
+            'keywords' => $data['keywords'] ?? null,
+            'cj_category_id' => $data['cj_category_id'] ?? null,
+            'min_price' => $data['min_price'] ?? null,
+            'max_price' => $data['max_price'] ?? null,
+            'max_products' => $data['max_products'] ?? 50,
+            'margin_percent' => $data['margin_percent'] ?? 60,
+            'auto_activate' => $data['auto_activate'] ?? true,
+            'sort_by' => $data['sort_by'] ?? null,
+        ]);
+        $query->save();
     }
 }

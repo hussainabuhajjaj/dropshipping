@@ -46,6 +46,7 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'phone_verification_code',
         'phone_verification_expires_at',
         'remember_token',
+        'marketing_opt_in',
     ];
 
     protected $casts = [
@@ -55,6 +56,7 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'phone_verified_at' => 'datetime',
         'phone_verification_expires_at' => 'datetime',
         'password' => 'hashed',
+        'marketing_opt_in' => 'boolean',
     ];
 
     protected $hidden = [

@@ -35,6 +35,9 @@ class StorefrontCampaign extends Model
         'banner_ids',
         'collection_ids',
         'newsletter_campaign_ids',
+        'notification_config',
+        'sourcing_config',
+        'segment_ids',
     ];
 
     protected $casts = [
@@ -50,6 +53,9 @@ class StorefrontCampaign extends Model
         'banner_ids' => 'array',
         'collection_ids' => 'array',
         'newsletter_campaign_ids' => 'array',
+        'notification_config' => 'array',
+        'sourcing_config' => 'array',
+        'segment_ids' => 'array',
     ];
 
     public function getRouteKeyName(): string
@@ -176,6 +182,44 @@ class StorefrontCampaign extends Model
     public function newsletterCampaignIds(): array
     {
         return array_values(array_filter(array_map('intval', $this->newsletter_campaign_ids ?? [])));
+    }
+
+    public function segmentIds(): array
+    {
+        return array_values(array_filter(array_map('intval', $this->segment_ids ?? [])));
+    }
+
+    public function productQuery(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CampaignProductQuery::class, 'storefront_campaign_id');
+    }
+
+    public function autoCollection(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(StorefrontCollection::class, 'campaign_id');
+    }
+
+    public function notificationConfig(): array
+    {
+        $default = [
+            'on_start' => ['push' => true, 'email' => true, 'whatsapp' => false],
+            'on_ending_soon' => ['push' => true, 'email' => false, 'whatsapp' => false, 'hours_before' => 24],
+            'on_end' => ['push' => false, 'email' => false, 'whatsapp' => false],
+        ];
+
+        return array_merge($default, $this->notification_config ?? []);
+    }
+
+    public function sourcingConfig(): array
+    {
+        $default = [
+            'enabled' => false,
+            'sourcing_days_before' => 7,
+            'auto_create_collection' => true,
+            'override_home_sections' => ['featured'],
+        ];
+
+        return array_merge($default, $this->sourcing_config ?? []);
     }
 
     private function parseScheduleDate($value, string $timezone): ?Carbon

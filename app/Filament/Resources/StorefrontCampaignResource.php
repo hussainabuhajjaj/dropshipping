@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\StorefrontCampaignResource\Pages;
+use App\Models\CampaignProductQuery;
 use App\Models\Coupon;
 use App\Models\Promotion;
 use App\Models\StorefrontBanner;
@@ -14,6 +15,7 @@ use BackedEnum;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Section;
@@ -95,7 +97,7 @@ class StorefrontCampaignResource extends BaseResource
 
             Section::make('Theme & placements')
                 ->schema([
-                    Fieldset::make('theme')
+                    Section::make('theme')
                         ->statePath('theme')
                         ->schema([
                             Forms\Components\ColorPicker::make('primary')
@@ -186,8 +188,120 @@ class StorefrontCampaignResource extends BaseResource
                         ->multiple()
                         ->options(fn () => \App\Models\NewsletterCampaign::query()->latest()->pluck('subject', 'id'))
                         ->searchable(),
+                    Forms\Components\Select::make('segment_ids')
+                        ->label('Targeted Segments')
+                        ->multiple()
+                        ->options(fn () => \App\Models\CustomerSegment::query()->active()->orderBy('name')->pluck('name', 'id'))
+                        ->searchable()
+                        ->helperText('Notifications will only send to customers matching selected segments'),
                 ])
                 ->columns(2),
+
+            Section::make('Product sourcing')
+                ->description('Auto-source products from CJ Dropshipping when campaign starts')
+                ->collapsed()
+                ->schema([
+                    Forms\Components\Toggle::make('sourcing_config.enabled')
+                        ->label('Enable auto-sourcing')
+                        ->default(false)
+                        ->live(),
+                    Forms\Components\TextInput::make('sourcing_config.sourcing_days_before')
+                        ->label('Source X days before campaign')
+                        ->numeric()
+                        ->default(7)
+                        ->minValue(1),
+                    Forms\Components\CheckboxList::make('sourcing_config.override_home_sections')
+                        ->label('Override home sections')
+                        ->options([
+                            'featured' => 'Featured products',
+                            'newArrivals' => 'New arrivals',
+                            'trending' => 'Trending',
+                        ])
+                        ->default(['featured'])
+                        ->columns(1),
+                    Forms\Components\Toggle::make('sourcing_config.auto_create_collection')
+                        ->label('Auto-create collection')
+                        ->default(true),
+                    Section::make('CJ search query')
+                        ->statePath('productQuery')
+                        ->schema([
+                            Forms\Components\Textarea::make('keywords')
+                                ->label('Search keywords (comma-separated)')
+                                ->placeholder('summer dress, bikini, sandals')
+                                ->helperText('Each keyword is searched separately on CJ'),
+                            Forms\Components\TextInput::make('cj_category_id')
+                                ->label('CJ category ID (optional)')
+                                ->numeric()
+                                ->placeholder('Leave empty for all categories'),
+                            Forms\Components\TextInput::make('min_price')
+                                ->label('Min price (USD)')
+                                ->numeric()
+                                ->prefix('$'),
+                            Forms\Components\TextInput::make('max_price')
+                                ->label('Max price (USD)')
+                                ->numeric()
+                                ->prefix('$'),
+                            Forms\Components\TextInput::make('max_products')
+                                ->label('Max products to source')
+                                ->numeric()
+                                ->default(50)
+                                ->minValue(1)
+                                ->maxValue(200),
+                            Forms\Components\TextInput::make('margin_percent')
+                                ->label('Margin %')
+                                ->numeric()
+                                ->default(60)
+                                ->suffix('%'),
+                            Forms\Components\Toggle::make('auto_activate')
+                                ->label('Auto-activate (publish immediately)')
+                                ->default(true),
+                            Forms\Components\Select::make('sort_by')
+                                ->label('Sort by')
+                                ->options([
+                                    '' => 'Default',
+                                    'newest' => 'Newest',
+                                    'sales' => 'Best selling',
+                                ])
+                                ->default('newest'),
+                        ])
+                        ->columns(2)
+                        ->visible(fn (Get $get) => $get('sourcing_config.enabled')),
+                ]),
+
+            Section::make('Notifications')
+                ->description('Configure automatic notifications sent during the campaign lifecycle')
+                ->collapsed()
+                ->schema([
+                    Section::make('Campaign started')
+                        ->statePath('notification_config.on_start')
+                        ->schema([
+                            Forms\Components\Toggle::make('push')->default(true),
+                            Forms\Components\Toggle::make('email')->default(true),
+                            Forms\Components\Toggle::make('whatsapp')->default(false),
+                        ])
+                        ->columns(3),
+                    Section::make('Ending soon')
+                        ->statePath('notification_config.on_ending_soon')
+                        ->schema([
+                            Forms\Components\Toggle::make('push')->default(true),
+                            Forms\Components\Toggle::make('email')->default(false),
+                            Forms\Components\Toggle::make('whatsapp')->default(false),
+                            Forms\Components\TextInput::make('hours_before')
+                                ->label('Send X hours before end')
+                                ->numeric()
+                                ->default(24)
+                                ->minValue(1),
+                        ])
+                        ->columns(4),
+                    Section::make('Campaign ended')
+                        ->statePath('notification_config.on_end')
+                        ->schema([
+                            Forms\Components\Toggle::make('push')->default(false),
+                            Forms\Components\Toggle::make('email')->default(false),
+                            Forms\Components\Toggle::make('whatsapp')->default(false),
+                        ])
+                        ->columns(3),
+                ]),
         ]);
     }
 

@@ -211,6 +211,93 @@ class SiteSettingResource extends BaseResource
                         ->minValue(0)
                         ->helperText('Pending reviews older than this are auto-approved. 0 disables.'),
                 ])->columns(2),
+            Section::make('Abandoned cart recovery')
+                ->description('Configure timing, channels, and coupon for abandoned cart reminders.')
+                ->schema([
+                    Forms\Components\TextInput::make('abandoned_cart_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('SAVE10')
+                        ->helperText('Used in reminders #2 and #3 as an incentive.'),
+                    Forms\Components\Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                    Forms\Components\Placeholder::make('abandoned_cart_timing_info')
+                        ->label('Reminder timing')
+                        ->content('Reminder #1: 1 hour after abandonment | Reminder #2: 24 hours later | Reminder #3: 72 hours later (last chance). All times are approximate ±30min.'),
+                ]),
+            Section::make('Cross-sell')
+                ->description('Post-purchase product recommendations sent after delivery.')
+                ->schema([
+                    Forms\Components\TextInput::make('cross_sell_config.delay_days')
+                        ->label('Delay after delivery (days)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(7)
+                        ->helperText('How many days after delivery before sending cross-sell recommendations.'),
+                    Forms\Components\TextInput::make('cross_sell_config.max_recommendations')
+                        ->label('Max recommendations')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(10)
+                        ->default(3),
+                    Forms\Components\TextInput::make('cross_sell_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('WELCOME10')
+                        ->helperText('Incentive for the next purchase.'),
+                    Forms\Components\Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('cross_sell_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('cross_sell_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('cross_sell_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                ]),
+            Section::make('Win-back')
+                ->description('Re-engage inactive customers with a special offer.')
+                ->schema([
+                    Forms\Components\TextInput::make('win_back_config.inactivity_days')
+                        ->label('Inactivity threshold (days)')
+                        ->numeric()
+                        ->minValue(14)
+                        ->default(60)
+                        ->helperText('Customers without a paid order for this many days will receive a win-back offer.'),
+                    Forms\Components\TextInput::make('win_back_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('MISSYOU10')
+                        ->helperText('Incentive to encourage re-purchase.'),
+                    Forms\Components\Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('win_back_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('win_back_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('win_back_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                ]),
             Section::make('Fulfillment')
                 ->schema([
                     Forms\Components\Select::make('default_fulfillment_provider_id')

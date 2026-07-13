@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\Orders\Models\OrderItem;
+use App\Domain\Products\Models\Product;
 use App\Models\Customer;
-use App\Models\OrderItem;
-use App\Models\Product;
 use Illuminate\Support\Collection;
 
 class ProductRecommendationService

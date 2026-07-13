@@ -41,6 +41,8 @@ class StorefrontCollection extends Model
         'product_limit',
         'sort_by',
         'display_order',
+        'campaign_id',
+        'is_campaign_auto_created',
     ];
 
     protected $casts = [

@@ -2118,6 +2118,41 @@ class ProductResource extends BaseResource
                                 ->success()
                                 ->send();
                         }),
+                    BulkAction::make('bulkActivate')
+                        ->label('Activate')
+                        ->icon('heroicon-o-check-circle')
+                        ->requiresConfirmation()
+                        ->action(function (Collection $records): void {
+                            $activated = 0;
+                            $skipped = 0;
+                            $validator = app(ProductActivationValidator::class);
+
+                            foreach ($records as $record) {
+                                if ($record->is_active) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                $errors = $validator->errorsForActivation($record->loadMissing('images', 'variants'));
+
+                                if ($errors !== []) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                $record->update([
+                                    'is_active' => true,
+                                    'status' => 'active',
+                                ]);
+                                $activated++;
+                            }
+
+                            Notification::make()
+                                ->title('Bulk activation complete')
+                                ->body("Activated {$activated} product(s), skipped {$skipped}.")
+                                ->success()
+                                ->send();
+                        }),
                     ActionsDeleteBulkAction::make(),
                 ]),
             ]);

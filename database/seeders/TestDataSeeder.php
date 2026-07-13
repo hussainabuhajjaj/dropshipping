@@ -121,7 +121,7 @@ class TestDataSeeder extends Seeder
             'support_email' => 'support@Simbazu.test',
             'support_whatsapp' => '+22500000000',
             'support_phone' => '+22500000000',
-            'delivery_window' => '7–18 business days',
+            'delivery_window' => '7–30 business days',
             'shipping_message' => 'Standard tracked delivery to Côte d’Ivoire.',
             'customs_message' => 'Duties and VAT are disclosed before payment when available.',
             'default_fulfillment_provider_id' => $provider->id,

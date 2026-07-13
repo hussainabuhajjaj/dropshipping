@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\AbandonedCart;
+use App\Models\SiteSetting;
 use App\Notifications\AbandonedCartNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,40 +21,58 @@ class SendAbandonedCartReminders implements ShouldQueue
 
     public function handle(): void
     {
+        $settings = SiteSetting::query()->first();
+        $config = $settings?->abandoned_cart_config ?? [];
+        $couponCode = $config['coupon_code'] ?? 'SAVE10';
+        $enablePush = $config['enable_push'] ?? true;
+        $enableWhatsApp = $config['enable_whatsapp'] ?? true;
+        $enableEmail = $config['enable_email'] ?? true;
+
         // Send reminders for carts abandoned 1 hour ago (first reminder)
         $oneHourAgo = now()->subHour();
         $firstReminders = AbandonedCart::query()
             ->whereNull('recovered_at')
             ->whereNull('reminder_sent_at')
             ->where('abandoned_at', '<=', $oneHourAgo)
-            ->where('abandoned_at', '>=', now()->subHours(2)) // Within last 2 hours
+            ->where('abandoned_at', '>=', now()->subHours(2))
             ->whereNotNull('email')
             ->get();
 
         foreach ($firstReminders as $cart) {
             try {
+                $notification = new AbandonedCartNotification(
+                    cart: $cart,
+                    reminderNumber: 1,
+                    couponCode: $couponCode,
+                    enablePush: $enablePush,
+                    enableWhatsApp: $enableWhatsApp,
+                    enableEmail: $enableEmail,
+                );
+
                 if ($cart->customer) {
-                    Notification::send($cart->customer, new AbandonedCartNotification($cart));
+                    Notification::send($cart->customer, $notification);
                 } else {
                     Notification::route('mail', $cart->email)
-                        ->notify(new AbandonedCartNotification($cart));
+                        ->notify($notification);
                 }
-                
+
                 $cart->update(['reminder_sent_at' => now()]);
-                
+
                 Log::info('Sent abandoned cart reminder', [
                     'cart_id' => $cart->id,
                     'email' => $cart->email,
+                    'reminder' => 1,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send abandoned cart reminder', [
                     'cart_id' => $cart->id,
+                    'reminder' => 1,
                     'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        // Send second reminder for carts abandoned 24 hours ago (if not recovered)
+        // Send second reminder for carts abandoned 24 hours ago
         $twentyFourHoursAgo = now()->subDay();
         $secondReminders = AbandonedCart::query()
             ->whereNull('recovered_at')
@@ -66,20 +85,31 @@ class SendAbandonedCartReminders implements ShouldQueue
 
         foreach ($secondReminders as $cart) {
             try {
+                $notification = new AbandonedCartNotification(
+                    cart: $cart,
+                    reminderNumber: 2,
+                    couponCode: $couponCode,
+                    enablePush: $enablePush,
+                    enableWhatsApp: $enableWhatsApp,
+                    enableEmail: $enableEmail,
+                );
+
                 if ($cart->customer) {
-                    Notification::send($cart->customer, new AbandonedCartNotification($cart, 2));
+                    Notification::send($cart->customer, $notification);
                 } else {
                     Notification::route('mail', $cart->email)
-                        ->notify(new AbandonedCartNotification($cart, 2));
+                        ->notify($notification);
                 }
 
                 Log::info('Sent second abandoned cart reminder', [
                     'cart_id' => $cart->id,
                     'email' => $cart->email,
+                    'reminder' => 2,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send second abandoned cart reminder', [
                     'cart_id' => $cart->id,
+                    'reminder' => 2,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -97,20 +127,31 @@ class SendAbandonedCartReminders implements ShouldQueue
 
         foreach ($thirdReminders as $cart) {
             try {
+                $notification = new AbandonedCartNotification(
+                    cart: $cart,
+                    reminderNumber: 3,
+                    couponCode: $couponCode,
+                    enablePush: $enablePush,
+                    enableWhatsApp: $enableWhatsApp,
+                    enableEmail: $enableEmail,
+                );
+
                 if ($cart->customer) {
-                    Notification::send($cart->customer, new AbandonedCartNotification($cart, 3));
+                    Notification::send($cart->customer, $notification);
                 } else {
                     Notification::route('mail', $cart->email)
-                        ->notify(new AbandonedCartNotification($cart, 3));
+                        ->notify($notification);
                 }
 
                 Log::info('Sent third (last chance) abandoned cart reminder', [
                     'cart_id' => $cart->id,
                     'email' => $cart->email,
+                    'reminder' => 3,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send third abandoned cart reminder', [
                     'cart_id' => $cart->id,
+                    'reminder' => 3,
                     'error' => $e->getMessage(),
                 ]);
             }

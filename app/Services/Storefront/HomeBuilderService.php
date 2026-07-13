@@ -6,6 +6,8 @@ namespace App\Services\Storefront;
 
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\StorefrontCampaign;
+use App\Models\StorefrontCollection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -42,21 +44,26 @@ class HomeBuilderService
      *     bestValue:\Illuminate\Support\Collection
      * }
      */
-    public function buildProductSections(int $limit = 6): array
+    public function buildProductSections(int $limit = 6, ?string $locale = null): array
     {
         $baseQuery = $this->baseProductQuery();
+        $campaignOverrides = $this->getCampaignSectionOverrides($locale);
 
-        $featured = (clone $baseQuery)
-            ->where('is_featured', true)
-            ->latest()
-            ->take($limit)
-            ->get();
-
-        if ($featured->isEmpty()) {
+        if (isset($campaignOverrides['featured'])) {
+            $featured = $campaignOverrides['featured'];
+        } else {
             $featured = (clone $baseQuery)
+                ->where('is_featured', true)
                 ->latest()
                 ->take($limit)
                 ->get();
+
+            if ($featured->isEmpty()) {
+                $featured = (clone $baseQuery)
+                    ->latest()
+                    ->take($limit)
+                    ->get();
+            }
         }
 
         $bestSellerIds = $this->topSellingProductIds($limit);
@@ -115,6 +122,57 @@ class HomeBuilderService
             'trending' => $trending,
             'bestValue' => $bestValue,
         ];
+    }
+
+    private function getCampaignSectionOverrides(?string $locale = null): array
+    {
+        $overrides = [];
+
+        $campaigns = StorefrontCampaign::query()
+            ->where('is_active', true)
+            ->whereIn('status', ['active', 'approved'])
+            ->orderByDesc('priority')
+            ->get()
+            ->filter(fn (StorefrontCampaign $c) => $c->isActiveForLocale($locale ?? 'en'));
+
+        foreach ($campaigns as $campaign) {
+            $config = $campaign->sourcingConfig();
+            $sections = $config['override_home_sections'] ?? [];
+
+            if (empty($sections)) {
+                continue;
+            }
+
+            $collection = $campaign->autoCollection;
+            if (! $collection || ! $collection->is_active) {
+                continue;
+            }
+
+            $products = $collection->products()
+                ->where('is_active', true)
+                ->with(['images', 'category', 'variants', 'translations'])
+                ->withAvg('reviews', 'rating')
+                ->withCount('reviews')
+                ->take(6)
+                ->get();
+
+            if ($products->isEmpty()) {
+                continue;
+            }
+
+            foreach ($sections as $section) {
+                if (! isset($overrides[$section])) {
+                    $overrides[$section] = $products;
+                }
+            }
+
+            // Exclusive campaign — first one wins
+            if ($campaign->stacking_mode === 'exclusive' && ! $campaign->exclusive_group) {
+                break;
+            }
+        }
+
+        return $overrides;
     }
 
     public function topSellingProductIds(int $limit = 6): array

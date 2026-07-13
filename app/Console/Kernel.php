@@ -19,6 +19,8 @@ use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
 use App\Jobs\RequestProductReviewJob;
 use App\Jobs\SendAbandonedCartReminders;
+use App\Jobs\SendPostPurchaseCrossSells;
+use App\Jobs\SendWinBackReminders;
 use App\Jobs\SyncCjInventoryHourly;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -108,6 +110,13 @@ class Kernel extends ConsoleKernel
         // $schedule->command('cj:sync-variants')->dailyAt('02:30');
         // $schedule->command('cj:sync-media --chunk=20')->dailyAt('03:00');
 
+        // Daily: Import trending products from CJ (women, men, kids)
+        $schedule->command('cj:import-trending')
+            ->dailyAt('06:00')
+            ->name('cj-import-trending')
+            ->withoutOverlapping()
+            ->description('Import 10 trending + 20 category-specific products daily');
+
         // Keep: Token refresh
         $schedule->command('cj:refresh-token')->dailyAt('03:30');
 
@@ -129,6 +138,8 @@ class Kernel extends ConsoleKernel
         $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
+        $schedule->job(new SendPostPurchaseCrossSells())->dailyAt('10:00');
+        $schedule->job(new SendWinBackReminders())->weekly()->mondays()->at('08:00');
         $schedule->job(new \App\Jobs\AutoApproveCjFulfillmentJob())->everyTenMinutes();
         $schedule->command('payments:reconcile')
             ->everyTenMinutes()

@@ -87,6 +87,7 @@ class Order extends Model
         'cj_payment_error',
         'cj_payment_idempotency_key',
         'cj_payment_attempts',
+        'cross_sell_sent_at',
     ];
 
     protected $casts = [
@@ -114,6 +115,7 @@ class Order extends Model
         'cj_order_created_at' => 'datetime',
         'cj_confirmed_at' => 'datetime',
         'cj_paid_at' => 'datetime',
+        'cross_sell_sent_at' => 'datetime',
         'cj_amount_due' => 'decimal:2',
     ];
 

@@ -54,6 +54,9 @@ class SiteSetting extends Model
         'locale_overrides',
         'typesense_search_key',
         'typesense_admin_key',
+        'abandoned_cart_config',
+        'cross_sell_config',
+        'win_back_config',
     ];
 
     protected $casts = [
@@ -72,6 +75,9 @@ class SiteSetting extends Model
         'locale_overrides' => 'array',
         'typesense_search_key' => 'string',
         'typesense_admin_key' => 'string',
+        'abandoned_cart_config' => 'array',
+        'cross_sell_config' => 'array',
+        'win_back_config' => 'array',
     ];
 
     // Accessor/mutator for CJ auto-approve delay (hours)

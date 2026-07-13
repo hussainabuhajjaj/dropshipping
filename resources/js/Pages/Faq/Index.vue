@@ -57,7 +57,7 @@ const faqs = [
   {
     category: 'Delivery',
     question: 'How long does delivery take?',
-    answer: 'Most orders arrive in 7 to 18 business days after dispatch. Tracking is usually available within 24 to 48 hours.',
+    answer: 'Most orders arrive in 7 to 30 business days after dispatch. Tracking is usually available within 24 to 48 hours.',
   },
   {
     category: 'Delivery',

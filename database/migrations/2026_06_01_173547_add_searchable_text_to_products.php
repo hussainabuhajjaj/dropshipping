@@ -11,36 +11,46 @@ return new class extends Migration
     public function up(): void
     {
         $driver = DB::connection()->getDriverName();
-        if (! in_array($driver, ['mysql', 'mariadb'], true)) {
-            return;
-        }
 
         if (! Schema::hasColumn('products', 'searchable_text')) {
-            DB::statement('ALTER TABLE products ADD COLUMN searchable_text TEXT NULL AFTER description');
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                DB::statement('ALTER TABLE products ADD COLUMN searchable_text TEXT NULL AFTER description');
+            } else {
+                Schema::table('products', function ($table): void {
+                    $table->text('searchable_text')->nullable();
+                });
+            }
         }
 
-        try {
-            DB::statement('ALTER TABLE products ADD FULLTEXT INDEX products_search_v2_fulltext (name, description, code, meta_title, searchable_text)');
-        } catch (\Throwable) {
-            // Index already exists; skip safely.
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            try {
+                DB::statement('ALTER TABLE products ADD FULLTEXT INDEX products_search_v2_fulltext (name, description, code, meta_title, searchable_text)');
+            } catch (\Throwable) {
+                // Index already exists; skip safely.
+            }
         }
     }
 
     public function down(): void
     {
         $driver = DB::connection()->getDriverName();
-        if (! in_array($driver, ['mysql', 'mariadb'], true)) {
-            return;
-        }
 
-        try {
-            DB::statement('ALTER TABLE products DROP INDEX products_search_v2_fulltext');
-        } catch (\Throwable) {
-            // Index missing; skip safely.
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            try {
+                DB::statement('ALTER TABLE products DROP INDEX products_search_v2_fulltext');
+            } catch (\Throwable) {
+                // Index missing; skip safely.
+            }
         }
 
         if (Schema::hasColumn('products', 'searchable_text')) {
-            DB::statement('ALTER TABLE products DROP COLUMN searchable_text');
+            if (in_array($driver, ['mysql', 'mariadb'], true)) {
+                DB::statement('ALTER TABLE products DROP COLUMN searchable_text');
+            } else {
+                Schema::table('products', function ($table): void {
+                    $table->dropColumn('searchable_text');
+                });
+            }
         }
     }
 };
