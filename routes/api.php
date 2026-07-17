@@ -242,6 +242,7 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
     Route::get('products/{product:slug}/reviews', [MobileProductReviewController::class, 'index']);
     Route::get('collections', [MobileCollectionController::class, 'index']);
     Route::get('collections/{slug}', [MobileCollectionController::class, 'show']);
+    Route::get('campaigns/{slug}', [\App\Http\Controllers\Api\Mobile\V1\CampaignController::class, 'show']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::post('translations/register', [MobileTranslationsController::class, 'register']);

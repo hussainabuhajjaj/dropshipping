@@ -33,6 +33,7 @@ class UpdateProfileRequest extends BaseRequest
                 'regex:/^(?:\\+?225)?(?:01|05|07|21|25|27)\\d{8}$/',
             ],
             'avatar' => ['nullable', 'string'],
+            'marketing_opt_in' => ['nullable', 'boolean'],
         ];
     }
 }

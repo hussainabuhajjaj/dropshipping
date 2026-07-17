@@ -33,6 +33,7 @@ class RegisterRequest extends BaseRequest
             'device_name' => ['nullable', 'string', 'max:255'],
             'avatar' => ['nullable', 'string'],
             'guest_token' => ['nullable', 'string', 'max:120'],
+            'marketing_opt_in' => ['nullable', 'boolean'],
         ];
     }
 }

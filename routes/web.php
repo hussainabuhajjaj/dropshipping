@@ -82,6 +82,8 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/api/whatsapp-intents/{reference}/expire', [WhatsAppOrderIntentController::class, 'expire'])->name('api.whatsapp-intents.expire');
 });
 
+Route::get('/releases/android/latest', [\App\Http\Controllers\Api\Mobile\V1\DownloadController::class, 'latestAndroid'])->name('releases.android.latest');
+
 // Short URL routes
 Route::get('/s/{code}', [ShortUrlController::class, 'redirect'])->name('short-url.redirect')->where('code', '.*');
 Route::post('/api/short-url', [ShortUrlController::class, 'create'])->name('short-url.create');

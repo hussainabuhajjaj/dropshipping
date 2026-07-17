@@ -24,6 +24,7 @@ class CustomerResource extends JsonResource
             'city' => $this->city ?? null,
             'region' => $this->region ?? null,
             'postal_code' => $this->postal_code ?? null,
+            'marketing_opt_in' => (bool) $this->marketing_opt_in,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

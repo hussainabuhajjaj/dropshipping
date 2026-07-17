@@ -51,6 +51,10 @@ class AuthController extends ApiController
             ]);
         }
 
+        if (array_key_exists('marketing_opt_in', $data)) {
+            $customer->marketing_opt_in = (bool) $data['marketing_opt_in'];
+        }
+
         $customer->save();
         $this->dispatchEmailOtp($customer);
 
