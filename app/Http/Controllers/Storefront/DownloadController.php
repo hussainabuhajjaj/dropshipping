@@ -29,8 +29,15 @@ class DownloadController extends Controller
             'version_name' => $release->version,
             'version_code' => $this->parseVersionCode($release->version),
             'file_exists' => $release->file_path && Storage::disk($release->disk)->exists($release->file_path),
-            'size_mb' => $release->file_size ? round($release->file_size / 1024 / 1024, 1) : null,
-            'size_bytes' => $release->file_size,
+            'size_mb' => $release->file_size
+                ? round($release->file_size / 1024 / 1024, 1)
+                : ($release->file_path && Storage::disk($release->disk)->exists($release->file_path)
+                    ? round(Storage::disk($release->disk)->size($release->file_path) / 1024 / 1024, 1)
+                    : null),
+            'size_bytes' => $release->file_size
+                ?? ($release->file_path && Storage::disk($release->disk)->exists($release->file_path)
+                    ? Storage::disk($release->disk)->size($release->file_path)
+                    : null),
             'min_sdk' => $appConfig['android']['min_sdk'] ?? 24,
             'target_sdk' => $appConfig['android']['target_sdk'] ?? 34,
             'updated_at' => $release->created_at?->format('Y-m-d'),
