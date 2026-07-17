@@ -51,7 +51,6 @@ class MobileReleaseResource extends BaseResource
                         ->label('APK file')
                         ->disk('releases')
                         ->directory('apks')
-                        ->acceptedFileTypes(['application/vnd.android.package-archive', 'application/octet-stream'])
                         ->maxSize(1000 * 1024 * 1024)
                         ->helperText('Upload the APK file (max 250MB).'),
                     Forms\Components\Textarea::make('release_notes')
