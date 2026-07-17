@@ -142,6 +142,7 @@ Route::get('/category/{category:slug}', [CategoryController::class, 'show'])->na
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');
 Route::get('/collections', [\App\Http\Controllers\Storefront\CollectionController::class, 'index'])->name('collections.index');
 Route::get('/collections/{slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
+Route::get('/promotions/iphone-giveaway', [\App\Http\Controllers\Storefront\IphoneGiveawayController::class, 'index'])->name('promotions.iphone-giveaway');
 Route::get('/campaigns/{campaign:slug}', [\App\Http\Controllers\Storefront\CampaignController::class, 'show'])->name('campaigns.show');
 Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');
 Route::get('/search', SearchController::class)->name('search');

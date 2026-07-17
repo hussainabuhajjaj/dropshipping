@@ -128,6 +128,16 @@
                         <span class="ml-1 text-emerald-700">{{ t('with discounts and item deals.') }}</span>
                     </div>
 
+                    <div v-if="qualifiesForGiveaway" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
+                        <div class="flex items-center gap-2 font-semibold text-amber-800">
+                            <span>🎉</span>
+                            <span>{{ t('Your cart qualifies for the giveaway!') }}</span>
+                        </div>
+                        <a href="/promotions/iphone-giveaway" class="mt-1 block text-xs text-amber-600 hover:text-amber-500 underline underline-offset-2">
+                            {{ t('See details') }}
+                        </a>
+                    </div>
+
                     <div class="flex items-center justify-between text-sm">
                         <span>{{ t('Subtotal') }}</span>
                         <span class="font-semibold text-slate-900">{{ displayPrice(subtotal) }}</span>
@@ -259,6 +269,10 @@ const displayPromotions = computed(() =>
 const estimatedTotal = computed(() => props.estimated_total || Math.max(0, props.subtotal - props.discount + props.shipping))
 const itemCount = computed(() => props.item_count || props.lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0))
 const savingsTotal = computed(() => props.savings_total || 0)
+const qualifiesForGiveaway = computed(() => {
+  const threshold = props.currency === 'USD' ? 50 : 30000
+  return Number(props.subtotal) >= threshold
+})
 const { currentCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)
 

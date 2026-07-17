@@ -391,6 +391,21 @@
             </div>
         </Transition>
 
+        <!-- iPhone Giveaway Campaign Announcement Bar -->
+        <a
+            href="/promotions/iphone-giveaway"
+            class="block bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black hover:from-amber-400 hover:via-amber-300 hover:to-amber-400 transition-all"
+        >
+            <div class="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-2 text-xs font-bold sm:text-sm">
+                <span class="animate-pulse">🎉</span>
+                <span>{{ t('WIN AN iPHONE 17!') }}</span>
+                <span class="hidden sm:inline">{{ t('Spend 30,000 FCFA+') }}</span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-black/20 px-2.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-white">
+                    {{ t('Shop Now') }}
+                </span>
+            </div>
+        </a>
+
         <main class="container-base pb-24 pt-6 lg:pb-16 lg:pt-10">
             <slot/>
         </main>

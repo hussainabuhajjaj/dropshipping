@@ -168,6 +168,12 @@
               <span>{{ t('Total') }}</span>
               <span>{{ displayAmount(total) }}</span>
             </div>
+            <div v-if="qualifiesForGiveaway" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
+              <div class="flex items-center gap-2 font-semibold text-amber-800">
+                <span>🎉</span>
+                <span>{{ t("You're officially entered into the draw! Good luck!") }}</span>
+              </div>
+            </div>
           <div class="space-y-4 pt-2">
             <DeliveryTimeline compact />
             <TrustBadges compact />
@@ -262,6 +268,11 @@ const showMobileMoney = computed(() => paystackEnabled.value && mobileMoneyEnabl
 const showMobileMoneyProviders = computed(() => showMobileMoney.value && mobileMoneyProviders.value.length > 0)
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
+const qualifiesForGiveaway = computed(() => {
+  const threshold = currency.value === 'USD' ? 50 : 30000
+  return Number(subtotal.value) >= threshold
+})
+
 const formatProvider = (provider) =>
   String(provider)
     .split('_')
