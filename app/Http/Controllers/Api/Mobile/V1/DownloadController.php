@@ -8,10 +8,11 @@ use App\Models\MobileRelease;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DownloadController
 {
-    public function latestAndroid(Request $request): RedirectResponse
+    public function latestAndroid(Request $request): RedirectResponse|StreamedResponse
     {
         $release = MobileRelease::query()
             ->where('platform', 'android')

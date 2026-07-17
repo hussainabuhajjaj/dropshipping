@@ -49,8 +49,8 @@ class MobileReleaseResource extends BaseResource
                         ->native(false),
                     Forms\Components\FileUpload::make('file_path')
                         ->label('APK file')
-                        ->disk('releases')
-                        ->directory('apks')
+                        ->disk('public')
+                        ->directory('releases/apks')
                         ->maxSize(1000 * 1024 * 1024)
                         ->helperText('Upload the APK file (max 250MB).'),
                     Forms\Components\Textarea::make('release_notes')
