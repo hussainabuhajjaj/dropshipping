@@ -13,8 +13,12 @@ use App\Domain\Payments\PaymentService;
 use App\Events\Orders\RefundProcessed;
 use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
 use App\Infrastructure\Payments\Paystack\PaystackRefundService;
+use App\Infrastructure\Payments\Paystack\PaystackService;
+use App\Models\Payment;
 use App\Notifications\Orders\OrderPendingPaymentNotification;
+use App\Notifications\Orders\OrderPaymentLinkNotification;
 use App\Services\Api\ApiException;
+use App\Services\Currency\CurrencyConversionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -35,7 +39,81 @@ class ViewOrder extends ViewRecord
     {
         return [
             Actions\ActionGroup::make([
-                Actions\Action::make('resend_pending_payment')
+                Actions\Action::make('approve_send_payment_link')
+                ->label('Approve & Send Payment Link')
+                ->icon('heroicon-o-link')
+                ->color('success')
+                ->visible(fn (Order $record) => $record->shipping_method === 'whatsapp_assisted' && $record->payment_status === 'unpaid' && $record->payments()->where('provider', 'paystack')->where('status', 'pending')->doesntExist())
+                ->requiresConfirmation()
+                ->modalHeading('Approve WhatsApp Order')
+                ->modalDescription(fn (Order $record) => "This will generate a Paystack payment link for order {$record->number} and send it to the customer ({$record->email}).")
+                ->action(function (Order $record) {
+                    DB::transaction(function () use ($record) {
+                        $payment = Payment::create([
+                            'order_id' => $record->id,
+                            'provider' => 'paystack',
+                            'status' => 'pending',
+                            'provider_reference' => 'pstk_' . uniqid('', true),
+                            'amount' => $record->grand_total,
+                            'currency' => 'XOF',
+                            'meta' => ['type' => 'whatsapp_approved'],
+                        ]);
+
+                        $paystackService = app(PaystackService::class);
+                        $currencyService = app(CurrencyConversionService::class);
+
+                        $amount = (float) $record->grand_total;
+                        $fromCurrency = (string) ($record->currency ?? 'USD');
+                        if (strtoupper($fromCurrency) !== 'XOF') {
+                            $amount = $currencyService->convertAmount($amount, $fromCurrency, 'XOF');
+                        }
+                        $payment->amount = (int) round($amount);
+                        $payment->currency = 'XOF';
+                        $payment->save();
+
+                        $result = $paystackService->initializeTransaction(
+                            $record,
+                            $payment,
+                            $record->email,
+                            $record->guest_name ?? $record->customer?->name ?? 'Customer',
+                            route('paystack.callback')
+                        );
+
+                        $payment->forceFill([
+                            'meta->authorization_url' => $result['authorization_url'],
+                        ])->save();
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'payment_link_generated',
+                            'note' => "WhatsApp order approved. Paystack payment link sent to {$record->email}.",
+                            'payload' => [
+                                'payment_id' => $payment->id,
+                                'reference' => $result['reference'],
+                                'authorization_url' => $result['authorization_url'],
+                            ],
+                        ]);
+
+                        $record->update(['status' => 'pending', 'payment_status' => 'unpaid']);
+
+                        $notifiable = $record->customer ?? $record->user;
+                        $notification = (new OrderPaymentLinkNotification($record, $result['authorization_url']))
+                            ->locale($record->notificationLocale());
+
+                        if ($notifiable) {
+                            NotificationFacade::send($notifiable, $notification);
+                        } else {
+                            NotificationFacade::route('mail', $record->email)->notify($notification);
+                        }
+                    });
+
+                    Notification::make()
+                        ->title('Payment link generated and sent to customer')
+                        ->success()
+                        ->send();
+                }),
+            Actions\Action::make('resend_pending_payment')
                     ->label('Resend Pending Payment Email')
                     ->icon('heroicon-o-envelope')
                     ->color('gray')

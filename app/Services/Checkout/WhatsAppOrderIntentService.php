@@ -16,6 +16,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\SiteSetting;
 use App\Models\WhatsAppOrderIntent;
+use App\Notifications\AdminWhatsAppOrderNotification;
 use App\Services\Cart\CartIdentityService;
 use App\Services\Currency\CurrencyConversionService;
 use App\Services\User\UserPreferenceService;
@@ -23,6 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -214,7 +216,24 @@ class WhatsAppOrderIntentService
             return $order;
         });
 
+        $this->notifyAdminsOfNewWhatsAppOrder($order);
+
         return $order->fresh(['orderItems', 'payments', 'shippingAddress']);
+    }
+
+    private function notifyAdminsOfNewWhatsAppOrder(Order $order): void
+    {
+        try {
+            $admins = \App\Models\User::query()
+                ->whereIn('role', ['admin', 'staff'])
+                ->get();
+
+            if ($admins->isNotEmpty()) {
+                Notification::send($admins, new AdminWhatsAppOrderNotification($order));
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function expireStaleIntents(): int
