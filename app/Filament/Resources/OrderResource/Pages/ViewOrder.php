@@ -53,7 +53,7 @@ class ViewOrder extends ViewRecord
                             'order_id' => $record->id,
                             'provider' => 'paystack',
                             'status' => 'pending',
-                            'provider_reference' => 'pstk_' . uniqid('', true),
+                            'provider_reference' => 'pstk_' . uniqid(),
                             'amount' => $record->grand_total,
                             'currency' => 'XOF',
                             'meta' => ['type' => 'whatsapp_approved'],
@@ -79,9 +79,10 @@ class ViewOrder extends ViewRecord
                             route('paystack.callback')
                         );
 
-                        $payment->forceFill([
-                            'meta->authorization_url' => $result['authorization_url'],
-                        ])->save();
+                        $meta = (array) ($payment->meta ?? []);
+                        $meta['authorization_url'] = $result['authorization_url'];
+                        $payment->meta = $meta;
+                        $payment->save();
 
                         OrderAuditLog::create([
                             'order_id' => $record->id,
