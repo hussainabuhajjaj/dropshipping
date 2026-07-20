@@ -10,13 +10,13 @@
     >
         <div
             v-if="desktopOpen && activeCategory"
-            class="absolute left-0 right-0 top-full z-40 max-h-[min(32rem,calc(100vh-8.5rem))] overflow-hidden border-t border-slate-200 bg-white/95 shadow-2xl backdrop-blur-xl"
+            class="absolute left-0 right-0 top-full z-40 max-h-[min(32rem,calc(100dvh-8.5rem))] overflow-hidden border-t border-slate-200 bg-white/95 shadow-2xl backdrop-blur-xl"
             @mouseenter="categoryStore.cancelScheduledClose()"
             @mouseleave="categoryStore.scheduleClose()"
         >
             <div class="container-base h-full overflow-y-auto py-5">
                 <div class="grid gap-5 lg:grid-cols-[220px,1fr] lg:items-start">
-                    <aside class="max-h-[min(27rem,calc(100vh-12rem))] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-3">
+                    <aside class="max-h-[min(27rem,calc(100dvh-12rem))] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-3">
                         <div class="mb-4 flex items-center justify-between gap-3">
                             <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{{ t('Categories') }}</p>
                             <Link href="/products" class="text-xs font-semibold text-[#d97706]">
@@ -40,7 +40,7 @@
                         </div>
                     </aside>
 
-                    <section class="max-h-[min(27rem,calc(100vh-12rem))] space-y-4 overflow-y-auto pr-2">
+                    <section class="max-h-[min(27rem,calc(100dvh-12rem))] space-y-4 overflow-y-auto pr-2">
                         <div class="flex items-start justify-between gap-6">
                             <div class="space-y-2">
                                 <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{{ t('Browse fast') }}</p>
@@ -135,7 +135,7 @@
         </div>
     </Transition>
 
-    <div v-else class="mt-3 max-h-[calc(100vh-16rem)] space-y-3 overflow-y-auto pr-1">
+    <div v-else class="mt-3 max-h-[calc(100dvh-16rem)] space-y-3 overflow-y-auto pr-1">
         <div class="flex items-center justify-between gap-3">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ t('Shop by category') }}</p>
             <Link href="/products" class="text-xs font-semibold text-[#d97706]" @click="emitNavigate">

@@ -9,6 +9,9 @@ export default defineConfig({
             '@': resolve(__dirname, 'resources/js'),
         },
     },
+    build: {
+        target: 'es2015',
+    },
     plugins: [
         laravel({
             input: 'resources/js/app.js',

@@ -40,6 +40,7 @@
         <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,400..900&display=swap" rel="stylesheet">
 
         <!-- Scripts -->
+        <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=Promise%2Cfetc%2CObject.assign%2CArray.from%2CArray.prototype.includes%2CString.prototype.startsWith%2CString.prototype.endsWith%2CSymbol"></script>
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead

@@ -1,5 +1,5 @@
 <template>
-    <div class="brand-theme min-h-screen text-slate-900" :style="themeStyle">
+    <div class="brand-theme min-h-screen min-h-[100dvh] text-slate-900" :style="themeStyle">
         <!-- Fullscreen navigation loader -->
         <Transition
             enter-active-class="transition duration-150 ease-out"
@@ -277,7 +277,7 @@
                             >
                                 <div
                                     v-if="cartOpen"
-                                    class="absolute right-0 top-full mt-2 flex max-h-[min(32rem,calc(100vh-7rem))] w-72 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg"
+                                    class="absolute right-0 top-full mt-2 flex max-h-[min(32rem,calc(100dvh-7rem))] w-72 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg"
                                 >
                                     <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ t('Cart') }}</p>
 
