@@ -37,6 +37,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Never cache Inertia JSON responses (they carry session state and flash data).
+  if (event.request.headers.get('X-Inertia') === 'true') {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {

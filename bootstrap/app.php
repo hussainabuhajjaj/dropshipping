@@ -113,4 +113,33 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], $exception->status);
             }
         });
+
+        // Catch-all for Inertia requests: redirect back instead of returning raw JSON
+        $exceptions->render(function (\Throwable $e, $request) {
+            if ($request->header('X-Inertia')) {
+                \Illuminate\Support\Facades\Log::warning('Inertia request exception', [
+                    'url' => $request->fullUrl(),
+                    'error' => $e->getMessage(),
+                    'class' => get_class($e),
+                ]);
+
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $status = $e->getStatusCode();
+
+                    if ($status === 404) {
+                        return redirect()->to('/');
+                    }
+
+                    if (in_array($status, [403, 419], true)) {
+                        return redirect()->back()->withErrors(['error' => $e->getMessage() ?: 'Forbidden']);
+                    }
+                }
+
+                if ($e instanceof \Illuminate\Session\TokenMismatchException) {
+                    return redirect()->back()->withErrors(['error' => 'Session expired. Please try again.']);
+                }
+
+                return redirect()->back()->withErrors(['error' => 'An unexpected error occurred. Please try again.']);
+            }
+        });
     })->create();

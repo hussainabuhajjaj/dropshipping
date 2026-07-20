@@ -61,7 +61,12 @@ class RedirectMobile
 
     private function addVaryHeader(Response $response): Response
     {
-        $response->headers->set('Vary', 'User-Agent');
+        $vary = $response->headers->get('Vary', '');
+        $values = array_filter(array_map('trim', explode(',', $vary)));
+        if (!in_array('User-Agent', $values, true)) {
+            $values[] = 'User-Agent';
+        }
+        $response->headers->set('Vary', implode(', ', $values));
 
         return $response;
     }

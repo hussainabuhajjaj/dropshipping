@@ -97,7 +97,7 @@ class UserPreferenceController extends Controller
     /**
      * Update multiple preferences at once
      */
-    public function update(Request $request): JsonResponse
+    public function update(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
             'currency' => ['sometimes', 'string', 'in:' . implode(',', $this->preferenceService->getAvailableCurrencies())],
@@ -113,12 +113,21 @@ class UserPreferenceController extends Controller
                 $this->preferenceService->setLanguage($validated['language']);
             }
 
+            // For Inertia requests, redirect back with updated props
+            if (request()->header('X-Inertia')) {
+                return redirect()->back();
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Preferences updated successfully',
                 'preferences' => $this->preferenceService->getPreferences()
             ]);
         } catch (\InvalidArgumentException $e) {
+            if (request()->header('X-Inertia')) {
+                return redirect()->back()->withErrors(['preferences' => $e->getMessage()]);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
