@@ -5,10 +5,8 @@ namespace App\Http\Middleware;
 use App\Http\Resources\User\CartResource;
 use App\Models\Cart;
 use App\Services\User\UserPreferenceService;
-use Closure;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
-use Symfony\Component\HttpFoundation\Response;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 use App\Models\SiteSetting;
 use App\Models\StorefrontSetting;
@@ -27,17 +25,6 @@ class HandleInertiaRequests extends Middleware
     public function __construct(UserPreferenceService $preferenceService)
     {
         $this->preferenceService = $preferenceService;
-    }
-
-    public function handle(Request $request, Closure $next): Response
-    {
-        $response = parent::handle($request, $next);
-
-        if ($response->getStatusCode() === 302 && $request->method() === 'POST') {
-            $response->setStatusCode(303);
-        }
-
-        return $response;
     }
 
     /**

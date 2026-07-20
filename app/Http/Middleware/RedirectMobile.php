@@ -56,7 +56,13 @@ class RedirectMobile
             }
         }
 
-        return $this->addVaryHeader($next($request));
+        $response = $this->addVaryHeader($next($request));
+
+        if ($response->getStatusCode() === 302 && $request->method() === 'POST') {
+            $response->setStatusCode(303);
+        }
+
+        return $response;
     }
 
     private function addVaryHeader(Response $response): Response
