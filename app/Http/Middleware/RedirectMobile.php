@@ -62,8 +62,6 @@ class RedirectMobile
             $response->setStatusCode(303);
         }
 
-        $response->headers->set('X-Debug-RedirectMobile', 'alive');
-
         return $response;
     }
 
