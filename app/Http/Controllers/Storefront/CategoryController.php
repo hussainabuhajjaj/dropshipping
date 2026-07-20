@@ -44,29 +44,15 @@ class CategoryController extends Controller
         $attributeDefs = collect($meta['attributeDefs'])
             ->reject(fn ($attr) => in_array($attr['key'], [
                 'brand',
-                'cj_pid',
-                'cj_last_payload',
-                'cj_last_changed_fields',
-                'cj_payload',
-                'cjpid',
-                'cj',
             ], true))
             ->values()
             ->all();
 
         $variantAttributeKeys = $meta['variantAttributeKeys'] ?? [];
 
-        // Remove brand and CJ fields from filters
+        // Remove brand from filters
         $filters = collect($filters)
-            ->except([
-                'brand',
-                'cj_pid',
-                'cj_last_payload',
-                'cj_last_changed_fields',
-                'cj_payload',
-                'cjpid',
-                'cj',
-            ])
+            ->except(['brand'])
             ->all();
 
         foreach ($attributeDefs as $attr) {

@@ -104,7 +104,8 @@ class ProductMetaExtractor
         return str_contains($normalized, 'ali_')
             || str_contains($normalized, 'aliexpress')
             || str_contains($normalized, 'ae_')
-            || str_contains($normalized, 'supplier_');
+            || str_contains($normalized, 'supplier_')
+            || str_contains($normalized, 'cj_');
     }
 
     private function emptyState(): array

@@ -147,8 +147,7 @@ class ProductController extends Controller
 
         $attributeDefs = collect($meta['attributeDefs'])
             ->reject(fn ($attr) => in_array(strtolower($attr['key']), [
-                'brand', 'cj_pid', 'cj_last_payload', 'cj_last_changed_fields',
-                'cj_payload', 'cjpid', 'cj', 'model', 'upc', 'ean', 'isbn',
+                'brand', 'model', 'upc', 'ean', 'isbn',
             ], true))
             ->values()
             ->all();
