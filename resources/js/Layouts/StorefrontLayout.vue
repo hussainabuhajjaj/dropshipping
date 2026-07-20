@@ -627,11 +627,11 @@
                                     v-for="option in getLocaleOptions"
                                     :key="option.code"
                                     type="button"
-                                    class="rounded-lg border px-3 py-2 text-xs font-medium uppercase transition"
-                                    :class="option.code === currentLanguage ? 'border-[#f59e0b] bg-[#f59e0b] text-white' : 'border-slate-200 text-slate-600 hover:border-slate-300'"
+                                    class="cursor-pointer rounded-lg border px-3 py-2.5 text-xs font-medium uppercase transition active:scale-95"
+                                    :class="option.code === currentLanguage ? 'border-[#f59e0b] bg-[#f59e0b] text-white' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'"
                                     @click="setLanguage(option.code); mobileOpen = false"
                                 >
-                                    {{ option.code }}
+                                    {{ option.code === 'en' ? 'English' : 'Français' }}
                                 </button>
                             </div>
                         </div>
@@ -656,8 +656,8 @@
         <PopupBannerModal v-if="showStorefrontPopups" :banners="popupBanners" />
         <NewsletterPopup v-if="showStorefrontPopups" :settings="newsletterPopupSettings" />
         <CookieConsentBanner />
-        <FloatingWhatsAppCTA />
-        <SocialProofPopup />
+        <FloatingWhatsAppCTA v-if="!mobileOpen" />
+        <SocialProofPopup v-if="!mobileOpen" />
     </div>
 </template>
 
