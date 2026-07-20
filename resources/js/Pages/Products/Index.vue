@@ -81,6 +81,44 @@
                 {{ t('In stock only') }}
               </label>
 
+              <!-- Dynamic attribute filters (colors, sizes, etc.) -->
+              <div v-for="attr in attributes" :key="attr.key">
+                <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel(attr.key)">
+                  <span class="flex items-center gap-2">
+                    {{ attr.label }}
+                    <span v-if="isVariantAttribute(attr)" class="rounded bg-slate-200 px-1.5 py-0.5 text-[0.55rem] font-bold text-slate-500">(Variant)</span>
+                  </span>
+                  <svg class="h-3.5 w-3.5 transition" :class="openPanels[attr.key] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <div v-if="openPanels[attr.key]" class="mt-3">
+                  <template v-if="isSizeAttribute(attr)">
+                    <div class="flex flex-wrap gap-2">
+                      <button v-for="option in attr.options" :key="option" type="button" class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                        :class="form[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                        @click="toggleAttrValue(attr.key, option)"
+                      >{{ option }}</button>
+                    </div>
+                  </template>
+                  <template v-else-if="isColorAttribute(attr)">
+                    <div class="flex flex-wrap gap-2">
+                      <button v-for="option in attr.options" :key="option" type="button" class="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                        :class="form[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                        @click="toggleAttrValue(attr.key, option)"
+                      >
+                        <span class="h-3.5 w-3.5 rounded-full border border-slate-200" :style="{ backgroundColor: attrColorToHex(option) }" />
+                        {{ option }}
+                      </button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <select :value="form[attr.key]" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @change="onAttrSelect(attr.key, $event.target.value)">
+                      <option value="">{{ t('All') }}</option>
+                      <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
+                    </select>
+                  </template>
+                </div>
+              </div>
+
               <button type="button" class="btn-red w-full" @click="applyFilters">{{ t('Apply') }}</button>
             </div>
           </aside>
@@ -179,6 +217,37 @@
             <input v-model="form.in_stock" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-0" />
             {{ t('In stock only') }}
           </label>
+
+          <!-- Dynamic attribute filters (mobile) -->
+          <div v-for="attr in attributes" :key="'m-' + attr.key">
+            <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{{ attr.label }}</p>
+            <template v-if="isSizeAttribute(attr)">
+              <div class="flex flex-wrap gap-2">
+                <button v-for="option in attr.options" :key="option" type="button" class="rounded-lg border px-4 py-2 text-xs font-semibold transition"
+                  :class="form[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  @click="toggleAttrValue(attr.key, option)"
+                >{{ option }}</button>
+              </div>
+            </template>
+            <template v-else-if="isColorAttribute(attr)">
+              <div class="flex flex-wrap gap-2">
+                <button v-for="option in attr.options" :key="option" type="button" class="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                  :class="form[attr.key] === option ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'"
+                  @click="toggleAttrValue(attr.key, option)"
+                >
+                  <span class="h-3.5 w-3.5 rounded-full border border-slate-200" :style="{ backgroundColor: attrColorToHex(option) }" />
+                  {{ option }}
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <select :value="form[attr.key]" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @change="onAttrSelect(attr.key, $event.target.value)">
+                <option value="">{{ t('All') }}</option>
+                <option v-for="option in attr.options" :key="option" :value="option">{{ option }}</option>
+              </select>
+            </template>
+          </div>
+
           <button type="button" class="btn-red w-full" @click="applyFilters">{{ t('Apply') }}</button>
         </div>
       </div>
@@ -201,12 +270,35 @@ const props = defineProps({
   categories: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
   filterContext: { type: Object, default: () => ({}) },
+  attributes: { type: Array, default: () => [] },
+  variantAttributeKeys: { type: Array, default: () => [] },
   shouldNoindex: { type: Boolean, default: false },
 })
 
 const page = usePage()
 const { t } = useTranslations()
 const promotionList = computed(() => (page?.props?.promotions || page?.props?.homepagePromotions || []))
+
+// Dynamic attribute filter helpers
+const sizeKeys = ['size', 'taille', 's']
+const colorKeys = ['color', 'colour', 'couleur']
+const isSizeAttribute = (attr) => sizeKeys.includes(attr.key.toLowerCase())
+const isColorAttribute = (attr) => colorKeys.includes(attr.key.toLowerCase())
+const isVariantAttribute = (attr) => props.variantAttributeKeys.includes(attr.key)
+
+const attrColorToHex = (name) => {
+  const map = {
+    red: '#EF4444', blue: '#3B82F6', green: '#22C55E', black: '#000000', white: '#FFFFFF',
+    gray: '#6B7280', grey: '#6B7280', yellow: '#EAB308', orange: '#F97316', purple: '#A855F7',
+    pink: '#EC4899', brown: '#92400E', beige: '#F5F5DC', cream: '#FFFDD0', navy: '#000080',
+    maroon: '#800000', teal: '#0D9488', gold: '#D4A017', silver: '#C0C0C0', khaki: '#C3B091',
+    turquoise: '#40E0D0', coral: '#FF7F50', burgundy: '#800020', charcoal: '#36454F',
+    nude: '#E3BC9A', camel: '#C19A6B', olive: '#808000', mint: '#98FB98', lavender: '#E6E6FA',
+    peach: '#FFDAB9', wine: '#722F37', rose: '#FF007F', lilac: '#C8A2C8',
+  }
+  const lower = name.toLowerCase().trim()
+  return map[lower] || '#CBD5E1'
+}
 
 const form = reactive({
   q: props.filters.q ?? '',
@@ -218,10 +310,14 @@ const form = reactive({
   is_featured: props.filters.is_featured ?? '',
   sort: props.filters.sort ?? '',
   page: props.filters.page ?? 1,
+  ...Object.fromEntries(props.attributes.map(attr => [attr.key, props.filters[attr.key] ?? ''])),
 })
 
 const filtersOpen = ref(false)
-const openPanels = reactive({ category: true, price: true, rating: false })
+const openPanels = reactive({
+  category: true, price: true, rating: false,
+  ...Object.fromEntries(props.attributes.map(attr => [attr.key, false])),
+})
 const togglePanel = (key) => { openPanels[key] = !openPanels[key] }
 
 const sortOptions = computed(() => [
@@ -290,6 +386,9 @@ const activeFilters = computed(() => {
   if (form.rating) items.push({ key: 'rating', label: form.rating + '+ ' + t('stars') })
   if (form.in_stock) items.push({ key: 'in_stock', label: t('In stock') })
   if (form.sort && sortLabels[form.sort]) items.push({ key: 'sort', label: sortLabels[form.sort] })
+  for (const attr of props.attributes) {
+    if (form[attr.key]) items.push({ key: attr.key, label: attr.label + ': ' + form[attr.key] })
+  }
   return items
 })
 
@@ -305,13 +404,26 @@ const handleSortChange = (value) => {
 }
 
 const resetFilters = () => {
-  Object.assign(form, { q: '', category: '', min_price: '', max_price: '', rating: '', in_stock: false, is_featured: '', sort: '' })
+  Object.assign(form, {
+    q: '', category: '', min_price: '', max_price: '', rating: '', in_stock: false, is_featured: '', sort: '',
+    ...Object.fromEntries(props.attributes.map(attr => [attr.key, ''])),
+  })
   filtersOpen.value = false
   applyFilters()
 }
 
 const clearFilter = (key) => {
   if (typeof form[key] === 'boolean') form[key] = false; else form[key] = ''
+  applyFilters()
+}
+
+const toggleAttrValue = (key, value) => {
+  form[key] = form[key] === value ? '' : value
+  applyFilters()
+}
+
+const onAttrSelect = (key, value) => {
+  form[key] = value || ''
   applyFilters()
 }
 

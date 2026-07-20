@@ -16,6 +16,7 @@ use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
 use App\Services\ProductRecommendationService;
 use App\Services\Promotions\PromotionHomepageService;
+use App\Services\Storefront\ProductMetaExtractor;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -28,7 +29,7 @@ class ProductController extends Controller
     use TransformsProducts;
     use FormatsCategories;
 
-    public function index(Request $request): Response
+    public function index(Request $request, ProductMetaExtractor $metaExtractor): Response
     {
         $locale = app()->getLocale();
 
@@ -141,6 +142,38 @@ class ProductController extends Controller
         $this->applyCampaignFilter($productQuery, $campaignFilter, $locale, $filterContext);
         $this->applyPromotionFilters($productQuery, $promotionFilter, $promotionTypeFilter, $filterContext);
 
+        // Dynamic attribute extraction + filtering (colors, sizes, etc.)
+        $meta = $metaExtractor->extractFromQuery(clone $productQuery);
+
+        $attributeDefs = collect($meta['attributeDefs'])
+            ->reject(fn ($attr) => in_array(strtolower($attr['key']), [
+                'brand', 'cj_pid', 'cj_last_payload', 'cj_last_changed_fields',
+                'cj_payload', 'cjpid', 'cj', 'model', 'upc', 'ean', 'isbn',
+            ], true))
+            ->values()
+            ->all();
+
+        $variantAttributeKeys = $meta['variantAttributeKeys'] ?? [];
+
+        foreach ($attributeDefs as $attr) {
+            $key = $attr['key'];
+            $value = $request->query($key);
+            if (empty($value)) {
+                continue;
+            }
+
+            if (in_array($key, $variantAttributeKeys, true)) {
+                $productQuery->whereHas('variants', function ($q) use ($key, $value) {
+                    $q->where(function ($vq) use ($key, $value) {
+                        $vq->whereJsonContains('options->' . $key, $value)
+                           ->orWhereJsonContains('options->properties->' . $key, $value);
+                    });
+                });
+            } else {
+                $productQuery->whereJsonContains('attributes->' . $key, $value);
+            }
+        }
+
         $sortable = [
             'price_asc' => ['selling_price', 'asc'],
             'price_desc' => ['selling_price', 'desc'],
@@ -173,7 +206,27 @@ class ProductController extends Controller
         $promotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('product', $productIds, $categoryIds);
 
         // Determine if page should be noindexed (has filters applied)
-        $hasFilters = $category || $minPrice !== null || $maxPrice !== null || $query || $sort || $rating !== null || $inStock || $featured !== null || $collectionFilter || $campaignFilter || $promotionFilter || $promotionTypeFilter;
+        $filterValues = [
+            'category' => $category,
+            'collection' => $collectionFilter,
+            'campaign' => $campaignFilter,
+            'promotion' => $promotionFilter,
+            'promotion_type' => $promotionTypeFilter,
+            'min_price' => $minPrice,
+            'max_price' => $maxPrice,
+            'q' => $query,
+            'sort' => $sort,
+            'rating' => $rating,
+            'in_stock' => $inStock,
+            'is_featured' => $featured,
+            'page' => $products->currentPage(),
+        ];
+
+        foreach ($attributeDefs as $attr) {
+            $filterValues[$attr['key']] = $request->query($attr['key']);
+        }
+
+        $hasFilters = !empty(array_filter($filterValues, fn ($v, $k) => $k !== 'page' && $k !== 'sort' && $v !== null && $v !== '' && $v !== false, ARRAY_FILTER_USE_BOTH));
 
         return Inertia::render('Products/Index', [
             'products' => $products,
@@ -181,21 +234,9 @@ class ProductController extends Controller
             'categories' => $categories,
             'promotions' => $promotions,
             'filterContext' => $filterContext,
-            'filters' => [
-                'category' => $category,
-                'collection' => $collectionFilter,
-                'campaign' => $campaignFilter,
-                'promotion' => $promotionFilter,
-                'promotion_type' => $promotionTypeFilter,
-                'min_price' => $minPrice,
-                'max_price' => $maxPrice,
-                'q' => $query,
-                'sort' => $sort,
-                'rating' => $rating,
-                'in_stock' => $inStock,
-                'is_featured' => $featured,
-                'page' => $products->currentPage(),
-            ],
+            'filters' => $filterValues,
+            'attributes' => $attributeDefs,
+            'variantAttributeKeys' => $variantAttributeKeys,
             'shouldNoindex' => $hasFilters,
         ]);
     }
