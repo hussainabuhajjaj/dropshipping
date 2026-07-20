@@ -86,7 +86,7 @@
                 <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel(attr.key)">
                   <span class="flex items-center gap-2">
                     {{ attr.label }}
-                    <span v-if="isVariantAttribute(attr)" class="rounded bg-slate-200 px-1.5 py-0.5 text-[0.55rem] font-bold text-slate-500">(Variant)</span>
+                    <span v-if="isVariantAttribute(attr)" class="rounded bg-slate-200 px-1.5 py-0.5 text-[0.55rem] font-bold text-slate-500">{{ t('Variant') }}</span>
                   </span>
                   <svg class="h-3.5 w-3.5 transition" :class="openPanels[attr.key] ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
