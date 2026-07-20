@@ -130,6 +130,10 @@ return Application::configure(basePath: dirname(__DIR__))
                         return redirect()->to('/');
                     }
 
+                    if ($status === 405) {
+                        return null;
+                    }
+
                     if (in_array($status, [403, 419], true)) {
                         return redirect()->back()->withErrors(['error' => $e->getMessage() ?: 'Forbidden']);
                     }
