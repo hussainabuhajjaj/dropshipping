@@ -9,6 +9,7 @@ use App\Services\User\UserPreferenceService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Inertia\Inertia;
 
 class UserPreferenceController extends Controller
 {
@@ -37,20 +38,13 @@ class UserPreferenceController extends Controller
             $this->preferenceService->setCurrency($validated['currency']);
 
             if (request()->header('X-Inertia')) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Currency updated successfully',
-                    'preferences' => $this->preferenceService->getPreferences()
-                ]);
+                return Inertia::location(url()->previous('/'));
             }
 
             return back(303)->with('success', 'Currency updated successfully');
         } catch (\InvalidArgumentException $e) {
             if (request()->header('X-Inertia')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 422);
+                return back(303)->withErrors(['currency' => $e->getMessage()]);
             }
 
             return back(303)->withErrors(['currency' => $e->getMessage()]);
@@ -70,20 +64,13 @@ class UserPreferenceController extends Controller
             $this->preferenceService->setLanguage($validated['language']);
 
             if (request()->header('X-Inertia')) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Language updated successfully',
-                    'preferences' => $this->preferenceService->getPreferences()
-                ]);
+                return Inertia::location(url()->previous('/'));
             }
 
             return back(303)->with('success', 'Language updated successfully');
         } catch (\InvalidArgumentException $e) {
             if (request()->header('X-Inertia')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 422);
+                return back(303)->withErrors(['language' => $e->getMessage()]);
             }
 
             return back(303)->withErrors(['language' => $e->getMessage()]);
@@ -109,9 +96,8 @@ class UserPreferenceController extends Controller
                 $this->preferenceService->setLanguage($validated['language']);
             }
 
-            // For Inertia requests, redirect back with updated props
             if (request()->header('X-Inertia')) {
-                return redirect()->back(303);
+                return Inertia::location(url()->previous('/'));
             }
 
             return response()->json([
@@ -121,7 +107,7 @@ class UserPreferenceController extends Controller
             ]);
         } catch (\InvalidArgumentException $e) {
             if (request()->header('X-Inertia')) {
-                return redirect()->back()->withErrors(['preferences' => $e->getMessage()]);
+                return back(303)->withErrors(['preferences' => $e->getMessage()]);
             }
 
             return response()->json([

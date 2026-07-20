@@ -22,12 +22,6 @@ const setLocale = (target) => {
     router.post('/language', { language: target }, {
         preserveScroll: true,
         headers: csrfHeaders(),
-        onSuccess: () => {
-            router.reload({ preserveState: false, preserveScroll: true })
-        },
-        onError: (errors) => {
-            console.error('Failed to save language preference:', errors)
-        }
     })
 }
 </script>
