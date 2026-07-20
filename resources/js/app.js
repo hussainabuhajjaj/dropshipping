@@ -34,6 +34,13 @@ router.on('success', () => {
     trackPageViewPixels();
 });
 
+// Safari bfcache: force fresh data when page is restored from back/forward cache
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        router.reload({ preserveState: false, preserveScroll: true })
+    }
+});
+
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) =>

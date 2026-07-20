@@ -36,26 +36,24 @@ class UserPreferenceController extends Controller
         try {
             $this->preferenceService->setCurrency($validated['currency']);
 
-            // For Inertia requests, we need to redirect back with updated props
             if (request()->header('X-Inertia')) {
-                return redirect()->back();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Currency updated successfully',
+                    'preferences' => $this->preferenceService->getPreferences()
+                ]);
             }
 
-            // For regular API requests, return JSON
-            return response()->json([
-                'success' => true,
-                'message' => 'Currency updated successfully',
-                'preferences' => $this->preferenceService->getPreferences()
-            ]);
+            return back(303)->with('success', 'Currency updated successfully');
         } catch (\InvalidArgumentException $e) {
             if (request()->header('X-Inertia')) {
-                return redirect()->back()->withErrors(['currency' => $e->getMessage()]);
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
+            return back(303)->withErrors(['currency' => $e->getMessage()]);
         }
     }
 
@@ -71,26 +69,24 @@ class UserPreferenceController extends Controller
         try {
             $this->preferenceService->setLanguage($validated['language']);
 
-            // For Inertia requests, we need to redirect back with updated props
             if (request()->header('X-Inertia')) {
-                return redirect()->back();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Language updated successfully',
+                    'preferences' => $this->preferenceService->getPreferences()
+                ]);
             }
 
-            // For regular API requests, return JSON
-            return response()->json([
-                'success' => true,
-                'message' => 'Language updated successfully',
-                'preferences' => $this->preferenceService->getPreferences()
-            ]);
+            return back(303)->with('success', 'Language updated successfully');
         } catch (\InvalidArgumentException $e) {
             if (request()->header('X-Inertia')) {
-                return redirect()->back()->withErrors(['language' => $e->getMessage()]);
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
+            return back(303)->withErrors(['language' => $e->getMessage()]);
         }
     }
 
@@ -115,7 +111,7 @@ class UserPreferenceController extends Controller
 
             // For Inertia requests, redirect back with updated props
             if (request()->header('X-Inertia')) {
-                return redirect()->back();
+                return redirect()->back(303);
             }
 
             return response()->json([

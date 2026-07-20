@@ -58,7 +58,7 @@ class RedirectMobile
 
         $response = $this->addVaryHeader($next($request));
 
-        if ($response->getStatusCode() === 302 && $request->method() === 'POST') {
+        if ($response->getStatusCode() === 302 && in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'])) {
             $response->setStatusCode(303);
         }
 

@@ -23,7 +23,7 @@ const setLocale = (target) => {
         preserveScroll: true,
         headers: csrfHeaders(),
         onSuccess: () => {
-            console.log('Language preference saved successfully')
+            router.reload({ preserveState: false, preserveScroll: true })
         },
         onError: (errors) => {
             console.error('Failed to save language preference:', errors)

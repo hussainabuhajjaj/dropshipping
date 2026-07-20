@@ -286,7 +286,7 @@ const setLocale = (code) => {
         preserveScroll: true,
         headers: csrfHeaders(),
         onSuccess: () => {
-            console.log('Language preference saved successfully')
+            router.reload({ preserveState: false, preserveScroll: true })
         },
         onError: (errors) => {
             console.error('Failed to save language preference:', errors)
@@ -295,13 +295,11 @@ const setLocale = (code) => {
 }
 
 const onCurrencyChange = () => {
-    // Handle currency change
-    console.log('Currency changed to:', selectedCurrency.value)
     router.post('/currency', { currency: selectedCurrency.value }, {
         preserveScroll: true,
         headers: csrfHeaders(),
         onSuccess: () => {
-            console.log('Currency preference saved successfully')
+            router.reload({ preserveState: false, preserveScroll: true })
         },
         onError: (errors) => {
             console.error('Failed to save currency preference:', errors)
