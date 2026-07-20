@@ -189,9 +189,9 @@
             v-for="cat in scrollCategories"
             :key="cat.id"
             :href="cat.href"
-            class="flex w-[72px] shrink-0 cursor-pointer flex-col items-center gap-1.5 transition active:scale-95"
+            class="flex w-24 shrink-0 cursor-pointer flex-col items-center gap-1.5 transition active:scale-95"
           >
-            <div class="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-full bg-gray-100 shadow-sm ring-1 ring-gray-200/50 transition hover:shadow-md hover:ring-2 hover:ring-slate-300">
+            <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-100 shadow-sm ring-1 ring-gray-200/50 transition hover:shadow-md hover:ring-2 hover:ring-slate-300">
               <img
                 v-if="cat.image"
                 :src="cat.image"
@@ -201,7 +201,7 @@
               />
               <span v-else class="text-lg font-bold text-gray-400">{{ cat.short }}</span>
             </div>
-            <span class="whitespace-nowrap text-[0.6rem] font-semibold text-slate-600 sm:text-xs">{{ cat.name }}</span>
+            <span class="line-clamp-2 text-center text-[0.6rem] font-semibold text-slate-600 leading-tight sm:text-xs">{{ cat.name }}</span>
           </Link>
         </div>
       </div>
