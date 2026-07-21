@@ -19,6 +19,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Schemas\Components\Grid;
 
+
 class SiteSettingResource extends BaseResource
 {
     protected static ?string $model = SiteSetting::class;
@@ -219,7 +220,7 @@ class SiteSettingResource extends BaseResource
                         ->maxLength(20)
                         ->default('SAVE10')
                         ->helperText('Used in reminders #2 and #3 as an incentive.'),
-                    Forms\Components\Grid::make()
+                    Grid::make()
                         ->columns(3)
                         ->schema([
                             Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
@@ -256,16 +257,16 @@ class SiteSettingResource extends BaseResource
                         ->maxLength(20)
                         ->default('WELCOME10')
                         ->helperText('Incentive for the next purchase.'),
-                    Forms\Components\Grid::make()
+                    Grid::make()
                         ->columns(3)
                         ->schema([
-                            Forms\Components\Toggle::make('cross_sell_config.enable_email')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
                                 ->label('Email')
                                 ->default(true),
-                            Forms\Components\Toggle::make('cross_sell_config.enable_push')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
                                 ->label('Push')
                                 ->default(true),
-                            Forms\Components\Toggle::make('cross_sell_config.enable_whatsapp')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
                                 ->label('WhatsApp')
                                 ->default(true),
                         ]),
@@ -284,16 +285,16 @@ class SiteSettingResource extends BaseResource
                         ->maxLength(20)
                         ->default('MISSYOU10')
                         ->helperText('Incentive to encourage re-purchase.'),
-                    Forms\Components\Grid::make()
+                    Grid::make()
                         ->columns(3)
                         ->schema([
-                            Forms\Components\Toggle::make('win_back_config.enable_email')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
                                 ->label('Email')
                                 ->default(true),
-                            Forms\Components\Toggle::make('win_back_config.enable_push')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
                                 ->label('Push')
                                 ->default(true),
-                            Forms\Components\Toggle::make('win_back_config.enable_whatsapp')
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
                                 ->label('WhatsApp')
                                 ->default(true),
                         ]),
