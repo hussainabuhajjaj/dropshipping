@@ -657,7 +657,7 @@
         <NewsletterPopup v-if="showStorefrontPopups" :settings="newsletterPopupSettings" />
         <CookieConsentBanner />
         <FloatingWhatsAppCTA v-if="!mobileOpen" />
-        <SocialProofPopup v-if="!mobileOpen" />
+        <SocialProofPopup v-if="false" />
     </div>
 </template>
 
