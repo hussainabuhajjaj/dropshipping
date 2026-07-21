@@ -45,6 +45,7 @@ class CategoryController extends Controller
             ->reject(fn ($attr) => in_array($attr['key'], [
                 'brand',
             ], true))
+            ->unique(fn ($attr) => mb_strtolower($attr['label']))
             ->values()
             ->all();
 

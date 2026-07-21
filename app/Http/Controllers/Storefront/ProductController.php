@@ -149,6 +149,7 @@ class ProductController extends Controller
             ->reject(fn ($attr) => in_array(strtolower($attr['key']), [
                 'brand', 'model', 'upc', 'ean', 'isbn',
             ], true))
+            ->unique(fn ($attr) => mb_strtolower($attr['label']))
             ->values()
             ->all();
 
