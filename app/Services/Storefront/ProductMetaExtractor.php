@@ -223,26 +223,36 @@ class ProductMetaExtractor
     private function finalize(array $state): array
     {
         $seen = [];
+        $seenLabels = [];
         $attributeDefs = [];
 
-        foreach (array_keys($state['attributeKeys']) as $key) {
+        // Variant attributes first — they hold the actual filterable values
+        foreach (array_keys($state['variantAttributeKeys']) as $key) {
             $seen[$key] = true;
             $options = array_values(array_filter(array_keys($state['attributeOptions'][$key] ?? []), fn ($v) => $v !== ''));
+            $label = $this->inferLabel($key, $options);
+            $seenLabels[mb_strtolower($label)] = true;
             $attributeDefs[] = [
                 'key' => $key,
-                'label' => $this->inferLabel($key, $options),
+                'label' => $label,
                 'options' => $options,
             ];
         }
 
-        foreach (array_keys($state['variantAttributeKeys']) as $key) {
+        // Product-level attributes — skip if same key or same label as a variant
+        foreach (array_keys($state['attributeKeys']) as $key) {
             if (isset($seen[$key])) {
                 continue;
             }
             $options = array_values(array_filter(array_keys($state['attributeOptions'][$key] ?? []), fn ($v) => $v !== ''));
+            $label = $this->inferLabel($key, $options);
+            if (isset($seenLabels[mb_strtolower($label)])) {
+                continue;
+            }
+            $seenLabels[mb_strtolower($label)] = true;
             $attributeDefs[] = [
                 'key' => $key,
-                'label' => $this->inferLabel($key, $options),
+                'label' => $label,
                 'options' => $options,
             ];
         }
