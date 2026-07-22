@@ -1,11 +1,15 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.simbazu.mobile",
       "sha256_cert_fingerprints": [
-        "FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C"
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+        "59:EF:A9:27:7D:FB:5B:C2:10:11:01:AE:1A:7D:C6:47:04:E8:48:0D:00:8B:3D:AA:AB:27:E7:82:87:EA:3C:51"
       ]
     }
   }
