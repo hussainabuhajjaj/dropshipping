@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\User;
 
+use App\Contracts\User\PreferenceContract;
 use App\Models\Customer;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 
-class UserPreferenceService
+class UserPreferenceService implements PreferenceContract
 {
     private const CACHE_PREFIX = 'user_preferences';
     private const CACHE_TTL = 1800; // 30 minutes

@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Providers\AppServiceProvider;
+use App\Providers\ApiServiceProvider;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\AuthServiceProvider;
 use App\Providers\BroadcastServiceProvider;
@@ -15,6 +16,7 @@ use App\Providers\Filament\AffiliatePanelProvider;
 return Application::configure(basePath: dirname(__DIR__))
         ->withProviders([
         AppServiceProvider::class,
+        ApiServiceProvider::class,
         AdminPanelProvider::class,
         AuthServiceProvider::class,
         BroadcastServiceProvider::class,

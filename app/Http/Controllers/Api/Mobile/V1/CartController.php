@@ -18,7 +18,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\SiteSetting;
 use App\Services\CampaignManager;
-use App\Services\Cart\CartIdentityService;
+use App\Contracts\Cart\CartManagerContract;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Promotions\PromotionEngine;
@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Log;
 class CartController extends ApiController
 {
     public function __construct(
-        private readonly CartIdentityService $cartIdentityService,
+        private readonly CartManagerContract $cartIdentityService,
     ) {
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Cart;
 
+use App\Contracts\Cart\CartManagerContract;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Customer;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class CartIdentityService
+class CartIdentityService implements CartManagerContract
 {
     public function resolveCart(Request $request, ?Customer $customer = null, bool $create = false): ?Cart
     {
