@@ -80,6 +80,10 @@ class CheckoutController extends Controller
 
     public function index(): Response|RedirectResponse
     {
+        if (!auth('customer')->check()) {
+            return redirect()->route('login')->with('status', __('Please log in to proceed to checkout.'));
+        }
+
         return redirect()->route('pay.index', ['cart']);
         $result = $this->getCartWithItems();
 

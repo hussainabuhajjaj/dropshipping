@@ -38,6 +38,10 @@ class PaymentController extends Controller
     {
         $customer = auth('customer')->user();
 
+        if (!$customer && $type === 'cart') {
+            return redirect()->route('login')->with('status', __('Please log in to proceed to checkout.'));
+        }
+
         $item = $this->getItem($type, $id);
         if (! $item) {
             if ($type === 'cart') {
