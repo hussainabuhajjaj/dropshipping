@@ -227,6 +227,8 @@ Route::get('/login-developer', function (Request $request) {
     return redirect('/');
 })->name('developer.login');
 
+Route::get('/logout', [App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'destroy']);
+
 Route::get('/logout-developer', function (Request $request) {
     $request->session()->forget(['is_developer', 'is_developer_expires_at']);
 
