@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class WhatsAppOrderIntentController extends Controller
 {
     public function __construct(

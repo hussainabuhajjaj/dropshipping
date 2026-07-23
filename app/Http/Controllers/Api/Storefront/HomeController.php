@@ -18,6 +18,7 @@ use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class HomeController extends Controller
 {
     private function pinnedCategoryPriority(Category $category, string $locale): int

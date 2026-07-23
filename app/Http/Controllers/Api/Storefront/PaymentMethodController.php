@@ -15,6 +15,7 @@ use App\Models\Customer;
 use App\Models\PaymentMethod;
 use App\Services\Account\PaymentMethodService;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class PaymentMethodController extends Controller
 {
     public function index(IndexPaymentMethodRequest $request): ResourceCollection

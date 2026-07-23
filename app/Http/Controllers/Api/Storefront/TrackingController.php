@@ -10,6 +10,7 @@ use App\Http\Resources\Storefront\OrderTrackingResource;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class TrackingController extends Controller
 {
     public function __invoke(TrackOrderRequest $request): JsonResponse

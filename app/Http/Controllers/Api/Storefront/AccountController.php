@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class AccountController extends Controller
 {
     public function profile(ProfileRequest $request): JsonResponse

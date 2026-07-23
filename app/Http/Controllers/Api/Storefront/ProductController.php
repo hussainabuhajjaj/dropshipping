@@ -13,6 +13,7 @@ use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class ProductController extends Controller
 {
     public function index(ProductIndexRequest $request): JsonResponse

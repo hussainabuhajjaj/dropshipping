@@ -12,6 +12,7 @@ use App\Http\Resources\Storefront\OrderDetailResource;
 use App\Http\Resources\Storefront\OrderSummaryResource;
 use Illuminate\Http\JsonResponse;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class OrderController extends Controller
 {
     public function index(OrderIndexRequest $request): JsonResponse

@@ -16,6 +16,7 @@ use App\Http\Resources\Storefront\StatusResource;
 use App\Models\Customer;
 use App\Services\Account\AddressService;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class AddressController extends Controller
 {
     public function index(IndexAddressRequest $request): ResourceCollection

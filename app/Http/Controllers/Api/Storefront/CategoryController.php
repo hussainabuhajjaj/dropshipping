@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
 
+/** @deprecated Use Api\Mobile\V1 equivalents. This legacy API will be removed in v3. */
 class CategoryController extends Controller
 {
     use FormatsCategories;
