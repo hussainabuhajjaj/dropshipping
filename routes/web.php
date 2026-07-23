@@ -151,7 +151,7 @@ Route::get('/search/popular', [SearchController::class, 'getPopularSearches'])->
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
 Route::delete('/cart/{lineId}', [CartController::class, 'destroy'])->name('cart.destroy');
-Route::patch('/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
+Route::match(['patch', 'put'], '/cart/{lineId}', [CartController::class, 'update'])->name('cart.update');
 Route::post('/cart/coupon', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
 Route::delete('/cart/coupon', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
 

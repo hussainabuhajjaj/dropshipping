@@ -134,13 +134,17 @@ return Application::configure(basePath: dirname(__DIR__))
                         return null;
                     }
 
-                    if (in_array($status, [403, 419], true)) {
+                    if (in_array($status, [403], true)) {
                         return redirect()->back()->withErrors(['error' => $e->getMessage() ?: 'Forbidden']);
+                    }
+
+                    if ($status === 419) {
+                        return \Inertia\Inertia::location($request->fullUrl());
                     }
                 }
 
                 if ($e instanceof \Illuminate\Session\TokenMismatchException) {
-                    return redirect()->back()->withErrors(['error' => 'Session expired. Please try again.']);
+                    return \Inertia\Inertia::location($request->fullUrl());
                 }
 
                 return redirect()->back()->withErrors(['error' => 'An unexpected error occurred. Please try again.']);
