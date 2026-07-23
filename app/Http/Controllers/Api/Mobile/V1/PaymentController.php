@@ -186,8 +186,6 @@ class PaymentController extends ApiController
                 return $this->error('Payment provider did not return valid response', 500);
             }
 
-            session(['reference' => $checkout['reference']]);
-
             return $this->success([
                 'reference' => $checkout['reference'],
                 'redirect' => $checkout['checkout_url'] ?? null,

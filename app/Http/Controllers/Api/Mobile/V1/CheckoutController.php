@@ -395,8 +395,8 @@ class CheckoutController extends ApiController
             fn (float $carry, $item) => $carry + ((float) $item->quantity * (float) $item->getSinglePrice()),
             0.0
         );
-        $coupon = session('cart_coupon');
-        $discounts = $this->calculateDiscounts($cartItems, $coupon, $customer, $subtotal);
+        $coupon = $cart->applied_coupon_data ?? session('cart_coupon');
+        $discounts = $this->calculateDiscounts($cartItems, $coupon, $customer, $subtotal, $cart);
         $discount = (float) ($discounts['amount'] ?? 0);
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
@@ -477,14 +477,14 @@ class CheckoutController extends ApiController
         });
     }
 
-    private function calculateDiscounts($cartItems, ?array $coupon, ?Customer $customer, float $subtotal): array
+    private function calculateDiscounts($cartItems, ?array $coupon, ?Customer $customer, float $subtotal, ?Cart $cart = null): array
     {
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
         if ($couponModel) {
             $error = $couponValidator->validateForCart($couponModel, $cartItems, $subtotal, $customer);
             if ($error) {
-                session()->forget('cart_coupon');
+                $cart?->update(['applied_coupon_code' => null, 'applied_coupon_data' => null]);
                 $couponModel = null;
                 $coupon = null;
             }

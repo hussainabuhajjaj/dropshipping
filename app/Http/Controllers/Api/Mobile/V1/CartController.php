@@ -171,23 +171,27 @@ class CartController extends ApiController
             return $this->error($error, 422);
         }
 
-        session(['cart_coupon' => [
+        $couponData = [
             'id' => $coupon->id,
             'code' => $coupon->code,
             'type' => $coupon->type,
             'amount' => $coupon->amount,
             'min_order_total' => $coupon->min_order_total,
             'description' => $coupon->localizedValue('description', app()->getLocale()) ?? $coupon->description,
-        ]]);
+        ];
+
+        $cart->update([
+            'applied_coupon_code' => $coupon->code,
+            'applied_coupon_data' => $couponData,
+        ]);
 
         return $this->success(new MobileCartResource($this->buildCartPayload($cart, $request)));
     }
 
     public function removeCoupon(Request $request): JsonResponse
     {
-        session()->forget('cart_coupon');
-
         $cart = $this->resolveCart($request);
+        $cart->update(['applied_coupon_code' => null, 'applied_coupon_data' => null]);
 
         return $this->success(new MobileCartResource($this->buildCartPayload($cart, $request)));
     }
@@ -241,14 +245,14 @@ class CartController extends ApiController
         ];
     }
 
-    private function calculateDiscounts($cartItems, ?array $coupon, ?Customer $customer, float $subtotal): array
+    private function calculateDiscounts($cartItems, ?array $coupon, ?Customer $customer, float $subtotal, ?Cart $cart = null): array
     {
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
         if ($couponModel) {
             $error = $couponValidator->validateForCart($couponModel, $cartItems, $subtotal, $customer);
             if ($error) {
-                session()->forget('cart_coupon');
+                $cart?->update(['applied_coupon_code' => null, 'applied_coupon_data' => null]);
                 $couponModel = null;
                 $coupon = null;
             }

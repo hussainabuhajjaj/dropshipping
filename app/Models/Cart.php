@@ -18,7 +18,11 @@ class Cart extends Model
 {
     protected $fillable = [
         'user_id', 'session_id', 'visitor_id', 'product_id', 'fulfillment_provider_id',
-        'variant_id', 'quantity', 'stock_on_hand'
+        'variant_id', 'quantity', 'stock_on_hand', 'applied_coupon_code', 'applied_coupon_data'
+    ];
+
+    protected $casts = [
+        'applied_coupon_data' => 'array',
     ];
 
     public function items()
@@ -452,7 +456,7 @@ class Cart extends Model
         $subtotal = $this->subTotal();
         $shipping = $this->calculateShippingFees();
 
-        $coupon = session('cart_coupon');
+        $coupon = $this->applied_coupon_data ?? session('cart_coupon');
         $discounts = calculateDiscounts($this, $cart_items, $coupon, $customer, $subtotal);
         $discount = @$discounts['amount']??0;
         $promotionDiscounts = @$discounts['promotion_discounts'] ?? [];
