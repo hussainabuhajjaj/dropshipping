@@ -151,6 +151,12 @@ class CartController extends Controller
         $providerId = (int) ($product->default_fulfillment_provider_id ?? 0);
         if ($providerId === 1) {
             if (! $selectedVariant) {
+                \Illuminate\Support\Facades\Log::warning('Cart: no variant for CJ product', [
+                    'product_id' => $product->id,
+                    'variant_id' => $data['variant_id'] ?? null,
+                    'variants_count' => $product->variants->count(),
+                ]);
+
                 return back()->withErrors(['cart' => 'Selected variant is no longer available. Please choose another variant.']);
             }
 

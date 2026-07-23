@@ -251,7 +251,19 @@ const {
   selectedOptions,
   getGroupChoices,
   updateOptionSelection,
+  resolveVariantState,
 } = useProductVariantSelection(productRef, selectedVariantId)
+
+// Auto-resolve initial variant selection when options are ready
+watch(optionGroups, (groups) => {
+  if (groups.length > 0) {
+    const resolved = resolveVariantState()
+    selectedOptions.value = resolved.selection
+    if (resolved.variant?.id) {
+      selectVariant(resolved.variant.id)
+    }
+  }
+}, { immediate: true })
 
 const handleOptionSelection = (groupKey, value) => {
   updateOptionSelection(groupKey, value, selectVariant)
