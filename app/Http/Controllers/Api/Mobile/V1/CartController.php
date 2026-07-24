@@ -249,12 +249,12 @@ class CartController extends ApiController
     {
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
+        
         if ($couponModel) {
             $error = $couponValidator->validateForCart($couponModel, $cartItems, $subtotal, $customer);
             if ($error) {
                 $cart?->update(['applied_coupon_code' => null, 'applied_coupon_data' => null]);
                 $couponModel = null;
-                $coupon = null;
             }
         }
 
@@ -263,16 +263,26 @@ class CartController extends ApiController
         $campaign = app(CampaignManager::class)->bestForCart($cartPayload, $subtotal, $customer);
 
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
-            return [
-                'amount' => $couponDiscount,
-                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
-                'source' => $couponModel ? 'coupon' : null,
-                'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
-                'coupon_model' => $couponModel,
-                'promotion_discounts' => [],
-            ];
+            return $this->buildCouponDiscountResponse($couponModel, $couponDiscount);
         }
 
+        return $this->buildCampaignDiscountResponse($campaign);
+    }
+
+    private function buildCouponDiscountResponse(?Coupon $couponModel, float $amount): array
+    {
+        return [
+            'amount' => $amount,
+            'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
+            'source' => $couponModel ? 'coupon' : null,
+            'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
+            'coupon_model' => $couponModel,
+            'promotion_discounts' => [],
+        ];
+    }
+
+    private function buildCampaignDiscountResponse(array $campaign): array
+    {
         return [
             'amount' => $campaign['amount'] ?? 0.0,
             'label' => $campaign['label'] ?? null,
@@ -321,38 +331,19 @@ class CartController extends ApiController
 
     private function isVariantAvailableForCart(ProductVariant $variant, ?Product $product, int $providerId, int $desiredQty = 1): bool
     {
-        // Only validate against CJ for CJ provider.
-        if ($providerId !== 1) {
-            $supplierType = (string) ($product?->supplier_type ?? '');
-            $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
-
-            if ($supplierType !== 'aliexpress' && empty($meta['ali_sku_id'])) {
-                return true;
-            }
-
-            try {
-                $liveStock = app(AliExpressProductImportService::class)->refreshVariantLiveStock($variant, [
-                    'ship_to_country' => 'CN',
-                ]);
-
-                if ($liveStock !== null) {
-                    return $liveStock >= $desiredQty;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Skipping AliExpress variant availability check due to runtime error', [
-                    'variant_id' => $variant->id,
-                    'ali_sku_id' => $meta['ali_sku_id'] ?? null,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
-            return true;
+        if ($providerId === 1) {
+            return $this->checkCjVariantAvailability($variant);
         }
 
+        return $this->checkAliExpressVariantAvailability($variant, $product, $desiredQty);
+    }
+
+    private function checkCjVariantAvailability(ProductVariant $variant): bool
+    {
         $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
         $cjVid = $meta['cj_vid'] ?? null;
 
-        if (! $cjVid) {
+        if (!$cjVid) {
             return true;
         }
 
@@ -360,18 +351,7 @@ class CartController extends ApiController
             app(CJDropshippingClient::class)->getVariantByVid((string) $cjVid);
             return true;
         } catch (ApiException $e) {
-            $message = strtolower($e->getMessage());
-            if (str_contains($message, 'variant not found') || str_contains($message, 'vid')) {
-                Log::warning('Rejected add-to-cart for unavailable CJ variant', [
-                    'variant_id' => $variant->id,
-                    'cj_vid' => $cjVid,
-                    'message' => $e->getMessage(),
-                ]);
-                return false;
-            }
-
-            // Do not block cart on transient CJ API errors.
-            return true;
+            return $this->handleCjApiException($variant, $cjVid, $e);
         } catch (\Throwable $e) {
             Log::warning('Skipping CJ variant availability check due to runtime error', [
                 'variant_id' => $variant->id,
@@ -380,5 +360,50 @@ class CartController extends ApiController
             ]);
             return true;
         }
+    }
+
+    private function handleCjApiException(ProductVariant $variant, ?string $cjVid, ApiException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        
+        if (str_contains($message, 'variant not found') || str_contains($message, 'vid')) {
+            Log::warning('Rejected add-to-cart for unavailable CJ variant', [
+                'variant_id' => $variant->id,
+                'cj_vid' => $cjVid,
+                'message' => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        // Do not block cart on transient CJ API errors
+        return true;
+    }
+
+    private function checkAliExpressVariantAvailability(ProductVariant $variant, ?Product $product, int $desiredQty): bool
+    {
+        $supplierType = (string) ($product?->supplier_type ?? '');
+        $meta = is_array($variant->metadata ?? null) ? $variant->metadata : [];
+
+        if ($supplierType !== 'aliexpress' && empty($meta['ali_sku_id'])) {
+            return true;
+        }
+
+        try {
+            $liveStock = app(AliExpressProductImportService::class)->refreshVariantLiveStock($variant, [
+                'ship_to_country' => 'CN',
+            ]);
+
+            if ($liveStock !== null) {
+                return $liveStock >= $desiredQty;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Skipping AliExpress variant availability check due to runtime error', [
+                'variant_id' => $variant->id,
+                'ali_sku_id' => $meta['ali_sku_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return true;
     }
 }
