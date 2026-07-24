@@ -25,17 +25,11 @@ class PaymentController extends ApiController
 {
     public function init(KorapayInitRequest $request, PaymentService $paymentService): JsonResponse
     {
-        // Legacy endpoint: previously initialized Korapay without creating an Order/Payment record,
-        // which means we cannot reconcile successful payments if redirect/webview close happens.
-        // Prefer the unified flow: `POST /api/mobile/v1/checkout/confirm` then `POST /api/mobile/v1/payments/initialize`.
         if ($request->filled('order_number')) {
             return $this->initialize($request, $paymentService);
         }
 
-        return $this->error(
-            'Deprecated endpoint. Please use checkout/confirm then payments/initialize (redirect is optional; webhook/verify will confirm).',
-            410
-        );
+        return $this->error('Deprecated endpoint. Please use checkout/confirm then payments/initialize.', 410);
     }
 
     public function verify(KorapayVerifyRequest $request, PaymentService $paymentService): JsonResponse
@@ -43,38 +37,15 @@ class PaymentController extends ApiController
         $validated = $request->validated();
         $customer = $request->user();
 
-        if (! empty($validated['reference'])) {
-            $payment = $paymentService->verifyPaystack((string) $validated['reference']);
-        } else {
-            $order = Order::query()
-                ->where('number', (string) ($validated['order_number'] ?? ''))
-                ->first();
+        $payment = ! empty($validated['reference'])
+            ? $paymentService->verifyPaystack((string) $validated['reference'])
+            : $this->findOrderPayment($validated, $customer);
 
-            if (! $order || $order->customer_id !== $customer?->id) {
-                return $this->notFound('Order not found');
-            }
-
-            $payment = Payment::query()
-                ->where('order_id', $order->id)
-                ->where('provider', 'paystack')
-                ->latest('id')
-                ->first();
-
-            if (! $payment) {
-                return $this->notFound('Payment not found');
-            }
+        if (! $payment) {
+            return $this->notFound('Payment not found');
         }
 
-        return $this->success(new PaymentStatusResource([
-            'payment_status' => $payment->status,
-            'order_status' => $payment->order?->status,
-            'order_number' => $payment->order?->number,
-            'reference' => $payment->provider_reference,
-            'is_paid' => $payment->status === 'paid',
-            'amount' => $payment->amount,
-            'currency' => $payment->currency,
-            'paid_at' => $payment->paid_at?->toISOString(),
-        ]));
+        return $this->paymentStatusResponse($payment);
     }
 
     /**
@@ -298,112 +269,45 @@ class PaymentController extends ApiController
         PaymentResultService $paymentResultService
     ): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'reference' => 'nullable|string|max:255',
-            'order_number' => 'nullable|string|max:64',
-            'provider' => 'nullable|in:korapay,paystack,stripe,paypal',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors()->toArray());
+        $data = $this->validateVerifyRequest($request);
+        if ($data === null) {
+            return $this->error('Validation failed', 422);
         }
 
-        $data = $validator->validated();
         $customer = $request->user();
 
-        if (!empty($data['reference'])) {
-            $reference = (string) $data['reference'];
-            $provider = (string) ($data['provider'] ?? 'paystack');
-
-            $existingPayment = Payment::query()
-                ->where('provider', $provider)
-                ->where('provider_reference', $reference)
-                ->latest('id')
-                ->first();
-
-            if ($existingPayment && in_array(strtolower((string) $existingPayment->status), ['paid', 'success', 'succeeded', 'captured'], true)) {
-                $payment = $existingPayment;
-            } else {
-                try {
-                    $payment = match ($provider) {
-                        'korapay' => $paymentService->verifyKorapay($reference),
-                        'paystack' => $paymentService->verifyPaystack($reference),
-                        default => throw new \InvalidArgumentException("Payment provider '{$provider}' is not supported"),
-                    };
-                } catch (\RuntimeException $exception) {
-                    if ($provider !== 'korapay' || !str_contains($exception->getMessage(), 'Order number missing in webhook payload')) {
-                        throw $exception;
-                    }
-
-                    // Fallback for cart-first mobile flow where Korapay verify payload may miss order metadata.
-                    $verifyResult = $korapayService->checkStatus($reference);
-                    $paymentStatus = strtolower((string) ($verifyResult['data']['status'] ?? ''));
-
-                    if ($paymentStatus === 'success') {
-                        $item = $this->getItem($request);
-                        if ($item) {
-                            try {
-                                $paymentResultService->registerCompletePayment($item, $verifyResult);
-                            } catch (\Throwable $e) {
-                                \Log::warning('Mobile verify fallback registerCompletePayment failed', [
-                                    'reference' => $reference,
-                                    'error' => $e->getMessage(),
-                                ]);
-                            }
-                        }
-
-                        $payment = Payment::query()
-                            ->where('provider', 'korapay')
-                            ->where('provider_reference', $reference)
-                            ->latest('id')
-                            ->first();
-
-                        if (! $payment) {
-                            return $this->success(new PaymentStatusResource([
-                                'payment_status' => 'paid',
-                                'order_status' => null,
-                                'order_number' => null,
-                                'reference' => $reference,
-                                'is_paid' => true,
-                                'amount' => $verifyResult['data']['amount_paid'] ?? null,
-                                'currency' => $verifyResult['data']['currency'] ?? null,
-                                'paid_at' => now()->toISOString(),
-                            ]));
-                        }
-                    } else {
-                        return $this->success(new PaymentStatusResource([
-                            'payment_status' => $paymentStatus ?: 'failed',
-                            'order_status' => null,
-                            'order_number' => null,
-                            'reference' => $reference,
-                            'is_paid' => false,
-                            'amount' => $verifyResult['data']['amount_paid'] ?? null,
-                            'currency' => $verifyResult['data']['currency'] ?? null,
-                            'paid_at' => null,
-                        ]));
-                    }
-                }
-            }
+        if (! empty($data['reference'])) {
+            $result = $this->verifyByReference($data, $paymentService, $korapayService, $paymentResultService);
         } else {
-            $order = Order::query()
-                ->where('number', $data['order_number'] ?? '')
-                ->first();
-
-            if (!$order || $order->customer_id !== $customer?->id) {
-                return $this->notFound('Order not found');
-            }
-
-            $payment = Payment::query()
-                ->where('order_id', $order->id)
-                ->when($data['provider'], fn ($query, $provider) => $query->where('provider', $provider))
-                ->latest('id')
-                ->first();
-
-            if (!$payment) {
-                return $this->notFound('Payment not found');
-            }
+            $result = $this->verifyByOrder($data, $customer);
         }
 
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        return $this->paymentStatusResponse($result);
+    }
+
+    private function findOrderPayment(array $validated, $customer): ?Payment
+    {
+        $order = Order::query()
+            ->where('number', (string) ($validated['order_number'] ?? ''))
+            ->first();
+
+        if (! $order || $order->customer_id !== $customer?->id) {
+            return null;
+        }
+
+        return Payment::query()
+            ->where('order_id', $order->id)
+            ->where('provider', 'paystack')
+            ->latest('id')
+            ->first();
+    }
+
+    private function paymentStatusResponse(Payment $payment): JsonResponse
+    {
         return $this->success(new PaymentStatusResource([
             'payment_status' => $payment->status,
             'order_status' => $payment->order?->status,
@@ -414,6 +318,140 @@ class PaymentController extends ApiController
             'currency' => $payment->currency,
             'paid_at' => $payment->paid_at?->toISOString(),
         ]));
+    }
+
+    private function validateVerifyRequest(Request $request): ?array
+    {
+        $validator = Validator::make($request->all(), [
+            'reference' => 'nullable|string|max:255',
+            'order_number' => 'nullable|string|max:64',
+            'provider' => 'nullable|in:korapay,paystack,stripe,paypal',
+        ]);
+
+        if ($validator->fails()) {
+            return null;
+        }
+
+        return $validator->validated();
+    }
+
+    private function verifyByReference(
+        array $data,
+        PaymentService $paymentService,
+        KorapayService $korapayService,
+        PaymentResultService $paymentResultService
+    ): Payment|JsonResponse
+    {
+        $reference = (string) $data['reference'];
+        $provider = (string) ($data['provider'] ?? 'paystack');
+
+        $existing = Payment::query()
+            ->where('provider', $provider)
+            ->where('provider_reference', $reference)
+            ->latest('id')
+            ->first();
+
+        if ($existing && $this->isPaidStatus($existing->status)) {
+            return $existing;
+        }
+
+        try {
+            return match ($provider) {
+                'korapay' => $paymentService->verifyKorapay($reference),
+                'paystack' => $paymentService->verifyPaystack($reference),
+                default => throw new \InvalidArgumentException("Provider '{$provider}' not supported"),
+            };
+        } catch (\RuntimeException $exception) {
+            if ($provider !== 'korapay' || !str_contains($exception->getMessage(), 'Order number missing in webhook payload')) {
+                throw $exception;
+            }
+
+            return $this->korapayFallback($reference, $korapayService, $paymentResultService);
+        }
+    }
+
+    private function verifyByOrder(array $data, $customer): Payment|JsonResponse
+    {
+        $order = Order::query()
+            ->where('number', $data['order_number'] ?? '')
+            ->first();
+
+        if (! $order || $order->customer_id !== $customer?->id) {
+            return $this->notFound('Order not found');
+        }
+
+        $payment = Payment::query()
+            ->where('order_id', $order->id)
+            ->when($data['provider'] ?? null, fn ($q, $p) => $q->where('provider', $p))
+            ->latest('id')
+            ->first();
+
+        if (! $payment) {
+            return $this->notFound('Payment not found');
+        }
+
+        return $payment;
+    }
+
+    private function korapayFallback(
+        string $reference,
+        KorapayService $korapayService,
+        PaymentResultService $paymentResultService
+    ): Payment|JsonResponse
+    {
+        $verifyResult = $korapayService->checkStatus($reference);
+        $paymentStatus = strtolower((string) ($verifyResult['data']['status'] ?? ''));
+
+        if ($paymentStatus === 'success') {
+            $item = $this->getItem(request());
+            if ($item) {
+                try {
+                    $paymentResultService->registerCompletePayment($item, $verifyResult);
+                } catch (\Throwable $e) {
+                    Log::warning('Mobile verify fallback registerCompletePayment failed', [
+                        'reference' => $reference,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $payment = Payment::query()
+                ->where('provider', 'korapay')
+                ->where('provider_reference', $reference)
+                ->latest('id')
+                ->first();
+
+            if (! $payment) {
+                return $this->success(new PaymentStatusResource([
+                    'payment_status' => 'paid',
+                    'order_status' => null,
+                    'order_number' => null,
+                    'reference' => $reference,
+                    'is_paid' => true,
+                    'amount' => $verifyResult['data']['amount_paid'] ?? null,
+                    'currency' => $verifyResult['data']['currency'] ?? null,
+                    'paid_at' => now()->toISOString(),
+                ]));
+            }
+
+            return $payment;
+        }
+
+        return $this->success(new PaymentStatusResource([
+            'payment_status' => $paymentStatus ?: 'failed',
+            'order_status' => null,
+            'order_number' => null,
+            'reference' => $reference,
+            'is_paid' => false,
+            'amount' => $verifyResult['data']['amount_paid'] ?? null,
+            'currency' => $verifyResult['data']['currency'] ?? null,
+            'paid_at' => null,
+        ]));
+    }
+
+    private function isPaidStatus(string $status): bool
+    {
+        return in_array(strtolower($status), ['paid', 'success', 'succeeded', 'captured'], true);
     }
 
     private function getItem(Request $request): ?Cart
