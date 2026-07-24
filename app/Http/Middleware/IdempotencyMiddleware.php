@@ -25,13 +25,24 @@ class IdempotencyMiddleware
 
         $cacheKey = 'idempotency:' . sha1($request->path() . '|' . $key);
 
-        if (Cache::has($cacheKey)) {
-            return response()->json(['error' => 'Duplicate request'], Response::HTTP_CONFLICT);
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            $content = $cached['content'] ?? '';
+            $status = $cached['status'] ?? Response::HTTP_OK;
+            $headers = $cached['headers'] ?? [];
+
+            return response($content, $status, $headers);
         }
 
         $response = $next($request);
 
-        Cache::put($cacheKey, true, now()->addMinutes(10));
+        if ($response->isSuccessful()) {
+            Cache::put($cacheKey, [
+                'content' => $response->getContent(),
+                'status' => $response->getStatusCode(),
+                'headers' => $response->headers->all(),
+            ], now()->addMinutes(10));
+        }
 
         return $response;
     }

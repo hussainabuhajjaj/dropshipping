@@ -66,7 +66,7 @@ class AliExpressClient
         $url = 'https://api-sg.aliexpress.com/rest' . $apiPath;
 
         $response = Http::asForm()
-            ->timeout(30)
+            ->timeout(10)
             ->post($url, $params);
         $data = $response->json();
 
@@ -208,6 +208,7 @@ class AliExpressClient
             $url = config('ali_express.base_url') . "/rest";
 
             $response = Http::asForm()
+                ->timeout(10)
                 ->withHeaders([
                     'Content-Type' => 'application/x-www-form-urlencoded;charset=utf-8',
                 ])

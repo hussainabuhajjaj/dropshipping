@@ -307,7 +307,8 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
 
             Route::middleware('throttle:checkout')->group(function () {
                 Route::post('checkout/preview', [MobileCheckoutController::class, 'preview']);
-                Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm']);
+                Route::post('checkout/confirm', [MobileCheckoutController::class, 'confirm'])
+                    ->middleware(IdempotencyMiddleware::class);
             });
 
             Route::post('products/{product:slug}/reviews', [MobileProductReviewController::class, 'store']);
@@ -328,7 +329,8 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
             Route::get('payments/korapay/verify', [MobilePaymentController::class, 'verify']);
 
             // Unified payment routes (matching storefront exactly)
-            Route::post('payments/initialize', [MobilePaymentController::class, 'initialize']);
+            Route::post('payments/initialize', [MobilePaymentController::class, 'initialize'])
+                ->middleware(IdempotencyMiddleware::class);
             Route::post('payments/checkout', [MobilePaymentController::class, 'initialize']); // Alias for storefront compatibility
             Route::get('payments/redirect', [MobilePaymentController::class, 'redirect']);
             Route::post('payments/verify', [MobilePaymentController::class, 'verifyPayment']);

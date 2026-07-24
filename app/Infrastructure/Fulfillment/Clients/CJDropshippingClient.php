@@ -7,6 +7,7 @@ namespace App\Infrastructure\Fulfillment\Clients;
 use App\Services\Api\ApiClient;
 use App\Services\Api\ApiException;
 use App\Services\Api\ApiResponse;
+use App\Services\Api\CJApiClient;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
@@ -47,7 +48,7 @@ class CJDropshippingClient
             $headers['CJ-Platform-Token'] = $platformToken;
         }
 
-        $this->client = new ApiClient($this->baseUrl, $headers, $this->timeout, retryTimes: 4, retryDelayMs: 800);
+        $this->client = new CJApiClient($this->baseUrl, $headers, $this->timeout, retryTimes: 4, retryDelayMs: 800);
     }
 
 
@@ -127,7 +128,7 @@ class CJDropshippingClient
 
     public function generateNewToken(): string
     {
-        $response = Http::timeout(300)
+        $response = Http::timeout(10)
             ->retry(2, sleepMilliseconds: 200)
             ->post($this->baseUrl . '/v1/authentication/getAccessToken', [
                 'apiKey' => $this->apiKey, // Only apiKey is required per docs
