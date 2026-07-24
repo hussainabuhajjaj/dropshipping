@@ -89,6 +89,7 @@ class Cart extends Model
         $shippingLines = [];
         $shippingUnavailable = false;
         $shippingUnavailableReason = null;
+
         Log::info('Cart shipping calculation started', [
             'cart_id' => $this->id,
             'items' => $items->map(function ($item) {
@@ -106,228 +107,232 @@ class Cart extends Model
         if ($persist) {
             CartShipping::query()->where('cart_id', $this->id)->delete();
         }
+
         $default_warehouse = LocalWareHouse::query()->where('is_default', 1)->first();
 
         foreach ($providers as $provider_id => $providerItems) {
-            Log::info('Evaluating provider shipping group', [
-                'cart_id' => $this->id,
-                'provider_id' => $provider_id,
-                'line_ids' => $providerItems->pluck('id')->values()->all(),
-            ]);
             $firstProviderItem = $providerItems->first();
             $providerSupplierType = (string) ($firstProviderItem?->product?->supplier_type ?? '');
 
             if ($provider_id == 1) {
-                $client = app(CJDropshippingClient::class);
-
-                $productsForQuote = $providerItems->map(function ($item) {
-                    $vid = null;
-                    if (isset($item['variant_id'])) {
-                        $variant = ProductVariant::query()->find($item['variant_id']);
-                        $meta = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
-                        $vid = $meta['cj_vid'] ?? null;
-                    }
-
-                    if (! $vid) {
-                        return null;
-                    }
-
-                    return [
-                        'quantity' => (int) (@$item['quantity'] ?? 1),
-                        'vid' => (string) $vid,
-                    ];
-                })->filter()->values()->all();
-
-                if (empty($productsForQuote)) {
-                    $shippingUnavailable = true;
-                    $shippingUnavailableReason = 'No valid CJ variants found for shipping quote.';
-                    Log::warning('Skipping CJ freight quote because no valid cj_vid lines were found', [
-                        'cart_id' => $this->id,
-                        'provider_id' => $provider_id,
-                    ]);
-                    continue;
-                }
-
-                $payload = [
-                    'startCountryCode' => 'CN',
-                    'endCountryCode' => @$default_warehouse->country ?? 'CN',
-                    'products' => $productsForQuote,
-                ];
-                try {
-                    $result = $client->freightCalculate($payload);
-
-                    if (isset($result->data)) {
-                        $data = collect($result->data);
-                        $company = $data->sortBy('logisticPrice')->first();
-
-                        if (isset($company)) {
-                            $line = [
-                                'cart_id' => $this['id'],
-                                'fulfillment_provider_id' => $provider_id,
-                                'logistic_name' => @$company['logisticName'],
-                                'logistic_price' => @$company['logisticPrice'],
-                                'total_postage_fee' => @$company['totalPostageFee'],
-                                'aging' => @$company['logisticAging'],
-                            ];
-                            $shippingLines[] = $line;
-                            if ($persist) {
-                                CartShipping::query()->create($line);
-                            }
-                            Log::info('CJ shipping quote stored', [
-                                'cart_id' => $this->id,
-                                'provider_id' => $provider_id,
-                                'company' => [
-                                    'name' => @$company['logisticName'],
-                                    'price' => @$company['logisticPrice'],
-                                    'postage_fee' => @$company['totalPostageFee'],
-                                    'aging' => @$company['logisticAging'],
-                                ],
-                            ]);
-                        }
-                    }
-
-                    if (! isset($company)) {
-                        $shippingUnavailable = true;
-                        $shippingUnavailableReason = 'CJ returned no shipping options for one or more cart items.';
-                    }
-                } catch (ApiException $e) {
-                    $shippingUnavailable = true;
-                    $shippingUnavailableReason = 'CJ shipping quote failed.';
-                    $message = strtolower($e->getMessage());
-                    if (str_contains($message, 'variant not found') && preg_match('/vid:\s*([0-9]+)/i', $e->getMessage(), $matches)) {
-                        $missingVid = $matches[1] ?? null;
-                        if ($missingVid) {
-                            $this->removeItemsByCjVid((string) $missingVid);
-                            Log::warning('Removed cart items with missing CJ variant during shipping calculation', [
-                                'cart_id' => $this->id,
-                                'missing_vid' => $missingVid,
-                            ]);
-                        }
-                    }
-
-                    Log::warning('CJ freight calculation failed; skipping provider shipping quote', [
-                        'cart_id' => $this->id,
-                        'provider_id' => $provider_id,
-                        'error' => $e->getMessage(),
-                    ]);
-                } catch (\Throwable $e) {
-                    $shippingUnavailable = true;
-                    $shippingUnavailableReason = 'CJ shipping quote failed.';
-                    Log::warning('Unexpected freight calculation failure; skipping provider shipping quote', [
-                        'cart_id' => $this->id,
-                        'provider_id' => $provider_id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                $result = $this->cjShippingQuote($providerItems, $default_warehouse, $persist);
             } elseif ($providerSupplierType === 'aliexpress') {
-                $client = app(AliExpressClient::class);
-                $providerTotal = 0.0;
-                $providerMaxDays = null;
-                $providerMethods = [];
+                $result = $this->aliexpressShippingQuote($providerItems, $default_warehouse, $persist);
+            } else {
+                continue;
+            }
 
-                foreach ($providerItems as $item) {
-                    $variant = $item->variant ?? ProductVariant::query()->with('product.localWarehouse')->find($item['variant_id']);
-                    $product = $item->product ?? $variant?->product;
-                    $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
-                        ->where('product_variant_id', $item['variant_id'])
-                        ->when($provider_id, fn ($query) => $query->where('fulfillment_provider_id', $provider_id))
-                        ->first();
-
-                    $warehouse = $product?->localWarehouse ?? $default_warehouse;
-                    $shipToCountry = strtoupper((string) ($warehouse?->country ?? 'CN'));
-                    $variantMetadata = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
-                    $productAttributes = is_array($product?->attributes ?? null) ? $product->attributes : [];
-                    $productId = $supplierProduct?->external_product_id ?? ($productAttributes['ali_item_id'] ?? null);
-                    $selectedSkuId = $supplierProduct?->external_sku ?? ($variantMetadata['ali_sku_id'] ?? null);
-
-                    if (! $productId || ! $selectedSkuId) {
-                        $shippingUnavailable = true;
-                        $shippingUnavailableReason = 'AliExpress shipping quote failed because product mapping is incomplete.';
-                        Log::warning('Skipping AliExpress freight quote because product mapping is incomplete', [
-                            'cart_id' => $this->id,
-                            'provider_id' => $provider_id,
-                            'item_id' => $item->id,
-                            'product_id' => $item->product_id,
-                            'variant_id' => $item->variant_id,
-                        ]);
-                        continue 2;
-                    }
-
-                    try {
-                        $result = $client->freightQuery([
-                            'quantity' => (int) ($item['quantity'] ?? 1),
-                            'shipToCountry' => $shipToCountry !== '' ? $shipToCountry : 'CN',
-                            'productId' => (string) $productId,
-                            'language' => 'en',
-                            'locale' => 'en_US',
-                            'selectedSkuId' => (string) $selectedSkuId,
-                            'currency' => (string) ($variant?->currency ?? $product?->currency ?? 'USD'),
-                        ]);
-
-                        $options = collect(data_get($result, 'result.delivery_options', []))
-                            ->filter(fn ($option) => is_array($option))
-                            ->map(function (array $option) {
-                                $feeCent = $option['shipping_fee_cent'] ?? null;
-                                $fee = is_numeric($feeCent)
-                                    ? ((float) $feeCent / 100)
-                                    : ((isset($option['free_shipping']) && $option['free_shipping']) ? 0.0 : null);
-
-                                return [
-                                    'name' => $option['company'] ?? $option['code'] ?? 'AliExpress',
-                                    'code' => $option['code'] ?? null,
-                                    'price' => $fee,
-                                    'max_days' => isset($option['max_delivery_days']) && is_numeric($option['max_delivery_days'])
-                                        ? (int) $option['max_delivery_days']
-                                        : null,
-                                    'raw' => $option,
-                                ];
-                            })
-                            ->filter(fn ($option) => $option['price'] !== null)
-                            ->sortBy('price')
-                            ->values();
-
-                        $best = $options->first();
-                        if (! $best) {
-                            $shippingUnavailable = true;
-                            $shippingUnavailableReason = 'AliExpress returned no delivery options for one or more cart items.';
-                            continue 2;
-                        }
-
-                        $providerTotal += (float) $best['price'];
-                        $providerMethods[] = $best['name'];
-                        $providerMaxDays = $providerMaxDays === null
-                            ? $best['max_days']
-                            : max((int) $providerMaxDays, (int) ($best['max_days'] ?? 0));
-                    } catch (\Throwable $e) {
-                        $shippingUnavailable = true;
-                        $shippingUnavailableReason = 'AliExpress shipping quote failed.';
-                        Log::warning('AliExpress freight calculation failed; skipping provider shipping quote', [
-                            'cart_id' => $this->id,
-                            'provider_id' => $provider_id,
-                            'item_id' => $item->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                        continue 2;
-                    }
-                }
-
-                $line = [
-                    'cart_id' => $this['id'],
-                    'fulfillment_provider_id' => $provider_id,
-                    'logistic_name' => implode(' + ', array_values(array_unique(array_filter($providerMethods)))),
-                    'logistic_price' => round($providerTotal, 2),
-                    'total_postage_fee' => round($providerTotal, 2),
-                    'aging' => $providerMaxDays,
-                ];
-                $shippingLines[] = $line;
-                if ($persist) {
-                    CartShipping::query()->create($line);
-                }
+            if ($result['line'] !== null) {
+                $shippingLines[] = $result['line'];
+            }
+            if ($result['unavailable']) {
+                $shippingUnavailable = true;
+                $shippingUnavailableReason = $result['reason'];
             }
         }
 
-        $total_weight = 0;
-        $weight_breakdown = [];
+        $weightResult = $this->calculateWeight($items);
+        Log::info('Cart weight summary', [
+            'cart_id' => $this->id,
+            'total_weight_g' => $weightResult['total'],
+            'weight_breakdown' => $weightResult['breakdown'],
+        ]);
+
+        return [
+            'total' => (float) collect($shippingLines)->sum(fn ($line) => (float) ($line['logistic_price'] ?? 0)),
+            'lines' => $shippingLines,
+            'unavailable' => $shippingUnavailable,
+            'reason' => $shippingUnavailableReason,
+        ];
+    }
+
+    private function cjShippingQuote(Collection $providerItems, $defaultWarehouse, bool $persist): array
+    {
+        $client = app(CJDropshippingClient::class);
+
+        $productsForQuote = $providerItems->map(function ($item) {
+            $vid = null;
+            if (isset($item['variant_id'])) {
+                $variant = ProductVariant::query()->find($item['variant_id']);
+                $meta = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+                $vid = $meta['cj_vid'] ?? null;
+            }
+
+            if (! $vid) {
+                return null;
+            }
+
+            return [
+                'quantity' => (int) (@$item['quantity'] ?? 1),
+                'vid' => (string) $vid,
+            ];
+        })->filter()->values()->all();
+
+        if (empty($productsForQuote)) {
+            Log::warning('Skipping CJ freight quote because no valid cj_vid lines were found', [
+                'cart_id' => $this->id,
+                'provider_id' => 1,
+            ]);
+            return ['line' => null, 'unavailable' => true, 'reason' => 'No valid CJ variants found for shipping quote.'];
+        }
+
+        $payload = [
+            'startCountryCode' => 'CN',
+            'endCountryCode' => @$defaultWarehouse->country ?? 'CN',
+            'products' => $productsForQuote,
+        ];
+
+        try {
+            $result = $client->freightCalculate($payload);
+
+            if (isset($result->data)) {
+                $data = collect($result->data);
+                $company = $data->sortBy('logisticPrice')->first();
+
+                if (isset($company)) {
+                    $line = [
+                        'cart_id' => $this['id'],
+                        'fulfillment_provider_id' => 1,
+                        'logistic_name' => @$company['logisticName'],
+                        'logistic_price' => @$company['logisticPrice'],
+                        'total_postage_fee' => @$company['totalPostageFee'],
+                        'aging' => @$company['logisticAging'],
+                    ];
+                    if ($persist) {
+                        CartShipping::query()->create($line);
+                    }
+                    return ['line' => $line, 'unavailable' => false, 'reason' => null];
+                }
+            }
+
+            return ['line' => null, 'unavailable' => true, 'reason' => 'CJ returned no shipping options for one or more cart items.'];
+        } catch (ApiException $e) {
+            $message = strtolower($e->getMessage());
+            if (str_contains($message, 'variant not found') && preg_match('/vid:\s*([0-9]+)/i', $e->getMessage(), $matches)) {
+                $missingVid = $matches[1] ?? null;
+                if ($missingVid) {
+                    $this->removeItemsByCjVid((string) $missingVid);
+                }
+            }
+            Log::warning('CJ freight calculation failed', [
+                'cart_id' => $this->id,
+                'provider_id' => 1,
+                'error' => $e->getMessage(),
+            ]);
+            return ['line' => null, 'unavailable' => true, 'reason' => 'CJ shipping quote failed.'];
+        } catch (\Throwable $e) {
+            Log::warning('Unexpected CJ freight calculation failure', [
+                'cart_id' => $this->id,
+                'provider_id' => 1,
+                'error' => $e->getMessage(),
+            ]);
+            return ['line' => null, 'unavailable' => true, 'reason' => 'CJ shipping quote failed.'];
+        }
+    }
+
+    private function aliexpressShippingQuote(Collection $providerItems, $defaultWarehouse, bool $persist): array
+    {
+        $client = app(AliExpressClient::class);
+        $providerTotal = 0.0;
+        $providerMaxDays = null;
+        $providerMethods = [];
+
+        foreach ($providerItems as $item) {
+            $variant = $item->variant ?? ProductVariant::query()->with('product.localWarehouse')->find($item['variant_id']);
+            $product = $item->product ?? $variant?->product;
+            $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                ->where('product_variant_id', $item['variant_id'])
+                ->where('fulfillment_provider_id', 1)
+                ->first();
+
+            $warehouse = $product?->localWarehouse ?? $defaultWarehouse;
+            $shipToCountry = strtoupper((string) ($warehouse?->country ?? 'CN'));
+            $variantMetadata = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+            $productAttributes = is_array($product?->attributes ?? null) ? $product->attributes : [];
+            $productId = $supplierProduct?->external_product_id ?? ($productAttributes['ali_item_id'] ?? null);
+            $selectedSkuId = $supplierProduct?->external_sku ?? ($variantMetadata['ali_sku_id'] ?? null);
+
+            if (! $productId || ! $selectedSkuId) {
+                Log::warning('Skipping AliExpress freight quote because product mapping is incomplete', [
+                    'cart_id' => $this->id,
+                    'item_id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'variant_id' => $item->variant_id,
+                ]);
+                return ['line' => null, 'unavailable' => true, 'reason' => 'AliExpress shipping quote failed because product mapping is incomplete.'];
+            }
+
+            try {
+                $result = $client->freightQuery([
+                    'quantity' => (int) ($item['quantity'] ?? 1),
+                    'shipToCountry' => $shipToCountry !== '' ? $shipToCountry : 'CN',
+                    'productId' => (string) $productId,
+                    'language' => 'en',
+                    'locale' => 'en_US',
+                    'selectedSkuId' => (string) $selectedSkuId,
+                    'currency' => (string) ($variant?->currency ?? $product?->currency ?? 'USD'),
+                ]);
+
+                $options = collect(data_get($result, 'result.delivery_options', []))
+                    ->filter(fn ($option) => is_array($option))
+                    ->map(function (array $option) {
+                        $feeCent = $option['shipping_fee_cent'] ?? null;
+                        $fee = is_numeric($feeCent)
+                            ? ((float) $feeCent / 100)
+                            : ((isset($option['free_shipping']) && $option['free_shipping']) ? 0.0 : null);
+
+                        return [
+                            'name' => $option['company'] ?? $option['code'] ?? 'AliExpress',
+                            'code' => $option['code'] ?? null,
+                            'price' => $fee,
+                            'max_days' => isset($option['max_delivery_days']) && is_numeric($option['max_delivery_days'])
+                                ? (int) $option['max_delivery_days']
+                                : null,
+                            'raw' => $option,
+                        ];
+                    })
+                    ->filter(fn ($option) => $option['price'] !== null)
+                    ->sortBy('price')
+                    ->values();
+
+                $best = $options->first();
+                if (! $best) {
+                    return ['line' => null, 'unavailable' => true, 'reason' => 'AliExpress returned no delivery options for one or more cart items.'];
+                }
+
+                $providerTotal += (float) $best['price'];
+                $providerMethods[] = $best['name'];
+                $providerMaxDays = $providerMaxDays === null
+                    ? $best['max_days']
+                    : max((int) $providerMaxDays, (int) ($best['max_days'] ?? 0));
+            } catch (\Throwable $e) {
+                Log::warning('AliExpress freight calculation failed', [
+                    'cart_id' => $this->id,
+                    'item_id' => $item->id,
+                    'error' => $e->getMessage(),
+                ]);
+                return ['line' => null, 'unavailable' => true, 'reason' => 'AliExpress shipping quote failed.'];
+            }
+        }
+
+        $line = [
+            'cart_id' => $this['id'],
+            'fulfillment_provider_id' => 1,
+            'logistic_name' => implode(' + ', array_values(array_unique(array_filter($providerMethods)))),
+            'logistic_price' => round($providerTotal, 2),
+            'total_postage_fee' => round($providerTotal, 2),
+            'aging' => $providerMaxDays,
+        ];
+        if ($persist) {
+            CartShipping::query()->create($line);
+        }
+        return ['line' => $line, 'unavailable' => false, 'reason' => null];
+    }
+
+    private function calculateWeight(Collection $items): array
+    {
+        $total = 0;
+        $breakdown = [];
 
         foreach ($items as $item) {
             $variant = $item->variant;
@@ -353,69 +358,34 @@ class Cart extends Model
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', (string) $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
-                    $weight_breakdown[] = [
-                        'item_id' => $item->id,
-                        'source' => 'packingWeight_variant_path',
-                        'weight' => $unit_weight,
-                        'unit' => 'g',
-                    ];
+                    $breakdown[] = ['item_id' => $item->id, 'source' => 'packingWeight_variant_path', 'weight' => $unit_weight, 'unit' => 'g'];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
                     $weight = explode('-', (string) $weight);
                     $unit_weight = $weight[count($weight) - 1] ?? 0;
-                    $weight_breakdown[] = [
-                        'item_id' => $item->id,
-                        'source' => 'productWeight',
-                        'weight' => $unit_weight,
-                        'unit' => 'g',
-                    ];
+                    $breakdown[] = ['item_id' => $item->id, 'source' => 'productWeight', 'weight' => $unit_weight, 'unit' => 'g'];
                 } else if (isset($meta['cj_variant']['variantWeight'])) {
                     $unit_weight = $meta['cj_variant']['variantWeight'];
-                    $weight_breakdown[] = [
-                        'item_id' => $item->id,
-                        'source' => 'variantWeight',
-                        'weight' => $unit_weight,
-                        'unit' => 'g',
-                    ];
+                    $breakdown[] = ['item_id' => $item->id, 'source' => 'variantWeight', 'weight' => $unit_weight, 'unit' => 'g'];
                 }
             } else {
                 if (isset($product_attrs['cj_payload']['packingWeight'])) {
                     $pack_weight = $product_attrs['cj_payload']['packingWeight'];
                     $pack_weight = explode('-', (string) $pack_weight);
                     $unit_weight = $pack_weight[count($pack_weight) - 1] ?? 0;
-                    $weight_breakdown[] = [
-                        'item_id' => $item->id,
-                        'source' => 'packingWeight',
-                        'weight' => $unit_weight,
-                        'unit' => 'g',
-                    ];
+                    $breakdown[] = ['item_id' => $item->id, 'source' => 'packingWeight', 'weight' => $unit_weight, 'unit' => 'g'];
                 } else if (isset($product_attrs['cj_payload']['productWeight'])) {
                     $weight = $product_attrs['cj_payload']['productWeight'];
                     $weight = explode('-', (string) $weight);
                     $unit_weight = $weight[count($weight) - 1] ?? 0;
-                    $weight_breakdown[] = [
-                        'item_id' => $item->id,
-                        'source' => 'productWeight',
-                        'weight' => $unit_weight,
-                        'unit' => 'g',
-                    ];
+                    $breakdown[] = ['item_id' => $item->id, 'source' => 'productWeight', 'weight' => $unit_weight, 'unit' => 'g'];
                 }
             }
 
-            $total_weight += (float) $unit_weight * $item->quantity;
+            $total += (float) $unit_weight * $item->quantity;
         }
-        Log::info('Cart weight summary', [
-            'cart_id' => $this->id,
-            'total_weight_g' => $total_weight,
-            'weight_breakdown' => $weight_breakdown,
-        ]);
 
-        return [
-            'total' => (float) collect($shippingLines)->sum(fn ($line) => (float) ($line['logistic_price'] ?? 0)),
-            'lines' => $shippingLines,
-            'unavailable' => $shippingUnavailable,
-            'reason' => $shippingUnavailableReason,
-        ];
+        return ['total' => $total, 'breakdown' => $breakdown];
     }
 
     public function emptyCart()
@@ -461,7 +431,6 @@ class Cart extends Model
         $discount = @$discounts['amount']??0;
         $promotionDiscounts = @$discounts['promotion_discounts'] ?? [];
 
-
         $settings = SiteSetting::query()->first();
 
         $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings);
@@ -469,11 +438,8 @@ class Cart extends Model
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
         $firstItem = $cart_items->first();
-        $currency = $firstItem?->variant?->currency
-            ?? $firstItem?->product?->currency
-            ?? 'USD';
-        
-        // Debug: Log cart calculation details
+        $currency = $firstItem?->variant?->currency ?? $firstItem?->product?->currency ?? 'USD';
+
         Log::info('Cart::getSummery calculation', [
             'subtotal' => $subtotal,
             'shipping_total' => $shippingTotal,
@@ -484,32 +450,27 @@ class Cart extends Model
             'currency' => $currency,
             'cart_items_count' => $cart_items->count(),
         ]);
-        
-        $cartContext = $this->buildCartContext($cart_items, $subtotal);
 
-        $promotionEngine = app(PromotionEngine::class);
-        $promotionModels = $promotionEngine->getApplicablePromotions($cartContext);
-        $locale = app()->getLocale();
-        $appliedPromotions = $promotionModels->map(function ($promo) use ($locale) {
-            return [
-                'id' => $promo->id,
-                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
-                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
-                'type' => $promo->type,
-                'value_type' => $promo->value_type,
-                'value' => $promo->value,
-                'start_at' => $promo->start_at,
-                'end_at' => $promo->end_at,
-                'targets' => $promo->targets,
-                'conditions' => $promo->conditions,
-            ];
-        })->values()->all();
+        return $this->buildSummaryResponse(
+            $subtotal, $shippingTotal, $discount, $discounts,
+            $promotionDiscounts, $coupon, $taxTotal, $taxIncluded,
+            $total, $currency, $cart_items, $settings
+        );
+    }
+
+    private function buildSummaryResponse(
+        float $subtotal, float $shippingTotal, float $discount, array $discounts,
+        array $promotionDiscounts, $coupon, float $taxTotal, bool $taxIncluded,
+        float $total, string $currency, Collection $cart_items, $settings
+    ): array {
+        $cartContext = $this->buildCartContext($cart_items, $subtotal);
+        $promotionModels = app(PromotionEngine::class)->getApplicablePromotions($cartContext);
+        $appliedPromotions = $this->mapPromotions($promotionModels);
 
         $productIds = $cart_items->pluck('product_id')->filter()->unique()->values()->all();
         $categoryIds = $cart_items->map(fn($line) => $line->product?->category_id)->filter()->unique()->values()->all();
         $cartPromotions = app(PromotionHomepageService::class)->getPromotionsForPlacement('checkout', $productIds, $categoryIds);
         $minimumRequirement = app(CartMinimumService::class)->evaluate($subtotal, $discount, $shippingTotal, $promotionModels, $coupon);
-        $selectedMethod = 'standard';
 
         return [
             'subtotal' => $subtotal,
@@ -528,8 +489,7 @@ class Cart extends Model
             'tax_included' => $taxIncluded,
             'total' => $total,
             'currency' => $currency,
-            'shipping_method' => $selectedMethod,
-            // Add raw structure for frontend PaymentSummary compatibility
+            'shipping_method' => 'standard',
             'raw' => [
                 'subtotal' => $subtotal,
                 'shipping' => $shippingTotal,
@@ -539,6 +499,26 @@ class Cart extends Model
                 'currency' => $currency,
             ],
         ];
+    }
+
+    private function mapPromotions($promotionModels): array
+    {
+        $locale = app()->getLocale();
+
+        return $promotionModels->map(function ($promo) use ($locale) {
+            return [
+                'id' => $promo->id,
+                'name' => $promo->localizedValue('name', $locale) ?? $promo->name,
+                'description' => $promo->localizedValue('description', $locale) ?? $promo->description,
+                'type' => $promo->type,
+                'value_type' => $promo->value_type,
+                'value' => $promo->value,
+                'start_at' => $promo->start_at,
+                'end_at' => $promo->end_at,
+                'targets' => $promo->targets,
+                'conditions' => $promo->conditions,
+            ];
+        })->values()->all();
     }
 
     protected function buildCartContext(Collection $cartItems, float $subtotal): array
