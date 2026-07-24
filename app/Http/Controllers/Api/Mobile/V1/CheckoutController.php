@@ -124,144 +124,18 @@ class CheckoutController extends ApiController
                 $customer->update(['locale' => $locale]);
             }
 
-            $shippingAddress = Address::create([
-                'user_id' => null,
-                'customer_id' => $customer?->id,
-                'name' => trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? '')),
-                'phone' => $validated['phone'],
-                'line1' => $validated['line1'],
-                'line2' => $validated['line2'] ?? null,
-                'city' => $validated['city'],
-                'state' => $validated['state'] ?? null,
-                'postal_code' => $validated['postal_code'] ?? null,
-                'country' => strtoupper($validated['country']),
-                'type' => 'shipping',
-            ]);
-
-            $order = Order::createWithGeneratedNumber([
-                // user_id references internal users; storefront/mobile customers should only set customer_id.
-                'user_id' => null,
-                'customer_id' => $customer?->id,
-                'guest_name' => null,
-                'guest_phone' => null,
-                'is_guest' => false,
-                'email' => $validated['email'],
-                'locale' => $locale,
-                'status' => 'pending',
-                'payment_status' => 'unpaid',
-                'currency' => (string) ($pricing['currency'] ?? 'XOF'),
-                'subtotal' => $subtotal,
-                'shipping_total' => $shipping,
-                'shipping_total_estimated' => $shipping,
-                'tax_total' => $taxTotal,
-                'discount_total' => $discount,
-                'grand_total' => $total,
-                'discount_snapshot' => $discountSnapshot,
-                'discount_source' => $discountSource,
-                'shipping_address_id' => $shippingAddress->id,
-                'billing_address_id' => $shippingAddress->id,
-                'shipping_method' => 'standard',
-                'delivery_notes' => $validated['delivery_notes'] ?? null,
-                'coupon_code' => $coupon['code'] ?? null,
-                'placed_at' => now(),
-            ]);
-
-            $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
-            $currencyConverter = app(CurrencyConversionService::class);
-            $userCurrency = (string) ($pricing['currency'] ?? 'XOF');
-
-            foreach ($cartItems as $line) {
-                $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
-                $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
-                    ->where('product_variant_id', $line['variant_id'])
-                    ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
-                    ->first();
-
-                $lineCurrency = $this->resolveCheckoutCurrencyForItem($line);
-                $unitPrice = $line->getSinglePrice();
-                try {
-                    $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPrice, $lineCurrency, $userCurrency);
-                    if ($unitPriceInUserCurrency === null) {
-                        \Log::warning('Currency conversion returned null in mobile checkout', [
-                            'source_price' => $unitPrice,
-                            'source_currency' => $lineCurrency,
-                            'target_currency' => $userCurrency,
-                            'order_id' => $order->id,
-                        ]);
-                        $unitPriceInUserCurrency = $unitPrice;
-                    }
-                } catch (\Throwable $e) {
-                    \Log::error('Currency conversion failed in mobile checkout', [
-                        'source_price' => $unitPrice,
-                        'source_currency' => $lineCurrency,
-                        'target_currency' => $userCurrency,
-                        'error' => $e->getMessage(),
-                        'order_id' => $order->id,
-                    ]);
-                    $unitPriceInUserCurrency = $unitPrice;
-                }
-                $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
-
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_variant_id' => $line['variant_id'],
-                    'fulfillment_provider_id' => $providerId,
-                    'supplier_product_id' => $supplierProduct?->id,
-                    'fulfillment_status' => 'pending',
-                    'quantity' => $line['quantity'],
-                    'unit_price' => $unitPriceInUserCurrency,
-                    'total' => $totalInUserCurrency,
-                    'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
-                    'snapshot' => [
-                        'name' => $line?->product['name'],
-                        'variant' => $line->variant
-                            ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
-                            : null,
-                        'supplier_type' => $line->product?->supplier_type,
-                    ],
-                    'meta' => [
-                        'media' => $line['media'] ?? null,
-                        'coupon_code' => $coupon['code'] ?? null,
-                        'supplier_type' => $line->product?->supplier_type,
-                        'supplier_product_id' => $supplierProduct?->id,
-                        'external_product_id' => $supplierProduct?->external_product_id,
-                        'external_sku' => $supplierProduct?->external_sku,
-                    ],
-                ]);
-            }
-
-            foreach ($shippingLines as $shippingEntry) {
-                OrderShipping::query()->create([
-                    'order_id' => $order->id,
-                    'fulfillment_provider_id' => $shippingEntry['fulfillment_provider_id'] ?? null,
-                    'name' => $shippingEntry['logistic_name'] ?? 'Shipping',
-                    'price' => $shippingEntry['logistic_price'] ?? 0,
-                    'logistic_name' => $shippingEntry['logistic_name'] ?? null,
-                    'logistic_price' => $shippingEntry['logistic_price'] ?? 0,
-                    'total_postage_fee' => $shippingEntry['total_postage_fee'] ?? ($shippingEntry['logistic_price'] ?? 0),
-                    'aging' => $shippingEntry['aging'] ?? null,
-                ]);
-            }
-
+            $shippingAddress = $this->createShippingAddress($validated, $customer);
+            $order = $this->createOrder($validated, $cart, $shippingAddress, $pricing, $subtotal, $shipping, $taxTotal, $total, $discount, $discountSnapshot, $discountSource, $locale, $customer);
+            
+            $this->createOrderItems($order, $cartItems, $pricing, $coupon);
+            $this->createOrderShippingLines($order, $shippingLines);
+            
             app(\App\Domain\Orders\Services\OrderCostBreakdownService::class)->recalculate($order);
-
+            
             $this->recordPromotionUsage($order, $promotionDiscounts, $subtotal, $discountSource);
             $this->redeemCoupon($couponModel, $customer, $order, $discountSource, $discount);
-            $payment = Payment::create([
-                'order_id' => $order->id,
-                'provider' => 'paystack',
-                'status' => 'pending',
-                'provider_reference' => null,
-                'amount' => $order->grand_total,
-                'currency' => $order->currency,
-                'paid_at' => null,
-                'meta' => [
-                    'type' => 'checkout_pending',
-                    'payment_method' => $validated['payment_method'] ?? 'card',
-                    'coupon_code' => $coupon['code'] ?? null,
-                    'tax_included' => $taxIncluded,
-                ],
-            ]);
+            
+            $payment = $this->createPayment($order, $validated, $coupon, $taxIncluded);
 
             return [$order, $payment];
         });
@@ -282,6 +156,175 @@ class CheckoutController extends ApiController
             'order_number' => $order->number,
             'payment_reference' => $payment->provider_reference,
         ]));
+    }
+
+    private function createShippingAddress(array $validated, ?Customer $customer): Address
+    {
+        return Address::create([
+            'user_id' => null,
+            'customer_id' => $customer?->id,
+            'name' => trim($validated['first_name'] . ' ' . ($validated['last_name'] ?? '')),
+            'phone' => $validated['phone'],
+            'line1' => $validated['line1'],
+            'line2' => $validated['line2'] ?? null,
+            'city' => $validated['city'],
+            'state' => $validated['state'] ?? null,
+            'postal_code' => $validated['postal_code'] ?? null,
+            'country' => strtoupper($validated['country']),
+            'type' => 'shipping',
+        ]);
+    }
+
+    private function createOrder(
+        array $validated,
+        Cart $cart,
+        Address $shippingAddress,
+        array $pricing,
+        float $subtotal,
+        float $shipping,
+        float $taxTotal,
+        float $total,
+        float $discount,
+        array $discountSnapshot,
+        ?string $discountSource,
+        string $locale,
+        ?Customer $customer
+    ): Order {
+        return Order::createWithGeneratedNumber([
+            'user_id' => null,
+            'customer_id' => $customer?->id,
+            'guest_name' => null,
+            'guest_phone' => null,
+            'is_guest' => false,
+            'email' => $validated['email'],
+            'locale' => $locale,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'currency' => (string) ($pricing['currency'] ?? 'XOF'),
+            'subtotal' => $subtotal,
+            'shipping_total' => $shipping,
+            'shipping_total_estimated' => $shipping,
+            'tax_total' => $taxTotal,
+            'discount_total' => $discount,
+            'grand_total' => $total,
+            'discount_snapshot' => $discountSnapshot,
+            'discount_source' => $discountSource,
+            'shipping_address_id' => $shippingAddress->id,
+            'billing_address_id' => $shippingAddress->id,
+            'shipping_method' => 'standard',
+            'delivery_notes' => $validated['delivery_notes'] ?? null,
+            'coupon_code' => $pricing['coupon']['code'] ?? null,
+            'placed_at' => now(),
+        ]);
+    }
+
+    private function createOrderItems(Order $order, $cartItems, array $pricing, ?array $coupon): void
+    {
+        $fallbackProvider = SiteSetting::query()->value('default_fulfillment_provider_id');
+        $currencyConverter = app(CurrencyConversionService::class);
+        $userCurrency = (string) ($pricing['currency'] ?? 'XOF');
+
+        foreach ($cartItems as $line) {
+            $providerId = $line['fulfillment_provider_id'] ?? $fallbackProvider;
+            $supplierProduct = \App\Domain\Products\Models\SupplierProduct::query()
+                ->where('product_variant_id', $line['variant_id'])
+                ->when($providerId, fn ($query) => $query->where('fulfillment_provider_id', $providerId))
+                ->first();
+
+            $unitPriceInUserCurrency = $this->convertItemPrice($line, $currencyConverter, $userCurrency, $order->id);
+            $totalInUserCurrency = $unitPriceInUserCurrency * $line['quantity'];
+
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_variant_id' => $line['variant_id'],
+                'fulfillment_provider_id' => $providerId,
+                'supplier_product_id' => $supplierProduct?->id,
+                'fulfillment_status' => 'pending',
+                'quantity' => $line['quantity'],
+                'unit_price' => $unitPriceInUserCurrency,
+                'total' => $totalInUserCurrency,
+                'source_sku' => $supplierProduct?->external_sku ?? $line->variant?->sku,
+                'snapshot' => [
+                    'name' => $line?->product['name'],
+                    'variant' => $line->variant
+                        ? $this->resolveVariantDisplayTitle($line->variant, $line->variant->title, $line?->product?->name)
+                        : null,
+                    'supplier_type' => $line->product?->supplier_type,
+                ],
+                'meta' => [
+                    'media' => $line['media'] ?? null,
+                    'coupon_code' => $coupon['code'] ?? null,
+                    'supplier_type' => $line->product?->supplier_type,
+                    'supplier_product_id' => $supplierProduct?->id,
+                    'external_product_id' => $supplierProduct?->external_product_id,
+                    'external_sku' => $supplierProduct?->external_sku,
+                ],
+            ]);
+        }
+    }
+
+    private function convertItemPrice($line, CurrencyConversionService $currencyConverter, string $userCurrency, int $orderId): float
+    {
+        $lineCurrency = $this->resolveCheckoutCurrencyForItem($line);
+        $unitPrice = $line->getSinglePrice();
+        
+        try {
+            $unitPriceInUserCurrency = $currencyConverter->convertAmount($unitPrice, $lineCurrency, $userCurrency);
+            if ($unitPriceInUserCurrency === null) {
+                \Log::warning('Currency conversion returned null in mobile checkout', [
+                    'source_price' => $unitPrice,
+                    'source_currency' => $lineCurrency,
+                    'target_currency' => $userCurrency,
+                    'order_id' => $orderId,
+                ]);
+                return $unitPrice;
+            }
+            return $unitPriceInUserCurrency;
+        } catch (\Throwable $e) {
+            \Log::error('Currency conversion failed in mobile checkout', [
+                'source_price' => $unitPrice,
+                'source_currency' => $lineCurrency,
+                'target_currency' => $userCurrency,
+                'error' => $e->getMessage(),
+                'order_id' => $orderId,
+            ]);
+            return $unitPrice;
+        }
+    }
+
+    private function createOrderShippingLines(Order $order, array $shippingLines): void
+    {
+        foreach ($shippingLines as $shippingEntry) {
+            OrderShipping::query()->create([
+                'order_id' => $order->id,
+                'fulfillment_provider_id' => $shippingEntry['fulfillment_provider_id'] ?? null,
+                'name' => $shippingEntry['logistic_name'] ?? 'Shipping',
+                'price' => $shippingEntry['logistic_price'] ?? 0,
+                'logistic_name' => $shippingEntry['logistic_name'] ?? null,
+                'logistic_price' => $shippingEntry['logistic_price'] ?? 0,
+                'total_postage_fee' => $shippingEntry['total_postage_fee'] ?? ($shippingEntry['logistic_price'] ?? 0),
+                'aging' => $shippingEntry['aging'] ?? null,
+            ]);
+        }
+    }
+
+    private function createPayment(Order $order, array $validated, ?array $coupon, bool $taxIncluded): Payment
+    {
+        return Payment::create([
+            'order_id' => $order->id,
+            'provider' => 'paystack',
+            'status' => 'pending',
+            'provider_reference' => null,
+            'amount' => $order->grand_total,
+            'currency' => $order->currency,
+            'paid_at' => null,
+            'meta' => [
+                'type' => 'checkout_pending',
+                'payment_method' => $validated['payment_method'] ?? 'card',
+                'coupon_code' => $coupon['code'] ?? null,
+                'tax_included' => $taxIncluded,
+            ],
+        ]);
     }
 
     private function resolveCart(Request $request): Cart
@@ -481,12 +524,12 @@ class CheckoutController extends ApiController
     {
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
+        
         if ($couponModel) {
             $error = $couponValidator->validateForCart($couponModel, $cartItems, $subtotal, $customer);
             if ($error) {
                 $cart?->update(['applied_coupon_code' => null, 'applied_coupon_data' => null]);
                 $couponModel = null;
-                $coupon = null;
             }
         }
 
@@ -495,16 +538,26 @@ class CheckoutController extends ApiController
         $campaign = app(CampaignManager::class)->bestForCart($cartPayload, $subtotal, $customer);
 
         if ($couponDiscount >= ($campaign['amount'] ?? 0)) {
-            return [
-                'amount' => $couponDiscount,
-                'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
-                'source' => $couponModel ? 'coupon' : null,
-                'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
-                'coupon_model' => $couponModel,
-                'promotion_discounts' => [],
-            ];
+            return $this->buildCouponDiscountResponse($couponModel, $couponDiscount);
         }
 
+        return $this->buildCampaignDiscountResponse($campaign);
+    }
+
+    private function buildCouponDiscountResponse(?Coupon $couponModel, float $amount): array
+    {
+        return [
+            'amount' => $amount,
+            'label' => $couponModel ? __('Coupon: :code', ['code' => $couponModel->code]) : null,
+            'source' => $couponModel ? 'coupon' : null,
+            'coupon' => $couponModel ? $this->serializeCoupon($couponModel) : null,
+            'coupon_model' => $couponModel,
+            'promotion_discounts' => [],
+        ];
+    }
+
+    private function buildCampaignDiscountResponse(array $campaign): array
+    {
         return [
             'amount' => $campaign['amount'] ?? 0.0,
             'label' => $campaign['label'] ?? null,
