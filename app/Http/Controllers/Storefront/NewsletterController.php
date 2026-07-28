@@ -6,12 +6,20 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\NewsletterSubscriber;
+use App\Notifications\Marketing\NewsletterWelcomeNotification;
+use App\Services\Marketing\CouponGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Notification;
 
 class NewsletterController extends Controller
 {
+    public function __construct(
+        private readonly CouponGenerationService $couponService,
+    ) {
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -34,9 +42,23 @@ class NewsletterController extends Controller
 
         $subscriber->ensureUnsubscribeToken();
 
+        $isNew = $subscriber->wasRecentlyCreated || $subscriber->unsubscribed_at === null;
+        if ($isNew) {
+            try {
+                $coupon = $this->couponService->generateForSubscriber($subscriber);
+                Notification::send($subscriber, new NewsletterWelcomeNotification($subscriber, $coupon));
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to send welcome email for subscriber', [
+                    'subscriber_id' => $subscriber->id,
+                    'email' => $subscriber->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return response()->json([
             'status' => 'ok',
-            'message' => 'Thanks for subscribing!',
+            'message' => 'Thanks for subscribing! Check your email for a welcome discount.',
             'subscriber_id' => $subscriber->id,
         ]);
     }
