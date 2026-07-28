@@ -25,17 +25,22 @@ class SendAbandonedCartReminders implements ShouldQueue
     {
         $settings = SiteSetting::query()->first();
         $config = $settings?->abandoned_cart_config ?? [];
+        $defaultCode = $config['coupon_code'] ?? 'SAVE10';
         $enablePush = $config['enable_push'] ?? true;
         $enableWhatsApp = $config['enable_whatsapp'] ?? true;
         $enableEmail = $config['enable_email'] ?? true;
 
-        $this->sendFirstReminders($enablePush, $enableWhatsApp, $enableEmail);
+        $this->sendFirstReminders($defaultCode, $enablePush, $enableWhatsApp, $enableEmail);
         $this->sendSecondReminders($config, $enablePush, $enableWhatsApp, $enableEmail);
         $this->sendThirdReminders($config, $enablePush, $enableWhatsApp, $enableEmail);
     }
 
-    private function sendFirstReminders(bool $enablePush, bool $enableWhatsApp, bool $enableEmail): void
-    {
+    private function sendFirstReminders(
+        string $defaultCode,
+        bool $enablePush,
+        bool $enableWhatsApp,
+        bool $enableEmail,
+    ): void {
         $carts = AbandonedCart::query()
             ->whereNull('recovered_at')
             ->whereNull('reminder_sent_at')
@@ -45,7 +50,7 @@ class SendAbandonedCartReminders implements ShouldQueue
             ->get();
 
         foreach ($carts as $cart) {
-            $this->sendReminder($cart, 1, null, $enablePush, $enableWhatsApp, $enableEmail);
+            $this->sendReminder($cart, 1, $defaultCode, $enablePush, $enableWhatsApp, $enableEmail);
         }
     }
 

@@ -1,0 +1,66 @@
+{
+    "date": "2026-07-30",
+    "category": "mixed",
+    "posts": [
+        {
+            "date": "2026-07-30",
+            "rank": 1,
+            "product": {
+                "id": 3529,
+                "name": "Solid-color Tube-top Sexy Resort Bikini",
+                "price": "10.87",
+                "url": "http://localhost/products/3529"
+            },
+            "image_url": "https://cf.cjdropshipping.com/quick/product/c43c7b0b-fbc3-401c-a41d-75b5a936aba7.jpg",
+            "caption": "\u2b50 Customer fave alert! Solid-color Tube-top Sexy Resort Bikini \u2014 $10.87 and ready to ship\n\n\ud83d\udd17 http://localhost/products/3529",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#newarrivals",
+                "#onlineshopping",
+                "#musthave"
+            ]
+        },
+        {
+            "date": "2026-07-30",
+            "rank": 2,
+            "product": {
+                "id": 3530,
+                "name": "Women's Casual Denim Top And Skirt Set",
+                "price": "48.31",
+                "url": "http://localhost/products/3530"
+            },
+            "image_url": "https://cf.cjdropshipping.com/quick/product/402db0ba-c19b-4b1f-9746-7bb5cd05d7cf.jpg",
+            "caption": "\u2728 New drop! Women's Casual Denim Top And Skirt Set \u2014 just $48.31\n\nShop the look at the link in bio!\n\n\ud83d\udd17 http://localhost/products/3530",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#musthave",
+                "#onlineshopping",
+                "#shopnow"
+            ]
+        },
+        {
+            "date": "2026-07-30",
+            "rank": 3,
+            "product": {
+                "id": 3538,
+                "name": "Temporary Metal Waterproof Key Box At The Door",
+                "price": "25.05",
+                "url": "http://localhost/products/3538"
+            },
+            "image_url": "https://cf.cjdropshipping.com/9f7c6401-529f-4416-8d9a-9062b54842bc.jpg",
+            "caption": "\ud83d\udecd\ufe0f Psst\u2026 your new favorite piece just dropped at $25.05\n\n\ud83d\udd17 http://localhost/products/3538",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#shopnow",
+                "#dropshipping",
+                "#newarrivals"
+            ]
+        }
+    ]
+}

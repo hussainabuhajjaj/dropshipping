@@ -14,6 +14,7 @@ use App\Console\Commands\FixDefaultCategories;
 use App\Console\Commands\FixDefaultVariants;
 use App\Console\Commands\ResyncCheckVariants;
 use App\Console\Commands\ReconcilePaymentsCommand;
+use App\Console\Commands\DailyInstagramProducts;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
@@ -154,6 +155,7 @@ class Kernel extends ConsoleKernel
         $schedule->job(new FlagShipmentsAtRisk())->dailyAt('05:30');
         $schedule->command('pricing:monitor-corruption --alert-threshold=5000')->everyThirtyMinutes();
         $schedule->command('whatsapp-intents:expire')->everyTenMinutes();
+        $schedule->command('dropshipping:daily-instagram')->dailyAt('09:00');
     }
 
     protected function commands(): void
