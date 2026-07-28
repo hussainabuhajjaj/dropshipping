@@ -79,7 +79,7 @@ class FindTopDropshippingProducts extends Command
                 'images' => fn ($q) => $q->orderBy('position'),
                 'variants' => fn ($q) => $q->where('stock_on_hand', '>', 0),
                 'category',
-                'defaultWarehouse',
+                'localWarehouse',
             ])
             ->withQualityScore();
 
