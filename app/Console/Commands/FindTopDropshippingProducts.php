@@ -74,7 +74,7 @@ class FindTopDropshippingProducts extends Command
     ): \Illuminate\Support\Collection {
         $query = Product::query()
             ->whereCjImported()
-            ->where('active', true)
+            ->where('is_active', true)
             ->with([
                 'images' => fn ($q) => $q->orderBy('position'),
                 'variants' => fn ($q) => $q->where('stock_on_hand', '>', 0),
