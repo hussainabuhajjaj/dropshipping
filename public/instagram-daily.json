@@ -1,64 +1,64 @@
 {
-    "date": "2026-07-30",
+    "date": "2026-07-31",
     "category": "mixed",
     "posts": [
         {
-            "date": "2026-07-30",
+            "date": "2026-07-31",
             "rank": 1,
             "product": {
-                "id": 3529,
-                "name": "Solid-color Tube-top Sexy Resort Bikini",
-                "price": "10.87",
-                "url": "http://localhost/products/3529"
+                "id": 1,
+                "name": "Princess-style Girls' Model Runway Dress",
+                "price": "35.09",
+                "url": "http://localhost/products/1"
             },
-            "image_url": "https://cf.cjdropshipping.com/quick/product/c43c7b0b-fbc3-401c-a41d-75b5a936aba7.jpg",
-            "caption": "\u2b50 Customer fave alert! Solid-color Tube-top Sexy Resort Bikini \u2014 $10.87 and ready to ship\n\n\ud83d\udd17 http://localhost/products/3529",
+            "image_url": "https://cf.cjdropshipping.com/quick/product/75ffe1e4-30ee-41bc-8570-d4dffbdcd21f.jpg",
+            "caption": "\ud83d\udecd\ufe0f Psst\u2026 your new favorite dress just dropped at $35.09\n\n\ud83d\udd17 http://localhost/products/1",
             "hashtags": [
                 "#simbazustyle",
                 "#fashion",
                 "#style",
-                "#newarrivals",
                 "#onlineshopping",
-                "#musthave"
+                "#newarrivals",
+                "#dropshipping"
             ]
         },
         {
-            "date": "2026-07-30",
+            "date": "2026-07-31",
             "rank": 2,
             "product": {
-                "id": 3530,
-                "name": "Women's Casual Denim Top And Skirt Set",
-                "price": "48.31",
-                "url": "http://localhost/products/3530"
+                "id": 6,
+                "name": "Women's Low-cut Stiletto Heels With Crystal Silver Bow",
+                "price": "43.83",
+                "url": "http://localhost/products/6"
             },
-            "image_url": "https://cf.cjdropshipping.com/quick/product/402db0ba-c19b-4b1f-9746-7bb5cd05d7cf.jpg",
-            "caption": "\u2728 New drop! Women's Casual Denim Top And Skirt Set \u2014 just $48.31\n\nShop the look at the link in bio!\n\n\ud83d\udd17 http://localhost/products/3530",
+            "image_url": "https://cf.cjdropshipping.com/ac354c72-4768-4240-a483-0b24c77fa17b.jpg",
+            "caption": "\u2b50 Customer fave alert! Women's Low-cut Stiletto Heels With Crystal Silver Bow \u2014 $43.83 and ready to ship\n\n\ud83d\udd17 http://localhost/products/6",
             "hashtags": [
                 "#simbazustyle",
                 "#fashion",
                 "#style",
                 "#musthave",
-                "#onlineshopping",
-                "#shopnow"
+                "#shopnow",
+                "#onlineshopping"
             ]
         },
         {
-            "date": "2026-07-30",
+            "date": "2026-07-31",
             "rank": 3,
             "product": {
-                "id": 3538,
-                "name": "Temporary Metal Waterproof Key Box At The Door",
-                "price": "25.05",
-                "url": "http://localhost/products/3538"
+                "id": 3531,
+                "name": "Women's Fashionable Two-Piece Dress Set",
+                "price": "69.52",
+                "url": "http://localhost/products/3531"
             },
-            "image_url": "https://cf.cjdropshipping.com/9f7c6401-529f-4416-8d9a-9062b54842bc.jpg",
-            "caption": "\ud83d\udecd\ufe0f Psst\u2026 your new favorite piece just dropped at $25.05\n\n\ud83d\udd17 http://localhost/products/3538",
+            "image_url": "https://cf.cjdropshipping.com/quick/product/5e414874-53bd-4ac4-aded-210288b57c2e.jpg",
+            "caption": "\ud83d\udd25 You asked, we delivered! Women's Fashionable Two-Piece Dress Set is now available for $69.52\n\nTap to shop \ud83d\udc46\n\n\ud83d\udd17 http://localhost/products/3531",
             "hashtags": [
                 "#simbazustyle",
                 "#fashion",
                 "#style",
+                "#musthave",
                 "#shopnow",
-                "#dropshipping",
                 "#newarrivals"
             ]
         }

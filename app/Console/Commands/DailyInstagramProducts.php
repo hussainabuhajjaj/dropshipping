@@ -91,6 +91,7 @@ class DailyInstagramProducts extends Command
                     'price' => '$' . number_format((float) ($post->product?->selling_price ?? 0), 2),
                     'margin' => '—',
                     'product_url' => url('/products/' . $post->product_id),
+                    'image_urls' => $post->product?->images->take(4)->pluck('url')->toArray() ?? [],
                     'image_url' => $post->image_url,
                     'caption' => $post->caption ?? '',
                     'hashtags' => $post->hashtags ?? '',
@@ -123,7 +124,7 @@ class DailyInstagramProducts extends Command
         foreach ($products as $rank => $item) {
             $product = $item['product'];
             $dayRank = $rank + 1;
-            $image = $product->images->first();
+            $images = $product->images->take(4);
             $hashtags = $this->buildHashtags($product, $categorySlug);
             $caption = $this->buildCaption($product, $item, $categorySlug);
 
@@ -133,7 +134,7 @@ class DailyInstagramProducts extends Command
                     'posted_date' => $date,
                     'day_rank' => $dayRank,
                     'category_slug' => $categorySlug,
-                    'image_url' => $image?->url,
+                    'image_url' => $images->first()?->url,
                     'caption' => $caption,
                     'hashtags' => $hashtags,
                     'quality_score' => $item['quality_score'],
@@ -148,7 +149,7 @@ class DailyInstagramProducts extends Command
                 'name' => $product->name,
                 'price' => '$' . number_format((float) ($product->selling_price ?? 0), 2),
                 'margin' => $item['margin'] . '%',
-                'image_url' => $image?->url,
+                'image_urls' => $images->pluck('url')->toArray(),
                 'product_url' => url('/products/' . $product->id),
                 'caption' => $caption,
                 'hashtags' => $hashtags,
@@ -282,8 +283,10 @@ class DailyInstagramProducts extends Command
             $this->line("  🔑 Code: {$r['product_code']}");
             $this->line("  💰 {$r['price']} | Margin: {$r['margin']}");
             $this->line("  🔗 {$r['product_url']}");
-            if (! empty($r['image_url'])) {
-                $this->line("  🖼️ {$r['image_url']}");
+            if (! empty($r['image_urls'])) {
+                foreach ((array) $r['image_urls'] as $img) {
+                    $this->line("  🖼️ {$img}");
+                }
             }
             $this->newLine();
             $this->line("  📝 Caption:");
@@ -379,19 +382,25 @@ class DailyInstagramProducts extends Command
             $zip->addFile($txtPath, 'content.txt');
 
             foreach ($results as $r) {
-                if (empty($r['image_url'])) continue;
+                $urls = (array) ($r['image_urls'] ?? [$r['image_url'] ?? '']);
+                $imgIdx = 0;
 
-                $resp = Http::timeout(25)->retry(2, 250)->get($r['image_url']);
-                if (! $resp->successful()) {
-                    $this->warn("  ⚠️ Failed to download image #{$r['rank']}: HTTP {$resp->status()}");
-                    continue;
+                foreach ($urls as $url) {
+                    $imgIdx++;
+                    if (empty($url)) continue;
+
+                    $resp = Http::timeout(25)->retry(2, 250)->get($url);
+                    if (! $resp->successful()) {
+                        $this->warn("  ⚠️ Failed to download image #{$r['rank']}-{$imgIdx}: HTTP {$resp->status()}");
+                        continue;
+                    }
+
+                    $ext = pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
+                    $ext = $ext ?: 'jpg';
+                    $name = "product-{$r['rank']}-{$r['product_id']}-{$imgIdx}.{$ext}";
+                    $zip->addFromString($name, $resp->body());
+                    $this->info("  🖼️ Added {$name} to zip");
                 }
-
-                $ext = pathinfo(parse_url($r['image_url'], PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
-                $ext = $ext ?: 'jpg';
-                $name = "product-{$r['rank']}-{$r['product_id']}.{$ext}";
-                $zip->addFromString($name, $resp->body());
-                $this->info("  🖼️ Added {$name} to zip");
             }
 
             $zip->close();
