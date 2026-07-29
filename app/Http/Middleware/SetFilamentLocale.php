@@ -12,6 +12,7 @@ class SetFilamentLocale
     public function handle(Request $request, Closure $next): mixed
     {
         app()->setLocale('en');
+        config(['app.locale' => 'en']);
 
         return $next($request);
     }
