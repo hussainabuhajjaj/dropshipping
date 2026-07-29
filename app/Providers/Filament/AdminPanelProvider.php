@@ -83,6 +83,12 @@ class AdminPanelProvider extends PanelProvider
      *
      * @return array<int, class-string>
      */
+    public function boot(): void
+    {
+        app()->setLocale("en");
+        config(["app.locale" => "en"]);
+    }
+
     private function baseMiddleware(): array
     {
         return [
