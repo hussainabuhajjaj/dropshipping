@@ -50,7 +50,10 @@ class AdminPanelProvider extends PanelProvider
             ->databaseNotifications()
             ->databaseTransactions() //optional
             ->sidebarCollapsibleOnDesktop()
-
+            ->bootUsing(function () {
+                app()->setLocale('en');
+                config(['app.locale' => 'en']);
+            })
 
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->resources([
@@ -76,17 +79,6 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
-    }
-
-    /**
-     * Base middleware stack for the panel.
-     *
-     * @return array<int, class-string>
-     */
-    public function boot(): void
-    {
-        app()->setLocale("en");
-        config(["app.locale" => "en"]);
     }
 
     private function baseMiddleware(): array
