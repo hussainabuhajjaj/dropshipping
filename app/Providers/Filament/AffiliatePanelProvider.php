@@ -46,6 +46,7 @@ class AffiliatePanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
-            ->brandName(config('app.name') . ' - Affiliate Portal');
+            ->brandName(config('app.name') . ' - Affiliate Portal')
+            ->bootUsing(fn () => app()->setLocale('en'));
     }
 }
