@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Affiliate\Pages\Dashboard;
+use App\Http\Middleware\SetFilamentLocale;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -21,7 +22,6 @@ class AffiliatePanelProvider extends PanelProvider
         return $panel
             ->id('affiliate')
             ->path('affiliate')
-            ->locale('en')
             ->login()
             ->colors([
                 'primary' => 'rgb(59, 130, 246)',
@@ -35,6 +35,7 @@ class AffiliatePanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
+                SetFilamentLocale::class,
                 AuthenticateSession::class,
                 ShareErrorsFromSession::class,
                 VerifyCsrfToken::class,
