@@ -21,7 +21,6 @@ use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use App\Http\Middleware\CheckStorefrontComingSoon;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
@@ -35,6 +34,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path(config('filament.path', 'admin'))
+            ->locale('en')
             ->authGuard(config('filament.auth.guard', 'admin'))
             ->login()
             ->brandName(env('APP_NAME' ).' Admin')
@@ -91,7 +91,6 @@ class AdminPanelProvider extends PanelProvider
             StartSession::class,
             AuthenticateSession::class,
             ShareErrorsFromSession::class,
-            CheckStorefrontComingSoon::class,
             VerifyCsrfToken::class,
             SubstituteBindings::class,
             DisableBladeIconComponents::class,

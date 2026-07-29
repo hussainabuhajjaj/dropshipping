@@ -21,6 +21,7 @@ class AffiliatePanelProvider extends PanelProvider
         return $panel
             ->id('affiliate')
             ->path('affiliate')
+            ->locale('en')
             ->login()
             ->colors([
                 'primary' => 'rgb(59, 130, 246)',
