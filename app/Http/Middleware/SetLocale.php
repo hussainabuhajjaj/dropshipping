@@ -14,6 +14,11 @@ class SetLocale
 
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->is("admin/*") || $request->is("admin") || $request->is("affiliate/*") || $request->is("affiliate")) {
+            App::setLocale("en");
+            return $next($request);
+        }
+
         $customerPreferredLocale = null;
         $customer = $request->user('customer');
         if ($customer) {
