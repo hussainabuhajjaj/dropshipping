@@ -47,8 +47,10 @@ class StorefrontCampaignResource extends BaseResource
                             'seasonal' => 'Seasonal',
                             'drop' => 'Drop',
                             'event' => 'Event',
+                            'lucky_draw' => 'Lucky Draw',
                         ])
-                        ->required(),
+                        ->required()
+                        ->live(),
                     Forms\Components\Select::make('status')
                         ->options([
                             'draft' => 'Draft',
@@ -56,6 +58,7 @@ class StorefrontCampaignResource extends BaseResource
                             'approved' => 'Approved',
                             'scheduled' => 'Scheduled',
                             'active' => 'Active',
+                            'paused' => 'Paused',
                             'rejected' => 'Rejected',
                             'ended' => 'Ended',
                         ])
@@ -197,6 +200,128 @@ class StorefrontCampaignResource extends BaseResource
                 ])
                 ->columns(2),
 
+            Section::make('Lucky Draw')
+                ->description('Configure the lucky draw rules, prizes and guaranteed rewards')
+                ->collapsible()
+                ->visible(fn (Get $get) => $get('type') === 'lucky_draw')
+                ->statePath('lucky_draw_config')
+                ->schema([
+                    Section::make('Qualification')
+                        ->schema([
+                            Forms\Components\TextInput::make('min_order_amount')
+                                ->label('Minimum order amount')
+                                ->numeric()
+                                ->default(30000)
+                                ->required(),
+                            Forms\Components\Select::make('currency')
+                                ->options([
+                                    'XOF' => 'XOF (FCFA)',
+                                    'USD' => 'USD',
+                                ])
+                                ->default('XOF')
+                                ->required(),
+                            Forms\Components\TextInput::make('max_participants')
+                                ->label('Max lucky draw participants')
+                                ->numeric()
+                                ->default(50)
+                                ->minValue(1)
+                                ->required(),
+                            Forms\Components\Toggle::make('show_remaining_spots')
+                                ->label('Show remaining spots counter')
+                                ->default(true),
+                            Forms\Components\Toggle::make('countdown_enabled')
+                                ->label('Show countdown timer')
+                                ->default(true),
+                        ])
+                        ->columns(3),
+                    Section::make('Prizes')
+                        ->schema([
+                            Forms\Components\TextInput::make('grand_prize')
+                                ->label('Grand prize')
+                                ->default('iPhone 17 Pro Max')
+                                ->maxLength(120),
+                            Forms\Components\TextInput::make('runner_up_count')
+                                ->label('Runner-up winners')
+                                ->numeric()
+                                ->default(10)
+                                ->minValue(0),
+                            Forms\Components\TextInput::make('gift_card_amount')
+                                ->label('Runner-up gift card amount')
+                                ->numeric()
+                                ->default(20),
+                            Forms\Components\Select::make('gift_card_currency')
+                                ->label('Runner-up gift card currency')
+                                ->options([
+                                    'USD' => 'USD',
+                                    'XOF' => 'XOF (FCFA)',
+                                ])
+                                ->default('USD'),
+                        ])
+                        ->columns(4),
+                    Section::make('Guaranteed reward')
+                        ->description('Every non-winning qualifying customer receives this reward')
+                        ->schema([
+                            Forms\Components\Select::make('guaranteed_reward_type')
+                                ->label('Reward type')
+                                ->options([
+                                    'free_shipping' => 'Free Shipping',
+                                    'percentage_discount' => 'Percentage Discount',
+                                    'fixed_discount' => 'Fixed Discount',
+                                    'store_credit' => 'Store Credit',
+                                    'coupon_code' => 'Coupon Code',
+                                ])
+                                ->default('coupon_code')
+                                ->required()
+                                ->live(),
+                            Forms\Components\TextInput::make('guaranteed_reward_value')
+                                ->label('Reward value (percent, amount or credit value)')
+                                ->numeric()
+                                ->default(10),
+                        ])
+                        ->columns(2),
+                    Section::make('Announcement')
+                        ->schema([
+                            Forms\Components\DateTimePicker::make('winner_announcement_at')
+                                ->label('Winner announcement date')->native(false),
+                        ]),
+                    Section::make('Content')
+                        ->schema([
+                            Forms\Components\RichEditor::make('landing_content')
+                                ->label('Landing page content')
+                                ->columnSpan('full'),
+                            Forms\Components\TextInput::make('cta')
+                                ->label('CTA button text')
+                                ->maxLength(120)
+                                ->default('Shop now'),
+                            Forms\Components\Textarea::make('terms')
+                                ->label('Terms & conditions')
+                                ->rows(6)
+                                ->columnSpan('full'),
+                            Forms\Components\Repeater::make('faq')
+                                ->label('FAQ')
+                                ->schema([
+                                    Forms\Components\TextInput::make('q')
+                                        ->label('Question')
+                                        ->required(),
+                                    Forms\Components\Textarea::make('a')
+                                        ->label('Answer')
+                                        ->required(),
+                                ])
+                                ->columns(2)
+                                ->collapsible()
+                                ->default([]),
+                        ]),
+                    Section::make('SEO metadata')
+                        ->schema([
+                            Forms\Components\TextInput::make('seo.title')
+                                ->label('SEO title'),
+                            Forms\Components\Textarea::make('seo.description')
+                                ->label('SEO description')
+                                ->rows(3),
+                        ])
+                        ->columns(2),
+                ]),
+
             Section::make('Product sourcing')
                 ->description('Auto-source products from CJ Dropshipping when campaign starts')
                 ->collapsed()
@@ -314,7 +439,7 @@ class StorefrontCampaignResource extends BaseResource
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->colors([
-                        'warning' => ['pending_approval', 'scheduled'],
+                        'warning' => ['pending_approval', 'scheduled', 'paused'],
                         'success' => ['approved', 'active'],
                         'danger' => ['rejected'],
                         'gray' => ['ended', 'draft'],

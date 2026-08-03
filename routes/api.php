@@ -243,6 +243,7 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
     Route::get('collections', [MobileCollectionController::class, 'index']);
     Route::get('collections/{slug}', [MobileCollectionController::class, 'show']);
     Route::get('campaigns/{slug}', [\App\Http\Controllers\Api\Mobile\V1\CampaignController::class, 'show']);
+    Route::get('campaigns/{slug}/winners', [\App\Http\Controllers\Api\Mobile\V1\CampaignController::class, 'winners']);
     Route::get('search', [MobileSearchController::class, 'index']);
     Route::get('translations', [MobileTranslationsController::class, 'index']);
     Route::post('translations/register', [MobileTranslationsController::class, 'register']);
@@ -295,6 +296,9 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
 
             Route::get('orders', [MobileOrderController::class, 'index']);
             Route::get('orders/{order:number}', [MobileOrderController::class, 'show']);
+
+            Route::get('campaigns/{slug}/my-entry', [\App\Http\Controllers\Api\Mobile\V1\CampaignController::class, 'myEntry']);
+            Route::get('campaigns/{slug}/my-rewards', [\App\Http\Controllers\Api\Mobile\V1\CampaignController::class, 'myRewards']);
 
             Route::get('wishlist', [MobileWishlistController::class, 'index']);
             Route::post('wishlist/{productId}', [MobileWishlistController::class, 'store']);
@@ -362,6 +366,10 @@ Route::get('onboarding', [MobileOnboardingController::class, 'index']);
 Route::post('webhooks/korapay', KorapayWebhookController::class)
     ->middleware(['throttle:30,1', VerifyKorapayWebhookSignature::class, IdempotencyMiddleware::class])
     ->name('webhooks.korapay');
+
+Route::post('integrations/woocommerce/webhook', \App\Domain\WooCommerce\Webhooks\WooCommerceWebhookController::class)
+    ->middleware(['throttle:60,1'])
+    ->name('woocommerce.webhook');
 
 // CJ API Monitoring Routes
 Route::prefix('cj')->group(function () {

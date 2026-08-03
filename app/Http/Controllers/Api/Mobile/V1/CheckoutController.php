@@ -445,7 +445,7 @@ class CheckoutController extends ApiController
         $couponModel = $couponValidator->resolveFromSession($coupon);
         $shippingQuote = $cart->quoteShippingForItems($cartItems);
         $settings = SiteSetting::query()->first();
-        $shippingTotal = $this->applyShippingRules((float) ($shippingQuote['total'] ?? 0), $subtotal, $discount, $settings);
+        $shippingTotal = $this->applyShippingRules((float) ($shippingQuote['total'] ?? 0), $subtotal, $discount, $settings, (bool) ($discounts['free_shipping'] ?? false));
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool) ($settings?->tax_included ?? false);
         $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
@@ -595,8 +595,12 @@ class CheckoutController extends ApiController
         return $currencyConverter->convertAmount($amount, $sourceCurrency, $targetCurrency) ?? $amount;
     }
 
-    private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
+    private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings, bool $freeShipping = false): float
     {
+        if ($freeShipping) {
+            return 0.0;
+        }
+
         $eligibleTotal = max(0, $subtotal - $discount);
         $threshold = (float) ($settings?->free_shipping_threshold ?? 0);
         $handlingFee = (float) ($settings?->shipping_handling_fee ?? 0);

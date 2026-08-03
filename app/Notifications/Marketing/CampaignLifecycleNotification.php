@@ -30,7 +30,7 @@ class CampaignLifecycleNotification extends Notification implements ShouldQueue
         }
 
         $config = $this->campaign->notificationConfig();
-        $eventConfig = $config[$this->event] ?? [];
+        $eventConfig = $config[$this->configKey()] ?? [];
 
         $channels = [];
 
@@ -98,6 +98,16 @@ class CampaignLifecycleNotification extends Notification implements ShouldQueue
     {
         $url = url('/campaigns/' . $this->campaign->slug);
         return "{$this->getSubject()}\n\n{$this->getBody()}\n\n👉 $url";
+    }
+
+    private function configKey(): string
+    {
+        return match ($this->event) {
+            'started' => 'on_start',
+            'ending_soon' => 'on_ending_soon',
+            'ended' => 'on_end',
+            default => $this->event,
+        };
     }
 
     private function getSubject(): string

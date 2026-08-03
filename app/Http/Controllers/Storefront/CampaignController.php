@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Storefront;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Storefront\Concerns\TransformsProducts;
 use App\Models\Coupon;
+use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\StorefrontBanner;
 use App\Models\StorefrontCampaign;
@@ -23,6 +24,8 @@ class CampaignController extends Controller
     {
         $locale = app()->getLocale();
         abort_if(! $campaign->isActiveForLocale($locale), 404);
+
+        $customerId = auth('customer')->id() ?: auth()->id();
 
         $promotionDisplay = app(PromotionDisplayService::class);
         $promotions = Promotion::query()
@@ -51,13 +54,55 @@ class CampaignController extends Controller
             ->map(fn (StorefrontCollection $collection) => $this->transformCollectionSummary($collection, $locale))
             ->values();
 
-        return Inertia::render('Campaigns/Show', [
+        $payload = [
             'campaign' => $this->transformCampaign($campaign, $locale),
             'promotions' => $promotions,
             'coupons' => $coupons,
             'banners' => $banners,
             'collections' => $collections,
-        ]);
+        ];
+
+        if ($campaign->isLuckyDraw()) {
+            $payload['lucky_draw'] = $campaign->luckyDrawPayload($locale, $customerId ? (int) $customerId : null);
+            $payload['products'] = $this->qualifyingProducts($campaign);
+        }
+
+        return Inertia::render($campaign->isLuckyDraw() ? 'Campaigns/LuckyDraw' : 'Campaigns/Show', $payload);
+    }
+
+    private function qualifyingProducts(StorefrontCampaign $campaign): array
+    {
+        $minAmount = (float) ($campaign->luckyDrawConfig()['min_order_amount'] ?? 0);
+
+        return Product::query()
+            ->where('is_active', true)
+            ->where('status', 'published')
+            ->where('selling_price', '>=', $minAmount)
+            ->whereHas('variants')
+            ->with(['images', 'variants', 'category'])
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->inRandomOrder()
+            ->take(8)
+            ->get()
+            ->map(function (Product $product) {
+                $price = $product->variants->min('price') ?? $product->selling_price;
+                $compareAt = $product->variants->max('compare_at_price') ?? $product->compare_at_price;
+
+                return [
+                    'id' => $product->id,
+                    'slug' => $product->slug,
+                    'name' => $product->name,
+                    'image' => $product->images->first()?->url,
+                    'price' => (float) $price,
+                    'compare_at_price' => $compareAt ? (float) $compareAt : null,
+                    'rating' => (float) ($product->reviews_avg_rating ?? 0),
+                    'reviews_count' => (int) ($product->reviews_count ?? 0),
+                    'currency' => $product->currency ?? 'XOF',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function transformCoupon(Coupon $coupon, ?string $locale): array

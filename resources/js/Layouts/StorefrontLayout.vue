@@ -391,15 +391,18 @@
             </div>
         </Transition>
 
-        <!-- iPhone Giveaway Campaign Announcement Bar -->
+        <!-- Lucky Draw Campaign Announcement Bar -->
         <a
-            href="/promotions/iphone-giveaway"
+            v-if="luckyDrawCampaign"
+            :href="'/campaigns/' + luckyDrawCampaign.slug"
             class="block bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black hover:from-amber-400 hover:via-amber-300 hover:to-amber-400 transition-all"
         >
             <div class="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-2 text-xs font-bold sm:text-sm">
                 <span class="animate-pulse">🎉</span>
-                <span>{{ t('WIN AN iPHONE 17!') }}</span>
-                <span class="hidden sm:inline">{{ t('Spend 30,000 FCFA+') }}</span>
+                <span>{{ t('WIN A') }} {{ (luckyDrawCampaign.grand_prize || 'iPhone').toUpperCase() }}!</span>
+                <span v-if="luckyDrawCampaign.min_order_amount" class="hidden sm:inline">
+                    {{ t('Spend') }} {{ formatLuckyAmount(luckyDrawCampaign.min_order_amount, luckyDrawCampaign.currency) }}{{ t('+') }}
+                </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-black/20 px-2.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-white">
                     {{ t('Shop Now') }}
                 </span>
@@ -713,6 +716,13 @@ function onCurrencyChange() {
 const page = usePage()
 const categoryStore = useCategoryStore()
 const { desktopOpen: megaMenuOpen } = storeToRefs(categoryStore)
+
+const luckyDrawCampaign = computed(() => page.props.luckyDraw || null)
+
+function formatLuckyAmount(amount, currency) {
+  const n = Number(amount || 0).toLocaleString()
+  return currency === 'USD' ? `$${n}` : `${n} FCFA`
+}
 
 // Simple fallback for translations
 const t = (key, replacements = {}) => {

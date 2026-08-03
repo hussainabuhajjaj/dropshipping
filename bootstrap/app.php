@@ -13,6 +13,18 @@ use App\Providers\HorizonServiceProvider;
 use App\Providers\QueueServiceProvider;
 use App\Providers\Filament\AffiliatePanelProvider;
 
+// The page to reload after an Inertia error (CSRF expiry, 4xx, etc.).
+// Prefers the referring storefront page and never a GET-hostile API URL.
+$safePrevious = static function (): string {
+    $target = url()->previous('/');
+
+    if ($target === url()->current() || str_starts_with((string) $target, url('/api/'))) {
+        $target = url('/');
+    }
+
+    return $target;
+};
+
 return Application::configure(basePath: dirname(__DIR__))
         ->withProviders([
         AppServiceProvider::class,
@@ -65,7 +77,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'mobile.email.verified' => \App\Http\Middleware\EnsureMobileEmailVerified::class,
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) use ($safePrevious): void {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $exception, $request) {
             if ($request->is('api/mobile/*')) {
                 return response()->json([
@@ -117,7 +129,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         // Catch-all for Inertia requests: redirect back instead of returning raw JSON
-        $exceptions->render(function (\Throwable $e, $request) {
+        $exceptions->render(function (\Throwable $e, $request) use ($safePrevious) {
             if ($request->header('X-Inertia')) {
                 \Illuminate\Support\Facades\Log::warning('Inertia request exception', [
                     'url' => $request->fullUrl(),
@@ -141,12 +153,12 @@ return Application::configure(basePath: dirname(__DIR__))
                     }
 
                     if ($status === 419) {
-                        return \Inertia\Inertia::location($request->fullUrl());
+                        return \Inertia\Inertia::location($safePrevious());
                     }
                 }
 
                 if ($e instanceof \Illuminate\Session\TokenMismatchException) {
-                    return \Inertia\Inertia::location($request->fullUrl());
+                    return \Inertia\Inertia::location($safePrevious());
                 }
 
                 return redirect()->back()->withErrors(['error' => 'An unexpected error occurred. Please try again.']);

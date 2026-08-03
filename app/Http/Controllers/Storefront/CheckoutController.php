@@ -254,7 +254,7 @@ class CheckoutController extends Controller
         $promotionDiscounts = $discounts['promotion_discounts'] ?? [];
         $discountSource = $discounts['source'] ?? null;
         $settings = SiteSetting::query()->first();
-        $shippingTotal = $this->applyShippingRules($shipping, $subtotal, $discount, $settings);
+        $shippingTotal = $this->applyShippingRules($shipping, $subtotal, $discount, $settings, (bool) ($discounts['free_shipping'] ?? false));
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $grandTotal = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);
@@ -637,8 +637,12 @@ class CheckoutController extends Controller
     /**
      * Apply shipping rules (free shipping threshold, handling fees)
      */
-    private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
+    private function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings, bool $freeShipping = false): float
     {
+        if ($freeShipping) {
+            return 0.0;
+        }
+
         $eligibleTotal = max(0, $subtotal - $discount);
         $threshold = (float)($settings?->free_shipping_threshold ?? 0);
         $handlingFee = (float)($settings?->shipping_handling_fee ?? 0);

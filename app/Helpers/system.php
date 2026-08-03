@@ -39,6 +39,21 @@ function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $custo
         }
     }
     $couponDiscount = $couponModel ? $couponValidator->calculateDiscount($couponModel, $subtotal) : 0.0;
+
+    // Free-shipping coupons provide no monetary discount but must be preserved
+    // so the shipping calc can zero out delivery fees.
+    if ($couponModel?->isFreeShipping()) {
+        return [
+            'amount' => 0.0,
+            'label' => __('Coupon: :code (Free Shipping)', ['code' => $couponModel->code]),
+            'source' => 'coupon',
+            'coupon' => $couponModel->serializeCoupon(),
+            'coupon_model' => $couponModel,
+            'free_shipping' => true,
+            'promotion_discounts' => [],
+        ];
+    }
+
     $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
     $campaign = app(CampaignManager::class)->bestForCart($cart_items, $subtotal, $customer);
 
@@ -64,8 +79,12 @@ function calculateDiscounts($cart, $cart_items, ?array $coupon, ?Customer $custo
 }
 
 
-function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings): float
+function applyShippingRules(float $shippingTotal, float $subtotal, float $discount, ?SiteSetting $settings, bool $freeShipping = false): float
 {
+    if ($freeShipping) {
+        return 0.0;
+    }
+
     $eligibleTotal = max(0, $subtotal - $discount);
     $threshold = (float)($settings?->free_shipping_threshold ?? 0);
     $handlingFee = (float)($settings?->shipping_handling_fee ?? 0);

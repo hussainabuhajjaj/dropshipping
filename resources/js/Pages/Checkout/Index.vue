@@ -269,8 +269,12 @@ const showMobileMoneyProviders = computed(() => showMobileMoney.value && mobileM
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 const qualifiesForGiveaway = computed(() => {
-  const threshold = currency.value === 'USD' ? 50 : 30000
-  return Number(subtotal.value) >= threshold
+  const campaign = page.props.luckyDraw || null
+  if (!campaign || !campaign.accepting_entries) return null
+  const thresholdRaw = campaign.min_order_amount_usd ?? campaign.min_order_amount
+  const threshold = Number(thresholdRaw || 0)
+  if (threshold <= 0 || Number(subtotal.value) < threshold) return null
+  return campaign
 })
 
 const formatProvider = (provider) =>

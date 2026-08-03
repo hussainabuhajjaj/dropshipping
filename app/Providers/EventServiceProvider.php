@@ -17,6 +17,7 @@ use App\Events\Orders\ReturnRejected;
 use App\Events\Customers\CustomerRegistered;
 use App\Listeners\Affiliates\LinkAffiliateReferralToCustomer;
 use App\Listeners\Affiliates\ProcessAffiliateOrderReferral;
+use App\Listeners\Campaigns\RegisterCampaignParticipation;
 use App\Listeners\Orders\SendOrderConfirmedNotification;
 use App\Listeners\Orders\ClearCustomerCartOnOrderPaid;
 use App\Listeners\Orders\MaterializeLinehaulShipment;
@@ -64,6 +65,7 @@ class EventServiceProvider extends ServiceProvider
             MaterializeLinehaulShipment::class,
             SendOrderConfirmedNotification::class,
             ProcessAffiliateOrderReferral::class,
+            RegisterCampaignParticipation::class,
             ClearCustomerCartOnOrderPaid::class,
             SendMetaPurchaseEvent::class,
         ],

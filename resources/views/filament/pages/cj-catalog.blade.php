@@ -4,16 +4,9 @@
     $totalPagesKnown = $totalPagesKnown ?? false;
     $canLoadMore = $canLoadMore ?? false;
     $activeFiltersCount = collect([
-        $productName,
-        $productSku,
-        $materialKey,
-        $categoryId,
-        $categorySearch,
-        $warehouseId,
-        $sort,
-        $storeProductId,
-        $inStockOnly ? 'stock' : null,
-        ($shipToCountry ?? null),
+        $productName, $productSku, $materialKey, $categoryId, $categorySearch,
+        $warehouseId, $sort, $storeProductId,
+        $inStockOnly ? 'stock' : null, ($shipToCountry ?? null),
     ])->filter(fn ($value) => filled($value))->count();
     $selectedCount = count($selectedTableRecords ?? []);
     $filteredCategoryOptions = $this->filteredCategoryOptions();
@@ -30,435 +23,182 @@
 
 <x-filament-panels::page>
     <div class="space-y-6">
-        <section class="overflow-hidden rounded-2xl border border-primary-200/70 bg-gradient-to-br from-primary-50 via-white to-primary-100/70 p-5 shadow-sm dark:border-primary-900/70 dark:from-primary-950/40 dark:via-gray-900 dark:to-gray-900">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="space-y-2">
-                    <div class="flex items-center gap-2">
-                        <x-filament::icon icon="heroicon-o-cloud-arrow-down" class="h-5 w-5 text-primary-600 dark:text-primary-400" />
-                        <p class="text-sm font-semibold tracking-wide text-primary-700 dark:text-primary-300">CJ Catalog Workspace</p>
-                    </div>
-                    <h2 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Discover, review, and import products faster</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">Apply filters, inspect media, and sync selected records into your local catalog.</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                    <x-filament::button size="sm" icon="heroicon-o-arrow-path" wire:click="fetch" wire:loading.attr="disabled">
-                        Refresh
-                    </x-filament::button>
-                    <x-filament::button size="sm" color="gray" icon="heroicon-o-arrow-down-tray" wire:click="loadMore" :disabled="! $canLoadMore" wire:loading.attr="disabled">
-                        Load More
-                    </x-filament::button>
-                    <x-filament::button size="sm" color="success" icon="heroicon-o-cloud-arrow-down" wire:click="queueImportDisplayedProducts" wire:loading.attr="disabled">
-                        Queue Page Import
-                    </x-filament::button>
-                    <x-filament::button size="sm" color="warning" icon="heroicon-o-queue-list" wire:click="queueSyncJob" wire:loading.attr="disabled">
-                        Queue Sync
-                    </x-filament::button>
-                </div>
+        <div class="flex items-start justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                    CJ Catalog
+                </h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Discover, review, and import products from CJ Dropshipping.
+                </p>
             </div>
-
-            <div class="mt-4 flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-2">
                 <x-filament::badge color="gray">Page {{ $pageNum }} / {{ $totalPagesKnown ? $totalPages : '--' }}</x-filament::badge>
-                <x-filament::badge color="gray">Loaded {{ number_format($loaded) }}</x-filament::badge>
-                <x-filament::badge color="gray">Filters {{ $activeFiltersCount }}</x-filament::badge>
+                <x-filament::badge color="gray">{{ number_format($loaded) }} results</x-filament::badge>
                 @if ($shipToCountry)
                     <x-filament::badge color="primary">Ship-to {{ $shipToCountry }}</x-filament::badge>
                 @endif
             </div>
-        </section>
+        </div>
 
-        <div
-            role="status"
-            aria-live="polite"
-            wire:loading.flex
-            class="items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-200"
-        >
+        <div role="status" aria-live="polite" wire:loading.flex class="items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400">
             <x-filament::loading-indicator class="h-4 w-4" />
             Updating CJ catalog...
         </div>
 
-        <div class="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-            <aside class="space-y-6 xl:sticky xl:top-6 xl:self-start">
-                <x-filament::section heading="Catalog Filters" description="Set your query criteria before fetch." icon="heroicon-o-funnel">
-                    <form wire:submit.prevent="applyFilters" class="space-y-5" role="search" aria-label="CJ catalog filters">
-                        <x-filament::fieldset label="Search">
-                            <div class="space-y-3">
-                                <div>
-                                    <label for="productName" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Product name</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="productName" wire:model.defer="productName" type="text" placeholder="Search by keyword" />
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="productSku" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Product SKU</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="productSku" wire:model.defer="productSku" type="text" placeholder="Exact SKU" />
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="materialKey" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Material key</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="materialKey" wire:model.defer="materialKey" type="text" placeholder="Material key" />
-                                    </x-filament::input.wrapper>
-                                </div>
+        <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside class="space-y-4 xl:sticky xl:top-6 xl:self-start">
+                <x-filament::section heading="Filters" description="Set your query criteria." icon="heroicon-o-funnel" :collapsible="true">
+                    <form wire:submit.prevent="applyFilters" class="space-y-4" role="search" aria-label="CJ catalog filters">
+                        <div class="space-y-3">
+                            <div>
+                                <label for="productName" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Product name</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input id="productName" wire:model.defer="productName" type="text" placeholder="Search by keyword" />
+                                </x-filament::input.wrapper>
                             </div>
-                        </x-filament::fieldset>
+                            <div>
+                                <label for="productSku" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">SKU</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input id="productSku" wire:model.defer="productSku" type="text" placeholder="Exact SKU" />
+                                </x-filament::input.wrapper>
+                            </div>
+                        </div>
 
-                        <x-filament::fieldset label="Catalog Scope">
-                            <div class="space-y-3">
-                                <div>
-                                    <label for="categorySearch" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Category search</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="categorySearch" wire:model.live.debounce.300ms="categorySearch" type="text" placeholder="Type to filter categories" />
-                                    </x-filament::input.wrapper>
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ count($filteredCategoryOptions) }} match(es)</p>
-                                </div>
-                                <div>
-                                    <label for="categoryId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Category</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input.select
-                                            id="categoryId"
-                                            wire:model.live="categoryId"
-                                            wire:key="cj-category-select-{{ md5((string) ($categorySearch ?? '') . '-' . count($filteredCategoryOptions)) }}"
-                                        >
-                                            <option value="">All categories</option>
-                                            @foreach ($filteredCategoryOptions as $id => $label)
-                                                <option value="{{ $id }}">{{ $label }}</option>
-                                            @endforeach
-                                        </x-filament::input.select>
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="warehouseId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Warehouse</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input.select id="warehouseId" wire:model.defer="warehouseId" :disabled="$warehouseLoadFailed">
-                                            <option value="">All warehouses</option>
-                                            @foreach ($warehouseOptions as $id => $label)
-                                                <option value="{{ $id }}">{{ $label }}</option>
-                                            @endforeach
-                                        </x-filament::input.select>
-                                    </x-filament::input.wrapper>
-                                    @if ($warehouseLoadFailed)
-                                        <p class="mt-1 text-xs text-danger-600 dark:text-danger-400">Warehouse list unavailable. Refresh and retry.</p>
-                                    @endif
-                                </div>
-                                <div>
-                                    <label for="sort" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Sort</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input.select id="sort" wire:model.defer="sort">
-                                            <option value="">Default</option>
-                                            <option value="1">Price: Low to High</option>
-                                            <option value="2">Price: High to Low</option>
-                                            <option value="5">Newest</option>
-                                            <option value="6">Best Selling</option>
-                                        </x-filament::input.select>
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="storeProductId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Store product ID</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="storeProductId" wire:model.defer="storeProductId" type="text" placeholder="Store product ID" />
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <label for="inStockOnly" class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                    <x-filament::input.checkbox id="inStockOnly" wire:model.defer="inStockOnly" />
-                                    In-stock only
-                                </label>
+                        <div class="space-y-3">
+                            <div>
+                                <label for="categoryId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Category</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select
+                                        id="categoryId"
+                                        wire:model.live="categoryId"
+                                        wire:key="cj-category-select-{{ md5((string) ($categorySearch ?? '') . '-' . count($filteredCategoryOptions)) }}"
+                                    >
+                                        <option value="">All categories</option>
+                                        @foreach ($filteredCategoryOptions as $id => $label)
+                                            <option value="{{ $id }}">{{ $label }}</option>
+                                        @endforeach
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
                             </div>
-                        </x-filament::fieldset>
-
-                        <x-filament::fieldset label="Pagination">
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label for="pageNum" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Page</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="pageNum" wire:model.defer="pageNum" type="number" min="1" />
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="pageSize" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Per page</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="pageSize" wire:model.defer="pageSize" type="number" min="10" max="200" />
-                                    </x-filament::input.wrapper>
-                                </div>
+                            <div>
+                                <label for="warehouseId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Warehouse</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="warehouseId" wire:model.defer="warehouseId" :disabled="$warehouseLoadFailed">
+                                        <option value="">All warehouses</option>
+                                        @foreach ($warehouseOptions as $id => $label)
+                                            <option value="{{ $id }}">{{ $label }}</option>
+                                        @endforeach
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                                @if ($warehouseLoadFailed)
+                                    <p class="mt-1 text-xs text-danger-600 dark:text-danger-400">Warehouse list unavailable.</p>
+                                @endif
                             </div>
-                        </x-filament::fieldset>
-
-                        <x-filament::fieldset label="Saved Presets">
-                            <div class="space-y-3">
-                                <div>
-                                    <label for="selectedPresetId" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Saved presets</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input.select id="selectedPresetId" wire:model.defer="selectedPresetId">
-                                            <option value="">Choose preset</option>
-                                            @foreach ($presetOptions as $id => $name)
-                                                <option value="{{ $id }}">{{ $name }}</option>
-                                            @endforeach
-                                        </x-filament::input.select>
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div>
-                                    <label for="presetName" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Save current filters as</label>
-                                    <x-filament::input.wrapper>
-                                        <x-filament::input id="presetName" wire:model.defer="presetName" type="text" maxlength="120" placeholder="Preset name" />
-                                    </x-filament::input.wrapper>
-                                </div>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <x-filament::button type="button" color="gray" size="sm" wire:click="applySelectedPreset" wire:loading.attr="disabled" class="justify-center">
-                                        Apply
-                                    </x-filament::button>
-                                    <x-filament::button type="button" size="sm" wire:click="saveFilterPreset" wire:loading.attr="disabled" class="justify-center">
-                                        Save
-                                    </x-filament::button>
-                                    <x-filament::button type="button" color="danger" size="sm" wire:click="deleteSelectedPreset" wire:loading.attr="disabled" class="justify-center">
-                                        Delete
-                                    </x-filament::button>
-                                </div>
+                            <div>
+                                <label for="sort" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Sort</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="sort" wire:model.defer="sort">
+                                        <option value="">Default</option>
+                                        <option value="1">Price: Low to High</option>
+                                        <option value="2">Price: High to Low</option>
+                                        <option value="5">Newest</option>
+                                        <option value="6">Best Selling</option>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
                             </div>
-                        </x-filament::fieldset>
+                            <label for="inStockOnly" class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                <x-filament::input.checkbox id="inStockOnly" wire:model.defer="inStockOnly" />
+                                In-stock only
+                            </label>
+                        </div>
 
                         <div class="grid grid-cols-2 gap-2">
-                            <x-filament::button type="submit" icon="heroicon-o-funnel" class="justify-center" wire:loading.attr="disabled">Apply Filters</x-filament::button>
-                            <x-filament::button type="button" color="gray" icon="heroicon-o-arrow-path" class="justify-center" wire:click="resetFilters" wire:loading.attr="disabled">Reset</x-filament::button>
+                            <x-filament::button type="submit" icon="heroicon-o-funnel" class="justify-center" wire:loading.attr="disabled">
+                                Apply
+                            </x-filament::button>
+                            <x-filament::button type="button" color="gray" icon="heroicon-o-arrow-path" class="justify-center" wire:click="resetFilters" wire:loading.attr="disabled">
+                                Reset
+                            </x-filament::button>
                         </div>
                     </form>
                 </x-filament::section>
 
-                <x-filament::section heading="Quick Actions" description="Navigation and import helpers." icon="heroicon-o-bolt">
-                    <div class="space-y-3">
-                        <div class="grid gap-2">
-                            <x-filament::button type="button" color="gray" size="sm" icon="heroicon-o-arrow-path" class="w-full justify-center" wire:click="fetch" wire:loading.attr="disabled">Refresh Catalog</x-filament::button>
-                            <x-filament::button type="button" size="sm" icon="heroicon-o-cloud-arrow-down" class="w-full justify-center" wire:click="queueImportDisplayedProducts" wire:loading.attr="disabled">Preview Current Page Import</x-filament::button>
-                            <x-filament::button type="button" color="success" size="sm" icon="heroicon-o-rectangle-stack" class="w-full justify-center" wire:click="importMyProductsNow" wire:loading.attr="disabled">Preview My Products</x-filament::button>
-                            <x-filament::button type="button" color="warning" size="sm" icon="heroicon-o-queue-list" class="w-full justify-center" wire:click="queueSyncJob" wire:loading.attr="disabled">Queue Sync Job</x-filament::button>
-                        </div>
+                @if ($activeImportTrackingKey)
+                    <x-filament::section heading="Import Progress" icon="heroicon-o-arrow-path" :collapsible="true">
+                        @include('filament.components.progress-indicator-selector', [
+                            'activeImportTrackingKey' => $activeImportTrackingKey,
+                            'importPercent' => $importPercent ?? 0,
+                            'importTotal' => $importTotal ?? 0,
+                            'importProcessed' => $importProcessed ?? 0,
+                            'importFailed' => $importFailed ?? 0,
+                            'importStatusLabel' => $importStatusLabel ?? 'idle',
+                            'importStartedAt' => $importStartedAt ?? null,
+                            'pollInterval' => $this->getImportPollIntervalSeconds(),
+                            'selectedDesign' => 4,
+                        ])
+                    </x-filament::section>
+                @endif
 
-                        @php
-                        $selectedDesign = 4; // Change to 1, 2, 3, or 4 - Progress indicator design
-                        @endphp
-
-                        @if ($activeImportTrackingKey)
-                            @include('filament.components.progress-indicator-selector', [
-                                'activeImportTrackingKey' => $activeImportTrackingKey,
-                                'importPercent' => $importPercent ?? 0,
-                                'importTotal' => $importTotal ?? 0,
-                                'importProcessed' => $importProcessed ?? 0,
-                                'importFailed' => $importFailed ?? 0,
-                                'importStatusLabel' => $importStatusLabel ?? 'idle',
-                                'importStartedAt' => $importStartedAt ?? null,
-                                'pollInterval' => $this->getImportPollIntervalSeconds(),
-                                'selectedDesign' => $selectedDesign,
-                            ])
-                            {{--
-                            <!-- Compact Enhanced Progress Bar -->
-                            <div wire:poll.{{ $this->getImportPollIntervalSeconds() }}s="refreshQueueImportStatus"
-                                 class="relative overflow-hidden rounded-lg border border-primary-300 bg-gradient-to-br from-primary-50 to-primary-100 p-3 shadow-md dark:border-primary-700 dark:from-primary-900/50 dark:to-primary-800/50">
-
-                                <!-- Main progress bar -->
-                                <div class="relative mb-3 h-3 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 shadow-inner">
-                                    <div class="h-full rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-500 ease-out shadow"
-                                         style="width: {{ min(100, max(0, $importPercent)) }}%">
-                                        <!-- Animated shimmer effect -->
-                                        <div class="h-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
-                                    </div>
-                                    <!-- Progress text overlay -->
-                                    <div class="absolute inset-0 flex items-center justify-center">
-                                        <span class="text-xs font-bold text-white mix-blend-difference">
-                                            {{ min(100, max(0, $importPercent)) }}%
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <!-- Compact stats -->
-                                <div class="relative flex justify-between text-center">
-                                    <div class="flex-1">
-                                        <p class="text-sm font-bold text-primary-800 dark:text-primary-200">{{ number_format($importTotal) }}</p>
-                                        <p class="text-xs text-primary-600 dark:text-primary-400">Total</p>
-                                    </div>
-                                    <div class="flex-1">
-                                        <p class="text-sm font-bold text-green-700 dark:text-green-300">{{ number_format($importProcessed) }}</p>
-                                        <p class="text-xs text-green-600 dark:text-green-400">Done</p>
-                                    </div>
-                                    <div class="flex-1">
-                                        <p class="text-sm font-bold {{ $importFailed > 0 ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-300' }}">{{ number_format($importFailed) }}</p>
-                                        <p class="text-xs {{ $importFailed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400' }}">Failed</p>
-                                    </div>
-                                </div>
-
-                                <!-- Action button for failures -->
-                                @if ($importFailed > 0)
-                                    <div class="relative mt-3">
-                                        <x-filament::button type="button" color="warning" size="xs"
-                                                            class="w-full justify-center text-xs"
-                                                            wire:click="retryFailedQueuedImports"
-                                                            wire:loading.attr="disabled">
-                                            Retry Failed
-                                        </x-filament::button>
-                                    </div>
-                                @endif
-                            </div>
-                            --}}
-                        {{-- @else --}}
-                            {{-- <div class="rounded-lg border border-gray-200/70 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/30">
-                                <div class="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <p class="text-xs">No active imports</p>
-                                </div>
-                                <p class="mt-1 text-center text-xs text-gray-500 dark:text-gray-500">
-                                    Select products and click "Import with Pipeline"
-                                </p>
-                            </div> --}}
+                @if ($lastCommandMessage)
+                    <x-filament::section heading="Last Action" :collapsible="true">
+                        <p class="text-sm text-gray-700 dark:text-gray-200">{{ $lastCommandMessage }}</p>
+                        @if ($lastCommandAt)
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $lastCommandAt }}</p>
                         @endif
-
-                        @if ($lastCommandMessage)
-                            <x-filament::fieldset label="Last Action">
-                                <p class="text-sm text-gray-700 dark:text-gray-200">{{ $lastCommandMessage }}</p>
-                                @if ($lastCommandAt)
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $lastCommandAt }}</p>
-                                @endif
-                            </x-filament::fieldset>
-                        @endif
-                    </div>
-                </x-filament::section>
+                    </x-filament::section>
+                @endif
             </aside>
 
-            <section class="space-y-6" wire:loading.attr="aria-busy" aria-live="polite">
-                <x-filament::section heading="Catalog Results" description="Browse live CJ records and run row actions." icon="heroicon-o-shopping-bag">
-                    <div class="mb-4 flex flex-wrap items-center gap-2">
-                        <x-filament::badge color="gray">Results {{ number_format($loaded) }}</x-filament::badge>
-                        <x-filament::badge color="gray">Inventory {{ number_format($inventoryTotal) }}</x-filament::badge>
-                        <x-filament::badge color="gray">With Images {{ number_format($withImages) }}</x-filament::badge>
-                        <x-filament::badge color="success">Sync Enabled {{ number_format($syncEnabledCount) }}</x-filament::badge>
-                        @if ($syncStaleCount > 0)
-                            <x-filament::badge color="warning">Stale {{ number_format($syncStaleCount) }}</x-filament::badge>
-                        @endif
-                        <x-filament::button
-                            size="sm"
-                            icon="heroicon-o-eye"
-                            x-on:click="
-                                const keys = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked'))
-                                    .map((el) => el.value)
-                                    .filter((value) => value !== '')
-                                $wire.previewSelectedProductsByKeys(keys)
-                            "
-                            wire:loading.attr="disabled"
-                        >
-                            Preview Selected
-                        </x-filament::button>
-                    </div>
+            <section class="space-y-4" wire:loading.attr="aria-busy" aria-live="polite">
+                @if ($loaded === 0)
+                    <x-filament::empty-state icon="heroicon-o-cube" heading="No products found" description="Change filters or refresh catalog to fetch products from CJ." />
+                @else
+                    {{ $this->table }}
 
-                    @if ($loaded === 0)
-                        <x-filament::empty-state icon="heroicon-o-cube" heading="No products found" description="Change filters or refresh catalog to fetch products from CJ." />
-                    @else
-                        {{ $this->table }}
-
-                        <div
-                            class="sticky bottom-4 z-20 mt-4 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
-                            x-data="{
-                                selectedCount: 0,
-                                refresh() {
-                                    this.selectedCount = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).length
-                                },
-                                init() {
-                                    this.refresh()
-                                    this._interval = setInterval(() => this.refresh(), 400)
-                                }
-                            }"
-                            x-init="init()"
-                        >
-                            <div class="mb-2 flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300">
-                                <span>Page {{ $pageNum }} / {{ $totalPagesKnown ? $totalPages : '--' }}</span>
-                                <span>Selected <span x-text="selectedCount"></span></span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-                                <x-filament::button
-                                    type="button"
-                                    color="gray"
-                                    wire:click="previousPage"
-                                    :disabled="$pageNum <= 1"
-                                    wire:loading.attr="disabled"
-                                    class="justify-center"
-                                    aria-label="Previous page"
-                                >
-                                    <x-filament::icon icon="heroicon-o-chevron-left" class="mr-1 h-4 w-4" />
-                                    Prev
-                                </x-filament::button>
-
-                                <x-filament::button
-                                    type="button"
-                                    wire:click="loadMore"
-                                    :disabled="! $canLoadMore"
-                                    wire:loading.attr="disabled"
-                                    class="justify-center"
-                                >
-                                    Load More
-                                </x-filament::button>
-
-                                <x-filament::button
-                                    type="button"
-                                    color="gray"
-                                    wire:click="nextPage"
-                                    :disabled="! $canLoadMore"
-                                    wire:loading.attr="disabled"
-                                    class="justify-center"
-                                    aria-label="Next page"
-                                >
-                                    Next
-                                    <x-filament::icon icon="heroicon-o-chevron-right" class="ml-1 h-4 w-4" />
-                                </x-filament::button>
-
-                                <x-filament::button
-                                    type="button"
-                                    color="success"
-                                    icon="heroicon-o-rocket-launch"
-                                    x-on:click.prevent="
-                                        const selected = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value);
-                                        if (selected.length > 0) {
-                                            $wire.mountTableBulkAction('importPipeline', selected);
-                                        }
-                                    "
-                                    x-bind:disabled="selectedCount < 1"
-                                    wire:loading.attr="disabled"
-                                    class="justify-center"
-                                >
-                                    Import Selected
-                                </x-filament::button>
-                            </div>
+                    <div class="sticky bottom-4 z-20 rounded-lg border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95" x-data="{
+                        selectedCount: 0,
+                        refresh() { this.selectedCount = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).length },
+                        init() { this.refresh(); this._interval = setInterval(() => this.refresh(), 400) }
+                    }" x-init="init()">
+                        <div class="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span>Page {{ $pageNum }} / {{ $totalPagesKnown ? $totalPages : '--' }}</span>
+                            <span>Selected <span x-text="selectedCount"></span></span>
                         </div>
-                    @endif
-                </x-filament::section>
+                        <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+                            <x-filament::button type="button" color="gray" wire:click="previousPage" :disabled="$pageNum <= 1" wire:loading.attr="disabled" class="justify-center" aria-label="Previous page">
+                                <x-filament::icon icon="heroicon-o-chevron-left" class="mr-1 h-4 w-4" /> Prev
+                            </x-filament::button>
+                            <x-filament::button type="button" wire:click="loadMore" :disabled="! $canLoadMore" wire:loading.attr="disabled" class="justify-center">
+                                Load More
+                            </x-filament::button>
+                            <x-filament::button type="button" color="gray" wire:click="nextPage" :disabled="! $canLoadMore" wire:loading.attr="disabled" class="justify-center" aria-label="Next page">
+                                Next <x-filament::icon icon="heroicon-o-chevron-right" class="ml-1 h-4 w-4" />
+                            </x-filament::button>
+                            <x-filament::button type="button" color="success" icon="heroicon-o-rocket-launch" x-on:click.prevent="
+                                const selected = Array.from(document.querySelectorAll('.fi-ta-record-checkbox:checked')).map((el) => el.value);
+                                if (selected.length > 0) { $wire.mountTableBulkAction('importPipeline', selected); }
+                            " x-bind:disabled="selectedCount < 1" wire:loading.attr="disabled" class="justify-center">
+                                Import Selected
+                            </x-filament::button>
+                        </div>
+                    </div>
+                @endif
 
                 @if ($existingCatalog)
                     <x-filament::section heading="Imported Matches" description="Products already linked to local records." icon="heroicon-o-check-badge" :collapsible="true">
                         <div class="grid gap-3 sm:grid-cols-2">
                             @foreach (array_slice($existingCatalog, 0, 10) as $pid => $entry)
                                 <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-                                    <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                        PID {{ $pid }}
-                                        @if (! empty($entry['synced_at']))
-                                            • Synced {{ $entry['synced_at'] }}
-                                        @endif
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                        PID {{ $pid }} @if (! empty($entry['synced_at'])) • Synced {{ $entry['synced_at'] }} @endif
                                     </p>
                                     <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $entry['name'] }}</p>
-                                    <a
-                                        href="{{ \App\Filament\Resources\ProductResource::getUrl('edit', ['record' => $entry['id']]) }}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="mt-2 inline-flex text-xs font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
-                                    >
+                                    <a href="{{ \App\Filament\Resources\ProductResource::getUrl('edit', ['record' => $entry['id']]) }}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-flex text-xs font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
                                         Open Product
                                     </a>
                                 </div>
                             @endforeach
-                        </div>
-                    </x-filament::section>
-                @endif
-
-                @if (config('app.debug'))
-                    <x-filament::section heading="Developer Payload" description="Raw API payload for troubleshooting." icon="heroicon-o-code-bracket-square" :collapsible="true" :collapsed="true">
-                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                            <pre class="overflow-auto text-xs text-gray-700 dark:text-gray-300">{{ $json($products) }}</pre>
                         </div>
                     </x-filament::section>
                 @endif
@@ -484,22 +224,22 @@
     >
         <div class="space-y-4">
             @if ($importPreviewError)
-                <div class="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700 dark:border-danger-900/60 dark:bg-danger-950/30 dark:text-danger-300">
+                <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
                     {{ $importPreviewError }}
                 </div>
             @endif
 
             @if ($importPreviewFailedPidsList->isNotEmpty())
-                <x-filament::fieldset label="Preview failed for these CJ products">
+                <x-filament::section heading="Preview failed for these CJ products">
                     <div class="flex flex-wrap gap-2">
                         @foreach ($importPreviewFailedPidsList as $pid)
                             <x-filament::badge color="danger">{{ $pid }}</x-filament::badge>
                         @endforeach
                     </div>
-                </x-filament::fieldset>
+                </x-filament::section>
             @endif
 
-            <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <div class="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
                 @foreach ($importPreviewProductsList as $preview)
                     @php
                         $previewProduct = is_array($preview['product'] ?? null) ? $preview['product'] : [];
@@ -509,189 +249,137 @@
                         $primaryImage = $previewImages->first();
                     @endphp
 
-                    <x-filament::card>
-                        <div class="space-y-4">
-                            <div class="grid gap-5 xl:grid-cols-[160px,1fr]">
-                                <div class="space-y-3">
-                                    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60">
-                                        @if ($primaryImage)
-                                            <img src="{{ $primaryImage }}" alt="" class="h-36 w-full object-cover" />
-                                        @else
-                                            <div class="flex h-36 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                                                No image returned
-                                            </div>
-                                        @endif
-                                    </div>
-                                    @if ($previewImages->count() > 1)
-                                        <div class="grid grid-cols-3 gap-2">
-                                            @foreach ($previewImages->slice(1, 5) as $image)
-                                                <div class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60">
-                                                    <img src="{{ $image }}" alt="" class="h-12 w-full object-cover" />
-                                                </div>
-                                            @endforeach
-                                        </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                        <div class="grid gap-5 xl:grid-cols-[140px,1fr]">
+                            <div class="space-y-2">
+                                <div class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60">
+                                    @if ($primaryImage)
+                                        <img src="{{ $primaryImage }}" alt="" class="h-32 w-full object-cover" />
+                                    @else
+                                        <div class="flex h-32 items-center justify-center text-sm text-gray-500 dark:text-gray-400">No image</div>
                                     @endif
                                 </div>
-
-                                <div class="space-y-4">
-                                    <div>
-                                        <div class="flex flex-wrap items-start justify-between gap-3">
-                                            <div class="space-y-2">
-                                                <div class="text-xl font-semibold text-gray-950 dark:text-white">
-                                                    {{ $previewProduct['productNameEn'] ?? $previewProduct['productSku'] ?? ($preview['pid'] ?? 'CJ product') }}
-                                                </div>
-                                                <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                    {{ $previewProduct['categoryName'] ?? 'No category returned' }}
-                                                    @if (! empty($previewProduct['productNameCn']))
-                                                        <span class="block text-xs text-gray-400 dark:text-gray-500">{{ $previewProduct['productNameCn'] }}</span>
-                                                    @endif
-                                                </p>
+                                @if ($previewImages->count() > 1)
+                                    <div class="grid grid-cols-3 gap-1">
+                                        @foreach ($previewImages->slice(1, 5) as $image)
+                                            <div class="overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/60">
+                                                <img src="{{ $image }}" alt="" class="h-10 w-full object-cover" />
                                             </div>
-                                            <div class="flex flex-wrap gap-2">
-                                                <x-filament::badge color="gray">PID {{ $preview['pid'] ?? '—' }}</x-filament::badge>
-                                                @if (! empty($previewProduct['productSku']))
-                                                    <x-filament::badge color="gray">SKU {{ $previewProduct['productSku'] }}</x-filament::badge>
-                                                @endif
-                                                <x-filament::badge :color="($previewValidation['is_valid'] ?? false) ? 'success' : 'danger'">
-                                                    {{ ($previewValidation['is_valid'] ?? false) ? 'Ready' : 'Needs fixes' }}
-                                                </x-filament::badge>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
-                                        <div class="space-y-4">
-                                            <div class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                                                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Product overview</div>
-                                                <div class="mt-3 flex flex-wrap items-end gap-4">
-                                                    <div>
-                                                        <div class="text-xs text-gray-500 dark:text-gray-400">Base CJ price</div>
-                                                        <div class="text-2xl font-semibold text-gray-950 dark:text-white">${{ $previewProduct['sellPrice'] ?? '—' }}</div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="text-xs text-gray-500 dark:text-gray-400">Suggested sell range</div>
-                                                        <div class="text-lg font-medium text-gray-900 dark:text-white">{{ $previewProduct['suggestSellPrice'] ?? '—' }}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div class="grid gap-4 md:grid-cols-2">
-                                                <x-filament::fieldset label="Product details">
-                                                    <div class="mb-3 text-xs text-gray-500 dark:text-gray-400">Core CJ product metadata that will be imported into the catalog.</div>
-                                                    <div class="space-y-2 text-sm text-gray-700 dark:text-gray-200">
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Status</span><span>{{ $previewProduct['status'] ?? '—' }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Type</span><span>{{ $previewProduct['productType'] ?? '—' }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Weight</span><span>{{ $previewProduct['productWeight'] ?? '—' }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Listed Num</span><span>{{ $previewProduct['listedNum'] ?? '—' }}</span></div>
-                                                    </div>
-                                                </x-filament::fieldset>
-
-                                                <x-filament::fieldset label="Import validation">
-                                                    <div class="mb-3 text-xs text-gray-500 dark:text-gray-400">Quick checks before import is allowed.</div>
-                                                    <div class="space-y-2 text-sm text-gray-700 dark:text-gray-200">
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Variants</span><span>{{ $previewValidation['variants_count'] ?? $previewVariants->count() }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Import mode</span><span>{{ $previewVariants->isEmpty() ? 'Single product' : 'Variant product' }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Missing prices</span><span>{{ $previewValidation['variants_missing_price'] ?? 0 }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Missing inventory</span><span>{{ $previewValidation['variants_missing_inventory'] ?? 0 }}</span></div>
-                                                        <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Pricing engine</span><span>Weight based</span></div>
-                                                    </div>
-                                                </x-filament::fieldset>
-                                            </div>
-                                        </div>
-
-                                        <div class="space-y-4">
-                                            <x-filament::fieldset label="Import configuration">
-                                                <div class="mb-3 text-xs text-gray-500 dark:text-gray-400">These settings are the exact options the importer will use after confirmation.</div>
-                                                <div class="space-y-2 text-sm text-gray-700 dark:text-gray-200">
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Fetch details</span><span>{{ (($importPreviewOptions['enrich'] ?? true) ? 'On' : 'Off') }}</span></div>
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Auto-activate</span><span>{{ (($importPreviewOptions['auto_activate'] ?? true) ? 'On' : 'Off') }}</span></div>
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Skip existing</span><span>{{ (($importPreviewOptions['skip_existing'] ?? false) ? 'On' : 'Off') }}</span></div>
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Translations</span><span>{{ (($importPreviewOptions['queue_translations'] ?? true) ? 'On' : 'Off') }}</span></div>
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">SEO</span><span>{{ (($importPreviewOptions['queue_seo'] ?? true) ? 'On' : 'Off') }}</span></div>
-                                                    <div class="flex items-center justify-between gap-4"><span class="text-gray-500 dark:text-gray-400">Force reprice</span><span>{{ (($importPreviewOptions['force_reprice'] ?? false) ? 'On' : 'Off') }}</span></div>
-                                                </div>
-                                            </x-filament::fieldset>
-
-                                            @if (! empty($previewProduct['description']))
-                                                <x-filament::fieldset label="Description">
-                                                    <div class="max-h-36 overflow-auto text-sm leading-6 text-gray-600 dark:text-gray-300">
-                                                        {!! \Illuminate\Support\Str::limit(strip_tags((string) $previewProduct['description']), 520) !!}
-                                                    </div>
-                                                </x-filament::fieldset>
-                                            @endif
-                                        </div>
-                                    </div>
-
-                                    @if (! empty($previewValidation['errors']))
-                                        <div class="rounded-xl border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700 dark:border-danger-900/60 dark:bg-danger-950/30 dark:text-danger-300">
-                                            <ul class="list-disc space-y-1 pl-5">
-                                                @foreach ($previewValidation['errors'] as $error)
-                                                    <li>{{ $error }}</li>
-                                                @endforeach
-                                            </ul>
-                                        </div>
-                                    @endif
-
-                                    @if (! empty($previewValidation['warnings']))
-                                        <div class="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-900/60 dark:bg-warning-950/30 dark:text-warning-300">
-                                            <ul class="list-disc space-y-1 pl-5">
-                                                @foreach ($previewValidation['warnings'] as $warning)
-                                                    <li>{{ $warning }}</li>
-                                                @endforeach
-                                            </ul>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-
-                            <x-filament::fieldset label="Variants">
-                                <div class="mb-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                    <span>{{ $previewVariants->count() }} variants</span>
-                                    <span>•</span>
-                                    <span>{{ $previewVariants->sum(fn ($variant) => collect($variant['inventories'] ?? [])->sum(fn ($inventory) => (int) ($inventory['totalInventory'] ?? 0))) }} units total inventory</span>
-                                </div>
-                                @if ($previewVariants->isEmpty())
-                                    <div class="mb-3 rounded-xl border border-primary-200 bg-primary-50 p-3 text-sm text-primary-700 dark:border-primary-900/60 dark:bg-primary-950/30 dark:text-primary-300">
-                                        CJ returned this as a single product without variants. Import will create the product without variant rows.
+                                        @endforeach
                                     </div>
                                 @endif
-                                <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
-                                            <thead class="bg-gray-50 dark:bg-gray-900/60">
-                                                <tr>
-                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Variant</th>
-                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">SKU</th>
-                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Sell Price</th>
-                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Suggested</th>
-                                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Inventory</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
-                                                @forelse ($previewVariants as $variant)
-                                                    @php
-                                                        $inventories = collect($variant['inventories'] ?? [])->filter(fn ($item) => is_array($item))->values();
-                                                        $inventoryTotal = $inventories->sum(fn ($inventory) => (int) ($inventory['totalInventory'] ?? 0));
-                                                    @endphp
-                                                    <tr>
-                                                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ $variant['variantKey'] ?? $variant['variantNameEn'] ?? '—' }}</td>
-                                                        <td class="px-4 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">{{ $variant['variantSku'] ?? '—' }}</td>
-                                                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">${{ $variant['variantSellPrice'] ?? '—' }}</td>
-                                                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ $variant['variantSugSellPrice'] ?? '—' }}</td>
-                                                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ $inventoryTotal }}</td>
-                                                    </tr>
-                                                @empty
-                                                    <tr>
-                                                        <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No variants returned.</td>
-                                                    </tr>
-                                                @endforelse
-                                            </tbody>
-                                        </table>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                                            {{ $previewProduct['productNameEn'] ?? $previewProduct['productSku'] ?? ($preview['pid'] ?? 'CJ product') }}
+                                        </div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                            {{ $previewProduct['categoryName'] ?? 'No category' }}
+                                            @if (! empty($previewProduct['productNameCn']))
+                                                <span class="block text-xs text-gray-400 dark:text-gray-500">{{ $previewProduct['productNameCn'] }}</span>
+                                            @endif
+                                        </p>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <x-filament::badge color="gray">PID {{ $preview['pid'] ?? '—' }}</x-filament::badge>
+                                        @if (! empty($previewProduct['productSku']))
+                                            <x-filament::badge color="gray">SKU {{ $previewProduct['productSku'] }}</x-filament::badge>
+                                        @endif
+                                        <x-filament::badge :color="($previewValidation['is_valid'] ?? false) ? 'success' : 'danger'">
+                                            {{ ($previewValidation['is_valid'] ?? false) ? 'Ready' : 'Needs fixes' }}
+                                        </x-filament::badge>
                                     </div>
                                 </div>
-                            </x-filament::fieldset>
+
+                                <div class="grid gap-4 lg:grid-cols-2">
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+                                        <div class="text-xs font-semibold text-gray-500 dark:text-gray-400">Product overview</div>
+                                        <div class="mt-3 flex items-end gap-4">
+                                            <div>
+                                                <div class="text-xs text-gray-500">Base CJ price</div>
+                                                <div class="text-xl font-semibold text-gray-900 dark:text-white">${{ $previewProduct['sellPrice'] ?? '—' }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-xs text-gray-500">Suggested sell</div>
+                                                <div class="text-base font-medium text-gray-900 dark:text-white">{{ $previewProduct['suggestSellPrice'] ?? '—' }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+                                        <div class="text-xs font-semibold text-gray-500 dark:text-gray-400">Import validation</div>
+                                        <div class="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                                            <div class="flex justify-between"><span class="text-gray-500">Variants</span><span>{{ $previewValidation['variants_count'] ?? $previewVariants->count() }}</span></div>
+                                            <div class="flex justify-between"><span class="text-gray-500">Missing prices</span><span>{{ $previewValidation['variants_missing_price'] ?? 0 }}</span></div>
+                                            <div class="flex justify-between"><span class="text-gray-500">Missing inventory</span><span>{{ $previewValidation['variants_missing_inventory'] ?? 0 }}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (! empty($previewValidation['errors']))
+                                    <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                                        <ul class="list-disc space-y-1 pl-5">
+                                            @foreach ($previewValidation['errors'] as $error)
+                                                <li>{{ $error }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                @if (! empty($previewValidation['warnings']))
+                                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                                        <ul class="list-disc space-y-1 pl-5">
+                                            @foreach ($previewValidation['warnings'] as $warning)
+                                                <li>{{ $warning }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                <x-filament::section heading="Variants ({{ $previewVariants->count() }})" :collapsible="true">
+                                    @if ($previewVariants->isEmpty())
+                                        <p class="text-sm text-gray-500">CJ returned this as a single product without variants.</p>
+                                    @else
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                                                <thead class="bg-gray-50 dark:bg-gray-900/60">
+                                                    <tr>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Variant</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">SKU</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Price</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Suggested</th>
+                                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Inventory</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
+                                                    @forelse ($previewVariants as $variant)
+                                                        @php
+                                                            $inventories = collect($variant['inventories'] ?? [])->filter(fn ($item) => is_array($item))->values();
+                                                            $inventoryTotal = $inventories->sum(fn ($inventory) => (int) ($inventory['totalInventory'] ?? 0));
+                                                        @endphp
+                                                        <tr>
+                                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $variant['variantKey'] ?? $variant['variantNameEn'] ?? '—' }}</td>
+                                                            <td class="px-4 py-2 text-xs font-mono text-gray-500">{{ $variant['variantSku'] ?? '—' }}</td>
+                                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">${{ $variant['variantSellPrice'] ?? '—' }}</td>
+                                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $variant['variantSugSellPrice'] ?? '—' }}</td>
+                                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $inventoryTotal }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td colspan="5" class="px-6 py-6 text-center text-sm text-gray-500">No variants returned.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @endif
+                                </x-filament::section>
+                            </div>
                         </div>
-                    </x-filament::card>
+                    </div>
                 @endforeach
             </div>
 
@@ -699,11 +387,7 @@
                 <x-filament::button type="button" color="gray" x-on:click="$dispatch('close-modal', { id: {{ \Illuminate\Support\Js::from($importPreviewModalId) }} })">
                     Cancel
                 </x-filament::button>
-                <x-filament::button
-                    type="button"
-                    wire:click="confirmImportPreview"
-                    :disabled="$importPreviewProductsList->isEmpty() || $importPreviewHasBlockingErrors"
-                >
+                <x-filament::button type="button" wire:click="confirmImportPreview" :disabled="$importPreviewProductsList->isEmpty() || $importPreviewHasBlockingErrors">
                     Confirm Import
                 </x-filament::button>
             </div>
@@ -724,50 +408,33 @@
             $videoCount = count($videoPreviewUrls);
             $activeImageIndex = max(1, (int) (array_search($imagePreviewUrl, $imagePreviewUrls, true) ?: 0) + 1);
         @endphp
-        <div class="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div class="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
             <div class="space-y-3">
-                <div class="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                <div class="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
                     @if ($imagePreviewUrl)
-                        <img
-                            src="{{ $imagePreviewUrl }}"
-                            alt="{{ $imagePreviewName ?? 'CJ product image' }}"
-                            class="h-[320px] w-[260px] rounded-xl object-contain sm:h-[360px] sm:w-[300px]"
-                            loading="lazy"
-                        />
+                        <img src="{{ $imagePreviewUrl }}" alt="{{ $imagePreviewName ?? 'CJ product image' }}" class="h-[280px] w-full rounded-lg object-contain sm:h-[320px]" loading="lazy" />
                     @else
-                        <div class="flex h-64 items-center justify-center">
+                        <div class="flex h-56 items-center justify-center">
                             <div class="text-center">
-                                <x-filament::icon icon="heroicon-o-photo" class="mx-auto h-12 w-12 text-gray-400" />
-                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No image available</p>
+                                <x-filament::icon icon="heroicon-o-photo" class="mx-auto h-10 w-10 text-gray-400" />
+                                <p class="mt-2 text-sm text-gray-500">No image available</p>
                             </div>
                         </div>
                     @endif
                 </div>
 
                 @if ($imageCount > 0)
-                    <div class="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            Gallery {{ $activeImageIndex }} / {{ $imageCount }}
-                        </p>
+                    <div class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                        <p class="mb-2 text-xs text-gray-500">Gallery {{ $activeImageIndex }} / {{ $imageCount }}</p>
                         <div class="grid grid-cols-4 gap-2 sm:grid-cols-5">
                             @foreach ($imagePreviewUrls as $url)
-                                <button
-                                    type="button"
-                                    wire:click="setActivePreviewImage({{ \Illuminate\Support\Js::from($url) }})"
-                                    class="{{ $imagePreviewUrl === $url
-                                        ? 'group relative overflow-hidden rounded-lg border border-primary-500 ring-2 ring-primary-300 shadow-md'
-                                        : 'group relative overflow-hidden rounded-lg border border-gray-200 hover:border-primary-400 hover:shadow-sm dark:border-gray-700' }}"
-                                    aria-label="Set preview image"
-                                >
-                                    <img
-                                        src="{{ $url }}"
-                                        alt="Preview thumbnail"
-                                        class="h-12 w-full object-cover transition-transform group-hover:scale-105"
-                                        loading="lazy"
-                                    />
+                                <button type="button" wire:click="setActivePreviewImage({{ \Illuminate\Support\Js::from($url) }})"
+                                    class="{{ $imagePreviewUrl === $url ? 'overflow-hidden rounded border border-primary-500 ring-2 ring-primary-300' : 'overflow-hidden rounded border border-gray-200 hover:border-primary-400 dark:border-gray-700' }}"
+                                    aria-label="Set preview image">
+                                    <img src="{{ $url }}" alt="" class="h-10 w-full object-cover" loading="lazy" />
                                     @if ($imagePreviewUrl === $url)
                                         <div class="absolute inset-0 flex items-center justify-center bg-black/20">
-                                            <x-filament::icon icon="heroicon-s-check-circle" class="h-5 w-5 text-white" />
+                                            <x-filament::icon icon="heroicon-s-check-circle" class="h-4 w-4 text-white" />
                                         </div>
                                     @endif
                                 </button>
@@ -778,11 +445,9 @@
             </div>
 
             <aside class="space-y-3">
-                <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Product Detail</p>
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        {{ $imagePreviewName ?? 'CJ Product' }}
-                    </h3>
+                <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Product Detail</p>
+                    <h3 class="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $imagePreviewName ?? 'CJ Product' }}</h3>
                     <div class="mt-3 flex flex-wrap gap-2">
                         @if ($imagePreviewPid)
                             <x-filament::badge color="gray">PID {{ $imagePreviewPid }}</x-filament::badge>
@@ -792,35 +457,20 @@
                             <x-filament::badge color="success">{{ number_format($videoCount) }} Videos</x-filament::badge>
                         @endif
                     </div>
-                    <div class="mt-4 space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-800/60">
-                        <div class="flex items-center justify-between text-gray-700 dark:text-gray-200">
+                    <div class="mt-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-800/60">
+                        <div class="flex justify-between text-gray-700 dark:text-gray-200">
                             <span>Active media</span>
                             <span class="font-medium">{{ $activeImageIndex }} / {{ max($imageCount, 1) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-700 dark:text-gray-200">
-                            <span>Image quality</span>
-                            <span class="font-medium">Original from CJ</span>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-700 dark:text-gray-200">
-                            <span>Use case</span>
-                            <span class="font-medium">Catalog preview</span>
                         </div>
                     </div>
                 </div>
 
                 @if ($videoCount > 0)
-                    <div class="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            Product Videos
-                        </p>
-                        <div class="max-h-[44vh] space-y-3 overflow-auto pr-1">
+                    <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                        <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">Videos</p>
+                        <div class="max-h-[40vh] space-y-3 overflow-auto pr-1">
                             @foreach ($videoPreviewUrls as $videoUrl)
-                                <video
-                                    controls
-                                    preload="metadata"
-                                    class="w-full rounded-lg border border-gray-200 bg-black shadow-sm dark:border-gray-700"
-                                    src="{{ $videoUrl }}"
-                                ></video>
+                                <video controls preload="metadata" class="w-full rounded-lg border border-gray-200 bg-black dark:border-gray-700" src="{{ $videoUrl }}"></video>
                             @endforeach
                         </div>
                     </div>

@@ -49,21 +49,15 @@ class OrderConfirmedNotification extends Notification
     {
         $name = $notifiable->name ?? ($this->order->guest_name ?? $this->order->email ?? 'Customer');
         $presented = $this->presentedTotalXof();
-        $line = "Total: {$presented['currency']} {$presented['formatted']}";
-        $giveawayLine = $this->giveawayLine();
-        
+
         $mail = (new MailMessage)
             ->subject("We've received your order #{$this->order->number}")
             ->greeting("Hi {$name},")
             ->line("Order #{$this->order->number} is confirmed.")
-            ->line($line)
+            ->line($this->line())
             ->when(! $presented['ok'], fn (MailMessage $mail) => $mail->line('Note: FX conversion was unavailable; displayed totals may be inaccurate.'))
             ->action('Track order', $this->trackingLink())
             ->line('We’ll send tracking once the supplier ships. Duties and VAT were shown at checkout.');
-
-        if ($giveawayLine) {
-            $mail->line('')->line($giveawayLine);
-        }
 
         return $mail;
     }
@@ -71,23 +65,14 @@ class OrderConfirmedNotification extends Notification
     public function toWhatsApp(object $notifiable): string
     {
         $presented = $this->presentedTotalXof();
-        $line = "Total: {$presented['currency']} {$presented['formatted']}";
-        $giveawayLine = $this->giveawayLine();
-        $message = "Hi {$notifiable->name}, order #{$this->order->number} is confirmed. {$line}. Track: {$this->trackingLink()}";
-        if ($giveawayLine) {
-            $message .= " 🎉 {$giveawayLine}";
-        }
+        $message = "Hi {$notifiable->name}, order #{$this->order->number} is confirmed. {$this->line()}. Track: {$this->trackingLink()}";
         return $message;
     }
 
-    private function giveawayLine(): ?string
+    private function line(): string
     {
-        $threshold = $this->order->currency === 'USD' ? 50 : 30000;
-        $subtotal = (float) ($this->order->subtotal ?? 0);
-        if ($subtotal >= $threshold) {
-            return '🎉 Congratulations! You\'ve been entered into the iPhone 17 giveaway! Visit ' . url('/promotions/iphone-giveaway') . ' for details.';
-        }
-        return null;
+        $presented = $this->presentedTotalXof();
+        return "Total: {$presented['currency']} {$presented['formatted']}";
     }
 
     private function trackingLink(): string

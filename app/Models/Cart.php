@@ -433,7 +433,7 @@ class Cart extends Model
 
         $settings = SiteSetting::query()->first();
 
-        $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings);
+        $shippingTotal = applyShippingRules($shipping, $subtotal, $discount, $settings, (bool) ($discounts['free_shipping'] ?? false));
         $taxTotal = calculateTaxFromSettings(max(0, $subtotal - $discount), $settings);
         $taxIncluded = (bool)($settings?->tax_included ?? false);
         $total = $subtotal + $shippingTotal - $discount + ($taxIncluded ? 0 : $taxTotal);

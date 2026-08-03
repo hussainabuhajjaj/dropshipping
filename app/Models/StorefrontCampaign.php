@@ -2,9 +2,14 @@
 
 namespace App\Models;
 
+use App\Domain\Campaigns\Enums\CampaignStatus;
+use App\Domain\Campaigns\Enums\CampaignType;
+use App\Domain\Campaigns\Models\CampaignParticipation;
+use App\Domain\Campaigns\Models\CampaignWinner;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StorefrontCampaign extends Model
 {
@@ -38,6 +43,7 @@ class StorefrontCampaign extends Model
         'notification_config',
         'sourcing_config',
         'segment_ids',
+        'lucky_draw_config',
     ];
 
     protected $casts = [
@@ -56,6 +62,7 @@ class StorefrontCampaign extends Model
         'notification_config' => 'array',
         'sourcing_config' => 'array',
         'segment_ids' => 'array',
+        'lucky_draw_config' => 'array',
     ];
 
     public function getRouteKeyName(): string
@@ -220,6 +227,138 @@ class StorefrontCampaign extends Model
         ];
 
         return array_merge($default, $this->sourcing_config ?? []);
+    }
+
+    public function isLuckyDraw(): bool
+    {
+        return $this->type === CampaignType::LUCKY_DRAW->value;
+    }
+
+    public function luckyDrawConfig(): array
+    {
+        $defaults = config('campaigns.lucky_draw.defaults', []);
+        $defaults['winner_announcement_at'] = null;
+        $defaults['terms'] = null;
+        $defaults['faq'] = [];
+        $defaults['seo'] = [];
+        $defaults['landing_content'] = null;
+        $defaults['cta'] = null;
+
+        return array_merge($defaults, $this->lucky_draw_config ?? []);
+    }
+
+    /**
+     * Whether a paid order should currently be considered for the lucky draw.
+     * Requires: global flag on, campaign active, status active, within schedule.
+     */
+    public function isAcceptingLuckyDrawEntries(?Carbon $now = null): bool
+    {
+        if (! config('campaigns.lucky_draw.enabled', false)) {
+            return false;
+        }
+
+        if (! $this->isLuckyDraw()) {
+            return false;
+        }
+
+        if (! $this->is_active || $this->status !== CampaignStatus::ACTIVE->value) {
+            return false;
+        }
+
+        $now = $now ?: now();
+
+        if ($this->starts_at && $now->lt($this->starts_at)) {
+            return false;
+        }
+
+        if ($this->ends_at && $now->gt($this->ends_at)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Front-end display payload for a lucky-draw campaign. Shared by the web
+     * storefront (Inertia) and the mobile API so both channels render the
+     * same eligibility, spot, prize and announcement data.
+     *
+     * @return array<string, mixed>|null null when the campaign is not a lucky draw.
+     */
+    public function luckyDrawPayload(?string $locale = null, ?int $customerId = null): ?array
+    {
+        if (! $this->isLuckyDraw()) {
+            return null;
+        }
+
+        $config = $this->luckyDrawConfig();
+        $overrides = $this->localeOverrideMap()[$locale] ?? null;
+
+        $spotsTaken = (int) $this->participations()
+            ->whereNotNull('spot_number')
+            ->whereNull('deleted_at')
+            ->count();
+        $maxParticipants = (int) ($config['max_participants'] ?? 0);
+
+        $payload = [
+            'enabled' => (bool) config('campaigns.lucky_draw.enabled', false),
+            'accepting_entries' => $this->isAcceptingLuckyDrawEntries(),
+            'min_order_amount' => (float) ($config['min_order_amount'] ?? 0),
+            'currency' => (string) ($config['currency'] ?? 'XOF'),
+            'max_participants' => $maxParticipants,
+            'spots_filled' => $spotsTaken,
+            'remaining_spots' => $maxParticipants > 0 ? max(0, $maxParticipants - $spotsTaken) : 0,
+            'show_remaining_spots' => (bool) ($config['show_remaining_spots'] ?? false),
+            'countdown_enabled' => (bool) ($config['countdown_enabled'] ?? false),
+            'grand_prize' => (string) ($config['grand_prize'] ?? 'Grand Prize'),
+            'runner_up_count' => (int) ($config['runner_up_count'] ?? 0),
+            'gift_card_amount' => (float) ($config['gift_card_amount'] ?? 0),
+            'gift_card_currency' => (string) ($config['gift_card_currency'] ?? 'USD'),
+            'guaranteed_reward_type' => $config['guaranteed_reward_type'] ?? null,
+            'guaranteed_reward_value' => $config['guaranteed_reward_value'] ?? null,
+            'winner_announcement_at' => $config['winner_announcement_at'] ?? null,
+            'landing_content' => $this->localizedValue('landing_content', $locale) ?? $config['landing_content'] ?? null,
+            'cta' => $this->localizedValue('cta', $locale) ?? $config['cta'] ?? null,
+            'terms' => $this->localizedValue('terms', $locale) ?? $config['terms'] ?? null,
+            'faq' => ($overrides && isset($overrides['faq'])) ? $overrides['faq'] : ($config['faq'] ?? []),
+            'seo' => ($overrides && isset($overrides['seo'])) ? $overrides['seo'] : ($config['seo'] ?? []),
+            'entry' => null,
+        ];
+
+        if ($customerId) {
+            $entry = $this->participations()
+                ->where('customer_id', $customerId)
+                ->with(['winner'])
+                ->first();
+
+            if ($entry) {
+                $winner = $entry->winner;
+
+                $payload['entry'] = [
+                    'spot_number' => $entry->spot_number,
+                    'state' => $entry->state,
+                    'qualified_at' => $entry->qualified_at?->toIso8601String(),
+                    'reward_code' => $entry->reward_code,
+                    'reward_issued_at' => $entry->reward_issued_at?->toIso8601String(),
+                    'is_winner' => $winner !== null,
+                    'prize_type' => $winner?->prize_type,
+                    'prize_label' => $winner?->prize_label,
+                    'prize_status' => $winner?->status,
+                ];
+            }
+        }
+
+        return $payload;
+    }
+
+    public function participations(): HasMany
+    {
+        return $this->hasMany(CampaignParticipation::class, 'campaign_id');
+    }
+
+    public function winners(): HasMany
+    {
+        return $this->hasMany(CampaignWinner::class, 'campaign_id');
     }
 
     private function parseScheduleDate($value, string $timezone): ?Carbon

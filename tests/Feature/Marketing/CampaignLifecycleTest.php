@@ -38,9 +38,9 @@ class CampaignLifecycleTest extends TestCase
         ]);
 
         $this->campaign->notification_config = [
-            'started' => ['push' => true, 'email' => true, 'whatsapp' => false],
-            'ending_soon' => ['push' => true, 'email' => true, 'whatsapp' => true],
-            'ended' => ['push' => false, 'email' => true, 'whatsapp' => false],
+            'on_start' => ['push' => true, 'email' => true, 'whatsapp' => false],
+            'on_ending_soon' => ['push' => true, 'email' => true, 'whatsapp' => true],
+            'on_end' => ['push' => false, 'email' => true, 'whatsapp' => false],
         ];
         $this->campaign->save();
     }
@@ -106,7 +106,7 @@ class CampaignLifecycleTest extends TestCase
     public function test_via_returns_only_database_when_no_channels_configured(): void
     {
         $this->campaign->notification_config = [
-            'started' => ['push' => false, 'email' => false, 'whatsapp' => false],
+            'on_start' => ['push' => false, 'email' => false, 'whatsapp' => false],
         ];
         $this->campaign->save();
 

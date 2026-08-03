@@ -266,6 +266,19 @@ return [
             'timeout' => 1200,
             'nice' => 0,
         ],
+        'supervisor-campaigns' => [
+            'connection' => 'redis',
+            'queue' => ['campaigns'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            'tries' => 3,
+            'timeout' => 300,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -287,6 +300,10 @@ return [
                 'maxProcesses' => 4,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-campaigns' => [
+                'maxProcesses' => 2,
+                'balanceCooldown' => 3,
+            ],
         ],
 
         'local' => [
@@ -304,6 +321,10 @@ return [
             'supervisor-cj-import' => [
                 'maxProcesses' => 1,
                 'timeout' => 1200,
+            ],
+            'supervisor-campaigns' => [
+                'maxProcesses' => 1,
+                'timeout' => 300,
             ],
         ],
     ],

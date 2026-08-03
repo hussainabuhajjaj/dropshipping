@@ -88,6 +88,11 @@ class Coupon extends Model
         return false;
     }
 
+    public function isFreeShipping(): bool
+    {
+        return $this->type === 'free_shipping';
+    }
+
     public function isCurrentlyValid(): bool
     {
         if (!$this->is_active) {

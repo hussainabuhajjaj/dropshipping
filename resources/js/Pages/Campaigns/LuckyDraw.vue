@@ -1,6 +1,19 @@
 <template>
   <StorefrontLayout>
-    <Head :title="t('Win the New iPhone 17')" />
+    <Head :title="campaign.name">
+      <meta
+        v-if="lucky_draw && lucky_draw.seo && lucky_draw.seo.title"
+        name="title"
+        head-key="title"
+        :content="lucky_draw.seo.title"
+      />
+      <meta
+        v-if="lucky_draw && lucky_draw.seo && lucky_draw.seo.description"
+        name="description"
+        head-key="description"
+        :content="lucky_draw.seo.description"
+      />
+    </Head>
 
     <div class="bg-[#090909]">
       <div class="relative overflow-hidden">
@@ -22,19 +35,17 @@
 
         <div class="relative mx-auto max-w-7xl px-4 pb-16 pt-12 sm:px-6 sm:pt-20 lg:pt-28">
           <div class="text-center">
-            <div class="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold tracking-wider text-amber-400 uppercase">
+            <div v-if="campaign.hero_kicker" class="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold tracking-wider text-amber-400 uppercase">
               <span class="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-              {{ t('Limited Time Campaign') }}
+              {{ campaign.hero_kicker }}
             </div>
 
             <h1 class="mt-6 bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-4xl font-black leading-none tracking-tight text-transparent sm:text-5xl md:text-6xl lg:text-7xl">
-              {{ t('WIN THE NEW') }}
-              <br />
-              <span class="text-white">{{ t('iPHONE 17') }}</span>
+              {{ campaign.name }}
             </h1>
 
             <p class="mx-auto mt-4 max-w-2xl text-base text-zinc-400 sm:text-lg">
-              {{ t('Spend 30,000 FCFA or more in one order and automatically enter the draw for your chance to win.') }}
+              {{ campaign.hero_subtitle }}
             </p>
 
             <div class="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -47,28 +58,42 @@
               </a>
             </div>
 
-            <div class="mt-12">
+            <div v-if="showCountdown" class="mt-12">
               <div class="mx-auto flex max-w-lg items-center justify-center gap-8 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-6 py-4 backdrop-blur-sm">
                 <div class="text-center">
-                      <span class="block text-2xl font-bold text-white tabular-nums">{{ days }}</span>
+                  <span class="block text-2xl font-bold text-white tabular-nums">{{ days }}</span>
                   <span class="text-[0.65rem] font-semibold tracking-wider text-zinc-500 uppercase">{{ t('Days') }}</span>
                 </div>
                 <div class="h-10 w-px bg-zinc-800" />
                 <div class="text-center">
-                      <span class="block text-2xl font-bold text-white tabular-nums">{{ hours }}</span>
+                  <span class="block text-2xl font-bold text-white tabular-nums">{{ hours }}</span>
                   <span class="text-[0.65rem] font-semibold tracking-wider text-zinc-500 uppercase">{{ t('Hours') }}</span>
                 </div>
                 <div class="h-10 w-px bg-zinc-800" />
                 <div class="text-center">
-                      <span class="block text-2xl font-bold text-white tabular-nums">{{ minutes }}</span>
+                  <span class="block text-2xl font-bold text-white tabular-nums">{{ minutes }}</span>
                   <span class="text-[0.65rem] font-semibold tracking-wider text-zinc-500 uppercase">{{ t('Minutes') }}</span>
                 </div>
                 <div class="h-10 w-px bg-zinc-800" />
                 <div class="text-center">
-                      <span class="block text-2xl font-bold text-amber-400 tabular-nums">{{ seconds }}</span>
+                  <span class="block text-2xl font-bold text-amber-400 tabular-nums">{{ seconds }}</span>
                   <span class="text-[0.65rem] font-semibold tracking-wider text-zinc-500 uppercase">{{ t('Seconds') }}</span>
                 </div>
               </div>
+            </div>
+
+            <div v-if="lucky_draw.show_remaining_spots && lucky_draw.max_participants" class="mx-auto mt-8 max-w-lg">
+              <div class="flex items-center justify-between text-xs font-semibold">
+                <span class="uppercase tracking-wider text-zinc-400">{{ t('Spots Filled') }}</span>
+                <span class="text-amber-400 tabular-nums">{{ lucky_draw.spots_filled }} / {{ lucky_draw.max_participants }}</span>
+              </div>
+              <div class="mt-2 h-3 w-full overflow-hidden rounded-full bg-zinc-800">
+                <div class="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-700"
+                  :style="{ width: spotsPercentage + '%' }" />
+              </div>
+              <p class="mt-2 text-center text-[0.7rem] text-zinc-500">
+                {{ remainingSpotsText }}
+              </p>
             </div>
           </div>
 
@@ -88,18 +113,28 @@
                     <div class="mx-auto mb-2 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-500/30 sm:h-24 sm:w-24">
                       <svg class="h-10 w-10 text-white sm:h-12 sm:w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
                     </div>
-                    <p class="text-sm font-bold text-white">iPhone 17</p>
+                    <p class="text-sm font-bold text-white">{{ lucky_draw.grand_prize }}</p>
                     <p class="text-[0.65rem] text-zinc-500">{{ t('1 Winner') }}</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <div v-if="lucky_draw.runner_up_count > 0" class="mx-auto mt-6 flex max-w-3xl flex-wrap items-center justify-center gap-2">
+            <span class="rounded-full border border-zinc-800 bg-zinc-900/60 px-4 py-1.5 text-xs text-zinc-400">
+              {{ t('Runner-ups:') }} <span class="font-bold text-white">{{ lucky_draw.runner_up_count }}</span>
+              {{ t('x') }} {{ formatGiftCard(lucky_draw.gift_card_amount, lucky_draw.gift_card_currency) }}
+            </span>
+            <span v-if="lucky_draw.guaranteed_reward_type" class="rounded-full border border-zinc-800 bg-zinc-900/60 px-4 py-1.5 text-xs text-zinc-400">
+              {{ t('Everyone gets') }} <span class="font-bold text-amber-400">{{ guaranteedRewardText }}</span>
+            </span>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-[#090909] border-t border-zinc-800/50">
+    <div class="border-t border-zinc-800/50 bg-[#090909]">
       <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div v-for="stat in trustStats" :key="stat.label" class="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 backdrop-blur-sm">
@@ -120,35 +155,11 @@
       </div>
     </div>
 
-    <div class="bg-[#090909]">
-      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div class="text-center">
-          <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('Categories') }}</p>
-          <h2 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ t('Shop by Category') }}</h2>
-          <p class="mt-2 text-sm text-zinc-500">{{ t('Find your winning product') }}</p>
-        </div>
-        <div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <a v-for="cat in categories" :key="cat.name"
-            :href="'/category/' + cat.slug"
-            class="group relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-6 transition-all hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10"
-          >
-            <div class="absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity group-hover:opacity-10" :class="cat.color" />
-            <div class="relative">
-              <div class="flex h-14 w-14 items-center justify-center rounded-xl bg-zinc-800 group-hover:bg-amber-500/20 transition-colors">
-                <svg v-if="cat.name === t('Fashion')" class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3-6l3-3m0 0l-3-3m3 3H9" /></svg>
-                <svg v-else-if="cat.name === t('Electronics')" class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
-                <svg v-else-if="cat.name === t('Beauty')" class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" /></svg>
-                <svg v-else-if="cat.name === t('Home')" class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
-                <svg v-else class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-              </div>
-              <h3 class="mt-4 text-base font-bold text-white group-hover:text-amber-400 transition-colors">{{ cat.name }}</h3>
-            </div>
-          </a>
-        </div>
-      </div>
-    </div>
+    <div v-if="campaign.content" class="prose mx-auto max-w-7xl px-4 py-10 prose-invert sm:px-6" v-html="campaign.content"></div>
 
-    <div class="bg-[#090909] border-t border-zinc-800/50">
+    <div v-if="lucky_draw.landing_content" class="prose mx-auto max-w-7xl px-4 py-10 prose-invert sm:px-6" v-html="lucky_draw.landing_content"></div>
+
+    <div class="border-t border-zinc-800/50 bg-[#090909]">
       <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div class="text-center">
           <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('How It Works') }}</p>
@@ -157,7 +168,7 @@
         <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div v-for="(step, i) in steps" :key="i" class="relative rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 text-center backdrop-blur-sm">
             <div class="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-xs font-bold text-black shadow-lg shadow-amber-500/30">0{{ step.step }}</span>
+              <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-xs font-bold text-black shadow-lg shadow-amber-500/30">0{{ i + 1 }}</span>
             </div>
             <div class="mx-auto mt-2 flex h-14 w-14 items-center justify-center rounded-xl bg-amber-500/10">
               <svg class="h-7 w-7 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -174,12 +185,12 @@
       </div>
     </div>
 
-    <div class="bg-[#090909] border-t border-zinc-800/50">
+    <div v-if="products.length" class="border-t border-zinc-800/50 bg-[#090909]">
       <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div class="text-center">
           <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('Featured Products') }}</p>
           <h2 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ t('Shop These Top Picks') }}</h2>
-          <p class="mt-2 text-sm text-zinc-500">{{ t('Every purchase qualifies you for the giveaway') }}</p>
+          <p class="mt-2 text-sm text-zinc-500">{{ t('Every purchase qualifies you for the draw') }}</p>
         </div>
         <div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           <a v-for="product in products" :key="product.id" :href="'/products/' + product.slug" class="group rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden transition-all hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/5">
@@ -205,56 +216,31 @@
       </div>
     </div>
 
-    <div class="bg-[#090909] border-t border-zinc-800/50">
-      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div class="text-center">
-          <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('Why Choose Simbazu') }}</p>
-          <h2 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ t('The Best Shopping Experience') }}</h2>
-        </div>
-        <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="feature in features" :key="feature.title" class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm transition-all hover:border-amber-500/30">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
-              <svg class="h-5 w-5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path v-if="feature.icon === 'shopping-bag'" stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                <path v-else-if="feature.icon === 'shield-check'" stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                <path v-else-if="feature.icon === 'truck'" stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                <path v-else-if="feature.icon === 'headphones'" stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
-                <path v-else-if="feature.icon === 'rotate-ccw'" stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
-                <path v-else stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v-.225a18.188 18.188 0 00-5.25-3.9m0 0a17.415 17.415 0 00-5.25-1.5c-1.903 0-3.718.33-5.25.9m10.5 4.5v7.5a2.25 2.25 0 01-2.25 2.25H9.75A2.25 2.25 0 017.5 18.75v-7.5m10.5 0V9.75a2.25 2.25 0 00-2.25-2.25H7.5A2.25 2.25 0 005.25 9.75v1.5M21 11.25H5.25" />
-              </svg>
-            </div>
-            <h3 class="mt-3 text-sm font-bold text-white">{{ feature.title }}</h3>
-            <p class="mt-1 text-xs text-zinc-500">{{ feature.desc }}</p>
+    <div v-if="lucky_draw.entry" class="border-t border-zinc-800/50 bg-[#090909]">
+      <div class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+        <div class="rounded-2xl border p-6 text-center backdrop-blur-sm"
+          :class="entryIsWinner
+            ? 'border-amber-500/50 bg-gradient-to-b from-amber-500/15 to-transparent'
+            : 'border-zinc-800 bg-zinc-900/50'">
+          <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('Your Entry') }}</p>
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <span v-if="lucky_draw.entry.spot_number" class="rounded-full bg-amber-500/10 px-4 py-1.5 text-sm font-bold text-amber-400">
+              {{ t('Spot') }} #{{ lucky_draw.entry.spot_number }}
+            </span>
+            <span class="rounded-full bg-zinc-800 px-4 py-1.5 text-sm text-zinc-300">{{ entryStateText }}</span>
+            <span v-if="lucky_draw.entry.is_winner" class="rounded-full bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 text-sm font-bold text-black">
+              {{ t('Winner!') }}
+            </span>
           </div>
+          <p v-if="lucky_draw.entry.prize_label" class="mt-4 text-sm font-semibold text-white">{{ lucky_draw.entry.prize_label }}</p>
+          <p v-if="lucky_draw.entry.reward_code && !lucky_draw.entry.is_winner" class="mt-2 text-sm text-zinc-400">
+            {{ t('Reward code:') }} <span class="font-mono font-bold text-amber-400">{{ lucky_draw.entry.reward_code }}</span>
+          </p>
         </div>
       </div>
     </div>
 
-    <div class="bg-[#090909] border-t border-zinc-800/50">
-      <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <div class="text-center">
-          <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('Reviews') }}</p>
-          <h2 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ t('What Our Customers Say') }}</h2>
-        </div>
-        <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="(review, i) in reviews" :key="i" class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
-            <div class="flex items-center gap-1">
-              <svg v-for="s in 5" :key="s" class="h-4 w-4" :class="s <= review.rating ? 'text-amber-400' : 'text-zinc-700'" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-            </div>
-            <p class="mt-3 text-sm text-zinc-300">"{{ review.text }}"</p>
-            <div class="mt-3 flex items-center gap-2">
-              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400">{{ review.name.charAt(0) }}</div>
-              <div>
-                <p class="text-xs font-semibold text-white">{{ review.name }}</p>
-                <p class="text-[0.6rem] text-zinc-600">{{ review.location }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-[#090909] border-t border-zinc-800/50">
+    <div class="border-t border-zinc-800/50 bg-[#090909]">
       <div class="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div class="text-center">
           <p class="text-[0.65rem] font-semibold tracking-[0.3em] text-amber-400 uppercase">{{ t('FAQ') }}</p>
@@ -270,6 +256,10 @@
               {{ item.a }}
             </div>
           </div>
+          <div v-if="lucky_draw.terms" class="rounded-xl border border-zinc-800/60 bg-zinc-900/30 px-5 py-4">
+            <p class="text-[0.6rem] font-semibold tracking-[0.3em] text-zinc-500 uppercase">{{ t('Terms & Conditions') }}</p>
+            <div class="mt-2 text-xs leading-relaxed text-zinc-500" v-html="lucky_draw.terms"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -281,8 +271,8 @@
             <svg class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" /></svg>
           </div>
           <div>
-            <p class="text-xs font-bold text-white">{{ t('Win an iPhone 17') }}</p>
-            <p class="text-[0.6rem] text-zinc-500">{{ t('Spend 30,000 FCFA to enter') }}</p>
+            <p class="text-xs font-bold text-white">{{ t('Win a') }} {{ lucky_draw.grand_prize }}</p>
+            <p class="text-[0.6rem] text-zinc-500">{{ t('Spend') }} {{ formatPrice(lucky_draw.min_order_amount, lucky_draw.currency) }} {{ t('to enter') }}</p>
           </div>
         </div>
         <a href="/products" class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 px-6 py-2.5 text-sm font-bold text-black transition-all hover:from-amber-400 hover:to-amber-300 sm:w-auto">
@@ -301,58 +291,126 @@ import { useTranslations } from '@/i18n'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 
 const props = defineProps({
+  campaign: { type: Object, required: true },
+  lucky_draw: { type: Object, default: () => ({}) },
   products: { type: Array, default: () => [] },
-  faq: { type: Array, default: () => [] },
-  campaignEndsAt: { type: String, required: true },
-  minOrderAmount: { type: Number, default: 30000 },
-  winnerCount: { type: Number, default: 1 },
+  promotions: { type: Array, default: () => [] },
+  coupons: { type: Array, default: () => [] },
+  banners: { type: Array, default: () => [] },
+  collections: { type: Array, default: () => [] },
   trustStats: { type: Array, default: () => [] },
-  categories: { type: Array, default: () => [] },
-  features: { type: Array, default: () => [] },
-  steps: { type: Array, default: () => [] },
 })
 
 const { t } = useTranslations()
 
 const openFaq = ref(null)
-
 function toggleFaq(i) {
   openFaq.value = openFaq.value === i ? null : i
 }
 
+const countdownTarget = computed(() => {
+  const value = props.lucky_draw.winner_announcement_at || props.campaign.ends_at
+  return value ? new Date(value).getTime() : null
+})
+
+const showCountdown = computed(() =>
+  props.lucky_draw.countdown_enabled && !!countdownTarget.value
+)
+
 const now = ref(Date.now())
-const target = ref(new Date(props.campaignEndsAt).getTime())
 let timer = null
 
-const diff = computed(() => Math.max(0, target.value - now.value))
-
+const diff = computed(() => Math.max(0, (countdownTarget.value || 0) - now.value))
 const days = computed(() => Math.floor(diff.value / 86400000))
 const hours = computed(() => Math.floor((diff.value % 86400000) / 3600000))
 const minutes = computed(() => Math.floor((diff.value % 3600000) / 60000))
 const seconds = computed(() => Math.floor((diff.value % 60000) / 1000))
 
 onMounted(() => {
-  timer = setInterval(() => { now.value = Date.now() }, 1000)
+  if (countdownTarget.value) {
+    timer = setInterval(() => { now.value = Date.now() }, 1000)
+  }
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 
-function formatPrice(amount, currency) {
-  const sym = currency === 'USD' ? '$' : 'CFA'
-  const n = Number(amount).toLocaleString()
-  return sym === '$' ? `$${n}` : `${n} FCFA`
+const spotsPercentage = computed(() => {
+  const max = Number(props.lucky_draw.max_participants || 0)
+  const filled = Number(props.lucky_draw.spots_filled || 0)
+  return max > 0 ? Math.min(100, Math.round((filled / max) * 100)) : 0
+})
+
+const remainingSpotsText = computed(() => {
+  const remaining = Number(props.lucky_draw.remaining_spots || 0)
+  return remaining > 0
+    ? t(':count spots left — reserve yours by ordering now', { count: remaining })
+    : t('All spots have been filled')
+})
+
+const entryIsWinner = computed(() => !!(props.lucky_draw.entry && props.lucky_draw.entry.is_winner))
+
+const entryStateText = computed(() => {
+  const state = props.lucky_draw.entry && props.lucky_draw.entry.state
+  if (state === 'winner') return t('Winner')
+  if (state === 'reward_issued') return t('Reward issued')
+  if (state === 'spot_reserved') return t('Spot reserved')
+  return t('Qualified')
+})
+
+const steps = computed(() => [
+  {
+    icon: 'shopping-cart',
+    title: t('Shop'),
+    desc: t('Spend :amount or more in one order', { amount: formatPrice(props.lucky_draw.min_order_amount, props.lucky_draw.currency) }),
+  },
+  { icon: 'check-circle', title: t('Auto-Enter'), desc: t('You\'re automatically entered — no codes needed') },
+  { icon: 'calendar', title: t('Wait'), desc: drawDateText },
+  { icon: 'award', title: t('Win'), desc: t('Lucky customers take home great prizes') },
+])
+
+const drawDateText = computed(() => {
+  const value = props.lucky_draw.winner_announcement_at || props.campaign.ends_at
+  return value
+    ? t('Sit tight until the live draw on :date', { date: new Date(value).toLocaleDateString() })
+    : t('Sit tight until the live draw')
+})
+
+const guaranteedRewardText = computed(() => {
+  const type = props.lucky_draw.guaranteed_reward_type
+  const value = Number(props.lucky_draw.guaranteed_reward_value || 0)
+  if (type === 'free_shipping') return t('FREE Shipping')
+  if (type === 'percentage_discount' || type === 'coupon_code') return `${value}% OFF`
+  if (type === 'fixed_discount') return formatPrice(value, props.lucky_draw.currency)
+  if (type === 'store_credit') return t('Store Credit')
+  return ''
+})
+
+const faq = computed(() => {
+  if (Array.isArray(props.lucky_draw.faq) && props.lucky_draw.faq.length) {
+    return props.lucky_draw.faq
+  }
+  const amount = formatPrice(props.lucky_draw.min_order_amount, props.lucky_draw.currency)
+  const date = props.lucky_draw.winner_announcement_at || props.campaign.ends_at
+  return [
+    { q: t('How do I enter the draw?'), a: t('Place an order of :amount or more on Simbazu to be automatically entered into the draw. No additional registration required.', { amount }) },
+    { q: t('When will the draw take place?'), a: date ? t('The draw will take place on :date. Winners will be announced on our website and social media.', { date: new Date(date).toLocaleDateString() }) : t('Winners will be announced on our website and social media.') },
+    { q: t('Can I enter multiple times?'), a: t('Yes, each qualifying order gives you an additional entry. The more you shop, the better your chances.') },
+    { q: t('Will winners be notified?'), a: t('Yes, winners will be contacted by email and phone shortly after the draw.') },
+    { q: t('Are there any hidden fees?'), a: t('No, participation is automatic and free with any qualifying order.') },
+  ]
+})
+
+function formatGiftCard(amount, currency) {
+  return formatPrice(amount, currency === 'XOF' ? 'XOF' : currency)
 }
 
-const reviews = [
-  { name: 'Aminata K.', location: 'Abidjan', rating: 5, text: t('I\'ve been shopping on Simbazu for months. Fast delivery and great quality. I hope I win the iPhone!') },
-  { name: 'Kouamé B.', location: 'Bouaké', rating: 5, text: t('The giveaway got me shopping more. Already placed two orders this month. Fingers crossed!') },
-  { name: 'Fatou D.', location: 'Abidjan', rating: 4, text: t('Great selection of products and the delivery was faster than expected. Definitely participating in the giveaway.') },
-  { name: 'Mamadou S.', location: 'Yamoussoukro', rating: 5, text: t('I never win anything, but with Simbazu at least I get great products while trying my luck!') },
-  { name: 'Aicha T.', location: 'San Pedro', rating: 5, text: t('Been using Simbazu for all my shopping needs. The iPhone giveaway is the cherry on top.') },
-  { name: 'Jean-Pierre L.', location: 'Abidjan', rating: 4, text: t('The WhatsApp ordering is super convenient. Love the selection of electronics.') },
-]
+function formatPrice(amount, currency) {
+  const n = Number(amount || 0).toLocaleString()
+  if (currency === 'USD') return `$${n}`
+  return `${n} FCFA`
+}
 </script>
 
 <style scoped>

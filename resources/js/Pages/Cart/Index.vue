@@ -131,11 +131,22 @@
                     <div v-if="qualifiesForGiveaway" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
                         <div class="flex items-center gap-2 font-semibold text-amber-800">
                             <span>🎉</span>
-                            <span>{{ t('Your cart qualifies for the giveaway!') }}</span>
+                            <span>{{ t('Your cart qualifies for the draw!') }}</span>
                         </div>
-                        <a href="/promotions/iphone-giveaway" class="mt-1 block text-xs text-amber-600 hover:text-amber-500 underline underline-offset-2">
+                        <a :href="'/campaigns/' + qualifiesForGiveaway.slug" class="mt-1 block text-xs text-amber-600 hover:text-amber-500 underline underline-offset-2">
                             {{ t('See details') }}
                         </a>
+                    </div>
+
+                    <div v-if="luckyDrawProgress" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
+                        <div class="flex items-center justify-between font-semibold text-amber-800">
+                            <span>🎯 {{ t('Get closer to') }} {{ luckyDrawProgress.grand_prize }}</span>
+                            <span>{{ t('Spend :amount more', { amount: displayPrice(luckyDrawProgress.missing) }) }}</span>
+                        </div>
+                        <div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-amber-100">
+                            <div class="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-700"
+                                :style="{ width: luckyDrawProgress.percent + '%' }" />
+                        </div>
                     </div>
 
                     <div class="flex items-center justify-between text-sm">
@@ -226,7 +237,7 @@ function displayPrice(amount) {
     return formatCurrency(convertCurrency(amount, 'USD', displayCurrency.value), displayCurrency.value)
 }
 
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import CartLineItem from '@/Components/CartLineItem.vue'
 import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
@@ -259,6 +270,7 @@ const props = defineProps({
 })
 
 const {t} = useTranslations()
+const page = usePage()
 const { creatingIntent, startWhatsAppCheckout } = useWhatsAppCheckout({ t })
 const now = usePromoNow()
 const discountLabel = computed(() => props.discount_label)
@@ -270,8 +282,25 @@ const estimatedTotal = computed(() => props.estimated_total || Math.max(0, props
 const itemCount = computed(() => props.item_count || props.lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0))
 const savingsTotal = computed(() => props.savings_total || 0)
 const qualifiesForGiveaway = computed(() => {
-  const threshold = props.currency === 'USD' ? 50 : 30000
-  return Number(props.subtotal) >= threshold
+  const campaign = page.props.luckyDraw || null
+  if (!campaign || !campaign.accepting_entries) return null
+  const thresholdRaw = campaign.min_order_amount_usd ?? campaign.min_order_amount
+  const threshold = Number(thresholdRaw || 0)
+  if (threshold <= 0 || Number(props.subtotal) < threshold) return null
+  return campaign
+})
+const luckyDrawProgress = computed(() => {
+  const campaign = page.props.luckyDraw || null
+  if (!campaign || !campaign.accepting_entries) return null
+  const thresholdRaw = campaign.min_order_amount_usd ?? campaign.min_order_amount
+  const threshold = Number(thresholdRaw || 0)
+  const subtotal = Number(props.subtotal)
+  if (threshold <= 0 || subtotal >= threshold) return null
+  return {
+    ...campaign,
+    missing: threshold - subtotal,
+    percent: Math.min(100, Math.round((subtotal / threshold) * 100)),
+  }
 })
 const { currentCurrency } = useUserPreferences()
 const displayCurrency = computed(() => currentCurrency.value || props.currency)

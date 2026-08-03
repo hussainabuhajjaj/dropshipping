@@ -13,6 +13,7 @@ use App\Models\StorefrontSetting;
 use App\Services\Promotions\PromotionHomepageService;
 use Illuminate\Support\Facades\Schema;
 use App\Models\StorefrontBanner;
+use App\Domain\Campaigns\Services\LuckyDrawService;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
 
@@ -157,7 +158,66 @@ class HandleInertiaRequests extends Middleware
             'categories' => $this->rootCategoriesTree(['children', 'children.children']),
             'homepagePromotions' => app(PromotionHomepageService::class)->getHomepagePromotions(),
             'popupBanners' => $this->popupBanners(),
+            'luckyDraw' => $this->activeLuckyDrawSummary(),
         ];
+    }
+
+    /**
+     * Active lucky-draw campaign summary shared with every storefront page
+     * so announcement bars / product badges / cart widgets can link to the
+     * real campaign and only render when a draw is live.
+     */
+    private function activeLuckyDrawSummary(): ?array
+    {
+        if (! (bool) config('campaigns.lucky_draw.enabled', false)) {
+            return null;
+        }
+
+        if (! Schema::hasTable('storefront_campaigns')) {
+            return null;
+        }
+
+        try {
+            $campaign = app(LuckyDrawService::class)->activeLuckyDraw(app()->getLocale());
+
+            if (! $campaign) {
+                return null;
+            }
+
+            $config = $campaign->luckyDrawConfig();
+            $minAmount = (float) ($config['min_order_amount'] ?? 0);
+            $campaignCurrency = (string) ($config['currency'] ?? 'XOF');
+
+            return [
+                'slug' => $campaign->slug,
+                'name' => $campaign->localizedValue('name', app()->getLocale()),
+                'min_order_amount' => $minAmount,
+                // Storefront cart/checkout/product prices are denominated in the
+                // base currency (USD), so expose the same threshold in USD for
+                // comparisons. Keeps `min_order_amount`/`currency` untouched for
+                // display purposes (announcement bar, campaign messaging).
+                'min_order_amount_usd' => $this->luckyDrawMinOrderAmountUsd($minAmount, $campaignCurrency),
+                'currency' => $campaignCurrency,
+                'grand_prize' => (string) ($config['grand_prize'] ?? 'Grand Prize'),
+                'accepting_entries' => $campaign->isAcceptingLuckyDrawEntries(),
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function luckyDrawMinOrderAmountUsd(float $amount, string $fromCurrency): float
+    {
+        if ($amount <= 0) {
+            return 0.0;
+        }
+
+        try {
+            return app(\App\Services\Currency\CurrencyConversionService::class)
+                ->convertAmount($amount, $fromCurrency, 'USD') ?? 0.0;
+        } catch (\Throwable) {
+            return $amount;
+        }
     }
 
     private function storefrontAnnouncement(): array

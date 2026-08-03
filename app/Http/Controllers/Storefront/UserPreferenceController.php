@@ -6,9 +6,10 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Services\User\UserPreferenceService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Inertia\Inertia;
 
 class UserPreferenceController extends Controller
@@ -26,9 +27,25 @@ class UserPreferenceController extends Controller
     }
 
     /**
+     * Reload the referring page after a preference change, falling back to the
+     * storefront home when the previous URL is unavailable or points back at
+     * the API itself (navigating to a PUT-only API route via GET would 405).
+     */
+    private function inertBack(): Response
+    {
+        $target = url()->previous('/');
+
+        if ($target === url()->current() || str_starts_with((string) $target, url('/api/'))) {
+            $target = url('/');
+        }
+
+        return Inertia::location($target);
+    }
+
+    /**
      * Update currency preference
      */
-    public function updateCurrency(Request $request): JsonResponse|RedirectResponse
+    public function updateCurrency(Request $request): JsonResponse|RedirectResponse|Response
     {
         $validated = $request->validate([
             'currency' => ['required', 'string', 'in:' . implode(',', $this->preferenceService->getAvailableCurrencies())]
@@ -38,7 +55,7 @@ class UserPreferenceController extends Controller
             $this->preferenceService->setCurrency($validated['currency']);
 
             if (request()->header('X-Inertia')) {
-                return Inertia::location(url()->previous('/'));
+                return $this->inertBack();
             }
 
             return back(303)->with('success', 'Currency updated successfully');
@@ -54,7 +71,7 @@ class UserPreferenceController extends Controller
     /**
      * Update language preference
      */
-    public function updateLanguage(Request $request): JsonResponse|RedirectResponse
+    public function updateLanguage(Request $request): JsonResponse|RedirectResponse|Response
     {
         $validated = $request->validate([
             'language' => ['required', 'string', 'in:' . implode(',', array_keys($this->preferenceService->getAvailableLanguages()))]
@@ -64,7 +81,7 @@ class UserPreferenceController extends Controller
             $this->preferenceService->setLanguage($validated['language']);
 
             if (request()->header('X-Inertia')) {
-                return Inertia::location(url()->previous('/'));
+                return $this->inertBack();
             }
 
             return back(303)->with('success', 'Language updated successfully');
@@ -80,7 +97,7 @@ class UserPreferenceController extends Controller
     /**
      * Update multiple preferences at once
      */
-    public function update(Request $request): JsonResponse|RedirectResponse
+    public function update(Request $request): JsonResponse|RedirectResponse|Response
     {
         $validated = $request->validate([
             'currency' => ['sometimes', 'string', 'in:' . implode(',', $this->preferenceService->getAvailableCurrencies())],
@@ -97,7 +114,7 @@ class UserPreferenceController extends Controller
             }
 
             if (request()->header('X-Inertia')) {
-                return Inertia::location(url()->previous('/'));
+                return $this->inertBack();
             }
 
             return response()->json([

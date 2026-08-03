@@ -49,9 +49,9 @@
             />
 
             <div v-if="qualifiesForGiveaway" class="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
-              <a href="/promotions/iphone-giveaway" class="flex items-center gap-2 text-sm font-semibold text-amber-800 hover:text-amber-600 transition-colors">
+              <a :href="'/campaigns/' + qualifiesForGiveaway.slug" class="flex items-center gap-2 text-sm font-semibold text-amber-800 hover:text-amber-600 transition-colors">
                 <span>🎁</span>
-                <span>{{ t('Eligible for iPhone Giveaway') }}</span>
+                <span>{{ t('Eligible for') }} {{ qualifiesForGiveaway.grand_prize }}</span>
                 <svg class="h-3.5 w-3.5 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </a>
             </div>
@@ -314,10 +314,16 @@ const ctaLabel = computed(() => {
 })
 
 const qualifiesForGiveaway = computed(() => {
+  const campaign = page.props.luckyDraw || null
+  if (!campaign || !campaign.accepting_entries) return null
+
   const price = selectedVariant.value?.price ?? props.product.selling_price ?? 0
-  const currency = selectedVariant.value?.currency ?? props.product.currency ?? 'XOF'
-  const threshold = currency === 'USD' ? 50 : 30000
-  return Number(price) >= threshold
+  const thresholdRaw = campaign.min_order_amount_usd ?? campaign.min_order_amount
+  const threshold = Number(thresholdRaw || 0)
+
+  if (threshold <= 0 || Number(price) < threshold) return null
+
+  return campaign
 })
 
 const productCode = computed(() => {

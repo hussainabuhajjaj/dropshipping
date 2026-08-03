@@ -518,3 +518,20 @@ Schedule::command('campaigns:source-products')
     ->everySixHours()
     ->withoutOverlapping(60)
     ->runInBackground();
+
+// Lucky draw commands run manually (or via the scheduled end hooks below).
+// They are intentionally idempotent so they can be re-run safely.
+Schedule::command('campaigns:run-draw')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
+Schedule::command('campaigns:issue-guaranteed-rewards')
+    ->dailyAt('03:30')
+    ->withoutOverlapping(30)
+    ->runInBackground();
+
+Schedule::command('campaigns:announce-winners')
+    ->hourly()
+    ->withoutOverlapping(30)
+    ->runInBackground();
