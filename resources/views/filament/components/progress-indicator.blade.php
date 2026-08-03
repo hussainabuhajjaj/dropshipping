@@ -15,7 +15,7 @@ use App\Filament\Components\ProgressIndicator;
             <div style="background: #dbeafe; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; text-align: center;">
                 LOADING DESIGN 1: Modern Circular Progress
             </div>
-            <x-filament::progress-indicator-design-1 
+            <x-progress-indicator-design-1 
                 :activeImportTrackingKey="$component->getActiveImportTrackingKey()"
                 :importPercent="$component->getImportPercent()"
                 :importTotal="$component->getImportTotal()"
@@ -30,7 +30,7 @@ use App\Filament\Components\ProgressIndicator;
             <div style="background: #f3e8ff; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; text-align: center;">
                 LOADING DESIGN 2: Sleek Multi-Stage Progress
             </div>
-            <x-filament::progress-indicator-design-2 
+            <x-progress-indicator-design-2 
                 :activeImportTrackingKey="$component->getActiveImportTrackingKey()"
                 :importPercent="$component->getImportPercent()"
                 :importTotal="$component->getImportTotal()"
@@ -45,7 +45,7 @@ use App\Filament\Components\ProgressIndicator;
             <div style="background: #dcfce7; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; text-align: center;">
                 LOADING DESIGN 3: Minimalist Card-Based Progress
             </div>
-            <x-filament::progress-indicator-design-3 
+            <x-progress-indicator-design-3 
                 :activeImportTrackingKey="$component->getActiveImportTrackingKey()"
                 :importPercent="$component->getImportPercent()"
                 :importTotal="$component->getImportTotal()"
@@ -60,7 +60,7 @@ use App\Filament\Components\ProgressIndicator;
             <div style="background: #fce7f3; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; text-align: center;">
                 LOADING DESIGN 4: Modern Animated Pulse
             </div>
-            <x-filament::progress-indicator-design-4 
+            <x-progress-indicator-design-4 
                 :activeImportTrackingKey="$component->getActiveImportTrackingKey()"
                 :importPercent="$component->getImportPercent()"
                 :importTotal="$component->getImportTotal()"
@@ -75,7 +75,7 @@ use App\Filament\Components\ProgressIndicator;
             <div style="background: #fee2e2; padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; text-align: center;">
                 DEFAULT: Loading Design 3 (Invalid design: {{ $component->getDesign() }})
             </div>
-            <x-filament::progress-indicator-design-3 
+            <x-progress-indicator-design-3 
                 :activeImportTrackingKey="$component->getActiveImportTrackingKey()"
                 :importPercent="$component->getImportPercent()"
                 :importTotal="$component->getImportTotal()"

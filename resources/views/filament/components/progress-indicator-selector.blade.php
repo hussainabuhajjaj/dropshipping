@@ -14,7 +14,7 @@
 @if ($activeImportTrackingKey)
     @switch($selectedDesign)
         @case(1)
-            @include('filament.components.progress-indicator-design-1', [
+            @include('components.progress-indicator-design-1', [
                 'activeImportTrackingKey' => $activeImportTrackingKey,
                 'importPercent' => $importPercent,
                 'importTotal' => $importTotal,
@@ -27,7 +27,7 @@
             @break
         
         @case(2)
-            @include('filament.components.progress-indicator-design-2', [
+            @include('components.progress-indicator-design-2', [
                 'activeImportTrackingKey' => $activeImportTrackingKey,
                 'importPercent' => $importPercent,
                 'importTotal' => $importTotal,
@@ -40,7 +40,7 @@
             @break
         
         @case(3)
-            @include('filament.components.progress-indicator-design-3', [
+            @include('components.progress-indicator-design-3', [
                 'activeImportTrackingKey' => $activeImportTrackingKey,
                 'importPercent' => $importPercent,
                 'importTotal' => $importTotal,
@@ -53,7 +53,7 @@
             @break
         
         @case(4)
-            @include('filament.components.progress-indicator-design-4', [
+            @include('components.progress-indicator-design-4', [
                 'activeImportTrackingKey' => $activeImportTrackingKey,
                 'importPercent' => $importPercent,
                 'importTotal' => $importTotal,
@@ -66,7 +66,7 @@
             @break
         
         @default
-            @include('filament.components.progress-indicator-design-3', [
+            @include('components.progress-indicator-design-3', [
                 'activeImportTrackingKey' => $activeImportTrackingKey,
                 'importPercent' => $importPercent,
                 'importTotal' => $importTotal,
