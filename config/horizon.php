@@ -102,6 +102,7 @@ return [
         'redis:translations' => 120,
         'redis:cj-import' => 120,
         'redis:cj-sync' => 120,
+        'redis:woocommerce' => 120,
     ],
 
     /*
@@ -266,6 +267,19 @@ return [
             'timeout' => 1200,
             'nice' => 0,
         ],
+        'supervisor-woocommerce' => [
+            'connection' => 'redis',
+            'queue' => ['woocommerce'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            'tries' => 3,
+            'timeout' => 600,
+            'nice' => 0,
+        ],
         'supervisor-campaigns' => [
             'connection' => 'redis',
             'queue' => ['campaigns'],
@@ -298,6 +312,10 @@ return [
             ],
             'supervisor-cj-import' => [
                 'maxProcesses' => 4,
+                'balanceCooldown' => 3,
+            ],
+            'supervisor-woocommerce' => [
+                'maxProcesses' => 3,
                 'balanceCooldown' => 3,
             ],
             'supervisor-campaigns' => [

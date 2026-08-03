@@ -18,6 +18,7 @@ use App\Events\Customers\CustomerRegistered;
 use App\Listeners\Affiliates\LinkAffiliateReferralToCustomer;
 use App\Listeners\Affiliates\ProcessAffiliateOrderReferral;
 use App\Listeners\Campaigns\RegisterCampaignParticipation;
+use App\Domain\WooCommerce\Listeners\SyncOrderToWooCommerce;
 use App\Listeners\Orders\SendOrderConfirmedNotification;
 use App\Listeners\Orders\ClearCustomerCartOnOrderPaid;
 use App\Listeners\Orders\MaterializeLinehaulShipment;
@@ -68,6 +69,7 @@ class EventServiceProvider extends ServiceProvider
             RegisterCampaignParticipation::class,
             ClearCustomerCartOnOrderPaid::class,
             SendMetaPurchaseEvent::class,
+            SyncOrderToWooCommerce::class,
         ],
         OrderShipped::class => [
             SendOrderShippedNotification::class,

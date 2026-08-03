@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Domain\WooCommerce\Filament\WooCommerceProductImportPage;
+use App\Domain\WooCommerce\Filament\WooCommerceSettingsPage;
+use App\Domain\WooCommerce\Filament\WooCommerceSyncLogResource;
+use App\Domain\WooCommerce\Filament\WooCommerceWebhookLogResource;
 use App\Filament\Pages\SupportChatCenter;
 use App\Filament\Resources\AffiliateCommissionResource;
 use App\Filament\Resources\AffiliateReferralResource;
@@ -31,10 +35,27 @@ class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
-        return $panel
+        $panel
             ->default()
             ->id('admin')
-            ->path(config('filament.path', 'admin'))
+            ->path(config('filament.path', 'admin'));
+
+        if (config('woocommerce.enabled', false)) {
+            $panel
+                ->resources([
+                    WooCommerceSyncLogResource::class,
+                    WooCommerceWebhookLogResource::class,
+                ])
+                ->pages([
+                    WooCommerceSettingsPage::class,
+                    WooCommerceProductImportPage::class,
+                ])
+                ->widgets([
+                    \App\Domain\WooCommerce\Filament\WooCommerceSyncStatsWidget::class,
+                ]);
+        }
+
+        return $panel
             ->authGuard(config('filament.auth.guard', 'admin'))
             ->login()
             ->brandName(env('APP_NAME' ).' Admin')

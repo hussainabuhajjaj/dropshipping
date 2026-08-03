@@ -110,6 +110,15 @@ return [
             'after_commit' => true,
         ],
 
+        'woocommerce' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'woocommerce',
+            'retry_after' => 600, // 10 minutes
+            'block_for' => null,
+            'after_commit' => true,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
