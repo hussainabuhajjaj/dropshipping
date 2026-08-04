@@ -56,10 +56,12 @@ class NotifyLowStock extends Command
             return self::SUCCESS;
         }
 
-        $recipients = User::supportAgents()->get();
+        $recipients = User::supportAgents()
+            ->where('email', config('mail.from.address'))
+            ->get();
 
         if ($recipients->isEmpty()) {
-            $this->components->warn('No active admin/staff users found for low-stock notifications.');
+            $this->components->warn('No low-stock notification recipient found (expected: ' . config('mail.from.address') . ').');
 
             return self::SUCCESS;
         }
