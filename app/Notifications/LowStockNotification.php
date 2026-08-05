@@ -51,6 +51,22 @@ class LowStockNotification extends Notification
         ];
     }
 
+    public function toBroadcast(object $notifiable): array
+    {
+        $count = count($this->items);
+        $first = $this->items[0] ?? null;
+
+        return [
+            'title' => 'Low stock alert',
+            'body' => $count === 1
+                ? $this->formatItemLine($first)
+                : "{$count} products or variants are below their stock threshold.",
+            'count' => $count,
+            'action_url' => $first['action_url'] ?? url('/admin/products'),
+            'action_label' => $count === 1 ? 'View product' : 'Review low stock',
+        ];
+    }
+
     public function toMail(object $notifiable): MailMessage
     {
         $count = count($this->items);
