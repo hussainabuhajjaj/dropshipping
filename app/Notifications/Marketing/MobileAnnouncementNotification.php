@@ -91,6 +91,13 @@ class MobileAnnouncementNotification extends Notification implements ShouldQueue
             return false;
         }
 
+        if (method_exists($notifiable, 'getAttribute')) {
+            $bouncedAt = $notifiable->getAttribute('email_bounced_at');
+            if ($bouncedAt !== null) {
+                return false;
+            }
+        }
+
         $prefs = $this->notifiableNotificationPrefs($notifiable);
 
         if (array_key_exists('email', $prefs) && $prefs['email'] === false) {

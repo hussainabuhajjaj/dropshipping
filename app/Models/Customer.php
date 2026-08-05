@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Translation\HasLocalePreference;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -47,6 +48,7 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'phone_verification_expires_at',
         'remember_token',
         'marketing_opt_in',
+        'email_bounced_at',
     ];
 
     protected $casts = [
@@ -57,6 +59,7 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
         'phone_verification_expires_at' => 'datetime',
         'password' => 'hashed',
         'marketing_opt_in' => 'boolean',
+        'email_bounced_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -112,6 +115,27 @@ class Customer extends Authenticatable implements MustVerifyEmail, HasLocalePref
     {
         $name = trim($this->first_name . ' ' . ($this->last_name ?? ''));
         return $name !== '' ? $name : ($this->email ?? 'Customer');
+    }
+
+    public function scopeEmailDeliverable(Builder $query): Builder
+    {
+        return $query->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->whereNull('email_bounced_at');
+    }
+
+    public function markEmailBounced(): void
+    {
+        $this->forceFill(['email_bounced_at' => $this->email_bounced_at ?? now()])->save();
+    }
+
+    public function canReceiveEmail(): bool
+    {
+        if (! is_string($this->email) || trim($this->email) === '') {
+            return false;
+        }
+
+        return $this->email_bounced_at === null;
     }
 
     public function setNameAttribute(?string $value): void

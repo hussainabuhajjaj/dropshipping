@@ -107,6 +107,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bounce Detection (IMAP)
+    |--------------------------------------------------------------------------
+    |
+    | Credentials used to scan the sender mailbox for delivery-failure
+    | notifications so hard-bounced recipient addresses can be suppressed.
+    |
+    */
+
+    'bounce_imap' => [
+        'host' => env('IMAP_HOST', 'imap.zoho.eu'),
+        'port' => (int) env('IMAP_PORT', 993),
+        'username' => env('IMAP_USERNAME', env('MAIL_USERNAME')),
+        'password' => env('IMAP_PASSWORD', env('MAIL_PASSWORD')),
+        'encryption' => env('IMAP_ENCRYPTION', 'ssl'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Global "From" Address
     |--------------------------------------------------------------------------
     |
