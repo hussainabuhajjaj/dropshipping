@@ -59,12 +59,19 @@ class ApiClient
     {
         $url = $this->fullUrl($path);
 
-        Log::info('ApiClient request', [
-            'method' => $method,
-            'url' => $url,
-            'options' => $options,
-            'headers' => $this->defaultHeaders,
-        ]);
+        if ($this->shouldLogBodies()) {
+            Log::info('ApiClient request', [
+                'method' => $method,
+                'url' => $url,
+                'options' => $options,
+                'headers' => $this->defaultHeaders,
+            ]);
+        } else {
+            Log::info('ApiClient request', [
+                'method' => $method,
+                'url' => $url,
+            ]);
+        }
 
         $request = Http::timeout($this->timeout)
             ->baseUrl($this->baseUrl)
@@ -106,17 +113,29 @@ class ApiClient
         return str_starts_with($path, 'http') ? $path : ltrim($path, '/');
     }
 
+    private function shouldLogBodies(): bool
+    {
+        return config('app.debug') || (bool) env('API_LOG_BODIES', false);
+    }
+
     private function buildResponse(Response $response): ApiResponse
     {
         $raw = $response->json() ?? $response->body();
         $status = $response->status();
 
-        Log::info('ApiClient response', [
-            'status' => $status,
-            'successful' => $response->successful(),
-            'response_body' => $raw,
-            'headers' => $response->headers(),
-        ]);
+        if ($this->shouldLogBodies() || ! $response->successful()) {
+            Log::info('ApiClient response', [
+                'status' => $status,
+                'successful' => $response->successful(),
+                'response_body' => $raw,
+                'headers' => $response->headers(),
+            ]);
+        } else {
+            Log::info('ApiClient response', [
+                'status' => $status,
+                'successful' => $response->successful(),
+            ]);
+        }
 
         // Generic CJ-style schema: { code, result, message, data }
         if (is_array($raw) && array_key_exists('result', $raw) && array_key_exists('code', $raw)) {
