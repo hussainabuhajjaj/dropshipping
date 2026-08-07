@@ -16,6 +16,7 @@
 /public/build
 /public/hot
 /public/storage
+/public/apk/*.apk
 _check_products.php
 /public/releases
 /storage/*.key
