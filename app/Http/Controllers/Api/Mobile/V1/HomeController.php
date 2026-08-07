@@ -76,6 +76,22 @@ class HomeController extends ApiController
         $currency = $requestedCurrency ? $converter->normalize((string) $requestedCurrency) : 'USD';
 
         $locale = app()->getLocale();
+        $cacheKey = "mobile:home:{$locale}:{$currency}";
+
+        $payload = Cache::lock("mobile:home:lock:{$locale}:{$currency}", 10)->block(10, function () use ($cacheKey, $homeBuilder, $currency, $locale) {
+            return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($homeBuilder, $currency, $locale) {
+                return $this->buildHomePayload($homeBuilder, $currency, $locale);
+            });
+        });
+
+        return $this->success(new HomeResource($payload));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildHomePayload(HomeBuilderService $homeBuilder, string $currency, string $locale): array
+    {
         $sections = $homeBuilder->buildProductSections(6);
         $featured = $sections['featured'];
         $bestSellers = $sections['bestSellers'];
@@ -115,7 +131,7 @@ class HomeController extends ApiController
         $popupBanners = $this->mapBannerCollection($this->popupBannerModels(), $homeBuilder);
         $storefront = $this->mapStorefrontSettings($homeBuilder);
 
-        return $this->success(new HomeResource([
+        return [
             'currency' => $currency,
             'hero' => $hero,
             'categories' => $categories,
@@ -136,7 +152,7 @@ class HomeController extends ApiController
             ],
             'newsletterPopup' => $this->mapNewsletterPopup($homeBuilder),
             'storefront' => $storefront,
-        ]));
+        ];
     }
 
     private function buildCategoryCards(HomeBuilderService $homeBuilder): array

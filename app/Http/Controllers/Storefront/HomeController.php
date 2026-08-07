@@ -54,6 +54,22 @@ class HomeController extends Controller
     public function index(PromotionHomepageService $promotionHomepageService, HomeBuilderService $homeBuilder): Response
     {
         $locale = app()->getLocale();
+        $cacheKey = 'home:page:' . $locale;
+
+        $props = Cache::lock("home:page:lock:{$locale}", 10)->block(10, function () use ($cacheKey, $locale, $promotionHomepageService, $homeBuilder) {
+            return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($locale, $promotionHomepageService, $homeBuilder) {
+                return $this->buildHomeProps($locale, $promotionHomepageService, $homeBuilder);
+            });
+        });
+
+        return Inertia::render('Home', $props);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildHomeProps(string $locale, PromotionHomepageService $promotionHomepageService, HomeBuilderService $homeBuilder): array
+    {
         $sections = $homeBuilder->buildProductSections(16);
 
         $featured = $sections['featured'] ?? collect();
@@ -79,7 +95,7 @@ class HomeController extends Controller
         $homeCollectionsPayload = $this->buildHomeCollections($locale, $homeBuilder);
         $flashDealsPayload = $this->buildFlashDeals($homepagePromotions);
 
-        return Inertia::render('Home', [
+        return [
             'featured' => $featured->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'bestSellers' => $bestSellers->map(fn (Product $product) => $this->transformProduct($product))->values(),
             'recommended' => $recommended->map(fn (Product $product) => $this->transformProduct($product))->values(),
@@ -91,7 +107,7 @@ class HomeController extends Controller
             'categories' => $categoryList,
             'featuredCategories' => $featuredCategories,
             'categoryHighlights' => $categoryHighlights,
-            'featuredCategorySections' => Inertia::defer(fn () => $featuredCategorySections),
+            'featuredCategorySections' => $featuredCategorySections,
             'currency' => 'USD',
             'banners' => $bannerResolution['banners'],
             'seasonalDrops' => $seasonalDropsPayload['items'],
@@ -115,7 +131,7 @@ class HomeController extends Controller
                 'app_download' => $homeContent->app_download,
             ] : null,
             'homepagePromotions' => $homepagePromotions,
-        ]);
+        ];
     }
 
     private function normalizeHeroSlides(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder): array
