@@ -15,6 +15,8 @@ class ProcessMetaWebhookJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public string $connection = 'redis';
+
     public int $tries = 3;
 
     public int $timeout = 60;
