@@ -9,6 +9,7 @@ use App\Filament\Resources\MetaReplyResource\Pages;
 use App\Jobs\SendMetaReplyJob;
 use App\Models\MetaInboxMessage;
 use App\Models\MetaReply;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -68,8 +69,7 @@ class MetaReplyResource extends BaseResource
                     ->options(['comment' => 'Comment', 'message' => 'Message']),
             ])
             ->recordActions([
-                Tables\Actions\Action::make('approve_send')
-                    ->label('Approve & Send')
+                Action::make('approve_send')                    ->label('Approve & Send')
                     ->icon('heroicon-o-paper-airplane')
                     ->visible(fn (MetaReply $record): bool => in_array($record->status->value, ['draft', 'auto', 'approved'], true))
                     ->action(function (MetaReply $record): void {
@@ -77,7 +77,7 @@ class MetaReplyResource extends BaseResource
                         SendMetaReplyJob::dispatch($record->id)->onConnection('redis');
                     })
                     ->requiresConfirmation(),
-                Tables\Actions\Action::make('reject')
+                Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
