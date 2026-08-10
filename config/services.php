@@ -62,6 +62,14 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'verify_token' => env('META_VERIFY_TOKEN'),
+        'page_access_token' => env('META_PAGE_ACCESS_TOKEN'),
+        'instagram_business_account_id' => env('META_INSTAGRAM_BUSINESS_ACCOUNT_ID'),
+    ],
+
     'shippo' => [
         'api_token' => env('SHIPPO_API_TOKEN'),
         'base_url' => env('SHIPPO_BASE_URL', 'https://api.goshippo.com'),

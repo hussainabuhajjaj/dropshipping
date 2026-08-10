@@ -367,6 +367,14 @@ Route::post('webhooks/korapay', KorapayWebhookController::class)
     ->middleware(['throttle:30,1', VerifyKorapayWebhookSignature::class, IdempotencyMiddleware::class])
     ->name('webhooks.korapay');
 
+Route::get('webhooks/meta', [\App\Http\Controllers\Webhooks\MetaWebhookController::class, 'verify'])
+    ->middleware('throttle:30,1')
+    ->name('webhooks.meta.verify');
+
+Route::post('webhooks/meta', [\App\Http\Controllers\Webhooks\MetaWebhookController::class, 'receive'])
+    ->middleware('throttle:60,1')
+    ->name('webhooks.meta.receive');
+
 Route::post('integrations/woocommerce/webhook', \App\Domain\WooCommerce\Webhooks\WooCommerceWebhookController::class)
     ->middleware(['throttle:60,1'])
     ->name('woocommerce.webhook');
