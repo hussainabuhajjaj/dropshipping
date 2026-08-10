@@ -41,7 +41,7 @@ class MetaWebhookController extends Controller
             return response()->json(['error' => 'Invalid webhook payload'], 400);
         }
 
-        ProcessMetaWebhookJob::dispatch($payload);
+        ProcessMetaWebhookJob::dispatch($payload)->onConnection('redis');
 
         return response()->json(['received' => true]);
     }
