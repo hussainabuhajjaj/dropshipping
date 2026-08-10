@@ -114,6 +114,7 @@ class TypesenseSearchService
         $doc = [
             'id' => (string) $product->id,
             'name' => (string) $product->name,
+            'code' => (string) ($product->code ?? ''),
             'description' => (string) ($product->description ?? ''),
             'category_name' => (string) (optional($product->category)->name ?? ''),
             'category_id' => (string) (optional($product->category)->id ?? ''),
@@ -178,6 +179,7 @@ class TypesenseSearchService
             'name' => $collection,
             'fields' => [
                 ['name' => 'name', 'type' => 'string', 'infix' => true],
+                ['name' => 'code', 'type' => 'string', 'infix' => true, 'optional' => true],
                 ['name' => 'description', 'type' => 'string', 'infix' => true, 'optional' => true],
                 ['name' => 'variants', 'type' => 'string[]', 'infix' => true, 'optional' => true],
                 ['name' => 'tags', 'type' => 'string[]', 'facet' => true, 'optional' => true, 'infix' => true],
