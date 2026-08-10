@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Services\Meta\MetaWebhookParser;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,15 +24,18 @@ class ProcessMetaWebhookJob implements ShouldQueue
     {
     }
 
-    public function handle(): void
+    public function handle(MetaWebhookParser $parser): void
     {
-        // Keep ingestion separate from reply generation. Automatic replies require
-        // explicit approval and platform-permission checks before being enabled.
+        $entries = is_array($this->payload['entry'] ?? null)
+            ? $this->payload['entry']
+            : [];
+
+        $handled = $parser->process($entries);
+
         Log::info('Meta webhook received', [
             'object' => $this->payload['object'] ?? null,
-            'entry_count' => is_array($this->payload['entry'] ?? null)
-                ? count($this->payload['entry'])
-                : 0,
+            'entry_count' => count($entries),
+            'messages_handled' => $handled,
         ]);
     }
 }

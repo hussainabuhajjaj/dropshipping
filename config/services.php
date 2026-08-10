@@ -68,6 +68,8 @@ return [
         'verify_token' => env('META_VERIFY_TOKEN'),
         'page_access_token' => env('META_PAGE_ACCESS_TOKEN'),
         'instagram_business_account_id' => env('META_INSTAGRAM_BUSINESS_ACCOUNT_ID'),
+        'api_version' => env('META_API_VERSION', 'v21.0'),
+        'auto_reply' => env('META_AUTO_REPLY', true),
     ],
 
     'shippo' => [
