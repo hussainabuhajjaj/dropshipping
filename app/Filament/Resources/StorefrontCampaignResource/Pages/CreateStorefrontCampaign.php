@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Filament\Resources\StorefrontCampaignResource\Pages;
 
 use App\Filament\Resources\StorefrontCampaignResource;
+use App\Models\CampaignProductQuery;
+use App\Models\StorefrontCampaign;
 use App\Services\AI\ContentTranslationService;
 use Filament\Actions;
 use Filament\Forms;
