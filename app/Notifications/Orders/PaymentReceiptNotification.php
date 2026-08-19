@@ -155,15 +155,17 @@ class PaymentReceiptNotification extends Notification
             ->line('')
             ->line("**Subtotal:** {$xof} {$subtotalFmt}")
             ->line("**Shipping:** {$xof} {$shippingFmt}")
-            ->when($this->order->discount_total > 0, function ($mail) use ($totals) {
+            ->when($this->order->discount_total > 0, function ($mail) {
                 $presenter = app(CustomerMoneyPresenter::class);
                 $xof = $presenter->displayCurrency();
-                return $mail->line("**Discount:** -{$xof} " . $presenter->format($totals['discount'], $xof));
+                $lineTotals = $presenter->presentOrderTotals($this->order, $this->payment);
+                return $mail->line("**Discount:** -{$xof} " . $presenter->format($lineTotals['discount'], $xof));
             })
-            ->when($this->order->tax_total > 0, function ($mail) use ($totals) {
+            ->when($this->order->tax_total > 0, function ($mail) {
                 $presenter = app(CustomerMoneyPresenter::class);
                 $xof = $presenter->displayCurrency();
-                return $mail->line("**Tax:** {$xof} " . $presenter->format($totals['tax'], $xof));
+                $lineTotals = $presenter->presentOrderTotals($this->order, $this->payment);
+                return $mail->line("**Tax:** {$xof} " . $presenter->format($lineTotals['tax'], $xof));
             })
             ->line("**Total Paid:** {$xof} {$paidPresented['formatted']}")
             ->when(! $totals['ok'] || ! $paidPresented['ok'], fn (MailMessage $mail) => $mail->line('Note: FX conversion was unavailable; displayed totals may be inaccurate.'))
