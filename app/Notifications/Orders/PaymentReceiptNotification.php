@@ -143,6 +143,8 @@ class PaymentReceiptNotification extends Notification
             'ok' => true
         ];
 
+        $totals = $presenter->presentOrderTotals($this->order, $this->payment);
+
         return (new MailMessage)
             ->subject("Payment Receipt — Order #{$this->order->number}")
             ->greeting("Hi {$name},")
@@ -153,16 +155,14 @@ class PaymentReceiptNotification extends Notification
             ->line('')
             ->line("**Subtotal:** {$xof} {$subtotalFmt}")
             ->line("**Shipping:** {$xof} {$shippingFmt}")
-            ->when($this->order->discount_total > 0, function ($mail) {
+            ->when($this->order->discount_total > 0, function ($mail) use ($totals) {
                 $presenter = app(CustomerMoneyPresenter::class);
                 $xof = $presenter->displayCurrency();
-                $totals = $presenter->presentOrderTotals($this->order, $this->payment);
                 return $mail->line("**Discount:** -{$xof} " . $presenter->format($totals['discount'], $xof));
             })
-            ->when($this->order->tax_total > 0, function ($mail) {
+            ->when($this->order->tax_total > 0, function ($mail) use ($totals) {
                 $presenter = app(CustomerMoneyPresenter::class);
                 $xof = $presenter->displayCurrency();
-                $totals = $presenter->presentOrderTotals($this->order, $this->payment);
                 return $mail->line("**Tax:** {$xof} " . $presenter->format($totals['tax'], $xof));
             })
             ->line("**Total Paid:** {$xof} {$paidPresented['formatted']}")
