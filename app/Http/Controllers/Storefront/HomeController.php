@@ -91,6 +91,21 @@ class HomeController extends Controller
         $promotionBanners = $this->buildPromotionBanners($homepagePromotions);
         $bannerResolution = $this->resolveHomeBanners($locale, $promotionBanners);
 
+        $campaignHero = $bannerResolution['banners']['hero'][0] ?? null;
+        if (is_array($campaignHero) && ! empty($campaignHero['imagePath'])) {
+            array_unshift($heroSlides, [
+                'id' => 'campaign-hero-' . ($campaignHero['id'] ?? 'active'),
+                'badge' => $campaignHero['badgeText'] ?? '',
+                'title' => $campaignHero['title'] ?? '',
+                'subtitle' => $campaignHero['description'] ?? '',
+                'image' => $campaignHero['imagePath'],
+                'primary' => [
+                    'label' => $campaignHero['ctaText'] ?? 'Explore',
+                    'href' => $campaignHero['ctaUrl'] ?? '/products',
+                ],
+            ]);
+        }
+
         $seasonalDropsPayload = $this->buildSeasonalDrops($locale, $homeBuilder);
         $homeCollectionsPayload = $this->buildHomeCollections($locale, $homeBuilder);
         $flashDealsPayload = $this->buildFlashDeals($homepagePromotions);
