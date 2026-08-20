@@ -172,7 +172,8 @@ class CampaignsSourceProducts extends Command
 
     private function importProductsAsync(array $pids, CampaignProductQuery $query): string
     {
-        $chunks = array_chunk($pids, 25);
+        // Keep campaign imports small because enrichment and media sync are network-heavy.
+        $chunks = array_chunk($pids, 5);
         $trackingKey = 'campaign-sourcing-' . $query->storefront_campaign_id . '-' . Str::random(8);
 
         foreach ($chunks as $index => $chunk) {
