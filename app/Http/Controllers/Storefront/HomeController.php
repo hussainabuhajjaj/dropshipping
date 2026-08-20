@@ -352,28 +352,42 @@ class HomeController extends Controller
             ->filter(fn (StorefrontCampaign $campaign) => $campaign->isActiveForLocale($locale))
             ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true));
 
-        $campaignItems = [];
+        $collectionIds = $campaigns
+            ->flatMap(fn (StorefrontCampaign $campaign) => $campaign->collectionIds())
+            ->unique()
+            ->values();
+        $collections = StorefrontCollection::query()
+            ->whereIn('id', $collectionIds)
+            ->get()
+            ->keyBy('id');
 
+        $products = collect();
         foreach ($campaigns as $campaign) {
-            $campaignItems[] = [
-                'id' => 'campaign-' . $campaign->id,
-                'kind' => 'campaign',
-                'entityId' => $campaign->id,
-                'entitySlug' => $campaign->slug,
-                'kicker' => $campaign->localizedValue('hero_kicker', $locale) ?? strtoupper($campaign->type),
-                'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
-                'subtitle' => $campaign->localizedValue('hero_subtitle', $locale) ?? '',
-                'image' => $homeBuilder->normalizeImage($campaign->hero_image),
-                'href' => '/products?campaign=' . urlencode((string) $campaign->slug),
-                'tag' => $campaign->stacking_mode === 'exclusive' ? 'Exclusive' : 'Drop',
-            ];
+            foreach ($campaign->collectionIds() as $collectionId) {
+                $collection = $collections->get($collectionId);
+                if (! $collection) {
+                    continue;
+                }
+
+                $products = $products->concat($collection->resolveProducts($locale, 16));
+                if ($products->count() >= 16) {
+                    break 2;
+                }
+            }
         }
 
-        $items = array_slice($campaignItems, 0, 6);
+        $items = $products
+            ->unique('id')
+            ->take(16)
+            ->map(fn (Product $product) => $this->transformProduct($product))
+            ->values()
+            ->all();
 
         return [
             'items' => $items,
-            'viewAllHref' => $items[0]['href'] ?? '/products',
+            'viewAllHref' => $campaigns->first()?->slug
+                ? '/campaigns/' . $campaigns->first()->slug
+                : '/products',
         ];
     }
 
@@ -385,7 +399,7 @@ class HomeController extends Controller
         $allCollections = StorefrontCollection::query()
             ->orderBy('display_order')
             ->get()
-            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true));
+            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection', 'campaign'], true));
 
         $collections = $allCollections
             ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale));
