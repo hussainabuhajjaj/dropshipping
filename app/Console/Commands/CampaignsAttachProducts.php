@@ -33,10 +33,13 @@ class CampaignsAttachProducts extends Command
             $collection = $campaign->autoCollection;
 
             $collectionProductIds = $collection->products()->pluck('products.id')->all();
+            $sourcedAt = $campaign->productQuery?->sourced_at;
 
             $newProducts = Product::where('is_active', true)
                 ->whereNotNull('cj_pid')
+                ->when($sourcedAt, fn ($query) => $query->where('cj_imported_at', '>=', $sourcedAt))
                 ->whereNotIn('id', $collectionProductIds)
+                ->limit((int) ($campaign->productQuery?->max_products ?: 50))
                 ->get();
 
             if ($newProducts->isEmpty()) {
