@@ -109,6 +109,11 @@ class CampaignsSourceProducts extends Command
         $allPids = [];
         $keywords = $query->keywords ? explode(',', $query->keywords) : [''];
         $perKeyword = max(1, (int) ceil($query->max_products / max(1, count($keywords))));
+        $categoryIds = collect(explode(',', (string) $query->cj_category_id))
+            ->map(fn ($categoryId) => trim($categoryId))
+            ->filter()
+            ->values()
+            ->all();
 
         foreach ($keywords as $keyword) {
             $keyword = trim($keyword);
@@ -116,45 +121,49 @@ class CampaignsSourceProducts extends Command
                 continue;
             }
 
-            try {
-                $filters = [
-                    'pageNum' => 1,
-                    'pageSize' => min($perKeyword, 50),
-                    'productName' => $keyword,
-                    'sort' => $query->sort_by === 'sales' ? 'sales' : ($query->sort_by === 'newest' ? 'newest' : null),
-                ];
+            foreach ($categoryIds ?: [null] as $categoryId) {
+                try {
+                    $filters = [
+                        'pageNum' => 1,
+                        'pageSize' => min($perKeyword, 50),
+                        'productName' => $keyword,
+                        'sort' => $query->sort_by === 'sales' ? 'sales' : ($query->sort_by === 'newest' ? 'newest' : null),
+                    ];
 
-                if ($query->cj_category_id) {
-                    $filters['categoryId'] = $query->cj_category_id;
-                }
-
-                $response = $client->listProductsV2($filters);
-
-                $content = $response->data['content'] ?? [];
-                $products = [];
-                if (is_array($content) && isset($content[0]['productList'])) {
-                    $products = $content[0]['productList'];
-                }
-
-                foreach ($products as $product) {
-                    $pid = (string) ($product['id'] ?? '');
-                    if ($pid !== '' && ! in_array($pid, $allPids, true)) {
-                        $allPids[] = $pid;
+                    if ($categoryId) {
+                        $filters['categoryId'] = $categoryId;
                     }
+
+                    $response = $client->listProductsV2($filters);
+
+                    $content = $response->data['content'] ?? [];
+                    $products = [];
+                    if (is_array($content) && isset($content[0]['productList'])) {
+                        $products = $content[0]['productList'];
+                    }
+
+                    foreach ($products as $product) {
+                        $pid = (string) ($product['id'] ?? '');
+                        if ($pid !== '' && ! in_array($pid, $allPids, true)) {
+                            $allPids[] = $pid;
+                        }
+                    }
+
+                    $categoryLabel = $categoryId ? " (category {$categoryId})" : '';
+                    $this->line("  Keyword '{$keyword}'{$categoryLabel}: found " . count($products) . " products");
+                } catch (\Throwable $e) {
+                    $this->warn("  Search failed for keyword '{$keyword}': {$e->getMessage()}");
+                    Log::warning('[CampaignSourcing] CJ search failed', [
+                        'keyword' => $keyword,
+                        'category_id' => $categoryId,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
 
-                $this->line("  Keyword '{$keyword}': found " . count($products) . " products");
-            } catch (\Throwable $e) {
-                $this->warn("  Search failed for keyword '{$keyword}': {$e->getMessage()}");
-                Log::warning('[CampaignSourcing] CJ search failed', [
-                    'keyword' => $keyword,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
-            if (count($allPids) >= $query->max_products) {
-                $allPids = array_slice($allPids, 0, $query->max_products);
-                break;
+                if (count($allPids) >= $query->max_products) {
+                    $allPids = array_slice($allPids, 0, $query->max_products);
+                    break 2;
+                }
             }
         }
 
