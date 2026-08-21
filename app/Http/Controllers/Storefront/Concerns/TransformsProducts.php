@@ -8,6 +8,7 @@ use App\Domain\Products\Models\Product;
 use App\Services\Pricing\ProductCompareAtService as CompareAtService;
 use App\Services\Storefront\HomeBuilderService;
 use App\Support\ResolvesStorefrontVariantLabels;
+use App\Support\StorefrontSpecs;
 
 trait TransformsProducts
 {
@@ -114,7 +115,7 @@ trait TransformsProducts
         if ($includeMeta) {
             $data['variants'] = $variantPayload;
             $data['lead_time_days'] = $product->shipping_estimate_days;
-            $data['specs'] = is_array($product->attributes) ? $product->attributes : [];
+            $data['specs'] = StorefrontSpecs::fromAttributes(is_array($product->attributes) ? $product->attributes : []);
             $data['meta_title'] = $product->meta_title;
             $data['meta_description'] = $product->meta_description;
         }

@@ -9,6 +9,7 @@ use App\Services\Currency\CurrencyConversionService;
 use App\Services\Pricing\ProductCompareAtService as CompareAtService;
 use App\Services\Storefront\HomeBuilderService;
 use App\Support\ResolvesStorefrontVariantLabels;
+use App\Support\StorefrontSpecs;
 use Illuminate\Http\Request;
 
 class ProductResource extends JsonResource
@@ -142,7 +143,7 @@ class ProductResource extends JsonResource
 
         if ($this->includeMeta) {
             $data['lead_time_days'] = $product->shipping_estimate_days;
-            $data['specs'] = is_array($product->attributes) ? $product->attributes : [];
+            $data['specs'] = StorefrontSpecs::fromAttributes(is_array($product->attributes) ? $product->attributes : []);
             $data['meta_title'] = $product->meta_title;
             $data['meta_description'] = $product->meta_description;
         }
