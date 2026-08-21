@@ -28,6 +28,11 @@ const { t } = useTranslations()
 
 const confidenceItems = computed(() => [
   {
+    title: t('Secure payment'),
+    subtitle: t('Encrypted checkout with supported card, mobile money, and bank options.'),
+    icon: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z',
+  },
+  {
     title: t('Tracked delivery'),
     subtitle: t('Estimated dispatch: :days days, then carrier tracking follows.', { days: props.leadTimeDays }),
     icon: 'M3 7h10v7h3l3 3v3h-2a2 2 0 01-4 0H9a2 2 0 01-4 0H3V7z',
@@ -36,11 +41,6 @@ const confidenceItems = computed(() => [
     title: t('Clear total'),
     subtitle: t('Shipping and customs notes stay visible before payment.'),
     icon: 'M9 11h6M9 15h6M7 3h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V5a2 2 0 012-2z',
-  },
-  {
-    title: t('Easy support'),
-    subtitle: t('Need help choosing? Order by WhatsApp or contact support anytime.'),
-    icon: 'M8 10a4 4 0 118 0c0 4-4 3.5-4 7M12 21h.01M4 12a8 8 0 0116 0',
   },
 ])
 </script>

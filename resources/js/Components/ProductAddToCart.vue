@@ -61,31 +61,10 @@
       {{ successMessage }}
     </p>
 
-    <div class="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
-      <div class="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2.5">
-        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9L12 3z"/>
-        </svg>
-        {{ t('Tracked delivery') }}
-      </div>
-      <div class="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2.5">
-        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4l2 2M6.5 5.5h11a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
-        </svg>
-        {{ t('24 to 48h tracking') }}
-      </div>
-      <div class="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2.5">
-        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z"/>
-        </svg>
-        {{ t('Secure payment') }}
-      </div>
-    </div>
   </form>
 </template>
 
 <script setup>
-import { useTranslations } from '@/i18n'
 import ShareButton from '@/Components/ShareButton.vue'
 
 defineProps({
@@ -99,6 +78,4 @@ defineProps({
 })
 
 defineEmits(['submit', 'decrement-qty', 'increment-qty', 'whatsapp', 'update-qty'])
-
-const { t } = useTranslations()
 </script>

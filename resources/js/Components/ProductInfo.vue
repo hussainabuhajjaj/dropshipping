@@ -88,11 +88,6 @@
       </span>
     </div>
 
-    <TrustBadges :compact="true" :columns="3" tone="muted" />
-
-    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-xs text-slate-500">
-      {{ t('Customs and duties are shown before payment. Delivery timelines begin after dispatch and local clearance.') }}
-    </div>
   </div>
 </template>
 
@@ -100,7 +95,6 @@
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { useTranslations } from '@/i18n'
-import TrustBadges from '@/Components/TrustBadges.vue'
 import ProductPromotionBadge from '@/Components/ProductPromotionBadge.vue'
 
 const props = defineProps({
