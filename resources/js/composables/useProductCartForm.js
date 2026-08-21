@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import { toastAlert } from '@/utils/toast'
+import { useStorefrontAnalytics } from '@/composables/useStorefrontAnalytics.js'
 
 const readMetaCsrfToken = () =>
   document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
@@ -55,6 +56,7 @@ export function useProductCartForm(options) {
   } = options
 
   const page = usePage()
+  const { trackAddToCart } = useStorefrontAnalytics()
   const selectedVariantId = ref(requireExplicitVariantSelection ? null : product.variants?.[0]?.id ?? null)
   const showLoginPrompt = ref(false)
   const successMessage = ref(page.props.flash?.cart_notice ?? '')
@@ -149,6 +151,11 @@ export function useProductCartForm(options) {
       headers: csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {},
       onSuccess: () => {
         successMessage.value = t('Added to cart.')
+        trackAddToCart(product, {
+          variant: selectedVariant.value,
+          quantity: Number(form.quantity || 1),
+          currency: page.props.currency ?? product.currency ?? 'XOF',
+        })
         clearSuccessSoon()
         if (typeof onAdded === 'function') {
           onAdded()

@@ -124,18 +124,20 @@
 
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { useTranslations } from '@/i18n'
+import { useStorefrontAnalytics } from '@/composables/useStorefrontAnalytics.js'
 import axios from 'axios'
 
-defineProps({
+const props = defineProps({
   order: { type: Object, required: true },
   upsellProducts: { type: Array, default: () => [] },
 })
 
 const page = usePage()
 const { t } = useTranslations()
+const { trackPurchase } = useStorefrontAnalytics()
 const supportWhatsApp = page.props.site?.support_whatsapp ?? '+225 00 00 00 00'
 
 // Payment verification state
@@ -149,6 +151,11 @@ const formattedPaymentStatus = computed(() => {
   if (verificationError.value) return t('Verification failed')
   return paymentStatus.value
 })
+
+const trackPurchaseIfPaid = () => {
+  if (paymentStatus.value !== 'paid') return
+  trackPurchase(props.order)
+}
 
 // Extract payment reference from URL or order
 const getPaymentReference = () => {
@@ -190,6 +197,7 @@ const verifyPayment = async () => {
     if (response.data.success) {
       // Update payment status from verification response
       paymentStatus.value = response.data.data?.payment_status || 'paid'
+      trackPurchaseIfPaid()
       
       // Optionally reload page data if status changed
       if (response.data.data?.payment_status !== page.props.order?.payment_status) {
@@ -210,9 +218,13 @@ const verifyPayment = async () => {
 
 // Auto-verify on page load if payment is not paid
 onMounted(() => {
+  trackPurchaseIfPaid()
+
   if (paymentStatus.value !== 'paid' && getPaymentReference()) {
     // Small delay to ensure page is fully loaded
     setTimeout(verifyPayment, 1000)
   }
 })
+
+watch(paymentStatus, trackPurchaseIfPaid)
 </script>

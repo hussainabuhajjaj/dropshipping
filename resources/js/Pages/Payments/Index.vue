@@ -121,10 +121,12 @@ import Address from '@/Components/payment/Address.vue'
 import FreeShippingBar from '@/Components/FreeShippingBar.vue'
 import CheckoutTrustBadges from '@/Components/CheckoutTrustBadges.vue'
 import {toastAlert} from '@/utils/toast.js'
+import {useStorefrontAnalytics} from '@/composables/useStorefrontAnalytics.js'
 
 const page = usePage()
 const paystackConfig = window.paystackConfig || {}
 const {t} = useTranslations()
+const {trackAddPaymentInfo, trackBeginCheckout} = useStorefrontAnalytics()
 
 const now = usePromoNow()
 const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
@@ -146,6 +148,12 @@ const displayPromotions = computed(() => summery?.appliedPromotions?.length ? su
 const displayCurrency = computed(() => 'XOF')
 const totalItems = computed(() => items.value.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
 const mobileMoneyProviders = computed(() => paystackConfig.paystackMobileMoney?.XOF || ['orange', 'wave', 'mtn'])
+const paymentAnalyticsPayload = computed(() => ({
+    items: items.value,
+    currency: displayCurrency.value,
+    total: final_total,
+    subtotal: Number(summery?.raw?.subtotal ?? summery?.subtotal ?? 0),
+}))
 
 const couponApplied = computed(() => discount.value > 0)
 const couponCode = computed(() => summery?.coupon?.code || '')
@@ -277,6 +285,7 @@ async function payWithPaystack(method) {
     const identityName = [address.value.first_name, address.value.last_name].filter(Boolean).join(' ').trim() || customer?.name || ''
 
     isProcessing.value = true
+    trackAddPaymentInfo(paymentAnalyticsPayload.value, {paymentType: method})
 
     try {
         const amountToSend = Number(page.props.summery?.raw?.total || final_total || 0)
@@ -338,5 +347,6 @@ function changeAddress(payload) {
 
 onMounted(() => {
     handleMethodChange(selectedMethod.value)
+    trackBeginCheckout(paymentAnalyticsPayload.value)
 })
 </script>

@@ -179,7 +179,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { useMultipleJsonLd } from '@/composables/useJsonLd.js'
 import { useProductCartForm } from '@/composables/useProductCartForm.js'
@@ -188,6 +188,7 @@ import { useProductPromotion } from '@/composables/useProductPromotion.js'
 import { useProductReviews } from '@/composables/useProductReviews.js'
 import { useWhatsAppCheckout } from '@/composables/useWhatsAppCheckout.js'
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
+import { useStorefrontAnalytics } from '@/composables/useStorefrontAnalytics.js'
 import { useTranslations } from '@/i18n'
 
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
@@ -206,6 +207,7 @@ import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 const page = usePage()
 const { t } = useTranslations()
 const { formatCurrency, convertCurrency, currentCurrency } = useUserPreferences()
+const { trackViewItem } = useStorefrontAnalytics()
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -665,4 +667,16 @@ const breadcrumbSchema = computed(() => {
 })
 
 useMultipleJsonLd([productSchema, breadcrumbSchema])
+
+onMounted(() => {
+  const price = Number(selectedVariant.value?.price ?? props.product.price ?? props.product.selling_price ?? 0)
+  const convertedPrice = convertCurrency(price, props.currency || 'USD', displayCurrency.value)
+
+  trackViewItem(props.product, {
+    variant: selectedVariant.value,
+    currency: displayCurrency.value,
+    price: convertedPrice,
+    value: convertedPrice,
+  })
+})
 </script>

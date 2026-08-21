@@ -188,7 +188,7 @@
                         :disabled="!canCheckout"
                         class="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#111111] px-5 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:bg-[#262626]"
                         :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
-                        @click="$inertia.visit('/checkout')"
+                        @click="goToCheckout"
                     >
                         {{ t('Secure checkout') }}
                     </button>
@@ -238,7 +238,7 @@
                         :disabled="!canCheckout"
                         class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#111111] px-5 text-sm font-bold uppercase tracking-[0.12em] text-white"
                         :class="{ 'cursor-not-allowed opacity-60': !canCheckout }"
-                        @click="$inertia.visit('/checkout')"
+                        @click="goToCheckout"
                     >
                         {{ t('Checkout') }}
                     </button>
@@ -265,12 +265,13 @@ import EmptyState from '@/Components/EmptyState.vue'
 import TrustBadges from '@/Components/TrustBadges.vue'
 import DeliveryTimeline from '@/Components/DeliveryTimeline.vue'
 import PaymentBadges from '@/Components/PaymentBadges.vue'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {usePersistentCart} from '@/composables/usePersistentCart.js'
 import {useTranslations} from '@/i18n'
 import { usePromoNow, formatCountdown } from '@/composables/usePromoCountdown.js'
 import { useWhatsAppCheckout } from '@/composables/useWhatsAppCheckout.js'
 import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
+import { useStorefrontAnalytics } from '@/composables/useStorefrontAnalytics.js'
 
 const props = defineProps({
     lines: {type: Array, required: true},
@@ -292,6 +293,7 @@ const props = defineProps({
 const {t} = useTranslations()
 const page = usePage()
 const { creatingIntent, startWhatsAppCheckout } = useWhatsAppCheckout({ t })
+const { trackBeginCheckout, trackViewCart } = useStorefrontAnalytics()
 const now = usePromoNow()
 const discountLabel = computed(() => props.discount_label)
 const promoCountdown = (promo) => formatCountdown(promo?.end_at, now.value)
@@ -331,6 +333,13 @@ const {cart, removeLine: removeLineLocal, updateLine: updateLineLocal} = usePers
 
 const isLoggedIn = computed(() => !!props.user)
 
+const cartAnalyticsPayload = computed(() => ({
+    lines: props.lines,
+    currency: props.currency,
+    subtotal: props.subtotal,
+    total: estimatedTotal.value,
+}))
+
 const removeLine = (id) => {
     // if (isLoggedIn.value) {
     router.delete(`/cart/${id}`, {
@@ -359,6 +368,11 @@ const sendCartViaWhatsApp = async () => {
         mode: 'cart',
         channel: 'web',
     })
+}
+
+const goToCheckout = () => {
+    trackBeginCheckout(cartAnalyticsPayload.value)
+    router.visit('/checkout')
 }
 
 const applyCoupon = () => {
@@ -395,4 +409,8 @@ const freeShippingRemaining = computed(() => Math.max(0, freeShippingThreshold -
 const freeShippingPercent = computed(() => Math.min(100, (props.subtotal / freeShippingThreshold) * 100))
 
 const { recentlyViewed } = useRecentlyViewed()
+
+onMounted(() => {
+    trackViewCart(cartAnalyticsPayload.value)
+})
 </script>
