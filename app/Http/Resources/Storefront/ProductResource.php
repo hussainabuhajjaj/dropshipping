@@ -100,6 +100,7 @@ class ProductResource extends JsonResource
             'id' => $product->id,
             'slug' => $product->slug,
             'name' => $translation?->name ?: $product->name,
+            'code' => $product->code,
             'category' => $categoryName,
             'category_id' => $product->category_id,
             'description' => $translation?->description ?: $product->description,

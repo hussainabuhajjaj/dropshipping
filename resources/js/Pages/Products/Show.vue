@@ -18,8 +18,8 @@
     <div class="min-h-screen bg-white pb-28 lg:pb-0">
       <Breadcrumbs :items="breadcrumbs" class="px-4 pt-4" />
 
-      <div class="mx-auto mt-2 max-w-7xl px-4 lg:mt-4">
-        <div class="lg:grid lg:grid-cols-[1.3fr,1fr] lg:gap-12">
+      <div class="mx-auto mt-2 max-w-7xl overflow-hidden px-4 lg:mt-4">
+        <div class="min-w-0 lg:grid lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)] lg:gap-12">
 
           <ProductGallery
             :images="galleryImages"
@@ -31,7 +31,7 @@
             @next-image="setGalleryImageByIndex(selectedImageIndex + 1)"
           />
 
-          <div class="mt-6 space-y-5 lg:mt-0 lg:sticky lg:top-28 lg:self-start">
+          <div class="mt-6 min-w-0 space-y-5 lg:mt-0 lg:sticky lg:top-28 lg:self-start">
             <ProductInfo
               :product="product"
               :display-price-formatted="displayPriceFormatted"
@@ -42,6 +42,7 @@
               :promotion-price-discountable="promotionPriceDiscountable"
               :stock-badge="stockBadge"
               :review-summary="reviewSummary"
+              :product-code="productCode"
               :display-promotion-value="displayPromotionValue"
             />
 
@@ -326,6 +327,11 @@ const qualifiesForGiveaway = computed(() => {
   if (threshold <= 0 || Number(price) < threshold) return null
 
   return campaign
+})
+
+const productCode = computed(() => {
+  const code = props.product.code
+  return typeof code === 'string' && code.trim() !== '' ? code.trim() : null
 })
 
 // ---- Gallery ----

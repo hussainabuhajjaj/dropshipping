@@ -25,6 +25,10 @@
       <p v-if="descriptionText" class="line-clamp-2 text-sm text-slate-500">
         {{ descriptionText }}
       </p>
+      <p v-if="productCode" class="text-xs text-slate-500">
+        {{ t('Product code') }}:
+        <span class="font-semibold text-slate-800 break-all">{{ productCode }}</span>
+      </p>
     </div>
 
     <div class="flex flex-wrap items-baseline gap-3">
@@ -95,6 +99,7 @@ const props = defineProps({
   promotionPriceDiscountable: { type: Boolean, default: false },
   stockBadge: { type: Object, default: () => ({}) },
   reviewSummary: { type: Object, default: () => ({ count: 0, average: 0 }) },
+  productCode: { type: String, default: null },
   displayPromotionValue: { type: Function, default: (v) => v },
 })
 
