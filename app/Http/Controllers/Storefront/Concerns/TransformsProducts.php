@@ -50,9 +50,7 @@ trait TransformsProducts
                 'variant_image' => $variantImage,
                 'price' => $price ?? 0.0,
                 'compare_at_price' => $this->displayCompareAt($referencePrice, $compareAt),
-                'sku' => $variant->sku,
                 'currency' => $variant->currency ?? $product->currency ?? 'USD',
-                'cj_vid' => $variant->cj_vid,
                 'stock_on_hand' => $variant->stock_on_hand,
                 'low_stock_threshold' => $variant->low_stock_threshold,
             ];
@@ -85,7 +83,6 @@ trait TransformsProducts
             'id' => $product->id,
             'slug' => $product->slug,
             'name' => $translation?->name ?: $product->name,
-            'code' => $product->code,
             'category' => $categoryName,
             'category_id' => $product->category_id,
             'category_slug' => $categorySlug,

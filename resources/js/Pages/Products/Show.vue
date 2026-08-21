@@ -42,9 +42,6 @@
               :promotion-price-discountable="promotionPriceDiscountable"
               :stock-badge="stockBadge"
               :review-summary="reviewSummary"
-              :product-code="productCode"
-              :variant-sku="variantSku"
-              :should-show-variant-sku="shouldShowVariantSku"
               :display-promotion-value="displayPromotionValue"
             />
 
@@ -331,16 +328,6 @@ const qualifiesForGiveaway = computed(() => {
   return campaign
 })
 
-const productCode = computed(() => {
-  const code = props.product.code
-  return typeof code === 'string' && code.trim() !== '' ? code.trim() : null
-})
-const variantSku = computed(() => {
-  const sku = selectedVariant.value?.sku
-  return typeof sku === 'string' && sku.trim() !== '' ? sku.trim() : null
-})
-const shouldShowVariantSku = computed(() => Boolean(variantSku.value && variantSku.value !== productCode.value))
-
 // ---- Gallery ----
 const galleryImages = computed(() => {
   const images = [
@@ -553,20 +540,11 @@ const productSchema = computed(() => {
     schema.image = Array.isArray(props.product.media) ? props.product.media : [productImage.value]
   }
 
-  if (props.product.code) {
-    schema.mpn = props.product.code
-    schema.sku = props.product.code
-  }
-
   if (props.product.brand) {
     schema.brand = {
       '@type': 'Brand',
       name: props.product.brand,
     }
-  }
-
-  if (selectedVariant.value?.sku && selectedVariant.value.sku !== props.product.code) {
-    schema.sku = selectedVariant.value.sku
   }
 
   if (selectedVariant.value?.gtin) {
