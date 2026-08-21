@@ -46,19 +46,33 @@
           />
 
           <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('Payment method') }}</h2>
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-semibold text-slate-900">{{ t('Payment method') }}</h2>
+                <p class="mt-1 text-xs leading-5 text-slate-500">{{ t('Choose the option that is easiest for you. Secure card and mobile money payments are processed by Paystack when available.') }}</p>
+              </div>
+              <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-[0.64rem] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                {{ t('Secure') }}
+              </span>
+            </div>
             <div class="mt-4 grid gap-3 text-sm text-slate-600">
-              <label v-if="paystackEnabled" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                <input v-model="form.payment_method" type="radio" value="card" />
-                <span>{{ t('Paystack Card (Visa / Mastercard)') }}</span>
-              </label>
-              <label v-if="showMobileMoney" class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                <input v-model="form.payment_method" type="radio" value="mobile_money" />
-                <span>{{ t('Paystack Mobile Money') }}</span>
-              </label>
-              <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">
-                <input v-model="form.payment_method" type="radio" value="bank_transfer" />
-                <span>{{ t('Bank transfer') }}</span>
+              <label
+                v-for="method in paymentOptions"
+                :key="method.value"
+                class="flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition"
+                :class="form.payment_method === method.value
+                  ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
+              >
+                <input v-model="form.payment_method" type="radio" :value="method.value" class="mt-1" />
+                <span class="min-w-0">
+                  <span class="block font-black" :class="form.payment_method === method.value ? 'text-white' : 'text-slate-950'">
+                    {{ method.label }}
+                  </span>
+                  <span class="mt-0.5 block text-xs leading-5" :class="form.payment_method === method.value ? 'text-white/70' : 'text-slate-500'">
+                    {{ method.description }}
+                  </span>
+                </span>
               </label>
             </div>
             <div v-if="form.payment_method === 'mobile_money' && showMobileMoneyProviders" class="mt-4 space-y-2">
@@ -170,11 +184,14 @@
             </div>
             <div v-if="qualifiesForGiveaway" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
               <div class="flex items-center gap-2 font-semibold text-amber-800">
-                <span>🎉</span>
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 15l-4.6 2.4.9-5.2-3.8-3.7 5.2-.8L12 3z" />
+                </svg>
                 <span>{{ t("You're officially entered into the draw! Good luck!") }}</span>
               </div>
             </div>
           <div class="space-y-4 pt-2">
+            <PaymentBadges :label="t('Payment protected by')" :show-paystack="Boolean(paystackKey)" />
             <DeliveryTimeline compact />
             <TrustBadges compact />
           </div>
@@ -266,6 +283,34 @@ const mobileMoneyEnabled = computed(() => Boolean(paystackConfig.paystackMobileM
 const mobileMoneyProviders = computed(() => paystackConfig.paystackMobileMoney?.[String(props.currency || '').toUpperCase()] || [])
 const showMobileMoney = computed(() => paystackEnabled.value && mobileMoneyEnabled.value && mobileMoneyProviders.value.length > 0)
 const showMobileMoneyProviders = computed(() => showMobileMoney.value && mobileMoneyProviders.value.length > 0)
+const paymentOptions = computed(() => {
+  const options = []
+
+  if (showMobileMoney.value) {
+    options.push({
+      value: 'mobile_money',
+      label: t('Mobile Money'),
+      description: t('Pay with a supported mobile money provider through Paystack.'),
+    })
+  }
+
+  if (paystackEnabled.value) {
+    options.push({
+      value: 'card',
+      label: t('Card payment'),
+      description: t('Use Visa or Mastercard with secure Paystack processing.'),
+    })
+  }
+
+  options.push({
+    value: 'bank_transfer',
+    label: t('Bank transfer'),
+    description: t('Place the order and follow the bank transfer instructions.'),
+  })
+
+  return options
+})
+const defaultPaymentMethod = computed(() => paymentOptions.value[0]?.value || 'bank_transfer')
 const displayAmount = (amount) =>
   formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', displayCurrency.value), displayCurrency.value)
 const qualifiesForGiveaway = computed(() => {
@@ -295,16 +340,16 @@ const form = useForm({
   postal_code: props.defaultAddress?.postal_code || '',
   country: props.defaultAddress?.country || 'CI',
   delivery_notes: '',
-  payment_method: showMobileMoney.value ? 'mobile_money' : 'card',
+  payment_method: defaultPaymentMethod.value,
   mobile_money_provider: mobileMoneyProviders.value[0] || '',
   accept_terms: false,
 })
 
-watch(showMobileMoney, (enabled) => {
-  if (!enabled && form.payment_method === 'mobile_money') {
-    form.payment_method = 'card'
+watch(paymentOptions, (options) => {
+  if (!options.some((option) => option.value === form.payment_method)) {
+    form.payment_method = defaultPaymentMethod.value
   }
-})
+}, { immediate: true })
 
 watch(mobileMoneyProviders, (providers) => {
   if (!providers.includes(form.mobile_money_provider)) {

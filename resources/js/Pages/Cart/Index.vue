@@ -6,7 +6,7 @@
                     <div>
                         <p class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-[#facc15]">{{ t('Bag review') }}</p>
                         <h1 class="mt-2 text-[1.9rem] font-black tracking-[-0.04em] sm:text-[2.2rem]">{{ t('Your cart') }}</h1>
-                        <p class="mt-2 max-w-xl text-sm leading-6 text-white/72">{{ t('Keep the momentum. Prices, deal tags, and low-stock signals stay visible so shoppers move from bag to checkout without second-guessing.') }}</p>
+                        <p class="mt-2 max-w-xl text-sm leading-6 text-white/72">{{ t('Review your items, confirm savings, and continue to secure checkout when everything looks right.') }}</p>
                     </div>
                     <Link href="/products" class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/8 px-4 text-sm font-semibold text-white transition hover:bg-white/12">
                         {{ t('Continue shopping') }}
@@ -17,7 +17,8 @@
             <div class="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div class="shrink-0 rounded-full bg-[#fff4e8] px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[#c55b24]">{{ t(':count items', { count: itemCount }) }}</div>
                 <div v-if="savingsTotal > 0" class="shrink-0 rounded-full bg-emerald-50 px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-emerald-700">{{ t('Saving :amount', { amount: displayPrice(savingsTotal) }) }}</div>
-                <div class="shrink-0 rounded-full bg-white px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Fast checkout') }}</div>
+                <div class="shrink-0 rounded-full bg-white px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Secure checkout') }}</div>
+                <div class="shrink-0 rounded-full bg-white px-3 py-2 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-[#eadfce]">{{ t('Tracked delivery') }}</div>
             </div>
 
             <!-- Free Shipping Progress Bar -->
@@ -130,7 +131,9 @@
 
                     <div v-if="qualifiesForGiveaway" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
                         <div class="flex items-center gap-2 font-semibold text-amber-800">
-                            <span>🎉</span>
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 15l-4.6 2.4.9-5.2-3.8-3.7 5.2-.8L12 3z" />
+                            </svg>
                             <span>{{ t('Your cart qualifies for the draw!') }}</span>
                         </div>
                         <a :href="'/campaigns/' + qualifiesForGiveaway.slug" class="mt-1 block text-xs text-amber-600 hover:text-amber-500 underline underline-offset-2">
@@ -140,7 +143,12 @@
 
                     <div v-if="luckyDrawProgress" class="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 text-sm">
                         <div class="flex items-center justify-between font-semibold text-amber-800">
-                            <span>🎯 {{ t('Get closer to') }} {{ luckyDrawProgress.grand_prize }}</span>
+                            <span class="inline-flex items-center gap-2">
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4a8 8 0 108 8M12 8a4 4 0 104 4M16 8l4-4M20 4v5h-5" />
+                                </svg>
+                                {{ t('Get closer to') }} {{ luckyDrawProgress.grand_prize }}
+                            </span>
                             <span>{{ t('Spend :amount more', { amount: displayPrice(luckyDrawProgress.missing) }) }}</span>
                         </div>
                         <div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-amber-100">
@@ -184,6 +192,20 @@
                     >
                         {{ t('Secure checkout') }}
                     </button>
+                    <div class="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                        <div class="rounded-xl bg-white px-3 py-2 ring-1 ring-[#eadfce]">
+                            <span class="block font-black text-slate-950">{{ t('Step 1') }}</span>
+                            <span>{{ t('Address') }}</span>
+                        </div>
+                        <div class="rounded-xl bg-white px-3 py-2 ring-1 ring-[#eadfce]">
+                            <span class="block font-black text-slate-950">{{ t('Step 2') }}</span>
+                            <span>{{ t('Payment') }}</span>
+                        </div>
+                        <div class="rounded-xl bg-white px-3 py-2 ring-1 ring-[#eadfce]">
+                            <span class="block font-black text-slate-950">{{ t('Step 3') }}</span>
+                            <span>{{ t('Tracking') }}</span>
+                        </div>
+                    </div>
                     <button
                         :disabled="creatingIntent || !lines.length"
                         class="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-[#25D366]/30 bg-[#25D366]/10 px-5 text-sm font-bold text-[#128C49] transition hover:bg-[#25D366]/15"
@@ -193,9 +215,7 @@
                         {{ creatingIntent ? t('Preparing...') : t('Send cart via WhatsApp') }}
                     </button>
                     <p class="text-xs text-slate-500">
-                        {{
-                            t("Delivery to Cote d'Ivoire with transparent customs. Expect tracking within 24 to 48 hours after fulfillment.")
-                        }}
+                        {{ t("Delivery to Cote d'Ivoire includes clear customs notes and tracking updates after fulfillment.") }}
                     </p>
                     <div class="space-y-4 border-t border-slate-200 pt-4">
                         <PaymentBadges :label="t('Accepted payments')" />

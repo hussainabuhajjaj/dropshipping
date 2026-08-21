@@ -50,7 +50,9 @@
 
             <div v-if="qualifiesForGiveaway" class="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
               <a :href="'/campaigns/' + qualifiesForGiveaway.slug" class="flex items-center gap-2 text-sm font-semibold text-amber-800 hover:text-amber-600 transition-colors">
-                <span>🎁</span>
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 8h20v4H2V8zM12 8v12M12 8H7.5a2.5 2.5 0 110-5C10.5 3 12 8 12 8zM12 8h4.5a2.5 2.5 0 100-5C13.5 3 12 8 12 8z" />
+                </svg>
                 <span>{{ t('Eligible for') }} {{ qualifiesForGiveaway.grand_prize }}</span>
                 <svg class="h-3.5 w-3.5 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </a>
@@ -81,6 +83,8 @@
               @update-qty="form.quantity = Math.max(1, $event)"
               @whatsapp="orderViaWhatsApp"
             />
+
+            <ProductConfidencePanel :lead-time-days="product.lead_time_days ?? 7" />
 
             <ProductDetailTabs
               :active-tab="activeTab"
@@ -192,6 +196,7 @@ import ProductGallery from '@/Components/ProductGallery.vue'
 import ProductInfo from '@/Components/ProductInfo.vue'
 import ProductVariantPicker from '@/Components/ProductVariantPicker.vue'
 import ProductAddToCart from '@/Components/ProductAddToCart.vue'
+import ProductConfidencePanel from '@/Components/ProductConfidencePanel.vue'
 import ProductDetailTabs from '@/Components/ProductDetailTabs.vue'
 import ProductCard from '@/Components/ProductCard.vue'
 import ProductStickyBar from '@/Components/ProductStickyBar.vue'
