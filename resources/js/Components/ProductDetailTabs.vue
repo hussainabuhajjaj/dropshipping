@@ -31,7 +31,7 @@
 
     <div v-else-if="activeTab === 'specs'" class="space-y-3 text-sm text-slate-600">
       <div v-if="specKeys.length" class="divide-y divide-slate-100">
-        <div v-for="(value, key) in specEntries" :key="key" class="flex justify-between py-2.5">
+        <div v-for="(value, key) in displaySpecEntries" :key="key" class="flex justify-between py-2.5">
           <span class="text-slate-500 capitalize">{{ formatSpecKey(key) }}</span>
           <span class="font-semibold text-slate-900 text-right ml-4">{{ value }}</span>
         </div>
@@ -192,7 +192,23 @@ const tabs = computed(() => [
   { key: 'reviews', label: t('Reviews (:count)', { count: props.reviewSummary.count }) },
 ])
 
-const specKeys = computed(() => Object.keys(props.specEntries))
+const blockedSpecPattern = /(cj|cjdropshipping|payload|variant|inventory|image|video|sku|pid|supplier|source|token|secret|url|html|description)/i
+
+const displaySpecEntries = computed(() => Object.entries(props.specEntries ?? {}).reduce((entries, [key, value]) => {
+  if (blockedSpecPattern.test(String(key))) {
+    return entries
+  }
+
+  const normalizedValue = normalizeSpecValue(value)
+  if (!normalizedValue || blockedSpecPattern.test(normalizedValue)) {
+    return entries
+  }
+
+  entries[key] = normalizedValue
+  return entries
+}, {}))
+
+const specKeys = computed(() => Object.keys(displaySpecEntries.value))
 
 function tabClasses(key) {
   return key === props.activeTab
@@ -202,6 +218,20 @@ function tabClasses(key) {
 
 function formatSpecKey(value) {
   return String(value).replace(/_/g, ' ')
+}
+
+function normalizeSpecValue(value) {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'boolean') return value ? t('Yes') : t('No')
+  if (typeof value === 'number') return String(value)
+  if (typeof value !== 'string') return ''
+
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > 180 || trimmed.includes('{') || trimmed.includes('[') || trimmed.includes('://') || trimmed.includes('<')) {
+    return ''
+  }
+
+  return trimmed
 }
 
 function formatDate(value) {
