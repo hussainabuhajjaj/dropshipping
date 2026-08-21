@@ -1,20 +1,20 @@
 <template>
-  <div class="sticky top-20 z-20 rounded-[1.35rem] border border-[#eadfce] bg-white/95 p-3 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur">
+  <div class="sticky top-20 z-20 rounded-lg border border-[#e7ded1] bg-white/95 p-3 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <span class="rounded-full bg-[#fff4e8] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#c55b24]">
+        <span class="rounded-full bg-[#fff4e5] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#d97706]">
           {{ totalLabel }}
         </span>
         <span
           v-if="activeFilterCount"
-          class="rounded-full bg-white px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 ring-1 ring-[#eadfce]"
+          class="rounded-full bg-white px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-slate-500 ring-1 ring-[#e7ded1]"
         >
           {{ t(':count filters active', { count: activeFilterCount }) }}
         </span>
         <button
           v-if="showFilterButton"
           type="button"
-          class="inline-flex min-h-10 items-center justify-center rounded-full border border-[#eadfce] bg-[#fffaf4] px-4 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-700 lg:hidden"
+          class="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#e7ded1] bg-[#fffaf4] px-4 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-700 lg:hidden"
           @click="$emit('open-filters')"
         >
           {{ filterButtonLabel }}

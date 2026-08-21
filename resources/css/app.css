@@ -1,29 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700&display=swap');
-
 @layer base {
     :root {
-        --accent: #EF4444;
-        --accent-strong: #DC2626;
-        --text-strong: #0F172A;
-        --text-muted: #64748B;
-        --border-muted: #E2E8F0;
-        --surface: #FFFFFF;
-        --surface-muted: #F8FAFC;
+        --accent: #f59e0b;
+        --accent-strong: #d97706;
+        --ink: #020617;
+        --text-strong: #101827;
+        --text-muted: #667085;
+        --border-muted: #e6e0d6;
+        --surface: #ffffff;
+        --surface-muted: #f7f4ef;
+        --surface-warm: #fffaf3;
     }
 
     html {
         font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
         color: var(--text-strong);
-        background-color: #ffffff;
+        background-color: var(--surface-muted);
         scroll-behavior: smooth;
     }
 
     body {
-        background-color: #ffffff;
+        background: var(--surface-muted);
         line-height: 1.6;
     }
 
@@ -45,17 +47,23 @@
     }
 
     .card {
-        @apply rounded-2xl border border-slate-200 bg-white;
+        @apply border bg-white shadow-sm;
+        border-color: var(--border-muted);
+        border-radius: 8px;
     }
 
     .card-muted {
-        @apply rounded-2xl border border-slate-200 bg-slate-50/60;
+        @apply border shadow-sm;
+        border-color: var(--border-muted);
+        border-radius: 8px;
+        background-color: var(--surface-warm);
     }
 
     .btn-primary {
-        @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition duration-200;
+        @apply inline-flex items-center justify-center px-5 py-3 text-sm font-bold transition duration-200;
         background-color: var(--accent);
-        color: white;
+        color: var(--ink);
+        border-radius: 8px;
     }
 
     .btn-primary:hover {
@@ -68,7 +76,9 @@
     }
 
     .btn-secondary {
-        @apply inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition duration-200;
+        @apply inline-flex items-center justify-center border px-5 py-3 text-sm font-bold text-slate-700 transition duration-200;
+        border-color: var(--border-muted);
+        border-radius: 8px;
     }
 
     .btn-secondary:hover {
@@ -84,19 +94,32 @@
     }
 
     .btn-red {
-        @apply inline-flex items-center justify-center rounded-lg bg-red-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-600 active:scale-95;
+        @apply inline-flex items-center justify-center px-5 py-2.5 text-sm font-bold shadow-sm transition active:scale-95;
+        border-radius: 8px;
+        background-color: var(--accent);
+        color: var(--ink);
     }
 
     .input-base {
-        @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none;
+        @apply w-full border bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none;
+        border-color: var(--border-muted);
+        border-radius: 8px;
+    }
+
+    .input-base:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
     }
 
     .chip {
-        @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600;
+        @apply inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs font-semibold text-slate-600;
+        border-color: var(--border-muted);
     }
 
     .badge-red {
-        @apply inline-flex items-center rounded bg-red-500 px-1.5 py-0.5 text-[0.6rem] font-bold text-white;
+        @apply inline-flex items-center px-1.5 py-0.5 text-[0.6rem] font-bold text-white;
+        border-radius: 4px;
+        background-color: var(--accent);
     }
 
     .breadcrumbs-nav {
@@ -218,7 +241,8 @@
     }
 
     .price-red {
-        @apply text-sm font-black text-red-500;
+        @apply text-sm font-black;
+        color: var(--accent);
     }
 
     .price-strikethrough {

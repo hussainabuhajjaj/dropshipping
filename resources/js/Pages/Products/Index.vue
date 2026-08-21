@@ -6,7 +6,7 @@
       <link v-if="nextPageUrl" rel="next" :href="nextPageUrl" />
     </Head>
 
-    <div class="min-h-screen bg-white pb-28">
+    <div class="min-h-screen bg-[#f7f4ef] pb-28">
       <Breadcrumbs v-if="breadcrumbs.length" :items="breadcrumbs" class="px-4" />
 
       <div class="mx-auto mt-4 max-w-7xl px-4">
@@ -19,7 +19,7 @@
           >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
             {{ t('Filters') }}
-            <span v-if="activeFilters.length" class="ml-0.5 rounded-full bg-red-500 px-1.5 text-[0.55rem] font-bold text-white">{{ activeFilters.length }}</span>
+            <span v-if="activeFilters.length" class="ml-0.5 rounded-full bg-[#f59e0b] px-1.5 text-[0.55rem] font-bold text-slate-950">{{ activeFilters.length }}</span>
           </button>
         </div>
       </div>
@@ -29,9 +29,9 @@
           <!-- Desktop sidebar filters -->
           <aside class="hidden w-60 shrink-0 lg:block">
             <div class="sticky top-28 space-y-5">
-              <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div class="flex items-center justify-between border-b border-[#e7ded1] pb-3">
                 <h3 class="text-sm font-bold text-slate-900">{{ t('Filters') }}</h3>
-                <button type="button" class="text-xs font-semibold text-red-500 hover:text-red-600" @click="resetFilters">{{ t('Reset') }}</button>
+                <button type="button" class="text-xs font-semibold text-[#d97706] hover:text-slate-950" @click="resetFilters">{{ t('Reset') }}</button>
               </div>
 
               <div>
@@ -138,7 +138,7 @@
                 {{ filter.label }}
                 <svg class="h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6l-12 12"/></svg>
               </button>
-              <button type="button" class="text-xs font-semibold text-red-500 hover:text-red-600" @click="resetFilters">{{ t('Clear all') }}</button>
+              <button type="button" class="text-xs font-semibold text-[#d97706] hover:text-slate-950" @click="resetFilters">{{ t('Clear all') }}</button>
             </div>
 
             <!-- Product grid -->

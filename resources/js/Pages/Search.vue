@@ -1,6 +1,6 @@
 <template>
   <StorefrontLayout>
-    <div class="min-h-screen bg-[#f7f3eb] pb-24 sm:pb-28">
+    <div class="min-h-screen bg-[#f7f4ef] pb-24 sm:pb-28">
       <div class="mx-auto max-w-7xl space-y-4 px-3 pt-4 sm:space-y-5 sm:px-4 sm:pt-5 lg:px-6">
 
         <!-- Header -->
@@ -13,12 +13,12 @@
               {{ t(':count results', { count: resultsPager.total ?? 0 }) }}
             </p>
           </div>
-          <div v-if="suggestion" class="flex items-center gap-1.5 rounded-full bg-amber-50 px-4 py-1.5 text-sm">
-            <span class="text-amber-700">{{ t('Did you mean') }}</span>
-            <Link :href="`/search?q=${encodeURIComponent(suggestion)}`" class="font-bold text-amber-600 underline transition hover:text-amber-700">
+          <div v-if="suggestion" class="flex items-center gap-1.5 rounded-full bg-[#fff4e5] px-4 py-1.5 text-sm">
+            <span class="text-[#92400e]">{{ t('Did you mean') }}</span>
+            <Link :href="`/search?q=${encodeURIComponent(suggestion)}`" class="font-bold text-[#d97706] underline transition hover:text-slate-950">
               {{ suggestion }}
             </Link>
-            <span class="text-amber-400">?</span>
+            <span class="text-[#d97706]">?</span>
           </div>
         </div>
 
@@ -47,7 +47,7 @@
           </div>
 
           <!-- Pagination -->
-          <div class="mt-6 flex flex-col items-center gap-4 rounded-2xl border border-[#eadfce] bg-white px-4 py-4 shadow-sm sm:flex-row sm:justify-between">
+          <div class="mt-6 flex flex-col items-center gap-4 rounded-lg border border-[#e7ded1] bg-white px-4 py-4 shadow-sm sm:flex-row sm:justify-between">
             <p class="text-xs text-slate-500">
               {{ t('Showing :from–:to of :total', {
                 from: resultsPager.from ?? 1,
@@ -59,7 +59,7 @@
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfce] text-slate-600 transition hover:bg-[#fff4e8] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e7ded1] text-slate-600 transition hover:bg-[#fff4e5] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
                 :disabled="(resultsPager.current_page ?? 1) <= 1"
                 @click="goToPage((resultsPager.current_page ?? 1) - 1)"
               >
@@ -75,8 +75,8 @@
                   type="button"
                   class="inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition"
                   :class="p === (resultsPager.current_page ?? 1)
-                    ? 'bg-[#ff6b35] text-white'
-                    : 'text-slate-600 hover:bg-[#fff4e8] hover:text-slate-900'"
+                    ? 'bg-[#f59e0b] text-slate-950'
+                    : 'text-slate-600 hover:bg-[#fff4e5] hover:text-slate-900'"
                   @click="goToPage(p)"
                 >
                   {{ p }}
@@ -85,7 +85,7 @@
 
               <button
                 type="button"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfce] text-slate-600 transition hover:bg-[#fff4e8] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e7ded1] text-slate-600 transition hover:bg-[#fff4e5] hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed"
                 :disabled="(resultsPager.current_page ?? 1) >= (resultsPager.last_page ?? 1)"
                 @click="goToPage((resultsPager.current_page ?? 1) + 1)"
               >
@@ -103,13 +103,13 @@
           :eyebrow="t('Search')"
           :title="t('Nothing matched that search')"
           :message="t('Try a different keyword or browse curated collections instead.')"
-          class="rounded-2xl border border-[#eadfce] bg-white p-8 shadow-sm"
+          class="rounded-lg border border-[#e7ded1] bg-white p-8 shadow-sm"
         >
           <template #actions>
-            <Link href="/products" class="inline-flex min-h-11 items-center rounded-full bg-[#ff6b35] px-6 text-sm font-bold text-white transition hover:bg-[#e55a2b]">
+            <Link href="/products" class="inline-flex min-h-11 items-center rounded-lg bg-[#f59e0b] px-6 text-sm font-bold text-slate-950 transition hover:bg-[#d97706]">
               {{ t('Browse catalog') }}
             </Link>
-            <Link href="/support" class="inline-flex min-h-11 items-center rounded-full border border-[#eadfce] bg-[#fffaf4] px-6 text-sm font-bold text-slate-700 transition hover:border-slate-300">
+            <Link href="/support" class="inline-flex min-h-11 items-center rounded-lg border border-[#e7ded1] bg-[#fffaf4] px-6 text-sm font-bold text-slate-700 transition hover:border-slate-300">
               {{ t('Ask for help') }}
             </Link>
           </template>

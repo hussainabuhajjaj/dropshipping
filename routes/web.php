@@ -27,6 +27,7 @@ use App\Http\Controllers\Storefront\ReturnLabelController;
 use App\Http\Controllers\Storefront\AffiliateController;
 use App\Http\Controllers\Storefront\PageController;
 use App\Http\Controllers\Storefront\PromotionController;
+use App\Http\Controllers\Storefront\QuickShopController;
 use App\Http\Controllers\Storefront\NewsletterController;
 use App\Http\Controllers\Storefront\NewsletterTrackingController;
 use App\Http\Controllers\Storefront\SupportChatController;
@@ -142,6 +143,8 @@ Route::get('/category/{category:slug}', [CategoryController::class, 'show'])->na
 Route::get('/categories/{category:slug}', [CategoryController::class, 'show'])->name('categories.show');
 Route::get('/collections', [\App\Http\Controllers\Storefront\CollectionController::class, 'index'])->name('collections.index');
 Route::get('/collections/{slug}', [\App\Http\Controllers\Storefront\CollectionController::class, 'show'])->name('collections.show');
+Route::get('/quick-shop/category/{category:slug}', [QuickShopController::class, 'category'])->name('quick-shop.category');
+Route::get('/quick-shop/{lane}', [QuickShopController::class, 'show'])->name('quick-shop.show');
 Route::get('/promotions/iphone-giveaway', [\App\Http\Controllers\Storefront\IphoneGiveawayController::class, 'index'])->name('promotions.iphone-giveaway');
 Route::get('/campaigns/{campaign:slug}', [\App\Http\Controllers\Storefront\CampaignController::class, 'show'])->name('campaigns.show');
 Route::get('/search/suggest', [SearchController::class, 'suggest'])->name('search.suggest');

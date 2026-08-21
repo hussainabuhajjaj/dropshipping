@@ -1,5 +1,5 @@
 <template>
-    <div class="brand-theme min-h-screen min-h-[100dvh] text-slate-900" :style="themeStyle">
+    <div class="brand-theme min-h-screen min-h-[100dvh] bg-[#f7f4ef] text-slate-900" :style="themeStyle">
         <!-- Fullscreen navigation loader -->
         <Transition
             enter-active-class="transition duration-150 ease-out"
@@ -56,7 +56,7 @@
         <!-- Marketplace Header -->
         <header
             ref="headerRef"
-            class="storefront-header fixed top-0 inset-x-0 z-[100] border-b border-slate-200 bg-white shadow-sm text-slate-900"
+            class="storefront-header fixed top-0 inset-x-0 z-[100] border-b border-[#e7ded1] bg-white text-slate-900 shadow-sm"
             :class="[
                 mobileHeaderCompact ? 'mobile-header-compact' : '',
                 headerHidden ? 'storefront-header--hidden' : '',
@@ -70,7 +70,7 @@
                     <!-- Mobile Menu Toggle -->
                     <button
                         type="button"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 lg:hidden"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 transition hover:bg-[#fff4e5] hover:text-[#d97706] lg:hidden"
                         @click="mobileOpen = true"
                     >
                         <span class="sr-only">{{ t('Open menu') }}</span>
@@ -88,7 +88,7 @@
                     <!-- Location Selector (desktop) -->
                     <button
                         type="button"
-                        class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-slate-100 lg:flex"
+                        class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-[#fff4e5] hover:text-slate-900 lg:flex"
                         @click="locationOpen = !locationOpen"
                     >
                         <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2">
@@ -107,7 +107,7 @@
                                 v-model="search"
                                 type="search"
                                 :placeholder="t('Search products...')"
-                                class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder-slate-400 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-0"
+                                class="w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder-slate-400 transition focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
                                 :aria-label="t('Search products')"
                                 @focus="handleSearchFocus"
                                 @keydown.down.prevent="handleSuggestionNext"
@@ -117,7 +117,7 @@
                             />
                             <button
                                 type="submit"
-                                class="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-red-500 px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
+                                class="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-[#f59e0b] px-5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-[#d97706]"
                             >
                                 {{ t('Search') }}
                             </button>
@@ -145,7 +145,7 @@
                                 :key="option.code"
                                 type="button"
                                 class="rounded px-2 py-1 text-xs font-semibold uppercase transition"
-                                :class="option.code === currentLanguage ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-800'"
+                                :class="option.code === currentLanguage ? 'bg-[#f59e0b] text-slate-950' : 'text-slate-500 hover:bg-[#fff4e5] hover:text-slate-900'"
                                 :title="option.label"
                                 @click="setLanguage(option.code)"
                             >
@@ -158,7 +158,7 @@
                             v-if="displaySettings?.show_currency_selector"
                             v-model="currentCurrency"
                             @change="onCurrencyChange"
-                            class="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-red-500 focus:outline-none hidden lg:block"
+                            class="hidden rounded border border-[#ded6ca] bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#f59e0b] focus:outline-none lg:block"
                         >
                             <option v-for="currency in availableCurrencies" :key="currency" :value="currency">
                                 {{ currency }}
@@ -168,7 +168,7 @@
                         <!-- Wishlist -->
                         <Link
                             href="/account/wishlist"
-                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
+                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                             :aria-label="t('Wishlist')"
                         >
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -176,7 +176,7 @@
                             </svg>
                             <span
                                 v-if="wishlistCount"
-                                class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.55rem] font-bold text-white"
+                                class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.55rem] font-bold text-slate-950"
                             >
                                 {{ wishlistCount }}
                             </span>
@@ -186,7 +186,7 @@
                         <div ref="accountRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-9 w-9 items-center justify-center overflow-visible rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
+                                class="relative inline-flex h-9 w-9 items-center justify-center overflow-visible rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                                 :aria-label="t('Account')"
                                 :aria-expanded="accountOpen"
                                 @click.stop="toggleAccount"
@@ -212,7 +212,7 @@
                             >
                                 <div
                                     v-if="accountOpen"
-                                    class="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-lg"
+                                    class="absolute right-0 top-full mt-2 w-56 rounded-lg border border-[#e7ded1] bg-white p-3 text-sm shadow-lg"
                                 >
                                     <div v-if="authUser" class="space-y-1 border-b border-slate-100 pb-3">
                                         <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ t('Signed in') }}</p>
@@ -251,7 +251,7 @@
                         <div ref="cartRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-red-500"
+                                class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                                 :aria-label="t('Cart')"
                                 :aria-expanded="cartOpen"
                                 @click.stop="toggleCart"
@@ -261,7 +261,7 @@
                                 </svg>
                                 <span
                                     v-if="cartCount"
-                                    class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.55rem] font-bold text-white"
+                                    class="absolute -right-0.5 -top-0.5 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.55rem] font-bold text-slate-950"
                                 >
                                     {{ cartCount }}
                                 </span>
@@ -277,7 +277,7 @@
                             >
                                 <div
                                     v-if="cartOpen"
-                                    class="absolute right-0 top-full mt-2 flex max-h-[min(32rem,calc(100dvh-7rem))] w-72 flex-col rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-lg"
+                                    class="absolute right-0 top-full mt-2 flex max-h-[min(32rem,calc(100dvh-7rem))] w-72 flex-col rounded-lg border border-[#e7ded1] bg-white p-4 text-sm shadow-lg"
                                 >
                                     <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ t('Cart') }}</p>
 
@@ -330,7 +330,7 @@
             </div>
 
             <!-- Mobile Search Bar -->
-            <div class="border-t border-slate-100 px-4 py-2.5 lg:hidden">
+            <div class="border-t border-[#eee6da] px-4 py-2.5 lg:hidden">
                 <form class="flex items-center gap-2" @submit.prevent="submitSearch">
                     <div ref="mobileSearchRef" class="relative w-full">
                         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -340,7 +340,7 @@
                             v-model="search"
                             type="search"
                             :placeholder="t('Search products...')"
-                            class="w-full rounded-full border border-slate-300 bg-slate-50 px-4 py-2 pl-9 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none"
+                            class="w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2 pl-9 text-sm text-slate-900 placeholder-slate-400 focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
                             :aria-label="t('Search products')"
                             @focus="handleSearchFocus"
                             @keydown.down.prevent="handleSuggestionNext"
@@ -398,7 +398,9 @@
             class="block bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black hover:from-amber-400 hover:via-amber-300 hover:to-amber-400 transition-all"
         >
             <div class="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-2 text-xs font-bold sm:text-sm">
-                <span class="animate-pulse">🎉</span>
+                <svg class="h-4 w-4 animate-pulse" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M13 2L3 14h7l-1 8 12-14h-7l-1-6z" />
+                </svg>
                 <span>{{ t('WIN A') }} {{ (luckyDrawCampaign.grand_prize || 'iPhone').toUpperCase() }}!</span>
                 <span v-if="luckyDrawCampaign.min_order_amount" class="hidden sm:inline">
                     {{ t('Spend') }} {{ formatLuckyAmount(luckyDrawCampaign.min_order_amount, luckyDrawCampaign.currency) }}{{ t('+') }}
@@ -409,16 +411,16 @@
             </div>
         </a>
 
-        <main class="container-base pb-24 pt-6 lg:pb-16 lg:pt-10">
+        <main class="container-base pb-24 pt-4 lg:pb-16 lg:pt-6">
             <slot/>
         </main>
 
-        <footer class="border-t border-slate-200 bg-white/90 pb-24 lg:pb-0">
+        <footer class="border-t border-slate-800 bg-[#020617] pb-24 text-slate-300 lg:pb-0">
             <div class="container-base grid gap-8 py-10 sm:grid-cols-2 lg:grid-cols-5">
                 <div class="space-y-3">
-                    <p class="text-lg font-semibold text-slate-900">{{ brandName }}</p>
-                    <p class="text-sm text-slate-600">{{ footerBlurb }}</p>
-                    <div class="text-xs text-slate-500">
+                    <p class="text-lg font-semibold text-white">{{ brandName }}</p>
+                    <p class="text-sm text-slate-400">{{ footerBlurb }}</p>
+                    <div class="text-xs text-slate-400">
                         {{ t('Support: :email', {email: supportEmail}) }}
                     </div>
                     <PaymentBadges :label="t('Accepted payments')" />
@@ -432,7 +434,7 @@
                             :aria-label="link.label"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-slate-400 hover:text-slate-600 transition-colors"
+                            class="text-slate-400 transition-colors hover:text-[#f59e0b]"
                         >
                             <svg v-if="link.icon === 'facebook'" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -457,16 +459,16 @@
                     </div>
                 </div>
 
-                <div v-for="column in footerColumns" :key="column.title" class="space-y-2 text-sm text-slate-600">
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{{ column.title }}</p>
+                <div v-for="column in footerColumns" :key="column.title" class="space-y-2 text-sm text-slate-400">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white">{{ column.title }}</p>
                     <Link v-for="link in column.links || []" :key="link.href + link.label" :href="link.href"
-                          class="block hover:text-slate-900">
+                          class="block hover:text-[#f59e0b]">
                         {{ link.label }}
                     </Link>
                 </div>
             </div>
 
-            <div class="border-t border-slate-100">
+            <div class="border-t border-slate-800">
                 <div
                     class="container-base flex flex-col gap-2 py-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>{{ copyrightText }} (c) {{ new Date().getFullYear() }}</span>
@@ -508,7 +510,7 @@
 
                             <span
                                 v-if="tab.key === 'cart' && cartCount"
-                                class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white"
+                                class="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[0.6rem] font-bold text-slate-950"
                             >
                                 {{ cartCount > 99 ? '99+' : cartCount }}
                             </span>
@@ -907,10 +909,10 @@ const themeColors = computed(() => {
     const site = page.props.site ?? {}
     return {
         primary: site.primary_color || '#f59e0b',
-        secondary: site.secondary_color || '#2563eb',
-        accent: site.accent_color || '#9ca3af',
-        strong: '#0f172a',
-        background: '#ffffff',
+        secondary: site.secondary_color || '#020617',
+        accent: site.accent_color || '#fef3c7',
+        strong: '#101827',
+        background: '#f7f4ef',
     }
 })
 
@@ -1583,12 +1585,12 @@ onBeforeUnmount(() => {
 
 .brand-theme {
     --brand-primary: #f59e0b;
-    --brand-primary-2: #2563eb;
-    --brand-accent: #9ca3af;
-    --brand-strong: #0f172a;
-    --brand-bg: #ffffff;
+    --brand-primary-2: #020617;
+    --brand-accent: #fef3c7;
+    --brand-strong: #101827;
+    --brand-bg: #f7f4ef;
     --brand-glow-start: #f59e0b;
-    --brand-glow-end: #2563eb;
+    --brand-glow-end: #020617;
     --brand-soft: color-mix(in srgb, var(--brand-primary) 12%, white);
 }
 
@@ -1603,12 +1605,7 @@ onBeforeUnmount(() => {
 }
 
 .bg-brand-glow {
-    background: linear-gradient(
-        90deg,
-        rgba(240, 236, 214, 1) 0%,
-        rgba(246, 225, 109, 1) 50%,
-        rgba(245, 149, 15, 1) 100%
-    );
+    background: #fffaf3;
 }
 
 .text-brand-strong {

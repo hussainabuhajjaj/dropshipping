@@ -1,9 +1,9 @@
 <template>
-  <Link :href="product.href || `/products/${product.slug}`" class="group block">
-    <div class="relative overflow-hidden bg-white">
+  <Link :href="product.href || `/products/${product.slug}`" class="group block rounded-lg bg-white p-2 transition hover:-translate-y-0.5 hover:shadow-lg">
+    <div class="relative overflow-hidden rounded-lg bg-[#f8f7f5] ring-1 ring-[#eee6da]">
       <div
         v-if="discount"
-        class="absolute left-0 top-0 z-10 bg-red-500 px-1.5 py-0.5 text-[0.6rem] font-bold text-white"
+        class="absolute left-1.5 top-1.5 z-10 rounded bg-[#f59e0b] px-1.5 py-0.5 text-[0.6rem] font-bold text-white"
       >
         -{{ discount }}%
       </div>
@@ -11,14 +11,20 @@
         v-if="product.media?.[0] || product.image"
         :src="product.media?.[0] || product.image"
         :alt="product.name"
-        class="aspect-[0.75] w-full object-cover transition duration-300 group-hover:scale-105"
+        class="aspect-[0.82] w-full object-cover transition duration-300 group-hover:scale-105"
         loading="lazy"
       />
-      <div v-else class="aspect-[0.75] bg-gradient-to-br from-slate-100 to-slate-200" />
+      <div v-else class="aspect-[0.82] bg-gradient-to-br from-slate-100 to-slate-200" />
+      <span class="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-950 shadow-sm transition group-hover:border-[#f59e0b] group-hover:text-[#d97706]">
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25h10.8c.56-1.16 1.08-2.35 1.55-3.58.34-.88-.3-1.82-1.24-1.82H6.07" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21a.75.75 0 100-1.5.75.75 0 000 1.5zm9.75 0a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+        </svg>
+      </span>
     </div>
-    <p class="mt-1.5 text-[0.65rem] font-medium text-slate-700 leading-tight line-clamp-2">{{ product.name }}</p>
-    <div class="mt-0.5 flex items-center gap-1.5">
-      <span class="text-xs font-bold text-red-500">{{ priceFormatted }}</span>
+    <p class="mt-2 text-[0.72rem] font-semibold leading-tight text-slate-700 line-clamp-2">{{ product.name }}</p>
+    <div class="mt-1 flex items-center gap-1.5">
+      <span class="text-sm font-black text-[#f59e0b]">{{ priceFormatted }}</span>
       <span v-if="compareAtFormatted" class="text-[0.6rem] text-slate-400 line-through">{{ compareAtFormatted }}</span>
     </div>
   </Link>

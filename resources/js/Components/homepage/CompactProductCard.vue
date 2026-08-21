@@ -1,13 +1,13 @@
 <template>
-  <div class="group relative" :class="featured ? 'sm:col-span-2 sm:row-span-2' : ''">
+  <div class="group relative rounded-lg bg-white p-2 transition hover:-translate-y-0.5 hover:shadow-lg" :class="featured ? 'sm:col-span-2 sm:row-span-2' : ''">
     <Link :href="product.href || `/products/${product.slug}`" class="block">
       <div
-        class="relative overflow-hidden rounded-xl bg-slate-50 shadow-sm ring-1 ring-slate-100 transition group-hover:shadow-md"
+        class="relative overflow-hidden rounded-lg bg-[#f8f7f5] ring-1 ring-[#eee6da] transition"
         :class="featured ? 'h-full' : ''"
       >
         <div
           v-if="discount"
-          class="absolute left-0 top-0 z-10 bg-red-500 px-1.5 py-1 text-[0.55rem] font-bold text-white"
+          class="absolute left-1.5 top-1.5 z-10 rounded bg-[#f59e0b] px-1.5 py-1 text-[0.55rem] font-bold text-white"
         >
           -{{ discount }}%
         </div>
@@ -20,7 +20,7 @@
         </div>
         <div
           v-if="featured"
-          class="absolute right-1.5 top-7 z-10 rounded bg-amber-500 px-1.5 py-0.5 text-[0.45rem] font-bold uppercase tracking-wider text-white shadow-xs"
+          class="absolute right-1.5 top-7 z-10 rounded bg-slate-950 px-1.5 py-0.5 text-[0.45rem] font-bold uppercase tracking-wider text-white shadow-xs"
         >
           {{ t("Featured") }}
         </div>
@@ -39,7 +39,7 @@
         >
           <button
             type="button"
-            class="w-full rounded-full bg-white py-2 text-[0.6rem] font-bold text-slate-900 shadow-sm transition hover:bg-slate-100 active:scale-95"
+            class="w-full rounded-md bg-[#f59e0b] py-2 text-[0.6rem] font-bold text-slate-950 shadow-sm transition hover:bg-[#d97706] active:scale-95"
             @click.prevent="openQuickAdd"
           >
             {{ t('Quick add') }}
@@ -49,11 +49,11 @@
 
       <div class="mt-2 space-y-0.5">
         <p
-          class="font-medium text-slate-700 leading-snug line-clamp-2"
-          :class="featured ? 'text-xs sm:text-sm' : 'text-[0.65rem]'"
+          class="font-semibold text-slate-700 leading-snug line-clamp-2"
+          :class="featured ? 'text-xs sm:text-sm' : 'text-[0.72rem]'"
         >{{ product.name }}</p>
         <div class="flex items-center gap-1.5">
-          <span class="font-bold text-red-500" :class="featured ? 'text-sm' : 'text-xs'">{{ priceFormatted }}</span>
+          <span class="font-black text-[#f59e0b]" :class="featured ? 'text-base' : 'text-sm'">{{ priceFormatted }}</span>
           <span v-if="compareAtFormatted" class="text-slate-400 line-through" :class="featured ? 'text-xs' : 'text-[0.6rem]'">{{ compareAtFormatted }}</span>
         </div>
         <div v-if="product.review_count" class="flex items-center gap-1 text-[0.55rem] text-slate-400">
