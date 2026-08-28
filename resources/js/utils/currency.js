@@ -33,8 +33,8 @@ async function fetchCurrencySettings() {
       },
       display: {
         auto_convert_prices: true,
-        show_currency_selector: true,
-        default_customer_currency: 'USD'
+        show_currency_selector: false,
+      default_customer_currency: 'XOF'
       }
     }
   }
@@ -97,8 +97,8 @@ export function formatCurrency(amount, currency) {
 export function getCurrencyDisplaySettings() {
   return backendSettings.display || {
     auto_convert_prices: true,
-    show_currency_selector: true,
-    default_customer_currency: 'USD'
+    show_currency_selector: false,
+    default_customer_currency: 'XOF'
   }
 }
 
@@ -109,10 +109,10 @@ export function getAvailableCurrencies() {
   
   // Fallback to default currencies if backend not loaded yet
   if (currencies.length === 0) {
-    return ['USD', 'EUR', 'JOD', 'XOF', 'XAF']
+    return ['XOF']
   }
   
-  return currencies
+  return ['XOF']
 }
 
 // Get decimal precision for a currency

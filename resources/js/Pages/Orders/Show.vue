@@ -179,6 +179,7 @@ import { reactive, ref } from 'vue'
 import { Link, useForm, usePage } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import { useTranslations } from '@/i18n'
+import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const props = defineProps({
   order: { type: Object, required: true },
@@ -186,6 +187,7 @@ const props = defineProps({
 
 const page = usePage()
 const { t, locale } = useTranslations()
+const { formatCurrency, convertCurrency } = useUserPreferences()
 const reviewNotice = ref(page.props.flash?.review_notice ?? '')
 const reviewNoticeItemId = ref(null)
 const returnNotice = ref(page.props.flash?.return_notice ?? '')
@@ -257,13 +259,7 @@ const formatDate = (value) => {
 
 const formatMoney = (value, currency = 'XOF') => {
   const number = Number(value ?? 0)
-  const decimals = currency === 'XOF' ? 0 : 2
-  return number.toLocaleString('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  })
+  return formatCurrency(convertCurrency(number, currency, 'XOF'), 'XOF')
 }
 
 const getItemStatusClass = (status) => {

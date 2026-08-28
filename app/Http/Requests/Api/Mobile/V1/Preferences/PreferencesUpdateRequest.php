@@ -11,15 +11,7 @@ class PreferencesUpdateRequest extends BaseRequest
 {
     public function rules(): array
     {
-        $currencies = array_values((array) config('currency.supported', ['USD', 'XOF']));
-        $currencyInputs = array_values(array_unique(array_merge($currencies, [
-            'USD ($)',
-            'CFA (XFA)',
-            'CFA (XOF)',
-            'XAF',
-            'XFA',
-            'XFC',
-        ])));
+        $currencyInputs = ['XOF'];
         $languages = array_keys((array) config('localization.supported', ['en' => 'English', 'fr' => 'Français']));
         $languageInputs = array_values(array_unique(array_merge($languages, [
             'English',

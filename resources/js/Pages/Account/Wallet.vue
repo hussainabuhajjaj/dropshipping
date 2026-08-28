@@ -119,7 +119,7 @@ import { useTranslations } from '@/i18n'
 const { formatCurrency, convertCurrency } = useUserPreferences()
 const { t } = useTranslations()
 function displayCardBalance(card) {
-  return formatCurrency(convertCurrency(Number(card.balance ?? 0), 'USD', card.currency), card.currency)
+  return formatCurrency(convertCurrency(Number(card.balance ?? 0), card.currency, 'XOF'), 'XOF')
 }
 import { Link, router, useForm } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
