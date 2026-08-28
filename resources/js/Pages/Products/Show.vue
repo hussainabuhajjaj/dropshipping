@@ -129,7 +129,7 @@
             <h2 class="text-lg font-bold text-slate-900">{{ t('Related products') }}</h2>
             <Link
               :href="relatedBrowseHref"
-              class="text-xs font-semibold text-red-500 hover:text-red-600"
+              class="inline-flex min-h-10 items-center text-xs font-semibold text-red-500 hover:text-red-600"
             >
               {{ t('Browse all') }}
             </Link>

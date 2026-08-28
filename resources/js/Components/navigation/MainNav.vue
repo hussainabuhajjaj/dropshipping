@@ -7,7 +7,7 @@
                 <button
                     v-show="canScrollLeft"
                     type="button"
-                    class="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-950 p-2 text-white shadow hover:text-[#f59e0b]"
+                    class="absolute left-0 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950 text-white shadow hover:text-[#f59e0b]"
                     :aria-label="t('Scroll left')"
                     @click="scrollCategories('left')"
                 >
@@ -24,7 +24,7 @@
                 >
                     <button
                         type="button"
-                        class="group relative shrink-0 whitespace-nowrap rounded-lg bg-[#f7f4ef] px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
+                        class="group relative inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-lg bg-[#f7f4ef] px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                         @mouseenter="categoryStore.openRootMenu()"
                         @focus="categoryStore.openRootMenu()"
                     >
@@ -36,7 +36,7 @@
                         v-for="category in categories"
                         :key="category.slug || category.name"
                         :href="category.href"
-                        class="group relative shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
+                        class="group relative inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                         @mouseenter="categoryStore.scheduleOpen(category)"
                         @focus="categoryStore.setActiveCategory(category)"
                     >
@@ -51,7 +51,7 @@
                 <button
                     v-show="canScrollRight"
                     type="button"
-                    class="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-slate-950 p-2 text-white shadow hover:text-[#f59e0b]"
+                    class="absolute right-0 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950 text-white shadow hover:text-[#f59e0b]"
                     :aria-label="t('Scroll right')"
                     @click="scrollCategories('right')"
                 >

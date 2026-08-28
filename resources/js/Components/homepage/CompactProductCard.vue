@@ -39,7 +39,7 @@
         >
           <button
             type="button"
-            class="w-full rounded-md bg-[#f59e0b] py-2 text-[0.6rem] font-bold text-slate-950 shadow-sm transition hover:bg-[#d97706] active:scale-95"
+            class="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-[#f59e0b] px-2 py-2 text-[0.6rem] font-bold text-slate-950 shadow-sm transition hover:bg-[#d97706] active:scale-95"
             @click.prevent="openQuickAdd"
           >
             {{ t('Quick add') }}

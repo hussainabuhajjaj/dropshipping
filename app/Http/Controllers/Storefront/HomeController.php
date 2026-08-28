@@ -123,7 +123,7 @@ class HomeController extends Controller
             'featuredCategories' => $featuredCategories,
             'categoryHighlights' => $categoryHighlights,
             'featuredCategorySections' => $featuredCategorySections,
-            'currency' => 'USD',
+            'currency' => 'XOF',
             'banners' => $bannerResolution['banners'],
             'seasonalDrops' => $seasonalDropsPayload['items'],
             'seasonalDropsViewAllHref' => $seasonalDropsPayload['viewAllHref'],

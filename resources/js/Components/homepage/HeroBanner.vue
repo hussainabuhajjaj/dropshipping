@@ -67,7 +67,7 @@
               <component
                 :is="primaryAction.isJump ? 'button' : Link"
                 v-bind="primaryAction.bindings"
-                class="inline-flex min-h-9 items-center justify-center rounded-full bg-[#ff6b35] px-3.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420] sm:min-h-10 sm:text-[0.7rem]"
+                class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#ff6b35] px-4 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white shadow-[0_10px_24px_rgba(255,107,53,0.34)] transition hover:bg-[#ff5420] sm:text-[0.7rem]"
                 @click="handleAction(primaryAction)"
               >
                 {{ currentSlide.primary?.label || t('Shop now') }}
@@ -75,7 +75,7 @@
               <component
                 :is="secondaryAction.isJump ? 'button' : Link"
                 v-bind="secondaryAction.bindings"
-                class="inline-flex min-h-9 items-center justify-center rounded-full border border-white/16 bg-white/8 px-3.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 sm:min-h-10 sm:text-[0.7rem]"
+                class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/16 bg-white/8 px-4 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-white transition hover:bg-white/12 sm:text-[0.7rem]"
                 @click="handleAction(secondaryAction)"
               >
                 {{ currentSlide.secondary?.label || t('See trending') }}
@@ -99,7 +99,7 @@
         <button
           v-if="displaySlides.length > 1"
           type="button"
-          class="absolute left-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:left-3"
+          class="absolute left-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:left-3"
           @click="prevSlide"
         >
           ‹
@@ -107,7 +107,7 @@
         <button
           v-if="displaySlides.length > 1"
           type="button"
-          class="absolute right-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:right-3"
+          class="absolute right-2 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/12 bg-black/28 text-white backdrop-blur transition hover:bg-black/40 sm:right-3"
           @click="nextSlide"
         >
           ›
@@ -119,10 +119,15 @@
           v-for="(slide, index) in displaySlides"
           :key="`dot-${slide.key}`"
           type="button"
-          class="h-2 rounded-full transition-all"
-          :class="index === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/45 hover:bg-white/70'"
+          class="flex h-8 min-w-8 items-center justify-center rounded-full transition-all"
+          :class="index === activeIndex ? 'bg-white/18' : 'bg-transparent hover:bg-white/10'"
           @click="goToSlide(index)"
-        ></button>
+        >
+          <span
+            class="h-2 rounded-full transition-all"
+            :class="index === activeIndex ? 'w-6 bg-white' : 'w-2 bg-white/45'"
+          ></span>
+        </button>
       </div>
     </div>
   </section>

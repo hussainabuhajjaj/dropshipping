@@ -5,7 +5,7 @@
         <Link
           v-if="product.category_href"
           :href="product.category_href"
-          class="font-semibold text-red-500 hover:text-red-600"
+          class="inline-flex min-h-10 items-center font-semibold text-red-500 hover:text-red-600"
         >
           {{ product.category ?? t('Simbazu') }}
         </Link>

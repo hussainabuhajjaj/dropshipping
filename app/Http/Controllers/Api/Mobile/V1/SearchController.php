@@ -8,6 +8,7 @@ use App\Http\Requests\Api\Mobile\V1\Search\SearchIndexRequest;
 use App\Http\Resources\Mobile\V1\SearchResultResource;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\SearchLog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class SearchController extends ApiController
         $sort = $validated['sort'] ?? 'newest';
         $perPage = min((int) ($validated['per_page'] ?? 18), 50);
         $categoriesLimit = min((int) ($validated['categories_limit'] ?? 6), 20);
+        $startedAt = microtime(true);
         $isMySql = in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true);
         $booleanQuery = $this->toBooleanFullTextQuery((string) ($query ?? ''));
 
@@ -78,11 +80,20 @@ class SearchController extends ApiController
             ->limit($categoriesLimit)
             ->get();
 
+        $popularSearches = $this->popularSearches(10);
+        $suggestions = $this->suggestionsFor($query, $categories, $popularSearches);
+
+        if ($query) {
+            $this->recordSearch($request, (string) $query, $products->total(), $startedAt);
+        }
+
         return $this->success(
             new SearchResultResource([
                 'query' => $query,
                 'products' => $products->getCollection(),
                 'categories' => $categories,
+                'suggestions' => $suggestions,
+                'popular_searches' => $popularSearches,
             ]),
             null,
             200,
@@ -95,6 +106,12 @@ class SearchController extends ApiController
                 ],
                 'categories' => [
                     'total' => $categories->count(),
+                ],
+                'suggestions' => [
+                    'total' => count($suggestions),
+                ],
+                'popularSearches' => [
+                    'total' => count($popularSearches),
                 ],
             ]
         );
@@ -140,6 +157,10 @@ class SearchController extends ApiController
                     ->where(function (Builder $builder) use ($booleanQuery, $query, $locale) {
                         $builder
                             ->whereRaw('MATCH(products.name, products.description, products.code, products.meta_title, products.searchable_text) AGAINST (? IN BOOLEAN MODE)', [$booleanQuery])
+                            ->orWhere('products.name', 'like', $query . '%')
+                            ->orWhere('products.name', 'like', '%' . $query . '%')
+                            ->orWhere('products.code', 'like', '%' . $query . '%')
+                            ->orWhere('products.slug', 'like', '%' . $query . '%')
                             ->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
                                 $translationBuilder
                                     ->where('locale', $locale)
@@ -148,6 +169,11 @@ class SearchController extends ApiController
                                             ->where('name', 'like', '%' . $query . '%')
                                             ->orWhere('description', 'like', '%' . $query . '%');
                                     });
+                            })
+                            ->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
+                                $variantBuilder
+                                    ->where('sku', 'like', '%' . $query . '%')
+                                    ->orWhere('title', 'like', '%' . $query . '%');
                             })
                             ->orWhereHas('category', function (Builder $categoryBuilder) use ($booleanQuery, $query, $locale) {
                                 $categoryBuilder
@@ -164,8 +190,16 @@ class SearchController extends ApiController
                 $productQuery->where(function (Builder $builder) use ($query, $locale) {
                     $builder
                         ->where('name', 'like', '%' . $query . '%')
+                        ->orWhere('name', 'like', $query . '%')
+                        ->orWhere('code', 'like', '%' . $query . '%')
+                        ->orWhere('slug', 'like', '%' . $query . '%')
                         ->orWhere('description', 'like', '%' . $query . '%')
                         ->orWhere('products.searchable_text', 'like', '%' . $query . '%');
+                    $builder->orWhereHas('variants', function (Builder $variantBuilder) use ($query) {
+                        $variantBuilder
+                            ->where('sku', 'like', '%' . $query . '%')
+                            ->orWhere('title', 'like', '%' . $query . '%');
+                    });
                     $builder->orWhereHas('translations', function (Builder $translationBuilder) use ($query, $locale) {
                         $translationBuilder
                             ->where('locale', $locale)
@@ -185,7 +219,22 @@ class SearchController extends ApiController
                             });
                     });
                 })
-                ->orderByRaw('CASE WHEN products.stock_on_hand > 0 THEN 2 ELSE 0 END DESC');
+                ->orderByRaw('CASE 
+                    WHEN products.code = ? THEN 8
+                    WHEN products.name LIKE ? THEN 6
+                    WHEN products.code LIKE ? THEN 5
+                    WHEN products.name LIKE ? THEN 4
+                    WHEN products.slug LIKE ? THEN 3
+                    WHEN products.searchable_text LIKE ? THEN 2
+                    ELSE 0
+                END + CASE WHEN products.stock_on_hand > 0 THEN 2 ELSE 0 END DESC', [
+                    $query,
+                    $query . '%',
+                    '%' . $query . '%',
+                    '%' . $query . '%',
+                    '%' . $query . '%',
+                    '%' . $query . '%',
+                ]);
             }
         }
 
@@ -215,7 +264,10 @@ class SearchController extends ApiController
         );
 
         if ($hasRelevance) {
-            return $productQuery->orderByDesc('search_relevance')->latest();
+            return $productQuery
+                ->orderByDesc('search_relevance')
+                ->orderByDesc('products.stock_on_hand')
+                ->latest();
         }
 
         return $productQuery->latest();
@@ -336,5 +388,96 @@ class SearchController extends ApiController
         }
 
         return array_values(array_unique($variations));
+    }
+
+    /**
+     * @return array<int, array{query: string, count: int, avg_results: float|null}>
+     */
+    private function popularSearches(int $limit): array
+    {
+        $logged = collect(SearchLog::getPopularLast24Hours($limit))
+            ->map(fn (array $item) => [
+                'query' => (string) ($item['query'] ?? ''),
+                'count' => (int) ($item['count'] ?? 0),
+                'avg_results' => isset($item['avg_results']) ? (float) $item['avg_results'] : null,
+            ])
+            ->filter(fn (array $item) => $item['query'] !== '')
+            ->values();
+
+        if ($logged->count() >= $limit) {
+            return $logged->take($limit)->all();
+        }
+
+        $fallback = Category::query()
+            ->active()
+            ->withCount(['products' => fn (Builder $query) => $query->where('is_active', true)])
+            ->orderByDesc('products_count')
+            ->limit($limit - $logged->count())
+            ->get()
+            ->map(fn (Category $category) => [
+                'query' => (string) $category->name,
+                'count' => (int) ($category->products_count ?? 0),
+                'avg_results' => (float) ($category->products_count ?? 0),
+            ]);
+
+        return $logged
+            ->concat($fallback)
+            ->unique(fn (array $item) => mb_strtolower($item['query']))
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param \Illuminate\Support\Collection<int, Category> $categories
+     * @param array<int, array{query: string, count: int, avg_results: float|null}> $popularSearches
+     * @return array<int, string>
+     */
+    private function suggestionsFor(?string $query, $categories, array $popularSearches): array
+    {
+        $terms = collect();
+
+        if ($query) {
+            $trimmed = trim($query);
+            if ($trimmed !== '') {
+                $terms->push($trimmed);
+            }
+        }
+
+        $categories
+            ->pluck('name')
+            ->filter()
+            ->each(fn (string $name) => $terms->push($name));
+
+        collect($popularSearches)
+            ->pluck('query')
+            ->filter()
+            ->each(fn (string $name) => $terms->push($name));
+
+        return $terms
+            ->map(fn (string $term) => trim($term))
+            ->filter(fn (string $term) => mb_strlen($term) >= 2)
+            ->unique(fn (string $term) => mb_strtolower($term))
+            ->take(12)
+            ->values()
+            ->all();
+    }
+
+    private function recordSearch(SearchIndexRequest $request, string $query, int $resultsCount, float $startedAt): void
+    {
+        try {
+            SearchLog::create([
+                'query' => trim($query),
+                'type' => 'mobile',
+                'ip_address' => $request->ip(),
+                'user_agent' => (string) $request->userAgent(),
+                'user_id' => optional($request->user())->id,
+                'results_count' => $resultsCount,
+                'execution_time_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+                'cached' => false,
+            ]);
+        } catch (\Throwable) {
+            // Search analytics should never break product discovery.
+        }
     }
 }

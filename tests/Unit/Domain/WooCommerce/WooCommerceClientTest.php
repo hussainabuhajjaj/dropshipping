@@ -6,6 +6,7 @@ namespace Tests\Unit\Domain\WooCommerce;
 
 use App\Infrastructure\WooCommerce\WooCommerceApiException;
 use App\Infrastructure\WooCommerce\WooCommerceClient;
+use App\Services\AI\TranslationProvider;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -21,6 +22,7 @@ class WooCommerceClientTest extends TestCase
             'base_url' => 'https://test-store.com',
             'consumer_key' => 'ck_test',
             'consumer_secret' => 'cs_test',
+            'currency' => 'XOF',
             'timeout' => 30,
             'retry_times' => 1,
             'retry_delay_ms' => 100,
@@ -37,7 +39,9 @@ class WooCommerceClientTest extends TestCase
                 'sku' => 'SKU-001',
                 'type' => 'simple',
                 'status' => 'publish',
+                'price' => '24.99',
                 'regular_price' => '29.99',
+                'sale_price' => '24.99',
                 'manage_stock' => true,
                 'stock_quantity' => 100,
                 'categories' => [['id' => 5, 'name' => 'Electronics']],
@@ -50,8 +54,84 @@ class WooCommerceClientTest extends TestCase
         $this->assertSame(1, $product->woocommerceId);
         $this->assertSame('Test Product', $product->name);
         $this->assertSame('SKU-001', $product->sku);
+        $this->assertSame(24.99, $product->price);
         $this->assertSame(29.99, $product->regularPrice);
+        $this->assertSame(24.99, $product->activePrice());
+        $this->assertSame(29.99, $product->compareAtPrice());
+        $this->assertSame('XOF', $product->currency);
         $this->assertSame(100, $product->stockQuantity);
+    }
+
+    public function test_product_active_price_falls_back_when_current_price_is_zero(): void
+    {
+        Http::fake([
+            'test-store.com/wp-json/wc/v3/products/2' => Http::response([
+                'id' => 2,
+                'name' => 'Variable Parent',
+                'sku' => 'VP-002',
+                'type' => 'variable',
+                'status' => 'publish',
+                'price' => '0',
+                'regular_price' => '12000',
+                'manage_stock' => false,
+            ]),
+        ]);
+
+        $client = app(WooCommerceClient::class);
+        $product = $client->getProduct(2);
+
+        $this->assertSame(12000.0, $product->activePrice());
+    }
+
+    public function test_product_from_1688_metadata_resolves_to_cny(): void
+    {
+        Http::fake([
+            'test-store.com/wp-json/wc/v3/products/4907' => Http::response([
+                'id' => 4907,
+                'name' => 'Insulated Picnic Cooler Bag 66195 Large Organizer Tote',
+                'type' => 'simple',
+                'status' => 'publish',
+                'price' => '41.00',
+                'meta_data' => [
+                    [
+                        'key' => '_product_upload_source_url',
+                        'value' => 'https://detail.1688.com/offer/952095514123.html',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $client = app(WooCommerceClient::class);
+        $product = $client->getProduct(4907);
+
+        $this->assertSame(41.0, $product->activePrice());
+        $this->assertSame('CNY', $product->currency);
+    }
+
+    public function test_chinese_product_name_can_resolve_to_english_import_name(): void
+    {
+        Http::fake([
+            'test-store.com/wp-json/wc/v3/products/4892' => Http::response([
+                'id' => 4892,
+                'name' => '手提保温便当包 便携棉质学生上班族饭盒袋 0001',
+                'type' => 'simple',
+                'status' => 'publish',
+                'price' => '8.14',
+            ]),
+        ]);
+
+        $translator = new class implements TranslationProvider {
+            public function translate(string $text, string $source, string $target): string
+            {
+                return 'Portable Insulated Lunch Bag for Students and Office';
+            }
+        };
+
+        $client = app(WooCommerceClient::class);
+        $product = $client->getProduct(4892);
+
+        $this->assertTrue($product->hasNonEnglishName());
+        $this->assertSame('Portable Insulated Lunch Bag for Students and Office', $product->importName($translator));
     }
 
     public function test_get_customer_by_email_returns_null_when_not_found(): void

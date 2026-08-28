@@ -10,6 +10,7 @@ return [
     'consumer_key' => env('WC_CONSUMER_KEY', ''),
     'consumer_secret' => env('WC_CONSUMER_SECRET', ''),
     'webhook_secret' => env('WC_WEBHOOK_SECRET', ''),
+    'currency' => env('WC_CURRENCY', env('CURRENCY_BASE', 'USD')),
 
     'timeout' => (int) env('WC_TIMEOUT', 30),
     'retry_times' => (int) env('WC_RETRY_TIMES', 3),

@@ -35,7 +35,8 @@ class SearchResultResource extends JsonResource
             'query' => data_get($this->resource, 'query'),
             'products' => $products ?? [],
             'categories' => $categories ?? [],
+            'suggestions' => data_get($this->resource, 'suggestions', []),
+            'popular_searches' => data_get($this->resource, 'popular_searches', []),
         ];
     }
 }
-

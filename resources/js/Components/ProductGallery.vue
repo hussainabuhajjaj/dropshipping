@@ -67,7 +67,7 @@
       >
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
+          class="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white"
           :aria-label="t('Zoom in')"
           @click.stop="openLightbox"
         >
@@ -83,14 +83,14 @@
       >
         <button
           type="button"
-          class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+          class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
           @click.stop="$emit('prev-image')"
         >
           <svg viewBox="0 0 20 20" class="h-5 w-5" fill="currentColor"><path fill-rule="evenodd" d="M12.78 15.53a.75.75 0 01-1.06 0l-5-5a.75.75 0 010-1.06l5-5a.75.75 0 111.06 1.06L8.31 10l4.47 4.47a.75.75 0 010 1.06z"/></svg>
         </button>
         <button
           type="button"
-          class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
+          class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm ring-1 ring-black/5 transition hover:bg-white"
           @click.stop="$emit('next-image')"
         >
           <svg viewBox="0 0 20 20" class="h-5 w-5" fill="currentColor"><path fill-rule="evenodd" d="M7.22 4.47a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L11.69 10 7.22 5.53a.75.75 0 010-1.06z"/></svg>
@@ -125,7 +125,7 @@
       <button
         v-if="thumbStart > 0"
         type="button"
-        class="absolute left-0 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
+        class="absolute left-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
         @click="scrollThumbs(-1)"
       >
         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.78 15.53a.75.75 0 01-1.06 0l-5-5a.75.75 0 010-1.06l5-5a.75.75 0 111.06 1.06L8.31 10l4.47 4.47a.75.75 0 010 1.06z"/></svg>
@@ -133,7 +133,7 @@
       <button
         v-if="canScrollForward"
         type="button"
-        class="absolute right-0 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
+        class="absolute right-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 backdrop-blur transition hover:bg-white"
         @click="scrollThumbs(1)"
       >
         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.22 4.47a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L11.69 10 7.22 5.53a.75.75 0 010-1.06z"/></svg>
@@ -142,7 +142,7 @@
       <button
         v-if="images.length > PER_PAGE"
         type="button"
-        class="mt-1.5 w-full rounded-lg border border-slate-200 py-1.5 text-[0.6rem] font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700 active:scale-[0.98]"
+        class="mt-1.5 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-[0.6rem] font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700 active:scale-[0.98]"
         @click="openLightbox"
       >
         {{ t('View all :count photos', { count: images.length }) }}

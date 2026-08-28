@@ -133,7 +133,7 @@ onMounted(() => {
                         <p class="mt-2 text-xs text-slate-500">
                             {{ summaryText }}
                             <span class="mx-1">·</span>
-                            <Link href="/legal/cookie-policy" class="font-semibold text-slate-900 hover:text-slate-700">
+                            <Link href="/legal/cookie-policy" class="inline-flex min-h-10 items-center align-middle font-semibold text-slate-900 hover:text-slate-700">
                                 {{ t('Cookie policy') }}
                             </Link>
                         </p>

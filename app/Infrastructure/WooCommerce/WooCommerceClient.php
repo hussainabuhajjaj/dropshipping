@@ -429,8 +429,10 @@ class WooCommerceClient implements WooCommerceClientContract
             status: (string) ($data['status'] ?? 'draft'),
             description: $data['description'] ?? null,
             shortDescription: $data['short_description'] ?? null,
+            price: ($data['price'] ?? '') !== '' ? (float) $data['price'] : null,
             regularPrice: ($data['regular_price'] ?? '') !== '' ? (float) $data['regular_price'] : null,
             salePrice: ($data['sale_price'] ?? '') !== '' ? (float) $data['sale_price'] : null,
+            currency: $this->resolveProductCurrency($data),
             weight: ($data['weight'] ?? '') !== '' ? (float) $data['weight'] : null,
             length: ($data['dimensions']['length'] ?? '') !== '' ? (float) $data['dimensions']['length'] : null,
             width: ($data['dimensions']['width'] ?? '') !== '' ? (float) $data['dimensions']['width'] : null,
@@ -461,8 +463,10 @@ class WooCommerceClient implements WooCommerceClientContract
             status: $base->status,
             description: $base->description,
             shortDescription: $base->shortDescription,
+            price: $base->price,
             regularPrice: $base->regularPrice,
             salePrice: $base->salePrice,
+            currency: $base->currency,
             weight: $base->weight,
             length: $base->length,
             width: $base->width,
@@ -477,6 +481,44 @@ class WooCommerceClient implements WooCommerceClientContract
             metaData: $base->metaData,
             rawData: $base->rawData,
         );
+    }
+
+    private function resolveProductCurrency(array $data): string
+    {
+        $raw = $data['currency'] ?? null;
+
+        if (! is_scalar($raw) || trim((string) $raw) === '') {
+            $sourceUrl = $this->metaDataValue($data, '_product_upload_source_url')
+                ?? $this->metaDataValue($data, '_pu_source_key');
+
+            if (is_string($sourceUrl) && str_contains($sourceUrl, '1688.com')) {
+                return 'CNY';
+            }
+
+            $raw = config('woocommerce.currency', config('currency.base', 'USD'));
+        }
+
+        if (! is_scalar($raw) || trim((string) $raw) === '') {
+            $raw = config('currency.base', 'USD');
+        }
+
+        return strtoupper(trim((string) $raw));
+    }
+
+    private function metaDataValue(array $data, string $key): mixed
+    {
+        $metaData = $data['meta_data'] ?? [];
+        if (! is_array($metaData)) {
+            return null;
+        }
+
+        foreach ($metaData as $meta) {
+            if (is_array($meta) && ($meta['key'] ?? null) === $key) {
+                return $meta['value'] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function mapCustomerData(array $data): WooCommerceCustomerData

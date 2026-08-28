@@ -163,7 +163,7 @@ const prevSlide = () => {
         <div v-if="displaySlides.length > 1" class="absolute bottom-4 right-4 flex gap-2">
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
             :aria-label="t('Previous slide')"
             @click="prevSlide"
           >
@@ -173,7 +173,7 @@ const prevSlide = () => {
           </button>
           <button
             type="button"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
             :aria-label="t('Next slide')"
             @click="nextSlide"
           >

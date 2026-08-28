@@ -53,12 +53,12 @@ const setLocale = (target) => {
 
             <div class="auth-card">
                 <div class="mb-5 flex justify-end">
-                    <div class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[0.6rem] font-semibold text-slate-600">
+                    <div class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[0.68rem] font-semibold text-slate-600">
                         <button
                             v-for="option in localeOptions"
                             :key="option.code"
                             type="button"
-                            class="rounded-full px-2 py-1 uppercase transition"
+                            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-full px-2 py-1 uppercase transition"
                             :class="option.code === locale ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'"
                             :title="option.label"
                             @click="setLocale(option.code)"

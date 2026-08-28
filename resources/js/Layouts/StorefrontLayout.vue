@@ -70,7 +70,7 @@
                     <!-- Mobile Menu Toggle -->
                     <button
                         type="button"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 transition hover:bg-[#fff4e5] hover:text-[#d97706] lg:hidden"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 transition hover:bg-[#fff4e5] hover:text-[#d97706] lg:hidden"
                         @click="mobileOpen = true"
                     >
                         <span class="sr-only">{{ t('Open menu') }}</span>
@@ -80,7 +80,7 @@
                     </button>
 
                     <!-- Brand Logo -->
-                    <Link href="/" class="flex shrink-0 items-center gap-2">
+                    <Link href="/" class="flex min-h-11 shrink-0 items-center gap-2">
                         <img v-if="logoUrl" :src="logoUrl" :alt="brandName" class="w-auto transition-all duration-200" :class="mobileHeaderCompact ? 'h-7' : 'h-9'"/>
                         <span v-else class="text-lg font-bold font-heading text-slate-900">{{ brandName }}</span>
                     </Link>
@@ -88,7 +88,7 @@
                     <!-- Location Selector (desktop) -->
                     <button
                         type="button"
-                        class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-[#fff4e5] hover:text-slate-900 lg:flex"
+                        class="hidden min-h-10 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-500 transition hover:bg-[#fff4e5] hover:text-slate-900 lg:flex"
                         @click="locationOpen = !locationOpen"
                     >
                         <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2">
@@ -107,7 +107,7 @@
                                 v-model="search"
                                 type="search"
                                 :placeholder="t('Search products...')"
-                                class="w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder-slate-400 transition focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
+                                class="min-h-11 w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder-slate-400 transition focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
                                 :aria-label="t('Search products')"
                                 @focus="handleSearchFocus"
                                 @keydown.down.prevent="handleSuggestionNext"
@@ -117,7 +117,7 @@
                             />
                             <button
                                 type="submit"
-                                class="absolute right-1 top-1/2 -translate-y-1/2 rounded-md bg-[#f59e0b] px-5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-[#d97706]"
+                                class="absolute right-1 top-1/2 inline-flex min-h-10 -translate-y-1/2 items-center rounded-md bg-[#f59e0b] px-5 py-2 text-xs font-bold text-slate-950 transition hover:bg-[#d97706]"
                             >
                                 {{ t('Search') }}
                             </button>
@@ -144,7 +144,7 @@
                                 v-for="option in getLocaleOptions"
                                 :key="option.code"
                                 type="button"
-                                class="rounded px-2 py-1 text-xs font-semibold uppercase transition"
+                                class="inline-flex min-h-10 min-w-10 items-center justify-center rounded px-2 py-1 text-xs font-semibold uppercase transition"
                                 :class="option.code === currentLanguage ? 'bg-[#f59e0b] text-slate-950' : 'text-slate-500 hover:bg-[#fff4e5] hover:text-slate-900'"
                                 :title="option.label"
                                 @click="setLanguage(option.code)"
@@ -168,7 +168,7 @@
                         <!-- Wishlist -->
                         <Link
                             href="/account/wishlist"
-                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
+                            class="relative inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                             :aria-label="t('Wishlist')"
                         >
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -186,7 +186,7 @@
                         <div ref="accountRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-9 w-9 items-center justify-center overflow-visible rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
+                                class="relative inline-flex h-11 w-11 items-center justify-center overflow-visible rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                                 :aria-label="t('Account')"
                                 :aria-expanded="accountOpen"
                                 @click.stop="toggleAccount"
@@ -251,7 +251,7 @@
                         <div ref="cartRef" class="relative z-[100] hidden lg:block">
                             <button
                                 type="button"
-                                class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
+                                class="relative inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-[#fff4e5] hover:text-[#d97706]"
                                 :aria-label="t('Cart')"
                                 :aria-expanded="cartOpen"
                                 @click.stop="toggleCart"
@@ -340,7 +340,7 @@
                             v-model="search"
                             type="search"
                             :placeholder="t('Search products...')"
-                            class="w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2 pl-9 text-sm text-slate-900 placeholder-slate-400 focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
+                            class="min-h-11 w-full rounded-lg border border-[#ded6ca] bg-[#f8f7f5] px-4 py-2.5 pl-9 text-sm text-slate-900 placeholder-slate-400 focus:border-[#f59e0b] focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-200/50"
                             :aria-label="t('Search products')"
                             @focus="handleSearchFocus"
                             @keydown.down.prevent="handleSuggestionNext"

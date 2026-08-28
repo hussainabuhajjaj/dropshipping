@@ -14,11 +14,15 @@ use App\Domain\WooCommerce\DTOs\WooCommerceSyncResult;
 use App\Domain\WooCommerce\Models\WooCommerceProductMap;
 use App\Domain\WooCommerce\Services\WooCommerceLogService;
 use App\Infrastructure\WooCommerce\WooCommerceApiException;
+use App\Services\AI\TranslationProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WooCommerceProductSyncService implements WooCommerceProductSyncContract
 {
+    /** @var array<int, int> */
+    private array $syncedCategoryIds = [];
+
     public function __construct(
         private readonly WooCommerceClientContract $client,
         private readonly PricingService $pricing,
@@ -308,33 +312,83 @@ class WooCommerceProductSyncService implements WooCommerceProductSyncContract
 
     private function syncCategory(\App\Domain\Products\Models\Category $category): int
     {
+        if (isset($this->syncedCategoryIds[$category->id])) {
+            return $this->syncedCategoryIds[$category->id];
+        }
+
         if ($category->parent_id) {
             $parentId = $this->syncCategory($category->parent);
 
-            $this->ensureCategoryInWooCommerce($category, $parentId);
-
-            return $category->woocommerce_id ?? $this->createCategoryInWooCommerce($category, $parentId);
+            return $this->syncedCategoryIds[$category->id] = $this->resolveOrCreateCategoryInWooCommerce($category, $parentId);
         }
 
-        $this->ensureCategoryInWooCommerce($category);
-
-        return $category->woocommerce_id ?? $this->createCategoryInWooCommerce($category);
+        return $this->syncedCategoryIds[$category->id] = $this->resolveOrCreateCategoryInWooCommerce($category);
     }
 
-    private function ensureCategoryInWooCommerce(\App\Domain\Products\Models\Category $category, ?int $parentId = null): void
+    private function resolveOrCreateCategoryInWooCommerce(\App\Domain\Products\Models\Category $category, ?int $parentId = null): int
     {
-        if (! property_exists($category, 'woocommerce_id') || ! $category->woocommerce_id) {
-            return;
+        $existingId = $this->findExistingWooCategoryId($category, $parentId);
+        if ($existingId !== null) {
+            return $existingId;
         }
 
         try {
-            $this->client->updateCategory($category->woocommerce_id, [
+            return $this->createCategoryInWooCommerce($category, $parentId);
+        } catch (WooCommerceApiException $e) {
+            $termId = $this->extractExistingTermId($e);
+            if ($termId !== null) {
+                return $termId;
+            }
+
+            $existingId = $this->findExistingWooCategoryId($category, $parentId);
+            if ($existingId !== null) {
+                return $existingId;
+            }
+
+            throw $e;
+        }
+    }
+
+    private function findExistingWooCategoryId(\App\Domain\Products\Models\Category $category, ?int $parentId = null): ?int
+    {
+        foreach (array_filter([$category->slug, $category->name]) as $search) {
+            try {
+                $categories = $this->client->getCategories([
+                    'search' => $search,
+                    'per_page' => 100,
+                ]);
+            } catch (WooCommerceApiException) {
+                continue;
+            }
+
+            foreach ($categories as $candidate) {
+                if (! is_array($candidate)) {
+                    continue;
+                }
+
+                $sameParent = (int) ($candidate['parent'] ?? 0) === (int) ($parentId ?? 0);
+                $sameSlug = isset($candidate['slug']) && (string) $candidate['slug'] === (string) $category->slug;
+                $sameName = isset($candidate['name']) && mb_strtolower((string) $candidate['name']) === mb_strtolower((string) $category->name);
+
+                if ($sameParent && ($sameSlug || $sameName)) {
+                    return (int) ($candidate['id'] ?? 0) ?: null;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function updateCategoryInWooCommerce(int $wooCategoryId, \App\Domain\Products\Models\Category $category, ?int $parentId = null): void
+    {
+        try {
+            $this->client->updateCategory($wooCategoryId, [
                 'name' => $category->name,
                 'parent' => $parentId ?? 0,
             ]);
         } catch (WooCommerceApiException $e) {
-            if ($e->isNotFound()) {
-                $category->woocommerce_id = null;
+            if (! $e->isNotFound()) {
+                throw $e;
             }
         }
     }
@@ -349,12 +403,33 @@ class WooCommerceProductSyncService implements WooCommerceProductSyncContract
 
         $wooId = (int) ($response['id'] ?? 0);
 
-        if ($wooId > 0 && method_exists($category, 'update')) {
-            $category->woocommerce_id = $wooId;
-            $category->save();
+        if ($wooId > 0) {
+            $this->updateCategoryInWooCommerce($wooId, $category, $parentId);
         }
 
         return $wooId;
+    }
+
+    private function extractExistingTermId(WooCommerceApiException $e): ?int
+    {
+        $body = $e->getResponseBody();
+        $termId = data_get($body, 'data.resource_id')
+            ?? data_get($body, 'data.term_id')
+            ?? data_get($body, 'resource_id')
+            ?? data_get($body, 'term_id');
+
+        if (is_numeric($termId) && (int) $termId > 0) {
+            return (int) $termId;
+        }
+
+        if (($body['code'] ?? null) === 'term_exists') {
+            $message = (string) ($body['message'] ?? $e->getMessage());
+            if (preg_match('/\\b(\\d+)\\b/', $message, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        return null;
     }
 
     private function findOrCreateProduct(\App\Domain\WooCommerce\DTOs\WooCommerceProductData $data): Product
@@ -372,23 +447,62 @@ class WooCommerceProductSyncService implements WooCommerceProductSyncContract
 
             if ($variant && $variant->product) {
                 $this->importImages($variant->product, $data);
+                $this->updateImportedProductBasics($variant->product, $data);
                 return $variant->product;
             }
         }
 
+        $name = $this->resolveImportName($data);
         $product = Product::query()->create([
-            'name' => $data->name,
+            'name' => $name,
             'description' => $data->description,
-            'selling_price' => $data->regularPrice ?? 0,
+            'selling_price' => $data->activePrice() ?? 0,
+            'currency' => $data->currency,
+            'supplier_currency' => $data->currency,
+            'source_url' => $data->sourceUrl(),
+            'supplier_product_url' => $data->sourceUrl(),
             'is_active' => $data->status === 'publish',
             'stock_on_hand' => $data->stockQuantity ?? 0,
             'weight' => $data->weight,
-            'slug' => $data->slug,
+            'slug' => $data->slug ?: \Illuminate\Support\Str::slug($name),
+            'attributes' => $this->wooAttributes($data),
         ]);
 
         $this->importImages($product, $data);
 
         return $product;
+    }
+
+    private function updateImportedProductBasics(Product $product, \App\Domain\WooCommerce\DTOs\WooCommerceProductData $data): void
+    {
+        $product->update([
+            'name' => $this->resolveImportName($data),
+            'source_url' => $data->sourceUrl() ?? $product->source_url,
+            'supplier_product_url' => $data->sourceUrl() ?? $product->supplier_product_url,
+            'attributes' => array_merge(is_array($product->attributes) ? $product->attributes : [], $this->wooAttributes($data)),
+        ]);
+    }
+
+    private function resolveImportName(\App\Domain\WooCommerce\DTOs\WooCommerceProductData $data): string
+    {
+        return $data->importName($this->translator());
+    }
+
+    private function translator(): ?TranslationProvider
+    {
+        try {
+            return app(TranslationProvider::class);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function wooAttributes(\App\Domain\WooCommerce\DTOs\WooCommerceProductData $data): array
+    {
+        return array_filter([
+            'woocommerce_original_name' => $data->hasNonEnglishName() ? $data->name : null,
+            'woocommerce_english_title_source' => $data->englishTitleCandidate() !== null ? 'metadata_or_name' : null,
+        ], fn ($value) => $value !== null);
     }
 
     private function importImages(Product $product, \App\Domain\WooCommerce\DTOs\WooCommerceProductData $data): void
