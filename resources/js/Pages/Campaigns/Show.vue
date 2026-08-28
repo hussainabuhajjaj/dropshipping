@@ -144,6 +144,6 @@ const displayAmount = (amount) =>
 
 const formatDate = (value) => {
   if (!value) return ''
-  return new Date(value).toLocaleDateString(locale.value || 'en')
+  return new Date(value).toLocaleDateString(locale.value || 'en', { timeZone: 'UTC' })
 }
 </script>
