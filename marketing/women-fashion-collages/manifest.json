@@ -1,0 +1,125 @@
+[
+  {
+    "file": "01-summer-color-combos.png",
+    "title": "SUMMER COLOR",
+    "subtitle": "Combos",
+    "products": [
+      {
+        "code": "PJU85NPAJ",
+        "name": "Haze blue fairy dress",
+        "price_fcfa": 20382,
+        "url": "https://simbazu.net/products/new-haze-blue-little-fairy-dress-with-net-gauze-print-and-big-swing-1392760353749864448"
+      },
+      {
+        "code": "PZ7TY46C7",
+        "name": "Slim party dress",
+        "price_fcfa": 11292,
+        "url": "https://simbazu.net/products/summer-slim-skinny-sleeveless-dress-for-women-fashion-party-club-dresses-1640527350196613120"
+      },
+      {
+        "code": "PHVFTVGCB",
+        "name": "Slim waist short skirt",
+        "price_fcfa": 6126,
+        "url": "https://simbazu.net/products/temperament-slim-waist-pack-hip-short-skirt-1542432218067513344"
+      },
+      {
+        "code": "P2HMLYW8V",
+        "name": "Summer split midi dress",
+        "price_fcfa": 13338,
+        "url": "https://simbazu.net/products/womens-summer-split-dress-with-buttons-casual-sleeveless-midi-dress-clothing-2506250204281622000"
+      },
+      {
+        "code": "PN1PIUPY8",
+        "name": "Vintage dumpling bag",
+        "price_fcfa": 6876,
+        "url": "https://simbazu.net/products/trendy-vintage-dumpling-bag-niche-textured-crossbody-underarm-bag-2604101011321625400"
+      },
+      {
+        "code": "P2VPMHI4X",
+        "name": "Open-toe sandals",
+        "price_fcfa": 6594,
+        "url": "https://simbazu.net/products/open-toe-elegant-fashion-korean-princess-sandals-2604071058451633600"
+      }
+    ]
+  },
+  {
+    "file": "02-monday-outfit-builder.png",
+    "title": "Monday",
+    "subtitle": "Outfit Builder",
+    "products": [
+      {
+        "code": "PDHAL478L",
+        "name": "Denim slim dress",
+        "price_fcfa": 16050,
+        "url": "https://simbazu.net/products/denim-dress-womens-fashionable-slimming-sleeveless-waist-tight-temperament-2509280846501624300"
+      },
+      {
+        "code": "PKAVJO88N",
+        "name": "Street-style jeans",
+        "price_fcfa": 23436,
+        "url": "https://simbazu.net/products/new-street-style-versatile-jeans-2602110233071603800"
+      },
+      {
+        "code": "PZ8LDGQHE",
+        "name": "Simple long wallet",
+        "price_fcfa": 2730,
+        "url": "https://simbazu.net/products/fashionable-simple-long-wallet-for-women-2602251240441636600"
+      },
+      {
+        "code": "PN1PIUPY8",
+        "name": "Vintage dumpling bag",
+        "price_fcfa": 6876,
+        "url": "https://simbazu.net/products/trendy-vintage-dumpling-bag-niche-textured-crossbody-underarm-bag-2604101011321625400"
+      },
+      {
+        "code": "PFKZC658H",
+        "name": "Square-toe flats",
+        "price_fcfa": 8724,
+        "url": "https://simbazu.net/products/womens-casual-european-and-american-style-square-toe-flats-2602070233271619800"
+      }
+    ]
+  },
+  {
+    "file": "03-dress-edit.png",
+    "title": "DRESS",
+    "subtitle": "Edit",
+    "products": [
+      {
+        "code": "PDHAL478L",
+        "name": "Denim slim dress",
+        "price_fcfa": 16050,
+        "url": "https://simbazu.net/products/denim-dress-womens-fashionable-slimming-sleeveless-waist-tight-temperament-2509280846501624300"
+      },
+      {
+        "code": "PJU85NPAJ",
+        "name": "Haze blue fairy dress",
+        "price_fcfa": 20382,
+        "url": "https://simbazu.net/products/new-haze-blue-little-fairy-dress-with-net-gauze-print-and-big-swing-1392760353749864448"
+      },
+      {
+        "code": "P1YDCXZEM",
+        "name": "Halter split dress",
+        "price_fcfa": 13962,
+        "url": "https://simbazu.net/products/ins-halter-split-long-dress-summer-slim-fit-backless-dresses-solid-high-end-womens-clothing-1760930660870533120"
+      },
+      {
+        "code": "PSJ2HVJLS",
+        "name": "One-shoulder mini dress",
+        "price_fcfa": 10176,
+        "url": "https://simbazu.net/products/one-shoulder-sleeveless-mini-dress-sexy-slim-backless-skirt-party-wedding-dresses-womens-clothing-1739186160615829504"
+      },
+      {
+        "code": "P2HMLYW8V",
+        "name": "Summer split midi dress",
+        "price_fcfa": 13338,
+        "url": "https://simbazu.net/products/womens-summer-split-dress-with-buttons-casual-sleeveless-midi-dress-clothing-2506250204281622000"
+      },
+      {
+        "code": "PZ7TY46C7",
+        "name": "Slim party dress",
+        "price_fcfa": 11292,
+        "url": "https://simbazu.net/products/summer-slim-skinny-sleeveless-dress-for-women-fashion-party-club-dresses-1640527350196613120"
+      }
+    ]
+  }
+]

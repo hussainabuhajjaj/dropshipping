@@ -1,0 +1,51 @@
+[
+  {
+    "file": "day-01-brand-introduction.png",
+    "day": "Day 1",
+    "label": "Brand",
+    "headline": "Smart finds for daily life",
+    "cta": "Follow for daily finds"
+  },
+  {
+    "file": "day-02-product-code-search.png",
+    "day": "Day 2",
+    "label": "Shopping Tip",
+    "headline": "Search faster with product code",
+    "cta": "Save the code"
+  },
+  {
+    "file": "day-03-back-to-school-picks.png",
+    "day": "Day 3",
+    "label": "Back To School",
+    "headline": "Back-to-school picks",
+    "cta": "Shop school picks"
+  },
+  {
+    "file": "day-04-home-organization.png",
+    "day": "Day 4",
+    "label": "Home",
+    "headline": "Small upgrades, easier space",
+    "cta": "Explore home finds"
+  },
+  {
+    "file": "day-05-beauty-finds.png",
+    "day": "Day 5",
+    "label": "Beauty",
+    "headline": "Beauty finds for your routine",
+    "cta": "Comment your favorite"
+  },
+  {
+    "file": "day-06-fashion-accessories.png",
+    "day": "Day 6",
+    "label": "Fashion",
+    "headline": "Details change the outfit",
+    "cta": "Explore fashion"
+  },
+  {
+    "file": "day-07-audience-poll.png",
+    "day": "Day 7",
+    "label": "Poll",
+    "headline": "What should we show more?",
+    "cta": "Vote or comment"
+  }
+]
