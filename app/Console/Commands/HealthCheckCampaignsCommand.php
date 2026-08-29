@@ -68,8 +68,12 @@ class HealthCheckCampaignsCommand extends Command
 
             // --- PROMOTIONS ---
             if (count($promoIds) === 0) {
-                $cIssues[] = "NO promotions linked";
-                $detail[] = "  ⚠ NO promotions linked";
+                if ($campaign->type === 'lucky_draw') {
+                    $detail[] = '  No discount promotion required for lucky draw campaign';
+                } else {
+                    $cIssues[] = "NO promotions linked";
+                    $detail[] = "  ⚠ NO promotions linked";
+                }
             } else {
                 $promos = Promotion::whereIn('id', $promoIds)->get();
                 $validPromos = $promos->filter(fn($p) => $p->is_active && (!$p->start_at || $p->start_at <= $now) && (!$p->end_at || $p->end_at >= $now));
