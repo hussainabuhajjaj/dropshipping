@@ -196,7 +196,7 @@ function productsReport(): void
     line('Total products', (int) DB::table('products')->count());
     line('Active products', columnExists('products', 'status') ? (int) DB::table('products')->where('status', 'active')->count() : '-');
     line('Created today', countWhereToday('products'));
-    line('Non-XOF products', columnExists('products', 'currency') ? (int) DB::table('products')->where('currency', '!=', 'XOF')->count() : '-');
+    line('Non-XOF supplier/base currency', columnExists('products', 'currency') ? (int) DB::table('products')->where('currency', '!=', 'XOF')->count() : '-');
     line('Missing source URL', columnExists('products', 'source_url') ? (int) DB::table('products')->whereNull('source_url')->count() : '-');
     line('Chinese titles', (int) DB::table('products')->where('name', 'REGEXP', '[一-龥]')->count());
 
@@ -223,7 +223,7 @@ function productOrganizationSuggestions(): void
     line('Missing category', $categoryAvailable ? (int) DB::table('products')->whereNull('category_id')->count() : '-');
     line('Chinese titles', columnExists('products', 'name') ? (int) DB::table('products')->whereRaw("name {$hasChineseRegexp}")->count() : '-');
     line('Missing/zero price', columnExists('products', 'selling_price') ? (int) DB::table('products')->where(fn ($query) => $query->whereNull('selling_price')->orWhere('selling_price', '<=', 0))->count() : '-');
-    line('Non-XOF currency', columnExists('products', 'currency') ? (int) DB::table('products')->whereNotNull('currency')->where('currency', '!=', 'XOF')->count() : '-');
+    line('Non-XOF supplier/base currency', columnExists('products', 'currency') ? (int) DB::table('products')->whereNotNull('currency')->where('currency', '!=', 'XOF')->count() : '-');
     line('1688/CNY source products', count1688CurrencyProducts());
 
     if (! $categoryAvailable || ! columnExists('products', 'name')) {
@@ -531,9 +531,6 @@ function priceCurrencySuggestionRows()
             if (columnExists('products', 'selling_price')) {
                 $query->orWhereNull('selling_price')->orWhere('selling_price', '<=', 0);
             }
-            if (columnExists('products', 'currency')) {
-                $query->orWhere('currency', '!=', 'XOF');
-            }
             if (columnExists('products', 'supplier_currency')) {
                 $query->orWhereIn('supplier_currency', ['CNY', 'RMB', 'CNH']);
             }
@@ -557,12 +554,12 @@ function priceCurrencyReason(array $row): string
         $reasons[] = 'missing/zero selling price';
     }
 
-    if (($row['currency'] ?? 'XOF') !== 'XOF') {
-        $reasons[] = 'storefront currency is ' . ($row['currency'] ?? 'blank');
+    if (isset($row['currency']) && $row['currency'] !== null && $row['currency'] !== '') {
+        $reasons[] = 'supplier/base currency is ' . $row['currency'];
     }
 
     if (in_array($row['supplier_currency'] ?? null, ['CNY', 'RMB', 'CNH'], true)) {
-        $reasons[] = 'supplier currency is Chinese yuan';
+        $reasons[] = 'Chinese yuan source; verify XOF conversion';
     }
 
     if (str_contains((string) ($row['source_url'] ?? ''), '1688.com') || str_contains((string) ($row['supplier_product_url'] ?? ''), '1688.com')) {

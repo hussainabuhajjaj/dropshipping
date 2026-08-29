@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 class HealthCheckCampaignsCommand extends Command
 {
     protected $signature = 'app:health-check-campaigns';
-    protected $description = 'Check campaign health: active campaigns, products, hero images, collections, prices, coupon codes';
+    protected $description = 'Check campaign health: active campaigns, products, hero images, collections, source prices, coupon codes';
 
     public function handle(): int
     {
@@ -171,8 +171,10 @@ class HealthCheckCampaignsCommand extends Command
                             if (empty($price) || !is_numeric($price) || $price <= 0) {
                                 $priceIssues[] = "{$prod->name}: selling_price={$price}";
                             }
-                            if ($prod->currency && $prod->currency !== 'XOF') {
-                                $priceIssues[] = "{$prod->name}: currency={$prod->currency} (expected XOF)";
+                            $sourceCurrency = strtoupper((string) ($prod->currency ?? ''));
+                            $supportedCurrencies = config('currency.supported', ['USD', 'CNY', 'XOF']);
+                            if ($sourceCurrency === '' || ! in_array($sourceCurrency, $supportedCurrencies, true)) {
+                                $priceIssues[] = "{$prod->name}: unsupported supplier/base currency=" . ($sourceCurrency ?: 'blank');
                             }
                         }
                         if (!empty($priceIssues)) {
