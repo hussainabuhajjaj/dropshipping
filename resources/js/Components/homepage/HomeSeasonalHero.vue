@@ -36,11 +36,14 @@ const displaySlides = computed(() => {
 })
 
 const currentSlide = computed(() => displaySlides.value[activeIndex.value] || displaySlides.value[0])
-const heroStyle = computed(() => (
-  currentSlide.value?.image
-    ? { backgroundImage: `url(${currentSlide.value.image})` }
-    : {}
-))
+
+const heroImageSrcset = computed(() => {
+  if (!currentSlide.value?.image) return ''
+  const base = currentSlide.value.image
+  return `${base}?w=640 640w, ${base}?w=960 960w, ${base}?w=1280 1280w, ${base}?w=1920 1920w`
+})
+
+const heroImageSizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 1280px'
 
 const themeClasses = computed(() => {
   const themes = {
@@ -101,58 +104,66 @@ const prevSlide = () => {
 
 <template>
   <section class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
-    <div
-      class="relative min-h-[31rem] overflow-hidden rounded-lg bg-slate-950 bg-cover bg-center text-white shadow-sm sm:min-h-[29rem]"
-      :style="heroStyle"
-    >
+    <div class="relative overflow-hidden rounded-lg text-white shadow-sm" :class="themeClasses.background">
+      <div v-if="currentSlide.image" class="absolute inset-0 z-0">
+        <img
+          :src="currentSlide.image"
+          :srcset="heroImageSrcset"
+          :sizes="heroImageSizes"
+          :alt="currentSlide.title"
+          class="h-full w-full object-cover"
+          loading="eager"
+          fetchpriority="high"
+        />
+      </div>
       <div class="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/62 to-slate-950/10"></div>
 
-      <div class="relative z-10 flex min-h-[31rem] flex-col justify-between p-4 sm:min-h-[29rem] sm:p-6 lg:p-8">
+      <div class="relative z-10 flex flex-col justify-between p-4 sm:p-6 lg:p-8 min-h-[22rem] sm:min-h-[26rem] lg:min-h-[30rem]">
         <div class="flex flex-wrap items-center gap-2">
           <span
-            class="inline-flex rounded-full px-3 py-1 text-[0.66rem] font-black uppercase tracking-[0.18em] ring-1"
+            class="inline-flex rounded-full px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.18em] ring-1"
             :class="themeClasses.badge"
           >
             {{ t(currentSlide.badge) }}
           </span>
-          <span class="inline-flex rounded-full bg-white/12 px-3 py-1 text-[0.66rem] font-bold uppercase tracking-[0.16em] text-white/80 ring-1 ring-white/15">
+          <span class="inline-flex rounded-full bg-white/12 px-3 py-1 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-white/80 ring-1 ring-white/15">
             {{ t('New drops daily') }}
           </span>
         </div>
 
-        <div class="max-w-2xl py-8">
-          <h1 class="max-w-xl text-3xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+        <div class="max-w-2xl py-6 sm:py-8">
+          <h1 class="max-w-xl text-2xl font-black leading-tight text-white sm:text-3xl lg:text-4xl xl:text-5xl">
             {{ t(currentSlide.title) }}
           </h1>
-          <p class="mt-4 max-w-xl text-sm font-medium leading-6 text-white/78 sm:text-base">
+          <p class="mt-3 max-w-xl text-sm font-medium leading-5 text-white/78 sm:text-base lg:text-lg">
             {{ t(currentSlide.subtitle) }}
           </p>
 
-          <div class="mt-6 flex flex-wrap gap-2">
+          <div class="mt-5 flex flex-wrap gap-2">
             <Link
               :href="currentSlide.primary?.href || season.href"
-              class="inline-flex min-h-11 items-center justify-center rounded-md px-5 text-sm font-black transition active:scale-95"
+              class="inline-flex min-h-10 items-center justify-center rounded-md px-4 text-sm font-black transition active:scale-95"
               :class="themeClasses.cta"
             >
               {{ t(currentSlide.primary?.label || season.primaryLabel) }}
             </Link>
             <Link
               href="/products?sort=bestsellers"
-              class="inline-flex min-h-11 items-center justify-center rounded-md bg-white/12 px-5 text-sm font-bold text-white ring-1 ring-white/16 transition hover:bg-white/18 active:scale-95"
+              class="inline-flex min-h-10 items-center justify-center rounded-md bg-white/12 px-4 text-sm font-bold text-white ring-1 ring-white/16 transition hover:bg-white/18 active:scale-95"
             >
               {{ t(season.secondaryLabel) }}
             </Link>
           </div>
         </div>
 
-        <div class="grid gap-2 sm:grid-cols-3">
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             v-for="link in visibleQuickLinks"
             :key="link.href"
             :href="link.href"
-            class="group rounded-lg bg-white/92 p-3 text-slate-950 shadow-sm transition hover:bg-white active:scale-[0.99]"
+            class="group rounded-lg bg-white/92 p-3 sm:p-4 text-slate-950 shadow-sm transition hover:bg-white active:scale-[0.99]"
           >
-            <p class="text-[0.62rem] font-black uppercase tracking-[0.16em]" :class="themeClasses.accent">
+            <p class="text-[0.55rem] font-black uppercase tracking-[0.16em]" :class="themeClasses.accent">
               {{ t('Shop') }}
             </p>
             <p class="mt-1 line-clamp-1 text-sm font-black">{{ link.name }}</p>
@@ -163,7 +174,7 @@ const prevSlide = () => {
         <div v-if="displaySlides.length > 1" class="absolute bottom-4 right-4 flex gap-2">
           <button
             type="button"
-            class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
             :aria-label="t('Previous slide')"
             @click="prevSlide"
           >
@@ -173,7 +184,7 @@ const prevSlide = () => {
           </button>
           <button
             type="button"
-            class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
             :aria-label="t('Next slide')"
             @click="nextSlide"
           >
@@ -190,7 +201,7 @@ const prevSlide = () => {
         v-for="collection in sideCollections"
         :key="collection.id ?? collection.href ?? collection.title ?? collection.name"
         :href="collection.href ?? '/collections'"
-        class="group relative min-h-40 overflow-hidden rounded-lg bg-slate-900 shadow-sm"
+        class="group relative min-h-[14rem] sm:min-h-40 overflow-hidden rounded-lg bg-slate-900 shadow-sm"
       >
         <img
           v-if="collection.image"
@@ -201,11 +212,11 @@ const prevSlide = () => {
         />
         <div v-else class="absolute inset-0" :class="themeClasses.background"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-slate-950/78 via-slate-950/28 to-transparent"></div>
-        <div class="absolute inset-x-0 bottom-0 p-4">
-          <p class="text-[0.62rem] font-black uppercase tracking-[0.18em] text-[#fbbf24]">
+        <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4">
+          <p class="text-[0.55rem] font-black uppercase tracking-[0.18em] text-[#fbbf24]">
             {{ t(collection.kicker || 'Curated') }}
           </p>
-          <p class="mt-1 line-clamp-2 text-lg font-black leading-tight text-white">
+          <p class="mt-1 line-clamp-2 text-base font-black leading-tight text-white sm:text-lg">
             {{ collection.title || collection.name }}
           </p>
         </div>
