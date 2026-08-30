@@ -52,7 +52,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->web(append: [
-            \App\Http\Middleware\RedirectMobile::class,
             \App\Http\Middleware\TrackStorefrontVisit::class,
             \App\Http\Middleware\CheckStorefrontComingSoon::class,
             \App\Http\Middleware\SetLocale::class,
