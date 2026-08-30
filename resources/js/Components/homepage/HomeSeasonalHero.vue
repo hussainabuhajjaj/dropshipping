@@ -87,7 +87,6 @@ const sideCollections = computed(() => {
     kicker: item.kicker || 'Collection',
   }))
 })
-const visibleQuickLinks = computed(() => props.quickLinks.slice(0, 6))
 
 const goToSlide = (index) => {
   activeIndex.value = index
@@ -154,21 +153,6 @@ const prevSlide = () => {
               {{ t(season.secondaryLabel) }}
             </Link>
           </div>
-        </div>
-
-        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Link
-            v-for="link in visibleQuickLinks"
-            :key="link.href"
-            :href="link.href"
-            class="group rounded-lg bg-white/92 p-3 sm:p-4 text-slate-950 shadow-sm transition hover:bg-white active:scale-[0.99]"
-          >
-            <p class="text-[0.55rem] font-black uppercase tracking-[0.16em]" :class="themeClasses.accent">
-              {{ t('Shop') }}
-            </p>
-            <p class="mt-1 line-clamp-1 text-sm font-black">{{ link.name }}</p>
-            <p class="mt-1 text-xs font-medium text-slate-500">{{ t('Open collection') }}</p>
-          </Link>
         </div>
 
         <div v-if="displaySlides.length > 1" class="absolute bottom-4 right-4 flex gap-2">
