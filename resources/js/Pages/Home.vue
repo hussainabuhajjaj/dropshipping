@@ -13,7 +13,6 @@ import HomeFeatureBand from '@/Components/homepage/HomeFeatureBand.vue'
 import HomeProductSection from '@/Components/homepage/HomeProductSection.vue'
 import HomeSeasonalHero from '@/Components/homepage/HomeSeasonalHero.vue'
 import HomeSectionHeader from '@/Components/homepage/HomeSectionHeader.vue'
-import HomeShoppingLanes from '@/Components/homepage/HomeShoppingLanes.vue'
 import HomeTrustAndSearch from '@/Components/homepage/HomeTrustAndSearch.vue'
 import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import ProductQuickAddSheet from '@/Components/ProductQuickAddSheet.vue'
@@ -322,22 +321,7 @@ const appDownloadSettings = computed(() => {
 <template>
   <StorefrontLayout>
     <main class="min-h-screen bg-[#f7f4ef] pb-28">
-      <div class="border-b border-[#eee6da] bg-white">
-        <div class="mx-auto flex max-w-7xl items-center gap-5 overflow-x-auto px-4 py-2.5 text-xs font-bold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span class="shrink-0 text-[#d97706]">{{ t('Simbazu') }}</span>
-          <span class="shrink-0">{{ t('Secure checkout') }}</span>
-          <span class="shrink-0">{{ t('Tracked delivery') }}</span>
-          <span class="shrink-0">{{ t('Seasonal edits') }}</span>
-          <span class="shrink-0">{{ t('Easy support') }}</span>
-        </div>
-      </div>
-
       <div class="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:py-6">
-        <HomeShoppingLanes
-          :lanes="shoppingLanes"
-          :season="activeSeason"
-        />
-
         <HomeSeasonalHero
           :season="activeSeason"
           :slides="heroSlides"
