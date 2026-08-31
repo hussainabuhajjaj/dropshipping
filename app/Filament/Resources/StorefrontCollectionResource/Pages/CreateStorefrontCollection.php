@@ -106,7 +106,7 @@ class CreateStorefrontCollection extends CreateRecord
 
                     $state['locale_overrides'] = array_values($overrides);
                     $this->form->fill($state);
-                    $this->dispatch('repeater-refresh', statePath: 'locale_overrides');
+                    $this->dispatch('refresh-form-components');
 
                     Notification::make()
                         ->success()

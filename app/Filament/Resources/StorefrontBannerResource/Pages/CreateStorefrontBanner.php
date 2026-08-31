@@ -95,7 +95,6 @@ class CreateStorefrontBanner extends CreateRecord
 
                     $state['locale_overrides'] = array_values($overrides);
                     $this->form->fill($state);
-                    $this->dispatch('repeater-refresh', statePath: 'locale_overrides');
 
                     Notification::make()
                         ->success()
