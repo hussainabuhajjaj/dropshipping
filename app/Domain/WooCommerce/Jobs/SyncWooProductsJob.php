@@ -37,7 +37,8 @@ class SyncWooProductsJob implements ShouldQueue
 
         $query = Product::query()
             ->where('is_active', true)
-            ->whereNotNull('selling_price');
+            ->whereNotNull('selling_price')
+            ->whereNull('cj_pid');
 
         if ($this->productIds !== []) {
             $query->whereIn('id', $this->productIds);

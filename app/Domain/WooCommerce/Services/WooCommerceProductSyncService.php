@@ -32,6 +32,13 @@ class WooCommerceProductSyncService implements WooCommerceProductSyncContract
 
     public function syncProduct(Product $product): WooCommerceSyncResult
     {
+        // CJ-sourced products must never live in WooCommerce. This is the
+        // single choke point for every export path (observer job, bulk job,
+        // retry job, manual retry), so gating here stops all of them.
+        if ($product->cj_pid !== null) {
+            return WooCommerceSyncResult::skipped('CJ products are not exported to WooCommerce', $product->id);
+        }
+
         try {
             $product->loadMissing(['category', 'images', 'variants', 'defaultFulfillmentProvider']);
 

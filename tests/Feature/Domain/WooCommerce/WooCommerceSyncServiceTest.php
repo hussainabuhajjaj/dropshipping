@@ -88,6 +88,31 @@ class WooCommerceSyncServiceTest extends TestCase
         ]);
     }
 
+    public function test_sync_product_skips_cj_products(): void
+    {
+        $product = Product::factory()->create([
+            'name' => 'CJ Product',
+            'code' => 'CJ-001',
+            'selling_price' => 49.99,
+            'status' => 'active',
+            'cj_pid' => '1742793042760835072',
+        ]);
+
+        Http::fake();
+
+        $result = $this->productSyncService->syncProduct($product);
+
+        $this->assertTrue($result->success);
+        $this->assertSame('skipped', $result->status);
+        $this->assertSame($product->id, $result->entityId);
+
+        Http::assertNothingSent();
+
+        $this->assertDatabaseMissing('woocommerce_product_maps', [
+            'product_id' => $product->id,
+        ]);
+    }
+
     public function test_sync_product_updates_existing_mapping(): void
     {
         $category = Category::factory()->create();
