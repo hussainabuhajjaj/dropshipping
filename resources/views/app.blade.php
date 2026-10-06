@@ -72,7 +72,6 @@
         @endif
 
         <!-- Meta Pixel Code -->
-        @if(config('services.facebook.pixel_id'))
         <script>
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -82,13 +81,13 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '{{ config('services.facebook.pixel_id') }}');
+        fbq('init', '1786043949335380');
         fbq('track', 'PageView');
         </script>
         <noscript><img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id={{ config('services.facebook.pixel_id') }}&ev=PageView&noscript=1"
+        src="https://www.facebook.com/tr?id=1786043949335380&ev=PageView&noscript=1"
         /></noscript>
-        @endif
+        <!-- End Meta Pixel Code -->
     </head>
     <body class="font-sans antialiased">
         @inertia
