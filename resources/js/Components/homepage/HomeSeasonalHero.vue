@@ -76,17 +76,7 @@ const themeClasses = computed(() => {
   return themes[props.season.theme] || themes.amber
 })
 
-const sideCollections = computed(() => {
-  const source = props.collections.length ? props.collections : props.quickLinks
-
-  return source.slice(0, 3).map((item) => ({
-    ...item,
-    title: item.title || item.name,
-    name: item.name || item.title,
-    href: item.href || '/collections',
-    kicker: item.kicker || 'Collection',
-  }))
-})
+const sideCollections = computed(() => [])
 
 const goToSlide = (index) => {
   activeIndex.value = index
@@ -117,19 +107,7 @@ const prevSlide = () => {
       </div>
       <div class="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/62 to-slate-950/10"></div>
 
-      <div class="relative z-10 flex flex-col justify-between p-4 sm:p-6 lg:p-8 min-h-[22rem] sm:min-h-[26rem] lg:min-h-[30rem]">
-        <div class="flex flex-wrap items-center gap-2">
-          <span
-            class="inline-flex rounded-full px-3 py-1 text-[0.58rem] font-black uppercase tracking-[0.18em] ring-1"
-            :class="themeClasses.badge"
-          >
-            {{ t(currentSlide.badge) }}
-          </span>
-          <span class="inline-flex rounded-full bg-white/12 px-3 py-1 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-white/80 ring-1 ring-white/15">
-            {{ t('New drops daily') }}
-          </span>
-        </div>
-
+      <div class="relative z-10 flex flex-col justify-between p-4 sm:p-6 lg:p-8">
         <div class="max-w-2xl py-6 sm:py-8">
           <h1 class="max-w-xl text-2xl font-black leading-tight text-white sm:text-3xl lg:text-4xl xl:text-5xl">
             {{ t(currentSlide.title) }}
@@ -178,33 +156,6 @@ const prevSlide = () => {
           </button>
         </div>
       </div>
-    </div>
-
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-      <Link
-        v-for="collection in sideCollections"
-        :key="collection.id ?? collection.href ?? collection.title ?? collection.name"
-        :href="collection.href ?? '/collections'"
-        class="group relative min-h-[14rem] sm:min-h-40 overflow-hidden rounded-lg bg-slate-900 shadow-sm"
-      >
-        <img
-          v-if="collection.image"
-          :src="collection.image"
-          :alt="collection.title || collection.name"
-          class="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
-          loading="lazy"
-        />
-        <div v-else class="absolute inset-0" :class="themeClasses.background"></div>
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/78 via-slate-950/28 to-transparent"></div>
-        <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4">
-          <p class="text-[0.55rem] font-black uppercase tracking-[0.18em] text-[#fbbf24]">
-            {{ t(collection.kicker || 'Curated') }}
-          </p>
-          <p class="mt-1 line-clamp-2 text-base font-black leading-tight text-white sm:text-lg">
-            {{ collection.title || collection.name }}
-          </p>
-        </div>
-      </Link>
     </div>
   </section>
 </template>
