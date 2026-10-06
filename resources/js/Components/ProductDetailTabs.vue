@@ -1,6 +1,6 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex border-b border-slate-200 gap-1">
+  <div class="min-w-0 max-w-full space-y-4 overflow-hidden">
+    <div class="flex max-w-full gap-1 overflow-x-auto border-b border-slate-200">
       <button
         v-for="tab in tabs"
         :key="tab.key"
@@ -13,8 +13,8 @@
       </button>
     </div>
 
-    <div v-if="activeTab === 'description'" class="text-sm text-slate-600">
-      <div v-if="descriptionHtml" class="space-y-3 leading-relaxed" v-html="descriptionHtml" />
+    <div v-if="activeTab === 'description'" class="min-w-0 max-w-full overflow-hidden text-sm text-slate-600">
+      <div v-if="descriptionHtml" class="product-description-content space-y-3 leading-relaxed" v-html="descriptionHtml" />
       <p v-else class="text-slate-400">{{ t('Details coming soon.') }}</p>
       <div v-if="reviewHighlights.length" class="mt-6 grid gap-3 sm:grid-cols-2">
         <div
@@ -239,3 +239,38 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString(locale.value || 'en')
 }
 </script>
+
+<style scoped>
+.product-description-content {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.product-description-content :deep(*) {
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.product-description-content :deep(img),
+.product-description-content :deep(video),
+.product-description-content :deep(iframe) {
+  display: block;
+  height: auto !important;
+  max-width: 100% !important;
+}
+
+.product-description-content :deep(table) {
+  display: block;
+  width: 100% !important;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.product-description-content :deep(td),
+.product-description-content :deep(th) {
+  min-width: 0;
+  white-space: normal;
+}
+</style>

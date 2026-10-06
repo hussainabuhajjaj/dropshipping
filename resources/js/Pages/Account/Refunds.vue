@@ -49,7 +49,7 @@ import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
 const { formatCurrency, convertCurrency } = useUserPreferences()
 function displayRefundAmount(amount, currency) {
-  return formatCurrency(convertCurrency(Number(amount ?? 0), 'USD', currency), currency)
+  return formatCurrency(convertCurrency(Number(amount ?? 0), currency, 'XOF'), 'XOF')
 }
 import { Link } from '@inertiajs/vue3'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'

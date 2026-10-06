@@ -48,6 +48,7 @@ class StorefrontCollectionResource extends BaseResource
                             'guide' => 'Buying Guide',
                             'seasonal' => 'Seasonal Drop',
                             'drop' => 'Drop',
+                            'campaign' => 'Campaign',
                         ])
                         ->required(),
                     Forms\Components\Textarea::make('description')

@@ -5,7 +5,7 @@
         v-for="item in items"
         :key="item.id"
         type="button"
-        class="shrink-0 rounded-full px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] transition"
+        class="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.16em] transition"
         :class="activeId === item.id ? 'bg-[#111111] text-white' : 'text-slate-500 hover:text-slate-900'"
         @click="scrollTo(item.id)"
       >

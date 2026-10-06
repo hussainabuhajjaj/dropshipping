@@ -226,7 +226,7 @@ class CartController extends ApiController
         return [
             'lines' => $cartItems,
             'guest_token' => $this->cartIdentityService->guestTokenForRequest($request, $cart),
-            'currency' => $summary['currency'] ?? 'USD',
+            'currency' => 'XOF',
             'subtotal' => (float)($summary['subtotal'] ?? 0),
             'shipping' => (float)($summary['shipping'] ?? 0),
             'discount' => (float)($summary['discount'] ?? 0),

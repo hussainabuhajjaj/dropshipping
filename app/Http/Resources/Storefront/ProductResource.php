@@ -55,9 +55,7 @@ class ProductResource extends JsonResource
                 'variant_image' => $variantImage,
                 'price' => $price ?? 0.0,
                 'compare_at_price' => $this->displayCompareAt($referencePrice, $compareAt),
-                'sku' => $variant->sku,
                 'currency' => $variant->currency ?? $product->currency ?? 'USD',
-                'cj_vid' => $variant->cj_vid,
                 'stock_on_hand' => $variant->stock_on_hand,
                 'low_stock_threshold' => $variant->low_stock_threshold,
             ];

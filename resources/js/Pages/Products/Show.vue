@@ -18,8 +18,8 @@
     <div class="min-h-screen bg-white pb-28 lg:pb-0">
       <Breadcrumbs :items="breadcrumbs" class="px-4 pt-4" />
 
-      <div class="mx-auto mt-2 max-w-7xl px-4 lg:mt-4">
-        <div class="lg:grid lg:grid-cols-[1.3fr,1fr] lg:gap-12">
+      <div class="mx-auto mt-2 max-w-7xl overflow-hidden px-4 lg:mt-4">
+        <div class="min-w-0 lg:grid lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)] lg:gap-12">
 
           <ProductGallery
             :images="galleryImages"
@@ -31,7 +31,7 @@
             @next-image="setGalleryImageByIndex(selectedImageIndex + 1)"
           />
 
-          <div class="mt-6 space-y-5 lg:mt-0 lg:sticky lg:top-28 lg:self-start">
+          <div class="mt-6 min-w-0 space-y-5 lg:mt-0 lg:sticky lg:top-28 lg:self-start">
             <ProductInfo
               :product="product"
               :display-price-formatted="displayPriceFormatted"
@@ -43,8 +43,6 @@
               :stock-badge="stockBadge"
               :review-summary="reviewSummary"
               :product-code="productCode"
-              :variant-sku="variantSku"
-              :should-show-variant-sku="shouldShowVariantSku"
               :display-promotion-value="displayPromotionValue"
             />
 
@@ -131,7 +129,7 @@
             <h2 class="text-lg font-bold text-slate-900">{{ t('Related products') }}</h2>
             <Link
               :href="relatedBrowseHref"
-              class="text-xs font-semibold text-red-500 hover:text-red-600"
+              class="inline-flex min-h-10 items-center text-xs font-semibold text-red-500 hover:text-red-600"
             >
               {{ t('Browse all') }}
             </Link>
@@ -337,11 +335,6 @@ const productCode = computed(() => {
   const code = props.product.code
   return typeof code === 'string' && code.trim() !== '' ? code.trim() : null
 })
-const variantSku = computed(() => {
-  const sku = selectedVariant.value?.sku
-  return typeof sku === 'string' && sku.trim() !== '' ? sku.trim() : null
-})
-const shouldShowVariantSku = computed(() => Boolean(variantSku.value && variantSku.value !== productCode.value))
 
 // ---- Gallery ----
 const galleryImages = computed(() => {
@@ -555,20 +548,11 @@ const productSchema = computed(() => {
     schema.image = Array.isArray(props.product.media) ? props.product.media : [productImage.value]
   }
 
-  if (props.product.code) {
-    schema.mpn = props.product.code
-    schema.sku = props.product.code
-  }
-
   if (props.product.brand) {
     schema.brand = {
       '@type': 'Brand',
       name: props.product.brand,
     }
-  }
-
-  if (selectedVariant.value?.sku && selectedVariant.value.sku !== props.product.code) {
-    schema.sku = selectedVariant.value.sku
   }
 
   if (selectedVariant.value?.gtin) {

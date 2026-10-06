@@ -14,7 +14,7 @@
           <h1 class="text-xl font-bold text-slate-900 sm:text-2xl">{{ heroTitle }}</h1>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 lg:hidden"
+            class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 lg:hidden"
             @click="filtersOpen = true"
           >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
@@ -31,16 +31,16 @@
             <div class="sticky top-28 space-y-5">
               <div class="flex items-center justify-between border-b border-[#e7ded1] pb-3">
                 <h3 class="text-sm font-bold text-slate-900">{{ t('Filters') }}</h3>
-                <button type="button" class="text-xs font-semibold text-[#d97706] hover:text-slate-950" @click="resetFilters">{{ t('Reset') }}</button>
+                <button type="button" class="inline-flex min-h-10 items-center text-xs font-semibold text-[#d97706] hover:text-slate-950" @click="resetFilters">{{ t('Reset') }}</button>
               </div>
 
               <div>
-                <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('category')">
+                <button type="button" class="flex min-h-10 w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('category')">
                   {{ t('Category') }}
                   <svg class="h-3.5 w-3.5 transition" :class="openPanels.category ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
                 <div v-if="openPanels.category" class="mt-3">
-                  <select v-model="form.category" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @change="applyFilters">
+                  <select v-model="form.category" class="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-slate-500 focus:outline-none" @change="applyFilters">
                     <option value="">{{ t('All categories') }}</option>
                     <option v-for="cat in categoryOptions" :key="cat.slug || cat.name" :value="cat.slug || cat.name">{{ cat.label }}</option>
                   </select>
@@ -48,26 +48,26 @@
               </div>
 
               <div>
-                <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('price')">
+                <button type="button" class="flex min-h-10 w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('price')">
                   {{ t('Price') }}
                   <svg class="h-3.5 w-3.5 transition" :class="openPanels.price ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
                 <div v-if="openPanels.price" class="mt-3">
                   <div class="flex items-center gap-2">
-                    <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
+                    <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-slate-500 focus:outline-none" />
                     <span class="text-xs text-slate-400">—</span>
-                    <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
+                    <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-slate-500 focus:outline-none" />
                   </div>
                 </div>
               </div>
 
               <div>
-                <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('rating')">
+                <button type="button" class="flex min-h-10 w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel('rating')">
                   {{ t('Rating') }}
                   <svg class="h-3.5 w-3.5 transition" :class="openPanels.rating ? 'rotate-180' : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
                 <div v-if="openPanels.rating" class="mt-3">
-                  <select v-model="form.rating" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" @change="applyFilters">
+                  <select v-model="form.rating" class="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-slate-500 focus:outline-none" @change="applyFilters">
                     <option value="">{{ t('Any rating') }}</option>
                     <option value="4">4+ {{ t('stars') }}</option>
                     <option value="3">3+ {{ t('stars') }}</option>
@@ -76,14 +76,14 @@
                 </div>
               </div>
 
-              <label class="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
-                <input v-model="form.in_stock" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-0" @change="applyFilters" />
+              <label class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                <input v-model="form.in_stock" type="checkbox" class="h-5 min-h-10 w-5 min-w-10 rounded border-slate-300 text-slate-900 focus:ring-0" @change="applyFilters" />
                 {{ t('In stock only') }}
               </label>
 
               <!-- Dynamic attribute filters (colors, sizes, etc.) -->
               <div v-for="attr in attributes" :key="attr.key">
-                <button type="button" class="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel(attr.key)">
+                <button type="button" class="flex min-h-10 w-full items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500" @click="togglePanel(attr.key)">
                   <span class="flex items-center gap-2">
                     {{ attr.label }}
                     <span v-if="isVariantAttribute(attr)" class="rounded bg-slate-200 px-1.5 py-0.5 text-[0.55rem] font-bold text-slate-500">{{ t('Variant') }}</span>
@@ -127,7 +127,7 @@
             <!-- Sort + count toolbar -->
             <div class="flex items-center justify-between gap-4">
               <p class="text-xs text-slate-500">{{ productsPaginator.total ?? products.length }} {{ t('products') }}</p>
-              <select v-model="form.sort" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 focus:border-slate-400 focus:outline-none" @change="handleSortChange($event.target.value)">
+              <select v-model="form.sort" class="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-medium text-slate-600 focus:border-slate-400 focus:outline-none" @change="handleSortChange($event.target.value)">
                 <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
@@ -148,15 +148,15 @@
 
             <!-- Pagination -->
             <nav v-if="hasMore || (productsPaginator.current_page ?? 1) > 1" class="mt-8 flex items-center justify-center gap-1">
-              <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="(productsPaginator.current_page ?? 1) <= 1" @click="goToPage((productsPaginator.current_page ?? 1) - 1)">
+                <button type="button" class="flex h-11 w-11 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="(productsPaginator.current_page ?? 1) <= 1" @click="goToPage((productsPaginator.current_page ?? 1) - 1)">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
               </button>
               <template v-for="(p, i) in pageNumbers" :key="i">
                 <span v-if="p === '...'" class="px-1 text-xs text-slate-400">...</span>
-                <button v-else type="button" class="flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-xs font-semibold transition"
+                <button v-else type="button" class="flex h-11 min-w-11 items-center justify-center rounded-lg px-2 text-xs font-semibold transition"
                   :class="p === (productsPaginator.current_page ?? 1) ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'" @click="goToPage(p)">{{ p }}</button>
               </template>
-              <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="(productsPaginator.current_page ?? 1) >= (productsPaginator.last_page ?? 1)" @click="goToPage((productsPaginator.current_page ?? 1) + 1)">
+              <button type="button" class="flex h-11 w-11 items-center justify-center rounded-lg text-sm text-slate-500 transition hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none" :disabled="(productsPaginator.current_page ?? 1) >= (productsPaginator.last_page ?? 1)" @click="goToPage((productsPaginator.current_page ?? 1) + 1)">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
               </button>
             </nav>
@@ -180,18 +180,18 @@
       <div v-if="filtersOpen" class="fixed inset-x-0 bottom-0 z-[70] max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white p-5 pb-8 lg:hidden">
         <div class="flex items-center justify-between pb-3">
           <p class="text-sm font-bold text-slate-900">{{ t('Filters') }}</p>
-          <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100" @click="filtersOpen = false">
+          <button type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" @click="filtersOpen = false">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6l-12 12"/></svg>
           </button>
         </div>
         <div class="space-y-4">
           <div>
             <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{{ t('Search') }}</p>
-            <input v-model="form.q" type="search" :placeholder="t('Search products...')" class="w-full rounded-lg border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm focus:border-slate-400 focus:bg-white focus:outline-none" />
+            <input v-model="form.q" type="search" :placeholder="t('Search products...')" class="min-h-11 w-full rounded-lg border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm focus:border-slate-400 focus:bg-white focus:outline-none" />
           </div>
           <div>
             <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{{ t('Category') }}</p>
-            <select v-model="form.category" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
+            <select v-model="form.category" class="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
               <option value="">{{ t('All categories') }}</option>
               <option v-for="cat in categoryOptions" :key="cat.slug || cat.name" :value="cat.slug || cat.name">{{ cat.label }}</option>
             </select>
@@ -199,22 +199,22 @@
           <div>
             <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{{ t('Price') }}</p>
             <div class="flex items-center gap-2">
-              <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
+              <input v-model="form.min_price" type="number" min="0" :placeholder="t('Min')" class="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
               <span class="text-xs text-slate-400">—</span>
-              <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
+              <input v-model="form.max_price" type="number" min="0" :placeholder="t('Max')" class="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none" />
             </div>
           </div>
           <div>
             <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">{{ t('Rating') }}</p>
-            <select v-model="form.rating" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
+            <select v-model="form.rating" class="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
               <option value="">{{ t('Any rating') }}</option>
               <option value="4">4+ {{ t('stars') }}</option>
               <option value="3">3+ {{ t('stars') }}</option>
               <option value="2">2+ {{ t('stars') }}</option>
             </select>
           </div>
-          <label class="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
-            <input v-model="form.in_stock" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-0" />
+          <label class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+            <input v-model="form.in_stock" type="checkbox" class="h-5 min-h-10 w-5 min-w-10 rounded border-slate-300 text-slate-900 focus:ring-0" />
             {{ t('In stock only') }}
           </label>
 

@@ -15,6 +15,8 @@ use App\Console\Commands\FixDefaultVariants;
 use App\Console\Commands\ResyncCheckVariants;
 use App\Console\Commands\ReconcilePaymentsCommand;
 use App\Console\Commands\DailyInstagramProducts;
+use App\Console\Commands\DailySalesReport;
+use App\Console\Commands\HealthCheckCampaignsCommand;
 use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
@@ -67,6 +69,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\BackfillLogisticsRecords::class,
         ReconcilePaymentsCommand::class,
         \App\Console\Commands\ExpireWhatsAppOrderIntents::class,
+        DailySalesReport::class,
+        HealthCheckCampaignsCommand::class,
     ];
 
     protected function schedule(Schedule $schedule): void

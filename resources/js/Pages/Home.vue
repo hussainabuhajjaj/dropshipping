@@ -7,13 +7,11 @@ import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
 import HomeChoiceGrid from '@/Components/homepage/HomeChoiceGrid.vue'
-import HomeCollectionsRail from '@/Components/homepage/HomeCollectionsRail.vue'
 import HomeDealRail from '@/Components/homepage/HomeDealRail.vue'
 import HomeFeatureBand from '@/Components/homepage/HomeFeatureBand.vue'
 import HomeProductSection from '@/Components/homepage/HomeProductSection.vue'
 import HomeSeasonalHero from '@/Components/homepage/HomeSeasonalHero.vue'
 import HomeSectionHeader from '@/Components/homepage/HomeSectionHeader.vue'
-import HomeShoppingLanes from '@/Components/homepage/HomeShoppingLanes.vue'
 import HomeTrustAndSearch from '@/Components/homepage/HomeTrustAndSearch.vue'
 import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import ProductQuickAddSheet from '@/Components/ProductQuickAddSheet.vue'
@@ -36,7 +34,6 @@ const props = defineProps({
   seasonalDrops: { type: Array, default: () => [] },
   seasonalDropsViewAllHref: { type: String, default: '/products' },
   homeCollections: { type: Array, default: () => [] },
-  homeCollectionsViewAllHref: { type: String, default: '/collections' },
   homepagePromotions: { type: Array, default: () => [] },
   popularSearches: { type: Array, default: () => [] },
   trending: { type: Array, default: () => [] },
@@ -185,32 +182,6 @@ const scrollCategories = computed(() => {
   }))
 })
 
-const normalizedCollections = computed(() => (
-  Array.isArray(props.homeCollections)
-    ? props.homeCollections.map((collection) => ({
-      ...collection,
-      title: collection.title || collection.name,
-      name: collection.name || collection.title,
-      href: collection.href || (collection.slug ? `/collections/${collection.slug}` : props.homeCollectionsViewAllHref),
-    }))
-    : []
-))
-
-const homepageCollections = computed(() => {
-  if (normalizedCollections.value.length) {
-    return normalizedCollections.value
-  }
-
-  return scrollCategories.value.slice(0, 12).map((category) => ({
-    id: category.id,
-    title: category.name,
-    name: category.name,
-    image: category.image,
-    href: category.href,
-    kicker: t('Collection'),
-  }))
-})
-
 const shoppingLanes = computed(() => {
   const core = [
     { key: 'just-for-you', label: 'Just for You', href: '/quick-shop/just-for-you' },
@@ -322,32 +293,12 @@ const appDownloadSettings = computed(() => {
 <template>
   <StorefrontLayout>
     <main class="min-h-screen bg-[#f7f4ef] pb-28">
-      <div class="border-b border-[#eee6da] bg-white">
-        <div class="mx-auto flex max-w-7xl items-center gap-5 overflow-x-auto px-4 py-2.5 text-xs font-bold text-slate-600 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span class="shrink-0 text-[#d97706]">{{ t('Simbazu') }}</span>
-          <span class="shrink-0">{{ t('Secure checkout') }}</span>
-          <span class="shrink-0">{{ t('Tracked delivery') }}</span>
-          <span class="shrink-0">{{ t('Seasonal edits') }}</span>
-          <span class="shrink-0">{{ t('Easy support') }}</span>
-        </div>
-      </div>
-
       <div class="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:py-6">
-        <HomeShoppingLanes
-          :lanes="shoppingLanes"
-          :season="activeSeason"
-        />
-
         <HomeSeasonalHero
           :season="activeSeason"
           :slides="heroSlides"
           :quick-links="scrollCategories"
           :collections="homepageCollections"
-        />
-
-        <HomeCollectionsRail
-          :collections="homepageCollections"
-          :view-all-href="homeCollectionsViewAllHref"
         />
 
         <HomeChoiceGrid

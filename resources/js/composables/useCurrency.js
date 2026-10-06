@@ -3,13 +3,13 @@ import { router } from '@inertiajs/vue3'
 import { getAvailableCurrencies, getCurrencyDisplaySettings } from '@/utils/currency'
 
 const CURRENCY_KEY = 'dropshipping_currency'
-const currencyOptions = ['USD', 'XOF']
-const selectedCurrency = ref('USD')
+const currencyOptions = ['XOF']
+const selectedCurrency = ref('XOF')
 
 const normalizeCurrency = (value) => {
   const normalized = String(value || '').trim().toUpperCase()
   const availableCurrencies = getAvailableCurrencies()
-  return availableCurrencies.includes(normalized) ? normalized : 'USD'
+  return availableCurrencies.includes(normalized) ? normalized : 'XOF'
 }
 
 const csrfHeaders = () => {

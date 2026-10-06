@@ -53,11 +53,9 @@
 <script setup>
 import { useUserPreferences } from '@/composables/useUserPreferences.js'
 
-// Helper to display order price in order's currency
-const { formatCurrency } = useUserPreferences()
+const { formatCurrency, convertCurrency } = useUserPreferences()
 function displayOrderPrice(amount, orderCurrency) {
-  // Display the amount directly in the order's currency (no conversion needed)
-  return formatCurrency(Number(amount), orderCurrency)
+  return formatCurrency(convertCurrency(Number(amount), orderCurrency, 'XOF'), 'XOF')
 }
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'

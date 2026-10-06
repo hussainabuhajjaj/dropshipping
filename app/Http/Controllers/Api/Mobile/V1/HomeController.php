@@ -14,7 +14,6 @@ use App\Models\StorefrontCollection;
 use App\Models\StorefrontSetting;
 use App\Models\Product;
 use App\Domain\Products\Models\ProductImage;
-use App\Services\Currency\CurrencyConversionService;
 use App\Services\Storefront\CampaignPlacementService;
 use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
@@ -69,11 +68,7 @@ class HomeController extends ApiController
 
     public function index(HomeBuilderService $homeBuilder, Request $request): JsonResponse
     {
-        $converter = app(CurrencyConversionService::class);
-        $requestedCurrency = $request->header('X-Currency')
-            ?? $request->query('currency')
-            ?? $request->input('currency');
-        $currency = $requestedCurrency ? $converter->normalize((string) $requestedCurrency) : 'USD';
+        $currency = 'XOF';
 
         $locale = app()->getLocale();
         $cacheKey = "mobile:home:{$locale}:{$currency}";

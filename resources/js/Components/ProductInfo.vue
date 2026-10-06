@@ -5,7 +5,7 @@
         <Link
           v-if="product.category_href"
           :href="product.category_href"
-          class="font-semibold text-red-500 hover:text-red-600"
+          class="inline-flex min-h-10 items-center font-semibold text-red-500 hover:text-red-600"
         >
           {{ product.category ?? t('Simbazu') }}
         </Link>
@@ -24,6 +24,10 @@
 
       <p v-if="descriptionText" class="line-clamp-2 text-sm text-slate-500">
         {{ descriptionText }}
+      </p>
+      <p v-if="productCode" class="text-xs text-slate-500">
+        {{ t('Product code') }}:
+        <span class="font-semibold text-slate-800 break-all">{{ productCode }}</span>
       </p>
     </div>
 
@@ -76,18 +80,6 @@
       </span>
     </div>
 
-    <div
-      v-if="productCode || shouldShowVariantSku"
-      class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500"
-    >
-      <span v-if="productCode">
-        {{ t('Product code') }}: <span class="font-semibold text-slate-800">{{ productCode }}</span>
-      </span>
-      <span v-if="shouldShowVariantSku">
-        {{ t('Variant SKU') }}: <span class="font-semibold text-slate-800">{{ variantSku }}</span>
-      </span>
-    </div>
-
   </div>
 </template>
 
@@ -108,8 +100,6 @@ const props = defineProps({
   stockBadge: { type: Object, default: () => ({}) },
   reviewSummary: { type: Object, default: () => ({ count: 0, average: 0 }) },
   productCode: { type: String, default: null },
-  variantSku: { type: String, default: null },
-  shouldShowVariantSku: { type: Boolean, default: false },
   displayPromotionValue: { type: Function, default: (v) => v },
 })
 

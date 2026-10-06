@@ -186,13 +186,14 @@ Route::get('currency-settings', function () {
     }
 
     return response()->json([
+        'supported' => ['XOF'],
         'rates' => $allRates,
         'base' => $baseCurrency,
         'decimals' => config('currency.decimals', []),
         'display' => [
             'auto_convert_prices' => cache('currency_auto_convert', true),
-            'show_currency_selector' => cache('currency_show_selector', true),
-            'default_customer_currency' => cache('currency_default_customer', 'USD'),
+            'show_currency_selector' => false,
+            'default_customer_currency' => 'XOF',
         ]
     ]);
 });

@@ -17,7 +17,7 @@ class PreferencesService
             'countries' => [
                 'Cote D\'Ivoire',
             ],
-            'currencies' => array_values((array) config('currency.supported', ['USD', 'XOF'])),
+            'currencies' => ['XOF'],
             'sizes' => [
                 'US',
                 'EU',
@@ -34,7 +34,7 @@ class PreferencesService
     {
         return [
             'country' => 'Cote D\'Ivoire',
-            'currency' => 'USD',
+            'currency' => 'XOF',
             'size' => 'US',
             'language' => (string) config('app.locale', 'en'),
             'notifications' => [
@@ -112,12 +112,7 @@ class PreferencesService
             default => $value,
         };
 
-        $supported = array_values((array) config('currency.supported', ['USD', 'XOF']));
-        if (! in_array($value, $supported, true)) {
-            return (string) config('currency.base', 'USD');
-        }
-
-        return $value;
+        return 'XOF';
     }
 
     private function normalizeLanguage(string $language): string

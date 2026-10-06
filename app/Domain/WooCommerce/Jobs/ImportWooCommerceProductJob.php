@@ -11,6 +11,7 @@ use App\Domain\WooCommerce\Contracts\WooCommerceClientContract;
 use App\Domain\WooCommerce\DTOs\WooCommerceProductData;
 use App\Domain\WooCommerce\Models\WooCommerceProductMap;
 use App\Domain\WooCommerce\Services\WooCommerceLogService;
+use App\Services\AI\TranslationProvider;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -89,14 +90,20 @@ class ImportWooCommerceProductJob implements ShouldQueue
             ->where('woocommerce_product_id', $data->woocommerceId)
             ->first();
 
+        $name = $this->resolveImportName($data);
+        $attributes = $this->wooAttributes($data);
+
         if ($map && $map->product) {
             return tap($map->product, fn (Product $p) => $p->update([
-                'name' => $data->name,
+                'name' => $name,
                 'description' => $data->description ?? $p->description,
                 'is_active' => $data->status === 'publish',
                 'stock_on_hand' => $data->stockQuantity ?? 0,
                 'weight' => $data->weight,
-                'slug' => $data->slug ?: Str::slug($data->name),
+                'slug' => $data->slug ?: Str::slug($name),
+                'source_url' => $data->sourceUrl() ?? $p->source_url,
+                'supplier_product_url' => $data->sourceUrl() ?? $p->supplier_product_url,
+                'attributes' => array_merge(is_array($p->attributes) ? $p->attributes : [], $attributes),
             ]));
         }
 
@@ -108,29 +115,55 @@ class ImportWooCommerceProductJob implements ShouldQueue
         }
 
         return Product::query()->create([
-            'name' => $data->name,
+            'name' => $name,
             'code' => $data->sku ?: Product::generateProductCode(),
-            'slug' => $data->slug ?: Str::slug($data->name),
+            'slug' => $data->slug ?: Str::slug($name),
             'description' => $data->description,
-            'selling_price' => $data->regularPrice ?? 0,
+            'selling_price' => $data->activePrice() ?? 0,
+            'currency' => $data->currency,
+            'supplier_currency' => $data->currency,
+            'source_url' => $data->sourceUrl(),
+            'supplier_product_url' => $data->sourceUrl(),
+            'attributes' => $attributes,
             'is_active' => $data->status === 'publish',
             'stock_on_hand' => $data->stockQuantity ?? 0,
             'weight' => $data->weight,
-            'searchable_text' => Str::lower($data->name . ' ' . ($data->description ?? '')),
+            'searchable_text' => Str::lower($name . ' ' . ($data->description ?? '')),
         ]);
+    }
+
+    private function resolveImportName(WooCommerceProductData $data): string
+    {
+        return $data->importName($this->translator());
+    }
+
+    private function translator(): ?TranslationProvider
+    {
+        try {
+            return app(TranslationProvider::class);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function wooAttributes(WooCommerceProductData $data): array
+    {
+        return array_filter([
+            'woocommerce_original_name' => $data->hasNonEnglishName() ? $data->name : null,
+            'woocommerce_english_title_source' => $data->englishTitleCandidate() !== null ? 'metadata_or_name' : null,
+        ], fn ($value) => $value !== null);
     }
 
     private function importPricing(Product $product, WooCommerceProductData $data): void
     {
         $updates = [];
 
-        if ($data->regularPrice !== null) {
-            $updates['selling_price'] = $data->regularPrice;
+        if ($data->activePrice() !== null) {
+            $updates['selling_price'] = $data->activePrice();
         }
 
-        if ($data->salePrice !== null) {
-            $updates['cost_price'] = $data->salePrice;
-        }
+        $updates['currency'] = $data->currency;
+        $updates['supplier_currency'] = $data->currency;
 
         if ($updates !== []) {
             $product->update($updates);
@@ -187,8 +220,10 @@ class ImportWooCommerceProductJob implements ShouldQueue
 
         $attrs = [
             'title' => $data->name,
-            'price' => $data->regularPrice,
-            'compare_at_price' => $data->salePrice,
+            'price' => $data->activePrice(),
+            'compare_at_price' => $data->compareAtPrice(),
+            'currency' => $data->currency,
+            'supplier_currency' => $data->currency,
             'stock_on_hand' => $data->stockQuantity ?? 0,
             'weight_grams' => $data->weight !== null ? (int) ($data->weight * 1000) : null,
             'options' => $options,

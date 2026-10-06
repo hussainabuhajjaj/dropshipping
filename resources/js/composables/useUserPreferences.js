@@ -23,9 +23,9 @@ export function useUserPreferences() {
     const page = usePage();
 
     const normalizePreferences = (payload = {}) => ({
-        currency: payload.currency || "XOF",
+        currency: "XOF",
         language: payload.language || "fr",
-        availableCurrencies: payload.available_currencies || ["XOF"],
+        availableCurrencies: ["XOF"],
         availableLanguages: Object.keys(
             payload.available_languages || { en: "English" },
         ),

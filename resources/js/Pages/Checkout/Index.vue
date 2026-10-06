@@ -64,7 +64,7 @@
                   ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
                   : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'"
               >
-                <input v-model="form.payment_method" type="radio" :value="method.value" class="mt-1" />
+                <input v-model="form.payment_method" type="radio" :value="method.value" class="mt-1 h-5 w-5" />
                 <span class="min-w-0">
                   <span class="block font-black" :class="form.payment_method === method.value ? 'text-white' : 'text-slate-950'">
                     {{ method.label }}
@@ -77,7 +77,7 @@
             </div>
             <div v-if="form.payment_method === 'mobile_money' && showMobileMoneyProviders" class="mt-4 space-y-2">
               <label class="block text-xs font-medium uppercase tracking-wide text-slate-500">{{ t('Mobile money provider') }}</label>
-              <select v-model="form.mobile_money_provider" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <select v-model="form.mobile_money_provider" class="min-h-11 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
                 <option v-for="provider in mobileMoneyProviders" :key="provider" :value="provider">
                   {{ formatProvider(provider) }}
                 </option>
@@ -89,8 +89,8 @@
             <h2 class="text-sm font-semibold text-slate-900">{{ t('Gift card') }}</h2>
             <div v-if="!gift_card" class="mt-3">
               <div class="flex gap-2">
-                <input v-model="giftCardCode" type="text" placeholder="Gift card code" class="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-                <button type="button" @click="applyGiftCard" :disabled="giftCardApplying || !giftCardCode.trim()" class="shrink-0 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50">
+                <input v-model="giftCardCode" type="text" placeholder="Gift card code" class="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                <button type="button" @click="applyGiftCard" :disabled="giftCardApplying || !giftCardCode.trim()" class="min-h-11 shrink-0 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-50">
                   {{ giftCardApplying ? '...' : t('Apply') }}
                 </button>
               </div>
@@ -99,7 +99,7 @@
             </div>
             <div v-else class="mt-3 flex items-center justify-between text-sm">
               <span class="text-purple-700 font-medium">{{ gift_card.code }} ({{ t('applied') }})</span>
-              <button type="button" @click="removeGiftCard" :disabled="giftCardRemoving" class="text-xs text-rose-600 hover:text-rose-700 underline disabled:opacity-50">
+              <button type="button" @click="removeGiftCard" :disabled="giftCardRemoving" class="inline-flex min-h-11 items-center text-xs text-rose-600 underline hover:text-rose-700 disabled:opacity-50">
                 {{ giftCardRemoving ? '...' : t('Remove') }}
               </button>
             </div>
@@ -107,7 +107,7 @@
 
           <section class="rounded-[1.6rem] border border-[#eadfce] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
             <label class="flex items-start gap-3 text-sm text-slate-600">
-              <input v-model="form.accept_terms" type="checkbox" />
+              <input v-model="form.accept_terms" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0" />
               <span>
                 {{ t('I agree to the') }}
                 <a class="font-semibold text-slate-900 hover:text-slate-700" href="/legal/terms-of-service">{{ t('terms') }}</a>

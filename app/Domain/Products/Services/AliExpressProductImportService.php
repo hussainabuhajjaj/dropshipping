@@ -1085,15 +1085,50 @@ class AliExpressProductImportService
         foreach ($this->extractAliSkuRows($productData) as $sku) {
             $code = $sku['currency_code'] ?? $sku['currency'] ?? null;
             if (is_string($code) && $code !== '') {
-                return $code;
+                return $this->normalizeCurrencyCode($code);
             }
         }
 
-        return $productData['targetOriginalPriceCurrency']
+        $currency = $productData['targetOriginalPriceCurrency']
             ?? $productData['targetSalePriceCurrency']
             ?? data_get($productData, 'ae_item_base_info_dto.currency_code')
             ?? $productData['currency_code']
-            ?? 'USD';
+            ?? null;
+
+        if (is_string($currency) && $currency !== '') {
+            return $this->normalizeCurrencyCode($currency);
+        }
+
+        if ($this->is1688Payload($productData)) {
+            return 'CNY';
+        }
+
+        return 'USD';
+    }
+
+    private function normalizeCurrencyCode(string $currency): string
+    {
+        $currency = strtoupper(trim($currency));
+        $aliases = (array) config('currency.aliases', []);
+
+        return strtoupper((string) ($aliases[$currency] ?? $currency));
+    }
+
+    private function is1688Payload(array $productData): bool
+    {
+        foreach ([
+            $productData['source_url'] ?? null,
+            $productData['itemUrl'] ?? null,
+            $productData['item_url'] ?? null,
+            data_get($productData, 'raw.source_url'),
+            data_get($productData, 'ae_item_base_info_dto.detail_url'),
+        ] as $url) {
+            if (is_string($url) && str_contains($url, '1688.com')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function buildAliAttributes(

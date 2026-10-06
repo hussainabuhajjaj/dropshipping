@@ -176,7 +176,11 @@ class WooCommerceProductImportPage extends Page implements HasTable
     {
         $img = $p->images[0]['src'] ?? $p->images[0]['url'] ?? null;
 
-        $nameHtml = e($p->name);
+        $displayName = $p->englishTitleCandidate() ?? $p->importName();
+        $nameHtml = e($displayName);
+        if ($p->hasNonEnglishName()) {
+            $nameHtml .= '<span class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 block">Original title saved in Woo metadata</span>';
+        }
         if ($p->type === 'variable' && $p->variations !== []) {
             $nameHtml .= '<span class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 block">' . count($p->variations) . ' variations</span>';
         }
@@ -185,11 +189,18 @@ class WooCommerceProductImportPage extends Page implements HasTable
             ? '<code class="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">' . e($p->sku) . '</code>'
             : '<span class="text-xs text-gray-300 dark:text-gray-600">&mdash;</span>';
 
-        if ($p->regularPrice && $p->regularPrice > 0) {
-            $priceHtml = '<span class="font-mono text-sm font-medium text-gray-900 dark:text-white">$' . number_format($p->regularPrice, 2) . '</span>';
-            if ($p->salePrice && $p->salePrice > 0) {
-                $priceHtml .= ' <span class="text-xs text-gray-400 line-through font-mono">$' . number_format($p->salePrice, 2) . '</span>';
+        $activePrice = $p->activePrice();
+        if ($activePrice && $activePrice > 0) {
+            $decimals = (int) (config("currency.decimals.{$p->currency}") ?? 2);
+            $priceHtml = '<span class="font-mono text-sm font-medium text-gray-900 dark:text-white">'
+                . e($p->currency) . ' ' . number_format($activePrice, $decimals) . '</span>';
+            if ($p->compareAtPrice() && $p->compareAtPrice() > 0) {
+                $priceHtml .= ' <span class="text-xs text-gray-400 line-through font-mono">'
+                    . e($p->currency) . ' ' . number_format($p->compareAtPrice(), $decimals) . '</span>';
             }
+        } elseif ($formattedPrice = $this->formattedWooPrice($p)) {
+            $priceHtml = '<span class="text-sm font-medium text-gray-900 dark:text-white">'
+                . e($formattedPrice) . '</span>';
         } else {
             $priceHtml = '<span class="text-xs text-gray-300 dark:text-gray-600">&mdash;</span>';
         }
@@ -238,6 +249,21 @@ class WooCommerceProductImportPage extends Page implements HasTable
             'status_html' => $statusHtml,
             'imported_html' => $importedHtml,
         ];
+    }
+
+    private function formattedWooPrice(WooCommerceProductData $product): ?string
+    {
+        $priceHtml = $product->rawData['price_html'] ?? null;
+
+        if (! is_string($priceHtml) || trim($priceHtml) === '') {
+            return null;
+        }
+
+        $text = html_entity_decode(strip_tags($priceHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = trim((string) $text);
+
+        return $text !== '' ? $text : null;
     }
 
     public static function shouldRegisterNavigation(): bool

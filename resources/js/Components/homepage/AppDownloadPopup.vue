@@ -15,7 +15,7 @@
                     </span>
                     <button
                         type="button"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-900 transition hover:bg-white"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-900 transition hover:bg-white"
                         @click="dismiss"
                     >
                         <span class="sr-only">{{ t("Close") }}</span>
@@ -113,7 +113,7 @@
                     </p>
                     <button
                         type="button"
-                        class="text-[0.74rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
+                        class="inline-flex min-h-11 items-center text-[0.74rem] font-bold uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-950"
                         @click="dismiss"
                     >
                         {{ t("Not now") }}

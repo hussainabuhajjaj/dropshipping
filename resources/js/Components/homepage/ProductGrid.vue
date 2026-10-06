@@ -11,7 +11,7 @@
           v-for="pill in pills"
           :key="pill.key"
           type="button"
-          class="shrink-0 rounded-full px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-[0.12em] transition sm:px-3 sm:text-[0.68rem] sm:tracking-[0.14em]"
+          class="inline-flex min-h-11 shrink-0 items-center rounded-full px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] transition sm:px-3.5 sm:text-[0.68rem] sm:tracking-[0.14em]"
           :class="activePill === pill.key ? 'bg-[#111111] text-white shadow-[0_8px_20px_rgba(15,23,42,0.14)]' : 'bg-white text-slate-500 ring-1 ring-[#e7ddcf] hover:text-slate-900'"
           @click="setActivePill(pill.key)"
         >
