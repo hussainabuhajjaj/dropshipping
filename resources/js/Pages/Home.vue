@@ -7,7 +7,6 @@ import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
 import HomeChoiceGrid from '@/Components/homepage/HomeChoiceGrid.vue'
-import HomeCollectionsRail from '@/Components/homepage/HomeCollectionsRail.vue'
 import HomeDealRail from '@/Components/homepage/HomeDealRail.vue'
 import HomeFeatureBand from '@/Components/homepage/HomeFeatureBand.vue'
 import HomeProductSection from '@/Components/homepage/HomeProductSection.vue'
@@ -35,7 +34,6 @@ const props = defineProps({
   seasonalDrops: { type: Array, default: () => [] },
   seasonalDropsViewAllHref: { type: String, default: '/products' },
   homeCollections: { type: Array, default: () => [] },
-  homeCollectionsViewAllHref: { type: String, default: '/collections' },
   homepagePromotions: { type: Array, default: () => [] },
   popularSearches: { type: Array, default: () => [] },
   trending: { type: Array, default: () => [] },
@@ -184,32 +182,6 @@ const scrollCategories = computed(() => {
   }))
 })
 
-const normalizedCollections = computed(() => (
-  Array.isArray(props.homeCollections)
-    ? props.homeCollections.map((collection) => ({
-      ...collection,
-      title: collection.title || collection.name,
-      name: collection.name || collection.title,
-      href: collection.href || (collection.slug ? `/collections/${collection.slug}` : props.homeCollectionsViewAllHref),
-    }))
-    : []
-))
-
-const homepageCollections = computed(() => {
-  if (normalizedCollections.value.length) {
-    return normalizedCollections.value
-  }
-
-  return scrollCategories.value.slice(0, 12).map((category) => ({
-    id: category.id,
-    title: category.name,
-    name: category.name,
-    image: category.image,
-    href: category.href,
-    kicker: t('Collection'),
-  }))
-})
-
 const shoppingLanes = computed(() => {
   const core = [
     { key: 'just-for-you', label: 'Just for You', href: '/quick-shop/just-for-you' },
@@ -327,11 +299,6 @@ const appDownloadSettings = computed(() => {
           :slides="heroSlides"
           :quick-links="scrollCategories"
           :collections="homepageCollections"
-        />
-
-        <HomeCollectionsRail
-          :collections="homepageCollections"
-          :view-all-href="homeCollectionsViewAllHref"
         />
 
         <HomeChoiceGrid
