@@ -100,7 +100,7 @@ const prevSlide = () => {
           :srcset="heroImageSrcset"
           :sizes="heroImageSizes"
           :alt="currentSlide.title"
-          class="h-full w-full object-cover"
+          class="h-full w-full object-contain"
           loading="eager"
           fetchpriority="high"
         />
