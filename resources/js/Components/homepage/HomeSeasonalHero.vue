@@ -92,7 +92,7 @@ const prevSlide = () => {
 </script>
 
 <template>
-  <section class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
+  <section class="grid w-full">
     <div class="relative overflow-hidden rounded-lg text-white shadow-sm" :class="themeClasses.background">
       <div v-if="currentSlide.image" class="absolute inset-0 z-0">
         <img
