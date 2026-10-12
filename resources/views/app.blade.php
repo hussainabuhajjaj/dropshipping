@@ -88,6 +88,15 @@
         src="https://www.facebook.com/tr?id=1786043949335380&ev=PageView&noscript=1"
         /></noscript>
         <!-- End Meta Pixel Code -->
+
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-VPWP1X91VE"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-VPWP1X91VE');
+        </script>
     </head>
     <body class="font-sans antialiased">
         @inertia
