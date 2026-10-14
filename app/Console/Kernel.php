@@ -17,7 +17,6 @@ use App\Console\Commands\ReconcilePaymentsCommand;
 use App\Console\Commands\DailyInstagramProducts;
 use App\Console\Commands\DailySalesReport;
 use App\Console\Commands\HealthCheckCampaignsCommand;
-use App\Jobs\CheckLowStockJob;
 use App\Jobs\FlagShipmentsAtRisk;
 use App\Jobs\ProcessAbandonedCartsJob;
 use App\Jobs\RequestProductReviewJob;
@@ -139,7 +138,6 @@ class Kernel extends ConsoleKernel
             ->description('Fix variants with stock=0 that have actual CJ inventory');
 
         // Keep: Other non-CJ jobs
-        $schedule->job(new CheckLowStockJob())->dailyAt('04:00');
         $schedule->job(new \App\Jobs\CalculateCustomerLTVJob())->weekly()->sundays()->at('01:00');
         $schedule->job(new SendAbandonedCartReminders())->everyThirtyMinutes();
         $schedule->job(new RequestProductReviewJob())->dailyAt('09:00');
