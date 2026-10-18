@@ -7,11 +7,13 @@ import { useRecentlyViewed } from '@/composables/useRecentlyViewed.js'
 import StorefrontLayout from '@/Layouts/StorefrontLayout.vue'
 import AppDownloadPopup from '@/Components/homepage/AppDownloadPopup.vue'
 import HomeChoiceGrid from '@/Components/homepage/HomeChoiceGrid.vue'
+import HomeCollectionsRail from '@/Components/homepage/HomeCollectionsRail.vue'
 import HomeDealRail from '@/Components/homepage/HomeDealRail.vue'
 import HomeFeatureBand from '@/Components/homepage/HomeFeatureBand.vue'
 import HomeProductSection from '@/Components/homepage/HomeProductSection.vue'
 import HomeSeasonalHero from '@/Components/homepage/HomeSeasonalHero.vue'
 import HomeSectionHeader from '@/Components/homepage/HomeSectionHeader.vue'
+import HomeShoppingLanes from '@/Components/homepage/HomeShoppingLanes.vue'
 import HomeTrustAndSearch from '@/Components/homepage/HomeTrustAndSearch.vue'
 import CompactProductCard from '@/Components/homepage/CompactProductCard.vue'
 import ProductQuickAddSheet from '@/Components/ProductQuickAddSheet.vue'
@@ -292,13 +294,18 @@ const appDownloadSettings = computed(() => {
 
 <template>
   <StorefrontLayout>
-    <main class="min-h-screen bg-[#f7f4ef] pb-28">
-      <div class="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:py-6">
+    <main class="min-h-screen bg-[#f4f6f8] pb-28">
+      <div class="mx-auto max-w-7xl space-y-6 px-4 py-4 sm:py-6">
         <HomeSeasonalHero
           :season="activeSeason"
           :slides="heroSlides"
           :quick-links="scrollCategories"
-          :collections="homepageCollections"
+          :collections="homeCollections"
+        />
+
+        <HomeShoppingLanes
+          :lanes="shoppingLanes"
+          :season="activeSeason"
         />
 
         <HomeChoiceGrid
@@ -315,6 +322,10 @@ const appDownloadSettings = computed(() => {
           :view-all-href="flashDealsViewAllHref"
           :currency="currency"
           @quick-add="openQuickAdd"
+        />
+
+        <HomeCollectionsRail
+          :collections="homeCollections"
         />
 
         <template v-for="section in prioritySections" :key="section.key">

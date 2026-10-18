@@ -27,8 +27,8 @@ const updateNewsletterEmail = (event) => {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </span>
-            <p class="text-sm font-bold">{{ t('Free Shipping') }}</p>
-            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('On orders over $50') }}</p>
+            <p class="text-sm font-bold">{{ t('Prices in XOF') }}</p>
+            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('Clear prices before you check out') }}</p>
           </div>
           <div class="space-y-2">
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-[#f59e0b]">
@@ -36,8 +36,8 @@ const updateNewsletterEmail = (event) => {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </span>
-            <p class="text-sm font-bold">{{ t('Secure Payments') }}</p>
-            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('256-bit SSL encryption') }}</p>
+            <p class="text-sm font-bold">{{ t('Secure checkout') }}</p>
+            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('Choose the payment option that suits you') }}</p>
           </div>
           <div class="space-y-2">
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-[#f59e0b]">
@@ -45,8 +45,8 @@ const updateNewsletterEmail = (event) => {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-4-4 4m0 0-4-4m4 4V4" />
               </svg>
             </span>
-            <p class="text-sm font-bold">{{ t('Easy Returns') }}</p>
-            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('30-day return policy') }}</p>
+            <p class="text-sm font-bold">{{ t('Customer support') }}</p>
+            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('Get help before and after your purchase') }}</p>
           </div>
           <div class="space-y-2">
             <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 text-[#f59e0b]">
@@ -55,27 +55,27 @@ const updateNewsletterEmail = (event) => {
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
               </svg>
             </span>
-            <p class="text-sm font-bold">{{ t('Real-time Tracking') }}</p>
-            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('From warehouse to your door') }}</p>
+            <p class="text-sm font-bold">{{ t('Order tracking') }}</p>
+            <p class="text-[0.68rem] leading-snug text-white/60">{{ t('Follow your order after confirmation') }}</p>
           </div>
         </div>
 
         <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div class="rounded-lg bg-white/[0.08] px-3 py-4">
-            <p class="text-xl font-black">10,000+</p>
-            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Products') }}</p>
+            <p class="text-xl font-black">XOF</p>
+            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Local pricing') }}</p>
           </div>
           <div class="rounded-lg bg-white/[0.08] px-3 py-4">
-            <p class="text-xl font-black">5,000+</p>
-            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Happy Customers') }}</p>
+            <p class="text-xl font-black">{{ t('One cart') }}</p>
+            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Simple checkout') }}</p>
           </div>
           <div class="rounded-lg bg-white/[0.08] px-3 py-4">
-            <p class="text-xl font-black">4.8</p>
-            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Average Rating') }}</p>
+            <p class="text-xl font-black">{{ t('Tracking') }}</p>
+            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Order updates') }}</p>
           </div>
           <div class="rounded-lg bg-white/[0.08] px-3 py-4">
-            <p class="text-xl font-black">50+</p>
-            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('Countries Shipped') }}</p>
+            <p class="text-xl font-black">{{ t('Support') }}</p>
+            <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/45">{{ t('When you need it') }}</p>
           </div>
         </div>
       </div>

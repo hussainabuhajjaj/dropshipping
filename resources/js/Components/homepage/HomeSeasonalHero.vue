@@ -131,6 +131,21 @@ const prevSlide = () => {
               {{ t(season.secondaryLabel) }}
             </Link>
           </div>
+
+          <div class="mt-6 grid max-w-xl grid-cols-3 gap-2 text-left">
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('Currency') }}</p>
+              <p class="mt-1 text-xs font-black text-white">XOF</p>
+            </div>
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('Checkout') }}</p>
+              <p class="mt-1 text-xs font-black text-white">{{ t('Secure payment') }}</p>
+            </div>
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('After purchase') }}</p>
+              <p class="mt-1 text-xs font-black text-white">{{ t('Order tracking') }}</p>
+            </div>
+          </div>
         </div>
 
         <div v-if="displaySlides.length > 1" class="absolute bottom-4 right-4 flex gap-2">
