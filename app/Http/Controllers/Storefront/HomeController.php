@@ -15,6 +15,7 @@ use App\Models\StorefrontCampaign;
 use App\Models\StorefrontCollection;
 use App\Services\Promotions\PromotionHomepageService;
 use App\Services\Storefront\CampaignPlacementService;
+use App\Services\Storefront\HeroSettings;
 use App\Services\Storefront\HomeBuilderService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -92,7 +93,7 @@ class HomeController extends Controller
         $bannerResolution = $this->resolveHomeBanners($locale, $promotionBanners);
 
         $campaignHero = $bannerResolution['banners']['hero'][0] ?? null;
-        if (is_array($campaignHero) && ! empty($campaignHero['imagePath'])) {
+        if (HeroSettings::campaignOverrideEnabled() && is_array($campaignHero) && ! empty($campaignHero['imagePath'])) {
             array_unshift($heroSlides, [
                 'id' => 'campaign-hero-' . ($campaignHero['id'] ?? 'active'),
                 'badge' => $campaignHero['badgeText'] ?? '',

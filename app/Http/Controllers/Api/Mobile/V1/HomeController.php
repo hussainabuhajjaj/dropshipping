@@ -15,6 +15,7 @@ use App\Models\StorefrontSetting;
 use App\Models\Product;
 use App\Domain\Products\Models\ProductImage;
 use App\Services\Storefront\CampaignPlacementService;
+use App\Services\Storefront\HeroSettings;
 use App\Services\Storefront\HomeBuilderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -102,13 +103,14 @@ class HomeController extends ApiController
         $seasonalDrops = $this->mapSeasonalDrops($locale, $homeBuilder);
 
         $heroBannerModels = $this->heroBannerModels();
+        $campaignHeroOverride = HeroSettings::campaignOverrideEnabled();
         $hero = $this->mapHeroSlides($homeContent, $homeBuilder, $heroBannerModels);
-        if (! empty($campaignHeroBanners)) {
+        if ($campaignHeroOverride && ! empty($campaignHeroBanners)) {
             $hero = $this->mapHeroFromBannerPayloads($campaignHeroBanners);
         }
 
         $heroBanners = $this->mapBannerCollection($heroBannerModels, $homeBuilder);
-        if (! empty($campaignHeroBanners)) {
+        if ($campaignHeroOverride && ! empty($campaignHeroBanners)) {
             $heroBanners = $this->mapCampaignBannerPayloads($campaignHeroBanners);
         }
 

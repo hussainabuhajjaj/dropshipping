@@ -54,7 +54,14 @@ class HomePageSettingResource extends BaseResource
                         ->reorderable(),
                 ]),
             Section::make('Hero slides')
+                ->description('Manage the homepage hero. Active campaigns with the "home_hero" placement can override the first slide — control that in the Hero Manager.')
                 ->schema([
+                    Forms\Components\Placeholder::make('hero_manager_hint')
+                        ->label('Need a live preview?')
+                        ->content(new \Illuminate\Support\HtmlString(
+                            'See what is live, which source wins, and toggle campaign overrides in '
+                            . '<a class="text-primary-600 underline" href="' . \App\Filament\Pages\HeroManager::getUrl() . '">Hero Manager</a>.'
+                        )),
                     Forms\Components\Repeater::make('hero_slides')
                         ->schema([
                             Forms\Components\TextInput::make('kicker')->required(),
