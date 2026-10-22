@@ -1,0 +1,150 @@
+<?php
+
+namespace App\Providers;
+
+use App\Support\Filament\AdminPanelNotification;
+use App\Filament\Livewire\AdminDatabaseNotifications;
+use Filament\Notifications\Notification as FilamentNotification;
+use App\Models\Product;
+use App\Observers\ProductSearchObserver;
+use App\Models\User;
+use App\Observers\ProductSeoObserver;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Vite;
+use Illuminate\Support\ServiceProvider;
+use Dedoc\Scramble\Scramble;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Str;
+use Livewire\Livewire;
+use SocialiteProviders\Apple\Provider as AppleSocialiteProvider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        // Bind translation provider based on config
+        $provider = (string) config('services.translation_provider', 'libre_translate');
+
+        match ($provider) {
+            'deepseek' => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\DeepSeekClient::class
+            ),
+            'libre_translate' => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\LibreTranslateClient::class
+            ),
+            default => $this->app->bind(
+                \App\Services\AI\TranslationProvider::class,
+                \App\Services\AI\LibreTranslateClient::class
+            ),
+        };
+
+        $this->app->bind(FilamentNotification::class, function ($app, array $parameters) {
+            $id = (string) ($parameters['id'] ?? Str::orderedUuid());
+
+            return new AdminPanelNotification($id);
+        });
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        $this->registerProductionCommandGuard();
+        $this->registerSocialiteProviders();
+
+        Gate::define('viewApiDocs', function (User $user) {
+            return in_array($user->email, ['admin@admin.com']);
+        });
+        Scramble::configure()
+            ->routes(function (Route $route) {
+                return Str::startsWith($route->uri, 'api/');
+            });
+        Vite::prefetch(concurrency: 3);
+        Product::observe(ProductSeoObserver::class);
+        if (config('typesense.enabled')) {
+            Product::observe(ProductSearchObserver::class);
+        }
+
+        $this->configureRateLimiting();
+
+        $this->registerFilamentWidgetAliases();
+    }
+
+    private function registerProductionCommandGuard(): void
+    {
+        if (! app()->runningInConsole() || ! app()->environment(['production', 'local'])) {
+            return;
+        }
+
+        Event::listen(CommandStarting::class, function (CommandStarting $event): void {
+            $command = strtolower(trim((string) $event->command));
+            $name = Str::before($command, ' ');
+
+            $blocked = [
+                'db:wipe',
+                'migrate:fresh',
+                'migrate:refresh',
+                'migrate:reset',
+                'schema:drop',
+            ];
+
+            if (! in_array($name, $blocked, true)) {
+                return;
+            }
+
+            $event->output->writeln('<error>Blocked destructive command in production: ' . $name . '</error>');
+
+            throw new \RuntimeException('Destructive artisan command blocked in production: ' . $name);
+        });
+    }
+
+    private function configureRateLimiting(): void
+    {
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(100)->by($request->ip());
+        });
+
+        RateLimiter::for('checkout', function (Request $request) {
+            return $request->user()
+                ? Limit::perMinute(10)->by($request->user()->id)
+                : Limit::perMinute(5)->by($request->ip());
+        });
+    }
+
+    private function registerFilamentWidgetAliases(): void
+    {
+        $aliases = [
+            'app.filament.resources.product-resource.widgets.product-health-stats-widget'
+                => \App\Filament\Resources\ProductResource\Widgets\ProductHealthStatsWidget::class,
+            'app.filament.resources.product-resource.widgets.product-count-widget'
+                => \App\Filament\Resources\ProductResource\Widgets\ProductCountWidget::class,
+            'app.filament.livewire.admin-database-notifications'
+                => AdminDatabaseNotifications::class,
+        ];
+
+        foreach ($aliases as $alias => $class) {
+            if (class_exists($class)) {
+                Livewire::component($alias, $class);
+            }
+        }
+    }
+
+    private function registerSocialiteProviders(): void
+    {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('apple', AppleSocialiteProvider::class);
+        });
+    }
+}

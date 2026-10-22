@@ -1,0 +1,301 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Http\Resources\User\CartResource;
+use App\Models\Cart;
+use App\Services\User\UserPreferenceService;
+use Illuminate\Http\Request;
+use Inertia\Middleware;
+use App\Http\Controllers\Storefront\Concerns\FormatsCategories;
+use App\Models\SiteSetting;
+use App\Models\StorefrontSetting;
+use App\Services\Promotions\PromotionHomepageService;
+use Illuminate\Support\Facades\Schema;
+use App\Models\StorefrontBanner;
+use App\Domain\Campaigns\Services\LuckyDrawService;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Storage;
+
+class HandleInertiaRequests extends Middleware
+{
+    use FormatsCategories;
+
+    private UserPreferenceService $preferenceService;
+
+    public function __construct(UserPreferenceService $preferenceService)
+    {
+        $this->preferenceService = $preferenceService;
+    }
+
+    /**
+     * The root template that is loaded on the first page visit.
+     *
+     * @var string
+     */
+    protected $rootView = 'app';
+
+    /**
+     * Determine the current asset version.
+     */
+    public function version(Request $request): ?string
+    {
+        return parent::version($request);
+    }
+
+    /**
+     * Define the props that are shared by default.
+     *
+     * @return array<string, mixed>
+     */
+    public function share(Request $request): array
+    {
+        $customer = $request->user('customer');
+        $authUser = $customer ?? $request->user();
+        $cart = Cart::GetCustomerOrGuestCart();
+//        $cart = Cart::query()->where('user_id', auth('web')->id())
+//            ->orWhere('session_id', session()->id())
+//            ->with('items')
+//            ->first();
+
+        $cart_items = isset($cart) ? $cart->items : collect([]);
+        $cart_quantities = isset($cart) ? $cart->items->sum('quantity') : 0;
+        $cart_items = (CartResource::collection($cart_items))->jsonSerialize();
+        $cartSubtotal = isset($cart) ? $cart->subTotal() : 0;
+        // Legacy session-cart logic kept for reference only.
+        // The canonical cart source is the Cart model + CartResource above.
+        // If you reintroduce session carts, update both totals + line serialization.
+//        $cart = collect($request->session()->get('cart', []));
+//        $cartSubtotal = $cart->reduce(function ($carry, $line) {
+//            return $carry + ((float) ($line['price'] ?? 0) * (int) ($line['quantity'] ?? 0));
+//        }, 0.0);
+        $unreadNotifications = $authUser && method_exists($authUser, 'unreadNotifications')
+            ? $authUser->unreadNotifications()->count()
+            : 0;
+        $site = Schema::hasTable('site_settings')
+            ? SiteSetting::query()->first()
+            : null;
+        $userPreferences = $this->preferenceService->getPreferences();
+        $locale = (string) ($userPreferences['language'] ?? app()->getLocale());
+        App::setLocale($locale);
+        
+        $storefront = Schema::hasTable('storefront_settings')
+            ? StorefrontSetting::latestForLocale($locale)
+            : null;
+        $translations = [];
+        $translationsPath = resource_path("lang/{$locale}.json");
+        
+        if (is_file($translationsPath)) {
+            $decoded = json_decode(file_get_contents($translationsPath), true);
+            if (is_array($decoded)) {
+                $translations = $decoded;
+            }
+        }
+        $supportChatRealtime = [
+            'enabled' => (bool) config('support_chat.realtime.enabled', true),
+            'ai_only' => (bool) config('support_chat.ai_only', true),
+            'driver' => (string) config('broadcasting.default', 'log'),
+            'key' => (string) config('broadcasting.connections.pusher.key', ''),
+            'cluster' => (string) config('broadcasting.connections.pusher.options.cluster', ''),
+            'ws_host' => trim((string) env('PUSHER_WS_HOST', '')),
+            'ws_port' => (int) env('PUSHER_PORT', 443),
+            'wss_port' => (int) env('PUSHER_WSS_PORT', 443),
+            'force_tls' => (bool) config('broadcasting.connections.pusher.options.useTLS', true),
+        ];
+
+        $storefrontRealtime = [
+            'enabled' => (string) config('broadcasting.default', 'log') === 'pusher'
+                && (string) config('broadcasting.connections.pusher.key', '') !== '',
+            'driver' => (string) config('broadcasting.default', 'log'),
+            'key' => (string) config('broadcasting.connections.pusher.key', ''),
+            'cluster' => (string) config('broadcasting.connections.pusher.options.cluster', ''),
+            'ws_host' => trim((string) env('PUSHER_WS_HOST', '')),
+            'ws_port' => (int) env('PUSHER_PORT', 443),
+            'wss_port' => (int) env('PUSHER_WSS_PORT', 443),
+            'force_tls' => (bool) config('broadcasting.connections.pusher.options.useTLS', true),
+        ];
+//dd(parent::share($request));
+        return [
+            ...parent::share($request),
+            'auth' => [
+                'user' => $authUser,
+            ],
+            'announcement' => $this->storefrontAnnouncement(),
+            'flash' => [
+                'cart_notice' => $request->session()->get('cart_notice'),
+                'review_notice' => $request->session()->get('review_notice'),
+                'return_notice' => $request->session()->get('return_notice'),
+                'wishlist_notice' => $request->session()->get('wishlist_notice'),
+                'contact_notice' => $request->session()->get('contact_notice'),
+                'status' => $request->session()->get('status'),
+            ],
+            'cart' => [
+                'lines' => $cart_items,
+                'count' => $cart_quantities,
+                'subtotal' => $cartSubtotal,
+            ],
+            'wishlist' => [
+                'count' => count($request->session()->get('wishlist', [])),
+            ],
+            'notifications' => [
+                'unreadCount' => $unreadNotifications,
+            ],
+            'unreadCount' => $unreadNotifications,
+            'site' => $site,
+            'storefront' => $storefront,
+            'appUrl' => rtrim(config('app.url'), '/'),
+            'locale' => $locale,
+            'availableLocales' => $this->preferenceService->getAvailableLanguages(),
+            'user_preferences' => $userPreferences,
+            'translations' => $translations,
+            'supportChatRealtime' => $supportChatRealtime,
+            'storefrontRealtime' => $storefrontRealtime,
+            'seo' => [
+                'title' => $site?->localizedValue('meta_title', $locale) ?? $site?->meta_title ?? $site?->site_name ?? config('app.name', 'Simbazu'),
+                'description' => $site?->localizedValue('meta_description', $locale) ?? $site?->meta_description ?? $site?->site_description ?? null,
+                'image' => $site?->logo_path ?? null,
+            ],
+            'categories' => $this->rootCategoriesTree(['children', 'children.children']),
+            'homepagePromotions' => app(PromotionHomepageService::class)->getHomepagePromotions(),
+            'popupBanners' => $this->popupBanners(),
+            'luckyDraw' => $this->activeLuckyDrawSummary(),
+        ];
+    }
+
+    /**
+     * Active lucky-draw campaign summary shared with every storefront page
+     * so announcement bars / product badges / cart widgets can link to the
+     * real campaign and only render when a draw is live.
+     */
+    private function activeLuckyDrawSummary(): ?array
+    {
+        if (! (bool) config('campaigns.lucky_draw.enabled', false)) {
+            return null;
+        }
+
+        if (! Schema::hasTable('storefront_campaigns')) {
+            return null;
+        }
+
+        try {
+            $campaign = app(LuckyDrawService::class)->activeLuckyDraw(app()->getLocale());
+
+            if (! $campaign) {
+                return null;
+            }
+
+            $config = $campaign->luckyDrawConfig();
+            $minAmount = (float) ($config['min_order_amount'] ?? 0);
+            $campaignCurrency = (string) ($config['currency'] ?? 'XOF');
+
+            return [
+                'slug' => $campaign->slug,
+                'name' => $campaign->localizedValue('name', app()->getLocale()),
+                'min_order_amount' => $minAmount,
+                // Storefront cart/checkout/product prices are denominated in the
+                // base currency (USD), so expose the same threshold in USD for
+                // comparisons. Keeps `min_order_amount`/`currency` untouched for
+                // display purposes (announcement bar, campaign messaging).
+                'min_order_amount_usd' => $this->luckyDrawMinOrderAmountUsd($minAmount, $campaignCurrency),
+                'currency' => $campaignCurrency,
+                'grand_prize' => (string) ($config['grand_prize'] ?? 'Grand Prize'),
+                'accepting_entries' => $campaign->isAcceptingLuckyDrawEntries(),
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function luckyDrawMinOrderAmountUsd(float $amount, string $fromCurrency): float
+    {
+        if ($amount <= 0) {
+            return 0.0;
+        }
+
+        try {
+            return app(\App\Services\Currency\CurrencyConversionService::class)
+                ->convertAmount($amount, $fromCurrency, 'USD') ?? 0.0;
+        } catch (\Throwable) {
+            return $amount;
+        }
+    }
+
+    private function storefrontAnnouncement(): array
+    {
+        $cfg = (array) config('app.storefront_announcement', []);
+
+        $enabled = (bool) ($cfg['enabled'] ?? false);
+        $message = trim((string) ($cfg['message'] ?? ''));
+
+        // If enabled but message isn't set, don't show a blank bar.
+        if (! $enabled || $message === '') {
+            return ['enabled' => false];
+        }
+
+        return [
+            'enabled' => true,
+            'message' => $message,
+            'level' => (string) ($cfg['level'] ?? 'warning'),
+            'dismissible' => (bool) ($cfg['dismissible'] ?? true),
+            'id' => $cfg['id'] ?? null,
+        ];
+    }
+
+    private function popupBanners(): array
+    {
+        $locale = app()->getLocale();
+
+        $banners = StorefrontBanner::active()
+            ->byDisplayType('popup')
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+
+        return $banners->map(function (StorefrontBanner $banner) use ($locale) {
+            return [
+                'id' => $banner->id,
+                'title' => $banner->localizedValue('title', $locale),
+                'description' => $banner->localizedValue('description', $locale),
+                'imagePath' => $this->resolveBannerImage($banner),
+                'badgeText' => $banner->localizedValue('badge_text', $locale),
+                'ctaText' => $banner->localizedValue('cta_text', $locale),
+                'ctaUrl' => $banner->getCtaUrl(),
+                'ends_at' => $banner->ends_at,
+                'promotion' => null,
+            ];
+        })->values()->all();
+    }
+
+    private function resolveBannerImage(StorefrontBanner $banner): ?string
+    {
+        if ($banner->image_path) {
+            return $this->resolveImagePath($banner->image_path);
+        }
+
+        if ($banner->target_type === 'product' && $banner->product) {
+            $image = $banner->product->images?->first()?->url ?? null;
+            return $this->resolveImagePath($image);
+        }
+
+        if ($banner->target_type === 'category' && $banner->category) {
+            return $this->resolveImagePath($banner->category->hero_image ?? null);
+        }
+
+        return null;
+    }
+
+    private function resolveImagePath(?string $path): ?string
+    {
+        // NOTE: Image URL normalization is duplicated in HomeController + API controller.
+        // Keep in sync if URL handling changes.
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return url(Storage::url($path));
+    }
+}

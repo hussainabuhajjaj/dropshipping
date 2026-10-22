@@ -1,0 +1,347 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\SiteSettingResource\Pages;
+use App\Models\SiteSetting;
+use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use BackedEnum;
+use UnitEnum;
+use Filament\Actions\EditAction;
+use Filament\Forms;
+use Filament\Forms\Components\ColorPicker;
+use App\Filament\Resources\BaseResource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Filament\Schemas\Components\Grid;
+
+
+class SiteSettingResource extends BaseResource
+{
+    protected static ?string $model = SiteSetting::class;
+
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
+    protected static string|UnitEnum|null $navigationGroup = 'Administration';
+    protected static ?int $navigationSort = 20;
+    protected static bool $adminOnly = true;
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema->schema([
+            Section::make('Contact')
+                ->schema([
+                    Forms\Components\TextInput::make('support_email')->email(),
+                    Forms\Components\TextInput::make('support_whatsapp'),
+                    Forms\Components\TextInput::make('support_phone'),
+                    Forms\Components\TextInput::make('support_hours')
+                        ->helperText('Example: Mon-Sat, 9:00-18:00 GMT'),
+                ])->columns(2),
+            Section::make('Storefront')
+                ->schema([
+                    Forms\Components\TextInput::make('site_name')->label('Site name')->maxLength(120),
+                    Forms\Components\Textarea::make('site_description')->label('Site description')->rows(2),
+                    Forms\Components\FileUpload::make('logo_path')
+                        ->label('Logo')
+                        ->disk('public')
+                        ->directory('assets/logos')
+                        ->image()
+                        ->imageEditor()
+                        ->maxSize(5120)  // 5MB
+                        ->helperText('Recommended: PNG or SVG, 200x50px or larger'),
+                    Forms\Components\FileUpload::make('favicon_path')
+                        ->label('Favicon')
+                        ->disk('public')
+                        ->directory('assets/favicons')
+                        ->image()
+                        ->maxSize(512)  // 512KB
+                        ->helperText('Recommended: ICO or PNG, 32x32px or 64x64px'),
+                ])->columns(2),
+            Section::make('SEO')
+                ->schema([
+                    Forms\Components\TextInput::make('meta_title')->label('Meta title')->maxLength(120),
+                    Forms\Components\Textarea::make('meta_description')->label('Meta description')->rows(2),
+                    Forms\Components\Textarea::make('meta_keywords')->label('Meta keywords')->rows(2),
+                ])->columns(2),
+            Section::make('Localization')
+                ->schema([
+                    Forms\Components\TextInput::make('timezone')
+                        ->label('Timezone')
+                        ->helperText('Example: UTC, Africa/Abidjan, America/New_York'),
+                ]),
+            Section::make('Theme')
+                ->schema([
+                    ColorPicker::make('primary_color')->label('Primary color'),
+                    ColorPicker::make('secondary_color')->label('Secondary color'),
+                    ColorPicker::make('accent_color')->label('Accent color'),
+                ])->columns(3),
+            Section::make('Shipping & Customs')
+                ->schema([
+                    Forms\Components\TextInput::make('delivery_window')
+                        ->helperText('Example: 7–18 business days'),
+                    Forms\Components\Textarea::make('shipping_message')->rows(3),
+                    Forms\Components\Textarea::make('customs_message')->rows(3),
+                ])->columns(2),
+            Section::make('Taxes')
+                ->schema([
+                    Forms\Components\TextInput::make('tax_label')
+                        ->label('Tax label')
+                        ->helperText('Example: VAT, Sales Tax')
+                        ->maxLength(60),
+                    Forms\Components\TextInput::make('tax_rate')
+                        ->label('Tax rate (%)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->suffix('%'),
+                    Forms\Components\Toggle::make('tax_included')
+                        ->label('Prices include tax'),
+                ])->columns(3),
+            Section::make('Shipping rules')
+                ->schema([
+                    Forms\Components\TextInput::make('shipping_handling_fee')
+                        ->label('Handling fee')
+                        ->numeric()
+                        ->minValue(0)
+                        ->helperText('Applied to the quoted shipping total.'),
+                    Forms\Components\TextInput::make('free_shipping_threshold')
+                        ->label('Free shipping threshold')
+                        ->numeric()
+                        ->minValue(0)
+                        ->helperText('Subtotal after discounts that waives shipping.'),
+                    Forms\Components\TextInput::make('min_cart_total')
+                        ->label('Minimum cart subtotal')
+                        ->numeric()
+                        ->minValue(0)
+                        ->helperText('Effective subtotal (after promotions) that unlocks checkout.'),
+                    Forms\Components\Toggle::make('min_cart_total_enabled')
+                        ->label('Enable minimum cart total')
+                        ->helperText('Disable to allow checkout regardless of subtotal.'),
+                ])->columns(2),
+            Section::make('Policies')
+                ->schema([
+                    Forms\Components\Textarea::make('shipping_policy')
+                        ->label('Shipping policy')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('refund_policy')
+                        ->label('Refund policy')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('privacy_policy')
+                        ->label('Privacy policy')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('terms_of_service')
+                        ->label('Terms of service')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('customs_disclaimer')
+                        ->label('Customs disclaimer')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('about_page_html')
+                        ->label('About page content')
+                        ->helperText('Admin-managed content for the About Us page. Supports basic HTML.')
+                        ->rows(6)
+                        ->columnSpanFull(),
+                ]),
+            Section::make('Locale overrides')
+                ->description('Optional translations for storefront copy (e.g., Legal/About).')
+                ->schema([
+                    Forms\Components\Repeater::make('locale_overrides')
+                        ->schema([
+                            Forms\Components\Select::make('locale')
+                                ->options([
+                                    'en' => 'English',
+                                    'fr' => 'French',
+                                ])
+                                ->native(false)
+                                ->required(),
+                            Grid::make()
+                                ->columns(2)
+                                ->schema([
+                                    Forms\Components\TextInput::make('meta_title')
+                                        ->label('Meta title')
+                                        ->maxLength(120),
+                                    Forms\Components\Textarea::make('meta_description')
+                                        ->label('Meta description')
+                                        ->rows(2),
+                                ]),
+                            Forms\Components\Textarea::make('shipping_policy')
+                                ->label('Shipping policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('refund_policy')
+                                ->label('Refund policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('privacy_policy')
+                                ->label('Privacy policy')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('terms_of_service')
+                                ->label('Terms of service')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('customs_disclaimer')
+                                ->label('Customs disclaimer')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                            Forms\Components\Textarea::make('about_page_html')
+                                ->label('About page content')
+                                ->rows(6)
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(1)
+                        ->default([])
+                        ->reorderable(),
+                ])
+                ->collapsible(),
+            Section::make('Reviews')
+                ->schema([
+                    Forms\Components\Toggle::make('auto_approve_reviews')
+                        ->label('Auto-approve reviews')
+                        ->helperText('Immediately approve verified buyer reviews.'),
+                    Forms\Components\TextInput::make('auto_approve_review_days')
+                        ->label('Auto-approve after (days)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->helperText('Pending reviews older than this are auto-approved. 0 disables.'),
+                ])->columns(2),
+            Section::make('Abandoned cart recovery')
+                ->description('Configure timing, channels, and coupon for abandoned cart reminders.')
+                ->schema([
+                    Forms\Components\TextInput::make('abandoned_cart_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('SAVE10')
+                        ->helperText('Used in reminders #2 and #3 as an incentive.'),
+                    Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                    Forms\Components\Placeholder::make('abandoned_cart_timing_info')
+                        ->label('Reminder timing')
+                        ->content('Reminder #1: 1 hour after abandonment | Reminder #2: 24 hours later | Reminder #3: 72 hours later (last chance). All times are approximate ±30min.'),
+                ]),
+            Section::make('Cross-sell')
+                ->description('Post-purchase product recommendations sent after delivery.')
+                ->schema([
+                    Forms\Components\TextInput::make('cross_sell_config.delay_days')
+                        ->label('Delay after delivery (days)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(7)
+                        ->helperText('How many days after delivery before sending cross-sell recommendations.'),
+                    Forms\Components\TextInput::make('cross_sell_config.max_recommendations')
+                        ->label('Max recommendations')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(10)
+                        ->default(3),
+                    Forms\Components\TextInput::make('cross_sell_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('WELCOME10')
+                        ->helperText('Incentive for the next purchase.'),
+                    Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                ]),
+            Section::make('Win-back')
+                ->description('Re-engage inactive customers with a special offer.')
+                ->schema([
+                    Forms\Components\TextInput::make('win_back_config.inactivity_days')
+                        ->label('Inactivity threshold (days)')
+                        ->numeric()
+                        ->minValue(14)
+                        ->default(60)
+                        ->helperText('Customers without a paid order for this many days will receive a win-back offer.'),
+                    Forms\Components\TextInput::make('win_back_config.coupon_code')
+                        ->label('Coupon code')
+                        ->maxLength(20)
+                        ->default('MISSYOU10')
+                        ->helperText('Incentive to encourage re-purchase.'),
+                    Grid::make()
+                        ->columns(3)
+                        ->schema([
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_email')
+                                ->label('Email')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_push')
+                                ->label('Push')
+                                ->default(true),
+                            Forms\Components\Toggle::make('abandoned_cart_config.enable_whatsapp')
+                                ->label('WhatsApp')
+                                ->default(true),
+                        ]),
+                ]),
+            Section::make('Fulfillment')
+                ->schema([
+                    Forms\Components\Select::make('default_fulfillment_provider_id')
+                        ->label('Default fulfillment provider')
+                        ->options(fn () => FulfillmentProvider::query()->where('is_active', true)->pluck('name', 'id'))
+                        ->searchable()
+                        ->preload(),
+                    Forms\Components\TextInput::make('cj_auto_approve_delay_hours')
+                        ->label('CJ Auto-Approve Delay (hours)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(24)
+                        ->helperText('Unapproved CJ fulfillment items will be auto-approved after this many hours.'),
+                ])->columns(2),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('site_name')->label('Site'),
+                Tables\Columns\TextColumn::make('support_email')->label('Email'),
+                Tables\Columns\TextColumn::make('support_whatsapp')->label('WhatsApp'),
+                Tables\Columns\TextColumn::make('delivery_window')->label('Delivery window'),
+                Tables\Columns\TextColumn::make('created_at')->dateTime(),
+            ])
+            ->recordActions([
+                EditAction::make(),
+            ])
+            ->toolbarActions([]);
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListSiteSettings::route('/'),
+            'edit' => Pages\EditSiteSetting::route('/{record}/edit'),
+        ];
+    }
+
+    public static function canCreate(): bool
+    {
+        return SiteSetting::query()->count() === 0;
+    }
+}

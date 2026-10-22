@@ -1,0 +1,176 @@
+<script setup>
+import { computed, shallowRef } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import { useTranslations } from '@/i18n'
+
+const props = defineProps({
+  season: { type: Object, required: true },
+  slides: { type: Array, default: () => [] },
+  quickLinks: { type: Array, default: () => [] },
+  collections: { type: Array, default: () => [] },
+})
+
+const { t } = useTranslations()
+const activeIndex = shallowRef(0)
+
+const displaySlides = computed(() => {
+  if (!props.slides.length) {
+    return [{
+      key: 'season-default',
+      badge: props.season.badge,
+      title: props.season.title,
+      subtitle: props.season.subtitle,
+      image: null,
+      primary: { label: props.season.primaryLabel, href: props.season.href },
+    }]
+  }
+
+  return props.slides.map((slide, index) => ({
+    key: slide.key || `slide-${index}`,
+    badge: slide.badge || props.season.badge,
+    title: slide.title || props.season.title,
+    subtitle: slide.subtitle || props.season.subtitle,
+    image: slide.image || null,
+    primary: slide.primary || { label: props.season.primaryLabel, href: props.season.href },
+  }))
+})
+
+const currentSlide = computed(() => displaySlides.value[activeIndex.value] || displaySlides.value[0])
+
+const heroImageSrcset = computed(() => {
+  if (!currentSlide.value?.image) return ''
+  const base = currentSlide.value.image
+  return `${base}?w=640 640w, ${base}?w=960 960w, ${base}?w=1280 1280w, ${base}?w=1920 1920w`
+})
+
+const heroImageSizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 1280px'
+
+const themeClasses = computed(() => {
+  const themes = {
+    amber: {
+      background: 'bg-[#f6efe4]',
+      badge: 'bg-[#fff4d8] text-[#9a5b00] ring-[#f3d38a]',
+      cta: 'bg-[#f59e0b] text-slate-950 hover:bg-[#d97706]',
+      accent: 'text-[#d97706]',
+    },
+    blue: {
+      background: 'bg-[#edf4fb]',
+      badge: 'bg-[#e3f0ff] text-[#155e9f] ring-[#bad8f5]',
+      cta: 'bg-[#0f5f93] text-white hover:bg-[#0b4a73]',
+      accent: 'text-[#0f5f93]',
+    },
+    emerald: {
+      background: 'bg-[#edf7ee]',
+      badge: 'bg-[#ddf7e6] text-[#17633a] ring-[#bde8ca]',
+      cta: 'bg-[#177245] text-white hover:bg-[#105a35]',
+      accent: 'text-[#177245]',
+    },
+    rose: {
+      background: 'bg-[#fbefef]',
+      badge: 'bg-[#ffe7e7] text-[#9f3535] ring-[#f1c7c7]',
+      cta: 'bg-[#b23b45] text-white hover:bg-[#922f38]',
+      accent: 'text-[#b23b45]',
+    },
+  }
+
+  return themes[props.season.theme] || themes.amber
+})
+
+const sideCollections = computed(() => [])
+
+const goToSlide = (index) => {
+  activeIndex.value = index
+}
+
+const nextSlide = () => {
+  activeIndex.value = (activeIndex.value + 1) % displaySlides.value.length
+}
+
+const prevSlide = () => {
+  activeIndex.value = (activeIndex.value - 1 + displaySlides.value.length) % displaySlides.value.length
+}
+</script>
+
+<template>
+  <section class="grid w-full">
+    <div class="relative overflow-hidden rounded-lg text-white shadow-sm" :class="themeClasses.background">
+      <div v-if="currentSlide.image" class="absolute inset-0 z-0">
+        <img
+          :src="currentSlide.image"
+          :srcset="heroImageSrcset"
+          :sizes="heroImageSizes"
+          :alt="currentSlide.title"
+          class="h-full w-full object-cover"
+          loading="eager"
+          fetchpriority="high"
+        />
+      </div>
+      <div class="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/62 to-slate-950/10"></div>
+
+      <div class="relative z-10 flex flex-col justify-between p-4 sm:p-6 lg:p-8">
+        <div class="max-w-2xl py-6 sm:py-8">
+          <h1 class="max-w-xl text-2xl font-black leading-tight text-white sm:text-3xl lg:text-4xl xl:text-5xl">
+            {{ t(currentSlide.title) }}
+          </h1>
+          <p class="mt-3 max-w-xl text-sm font-medium leading-5 text-white/78 sm:text-base lg:text-lg">
+            {{ t(currentSlide.subtitle) }}
+          </p>
+
+          <div class="mt-5 flex flex-wrap gap-2">
+            <Link
+              :href="currentSlide.primary?.href || season.href"
+              class="inline-flex min-h-10 items-center justify-center rounded-md px-4 text-sm font-black transition active:scale-95"
+              :class="themeClasses.cta"
+            >
+              {{ t(currentSlide.primary?.label || season.primaryLabel) }}
+            </Link>
+            <Link
+              href="/products?sort=bestsellers"
+              class="inline-flex min-h-10 items-center justify-center rounded-md bg-white/12 px-4 text-sm font-bold text-white ring-1 ring-white/16 transition hover:bg-white/18 active:scale-95"
+            >
+              {{ t(season.secondaryLabel) }}
+            </Link>
+          </div>
+
+          <div class="mt-6 grid max-w-xl grid-cols-3 gap-2 text-left">
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('Currency') }}</p>
+              <p class="mt-1 text-xs font-black text-white">XOF</p>
+            </div>
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('Checkout') }}</p>
+              <p class="mt-1 text-xs font-black text-white">{{ t('Secure payment') }}</p>
+            </div>
+            <div class="border-l border-white/30 pl-2.5">
+              <p class="text-[0.58rem] font-bold uppercase tracking-[0.14em] text-white/55">{{ t('After purchase') }}</p>
+              <p class="mt-1 text-xs font-black text-white">{{ t('Order tracking') }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="displaySlides.length > 1" class="absolute bottom-4 right-4 flex gap-2">
+          <button
+            type="button"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            :aria-label="t('Previous slide')"
+            @click="prevSlide"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-slate-900 shadow-sm transition hover:bg-white active:scale-95"
+            :aria-label="t('Next slide')"
+            @click="nextSlide"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>

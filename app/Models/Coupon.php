@@ -1,0 +1,176 @@
+<?php
+
+namespace App\Models;
+
+use App\Domain\Affiliates\Models\Affiliate;
+use App\Domain\Orders\Models\Order;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+class Coupon extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'code',
+        'description',
+        'type',
+        'amount',
+        'min_order_total',
+        'max_uses',
+        'uses',
+        'is_active',
+        'starts_at',
+        'ends_at',
+        'meta',
+        'locale_overrides',
+        'applicable_to',
+        'exclude_on_sale',
+        'is_one_time_per_customer',
+        'affiliate_id',
+        'affects_affiliate_commission',
+    ];
+
+    protected $casts = [
+        'amount' => 'decimal:2',
+        'min_order_total' => 'decimal:2',
+        'is_active' => 'boolean',
+        'exclude_on_sale' => 'boolean',
+        'is_one_time_per_customer' => 'boolean',
+        'affects_affiliate_commission' => 'boolean',
+        'starts_at' => 'datetime',
+        'ends_at' => 'datetime',
+        'meta' => 'array',
+        'locale_overrides' => 'array',
+    ];
+
+    public function affiliate(): BelongsTo
+    {
+        return $this->belongsTo(Affiliate::class);
+    }
+
+    public function redemptions(): HasMany
+    {
+        return $this->hasMany(CouponRedemption::class);
+    }
+
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'coupon_product');
+    }
+
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'coupon_category');
+    }
+
+    public function isValidForProduct(Product $product): bool
+    {
+        if ($this->applicable_to === 'all') {
+            return true;
+        }
+
+        if ($this->applicable_to === 'products') {
+            return $this->products->contains($product);
+        }
+
+        if ($this->applicable_to === 'categories') {
+            return $this->categories->contains($product->category);
+        }
+
+        if ($this->exclude_on_sale && $product->is_on_sale) {
+            return false;
+        }
+
+        return false;
+    }
+
+    public function isFreeShipping(): bool
+    {
+        return $this->type === 'free_shipping';
+    }
+
+    public function isCurrentlyValid(): bool
+    {
+        if (!$this->is_active) {
+            return false;
+        }
+
+        $now = now();
+
+        if ($this->starts_at && $now->isBefore($this->starts_at)) {
+            return false;
+        }
+
+        if ($this->ends_at && $now->isAfter($this->ends_at)) {
+            return false;
+        }
+
+        if ($this->max_uses && $this->uses >= $this->max_uses) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function localeOverrideMap(): array
+    {
+        $overrides = $this->locale_overrides ?? [];
+
+        return collect($overrides)
+            ->filter(fn ($row) => is_array($row) && ! empty($row['locale']))
+            ->keyBy('locale')
+            ->all();
+    }
+
+    public function localizedValue(string $field, ?string $locale): ?string
+    {
+        if (! $locale) {
+            return $this->{$field} ?? null;
+        }
+
+        $override = $this->localeOverrideMap()[$locale] ?? null;
+        if ($override && array_key_exists($field, $override) && $override[$field] !== null && $override[$field] !== '') {
+            return (string) $override[$field];
+        }
+
+        return $this->{$field} ?? null;
+    }
+
+    public function serializeCoupon(): array
+    {
+        return [
+            'id' => $this->id,
+            'code' => $this->code,
+            'type' => $this->type,
+            'amount' => $this->amount,
+            'min_order_total' => $this->min_order_total,
+            'description' => $this->localizedValue('description', app()->getLocale()) ?? $this->description,
+        ];
+    }
+
+    public function redeemCoupon(?Customer $customer, Order $order, ?string $discountSource, float $discountAmount): void
+    {
+        if ($discountSource !== 'coupon' || $discountAmount <= 0) {
+            return;
+        }
+
+        $this->increment('uses');
+
+        if (!$customer) {
+            return;
+        }
+
+        CouponRedemption::updateOrCreate(
+            ['coupon_id' => $this->id, 'customer_id' => $customer->id],
+            [
+                'order_id' => $order->id,
+                'status' => 'redeemed',
+                'redeemed_at' => now(),
+            ]
+        );
+    }
+}

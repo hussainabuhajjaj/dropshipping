@@ -1,0 +1,545 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Filament\Resources\OrderResource\Pages;
+
+use App\Domain\Fulfillment\Services\FulfillmentDispatchService;
+use App\Filament\Resources\OrderResource;
+use App\Domain\Orders\Models\Order;
+use App\Domain\Orders\Models\OrderAuditLog;
+use App\Domain\Observability\EventLogger;
+use App\Domain\Payments\PaymentService;
+use App\Events\Orders\RefundProcessed;
+use App\Infrastructure\Fulfillment\Clients\CJDropshippingClient;
+use App\Infrastructure\Payments\Paystack\PaystackRefundService;
+use App\Infrastructure\Payments\Paystack\PaystackService;
+use App\Models\Payment;
+use App\Notifications\Orders\OrderPendingPaymentNotification;
+use App\Notifications\Orders\OrderPaymentLinkNotification;
+use App\Services\Api\ApiException;
+use App\Services\Currency\CurrencyConversionService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
+use Illuminate\Support\Js;
+use Filament\Actions;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Resources\Pages\ViewRecord;
+
+class ViewOrder extends ViewRecord
+{
+    protected static string $resource = OrderResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\ActionGroup::make([
+                Actions\Action::make('approve_send_payment_link')
+                ->label('Approve & Send Payment Link')
+                ->icon('heroicon-o-link')
+                ->color('success')
+                ->visible(fn (Order $record) => $record->shipping_method === 'whatsapp_assisted' && $record->payment_status === 'unpaid' && $record->payments()->where('provider', 'paystack')->where('status', 'pending')->doesntExist())
+                ->requiresConfirmation()
+                ->modalHeading('Approve WhatsApp Order')
+                ->modalDescription(fn (Order $record) => "This will generate a Paystack payment link for order {$record->number} and send it to the customer ({$record->email}).")
+                ->action(function (Order $record) {
+                    DB::transaction(function () use ($record) {
+                        $payment = Payment::create([
+                            'order_id' => $record->id,
+                            'provider' => 'paystack',
+                            'status' => 'pending',
+                            'provider_reference' => 'pstk_' . uniqid(),
+                            'amount' => $record->grand_total,
+                            'currency' => 'XOF',
+                            'meta' => ['type' => 'whatsapp_approved'],
+                        ]);
+
+                        $paystackService = app(PaystackService::class);
+                        $currencyService = app(CurrencyConversionService::class);
+
+                        $amount = (float) $record->grand_total;
+                        $fromCurrency = (string) ($record->currency ?? 'USD');
+                        if (strtoupper($fromCurrency) !== 'XOF') {
+                            $amount = $currencyService->convertAmount($amount, $fromCurrency, 'XOF');
+                        }
+                        $payment->amount = (int) round($amount);
+                        $payment->currency = 'XOF';
+                        $payment->save();
+
+                        $result = $paystackService->initializeTransaction(
+                            $record,
+                            $payment,
+                            $record->email,
+                            $record->guest_name ?? $record->customer?->name ?? 'Customer',
+                            route('paystack.callback')
+                        );
+
+                        $meta = (array) ($payment->meta ?? []);
+                        $meta['authorization_url'] = $result['authorization_url'];
+                        $payment->meta = $meta;
+                        $payment->save();
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'payment_link_generated',
+                            'note' => "WhatsApp order approved. Paystack payment link sent to {$record->email}.",
+                            'payload' => [
+                                'payment_id' => $payment->id,
+                                'reference' => $result['reference'],
+                                'authorization_url' => $result['authorization_url'],
+                            ],
+                        ]);
+
+                        $record->update(['status' => 'pending', 'payment_status' => 'unpaid']);
+
+                        $notifiable = $record->customer ?? $record->user;
+                        $notification = (new OrderPaymentLinkNotification($record, $result['authorization_url']))
+                            ->locale($record->notificationLocale());
+
+                        if ($notifiable) {
+                            NotificationFacade::send($notifiable, $notification);
+                        } else {
+                            NotificationFacade::route('mail', $record->email)->notify($notification);
+                        }
+                    });
+
+                    Notification::make()
+                        ->title('Payment link generated and sent to customer')
+                        ->success()
+                        ->send();
+                }),
+            Actions\Action::make('resend_pending_payment')
+                    ->label('Resend Pending Payment Email')
+                    ->icon('heroicon-o-envelope')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('Resend pending payment email')
+                    ->modalDescription(fn (Order $record) => "Send payment reminder for order {$record->number}.")
+                    ->visible(fn (Order $record) => $record->payment_status === 'unpaid' && (bool) $record->email)
+                    ->action(function (Order $record): void {
+                        $notification = (new OrderPendingPaymentNotification($record))
+                            ->locale($record->notificationLocale());
+
+                        if ($record->customer) {
+                            $record->customer->notify($notification);
+                        } else {
+                            NotificationFacade::route('mail', $record->email)->notify($notification);
+                        }
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'pending_payment_email_resent',
+                            'note' => 'Pending payment email resent from admin.',
+                            'payload' => ['email' => $record->email],
+                        ]);
+
+                        Notification::make()
+                            ->title('Pending payment email sent')
+                            ->success()
+                            ->send();
+                    }),
+                Actions\Action::make('dispatch_all')
+                    ->label('Dispatch All')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->modalHeading('Dispatch All Order Items')
+                    ->modalDescription(fn (Order $record) =>
+                        "This will dispatch all items in order {$record->number} to their fulfillment providers."
+                    )
+                    ->visible(fn (Order $record) => $record->orderItems()->where('fulfillment_status', '!=', 'fulfilling')->exists())
+                    ->action(function (Order $record) {
+                        $items = $record->orderItems()
+                            ->whereNotIn('fulfillment_status', ['fulfilling', 'fulfilled', 'failed', 'cancelled'])
+                            ->get();
+
+                        if ($items->isEmpty()) {
+                            Notification::make()
+                                ->title('No eligible items were dispatched')
+                                ->warning()
+                                ->send();
+                            return;
+                        }
+
+                        $candidateIds = $items->pluck('id')->all();
+                        $dispatched = app(FulfillmentDispatchService::class)->dispatchForOrder($record);
+
+                        $dispatchedItems = $record->orderItems()
+                            ->whereIn('id', $candidateIds)
+                            ->where('fulfillment_status', 'fulfilling')
+                            ->get();
+
+                        foreach ($dispatchedItems as $item) {
+                            \App\Domain\Orders\Models\OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'fulfillment_dispatched',
+                                'note' => 'Dispatched to provider (bulk)',
+                                'payload' => ['order_item_id' => $item->id],
+                            ]);
+                        }
+
+                        if ($dispatched > 0) {
+                            Notification::make()
+                                ->title("Dispatched {$dispatched} item(s)")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('No eligible items were dispatched')
+                                ->warning()
+                                ->send();
+                        }
+                    }),
+                Actions\Action::make('copyShipping')
+                    ->label('Copy Shipping Info')
+                    ->color('gray')
+                    ->icon('heroicon-o-clipboard')
+                    ->alpineClickHandler(function (Order $record): string {
+                        $text = implode(', ', array_filter([
+                            $record->shippingAddress?->name,
+                            $record->shippingAddress?->line1,
+                            $record->shippingAddress?->line2,
+                            $record->shippingAddress?->city,
+                            $record->shippingAddress?->state,
+                            $record->shippingAddress?->postal_code,
+                            $record->shippingAddress?->country,
+                            $record->shippingAddress?->phone,
+                        ]));
+
+                        return 'navigator.clipboard.writeText(' . Js::from($text)->toHtml() . ')';
+                    }),
+                Actions\Action::make('overrideStatus')
+                    ->label('Manual Status Override')
+                    ->icon('heroicon-o-adjustments-vertical')
+                    ->color('warning')
+                    ->schema([
+                        Select::make('status')->label('Order Status')->options([
+                            'pending' => 'Pending',
+                            'paid' => 'Paid',
+                            'fulfilling' => 'Fulfilling',
+                            'fulfilled' => 'Fulfilled',
+                            'cancelled' => 'Cancelled',
+                            'refunded' => 'Refunded',
+                        ])->required(),
+                        Select::make('payment_status')->label('Payment Status')->options([
+                            'unpaid' => 'Unpaid',
+                            'paid' => 'Paid',
+                            'refunded' => 'Refunded',
+                        ])->required(),
+                        Textarea::make('note')->rows(3)->required(),
+                    ])
+                    ->action(function (Order $record, array $data): void {
+                        $record->update([
+                            'status' => $data['status'],
+                            'payment_status' => $data['payment_status'],
+                        ]);
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'order_override',
+                            'note' => $data['note'],
+                            'payload' => $data,
+                        ]);
+                        app(EventLogger::class)->order(
+                            $record,
+                            'override',
+                            $data['status'],
+                            $data['note'],
+                            ['payment_status' => $data['payment_status']]
+                        );
+                    }),
+                Actions\Action::make('refund')
+                    ->label('Initiate Refund')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('danger')
+                    ->schema([
+                        TextInput::make('amount')->numeric()->required(),
+                        TextInput::make('currency')->default(fn (Order $record) => $record->currency)->required(),
+                        Textarea::make('reason')->rows(3)->required(),
+                        Toggle::make('force')->label('Force after delivery')->default(false),
+                    ])
+                    ->action(function (Order $record, array $data): void {
+                        $delivered = $record->orderItems()->whereHas('shipments', fn ($q) => $q->whereNotNull('delivered_at'))->exists();
+                        if ($delivered && ! $data['force']) {
+                            Notification::make()
+                                ->title('Cannot refund after delivery without force.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        DB::transaction(function () use ($record, $data) {
+                            $record->payments()->update(['status' => 'refunded']);
+                            $record->update(['payment_status' => 'refunded', 'status' => 'refunded']);
+
+                            OrderAuditLog::create([
+                                'order_id' => $record->id,
+                                'user_id' => auth()->id(),
+                                'action' => 'refund_initiated',
+                                'note' => $data['reason'],
+                                'payload' => ['amount' => $data['amount'], 'force' => $data['force']],
+                            ]);
+
+                            app(EventLogger::class)->order(
+                                $record,
+                                'refund',
+                                'refunded',
+                                $data['reason'],
+                                ['amount' => $data['amount'], 'force' => $data['force']]
+                            );
+                        });
+
+                        Event::dispatch(new RefundProcessed($record, (float) $data['amount'], $data['currency'], $data['reason']));
+                    }),
+                Actions\Action::make('processPaystackRefund')
+                    ->label('Process Paystack Refund')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('danger')
+                    ->visible(function (Order $record) {
+                        $payment = $record->payments()
+                            ->where('provider', 'paystack')
+                            ->where('status', 'paid')
+                            ->first();
+                        return $payment && ($payment->refunded_amount < $payment->amount);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Process Paystack Refund')
+                    ->modalDescription('This will process a real refund through Paystack API.')
+                    ->schema([
+                        TextInput::make('amount')
+                            ->label('Refund Amount')
+                            ->numeric()
+                            ->required()
+                            ->prefix(function (Order $record): string { return $record->currency; })
+                            ->default(function (Order $record): float {
+                                $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                                return $payment ? ($payment->amount - $payment->refunded_amount) : 0;
+                            })
+                            ->helperText(function (Order $record): string {
+                                $payment = $record->payments()->where('provider', 'paystack')->where('status', 'paid')->first();
+                                if ($payment) {
+                                    $available = $payment->amount - $payment->refunded_amount;
+                                    return "Available to refund: {$available} {$payment->currency}";
+                                }
+                                return '';
+                            }),
+                        Textarea::make('reason')
+                            ->label('Refund Reason')
+                            ->required()
+                            ->rows(3)
+                            ->placeholder('Customer request, damaged goods, etc.'),
+                    ])
+                    ->action(function (Order $record, array $data): void {
+                    try {
+                        $payment = $record->payments()
+                            ->where('provider', 'paystack')
+                            ->where('status', 'paid')
+                            ->first();
+                        
+                        if (!$payment) {
+                            throw new \RuntimeException('No Paystack payment found for this order.');
+                        }
+
+                        $refundService = app(PaystackRefundService::class);
+                        $refundService->refund(
+                            $payment,
+                            (float) $data['amount'],
+                            $data['reason'],
+                            auth()->id()
+                        );
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'paystack_refund_processed',
+                            'note' => $data['reason'],
+                            'payload' => [
+                                'amount' => $data['amount'],
+                                'payment_id' => $payment->id,
+                            ],
+                        ]);
+
+                        app(EventLogger::class)->order(
+                            $record,
+                            'refund',
+                            'refunded',
+                            $data['reason'],
+                            ['amount' => $data['amount'], 'provider' => 'paystack']
+                        );
+
+                        Notification::make()
+                            ->success()
+                            ->title('Refund Processed')
+                            ->body("Paystack refund of {$data['amount']} {$payment->currency} processed successfully.")
+                            ->send();
+                            
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Refund Failed')
+                            ->body('Error: ' . $e->getMessage())
+                            ->send();
+                    }
+                }),
+            Actions\Action::make('markPaid')
+                ->label('Mark as Paid')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->visible(fn (Order $record) => $record->payment_status !== 'paid')
+                ->schema([
+                    TextInput::make('provider_reference')
+                        ->label('Provider reference')
+                        ->required(),
+                    Textarea::make('note')->rows(2)->required(),
+                ])
+                ->action(function (Order $record, array $data): void {
+                    DB::transaction(function () use ($record, $data) {
+                        $payment = $record->payments()->latest()->first();
+
+                        if (! $payment) {
+                            $payment = $record->payments()->create([
+                                'provider' => 'manual',
+                                'status' => 'pending',
+                                'provider_reference' => $data['provider_reference'],
+                                'amount' => $record->grand_total,
+                                'currency' => $record->currency,
+                                'meta' => ['type' => 'manual_capture'],
+                            ]);
+                        } else {
+                            $payment->update([
+                                'provider_reference' => $data['provider_reference'],
+                                'provider' => $payment->provider ?: 'manual',
+                            ]);
+                        }
+
+                        app(PaymentService::class)->markAsPaid($payment);
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'marked_paid',
+                            'note' => $data['note'],
+                            'payload' => ['provider_reference' => $data['provider_reference']],
+                        ]);
+                    });
+                }),
+            Actions\Action::make('cancel')
+                ->label('Cancel Order')
+                ->icon('heroicon-o-x-circle')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->schema([
+                    Textarea::make('reason')->rows(3)->required(),
+                ])
+                ->action(function (Order $record, array $data): void {
+                    DB::transaction(function () use ($record, $data) {
+                        $record->orderItems()->update(['fulfillment_status' => 'cancelled']);
+                        $record->update(['status' => 'cancelled']);
+
+                        OrderAuditLog::create([
+                            'order_id' => $record->id,
+                            'user_id' => auth()->id(),
+                            'action' => 'order_cancelled',
+                            'note' => $data['reason'],
+                            'payload' => [],
+                        ]);
+
+                        app(EventLogger::class)->order(
+                            $record,
+                            'cancelled',
+                            'cancelled',
+                            $data['reason'],
+                            []
+                        );
+                    });
+                }),
+            Actions\Action::make('checkCjStock')
+                ->label('Check CJ Stock')
+                ->icon('heroicon-o-signal')
+                ->color('gray')
+                ->action(function (Order $record): void {
+                    $client = app(CJDropshippingClient::class);
+                    $lines = [];
+
+                    foreach ($record->orderItems as $item) {
+                        $vid = data_get($item->productVariant?->metadata, 'cj_vid') ?? data_get($item->meta, 'cj_vid');
+                        $sku = $item->productVariant?->sku ?? $item->source_sku;
+                        $pid = data_get($item->productVariant?->product?->attributes, 'cj_pid') ?? data_get($item->meta, 'cj_pid');
+
+                        try {
+                            if ($vid) {
+                                $resp = $client->getStockByVid($vid);
+                            } elseif ($sku) {
+                                $resp = $client->getStockBySku($sku);
+                            } elseif ($pid) {
+                                $resp = $client->getStockByPid($pid);
+                            } else {
+                                $lines[] = "Item {$item->id}: no CJ identifier (pid/vid/sku)";
+                                continue;
+                            }
+
+                            $total = $this->sumStorage($resp->data ?? null);
+                            $lines[] = "Item {$item->id} ({$sku}): stock {$total}";
+                        } catch (ApiException $e) {
+                            $lines[] = "Item {$item->id}: CJ error {$e->getMessage()}";
+                        } catch (\Throwable $e) {
+                            $lines[] = "Item {$item->id}: error {$e->getMessage()}";
+                        }
+                    }
+
+                    Notification::make()
+                        ->title('CJ stock check')
+                        ->body($lines ? implode("\n", $lines) : 'No items to check.')
+                        ->send();
+                }),
+            ])
+                ->label('Order Actions')
+                ->icon('heroicon-o-ellipsis-horizontal')
+                ->color('gray'),
+        ];
+    }
+
+    private function sumStorage(mixed $payload): int
+    {
+        $total = 0;
+
+        $add = function ($value) use (&$total) {
+            if (is_numeric($value)) {
+                $total += (int) $value;
+            }
+        };
+
+        if (is_numeric($payload)) {
+            $add($payload);
+            return $total;
+        }
+
+        if (is_array($payload)) {
+            if (array_key_exists('storageNum', $payload)) {
+                $add($payload['storageNum']);
+            }
+
+            foreach ($payload as $entry) {
+                if (is_array($entry) && array_key_exists('storageNum', $entry)) {
+                    $add($entry['storageNum']);
+                } elseif (is_array($entry)) {
+                    foreach ($entry as $deep) {
+                        if (is_array($deep) && array_key_exists('storageNum', $deep)) {
+                            $add($deep['storageNum']);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $total;
+    }
+}

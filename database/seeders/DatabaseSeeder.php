@@ -1,0 +1,31 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\User;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
+use Database\Seeders\FullTestDataSeeder;
+use Illuminate\Support\Facades\Hash;
+
+class DatabaseSeeder extends Seeder
+{
+    use WithoutModelEvents;
+
+    /**
+     * Seed the application's database.
+     */
+    public function run(): void
+    {
+        // User::factory(10)->create();
+
+    
+
+        $this->call(\Database\Seeders\CJSeeder::class);
+        $this->call(\Database\Seeders\MobileTranslationsSeeder::class);
+        $this->call(\Database\Seeders\LocalWareHouseSeeder::class);
+        $this->call(\Database\Seeders\HomePageSettingSeeder::class);
+        $this->call(\Database\Seeders\StorefrontSeasonalSeeder::class);
+        $this->call(\Database\Seeders\PromotionSeeder::class);
+    }
+}

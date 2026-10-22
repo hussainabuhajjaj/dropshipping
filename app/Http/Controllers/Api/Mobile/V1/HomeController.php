@@ -1,0 +1,736 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\Mobile\V1;
+
+use App\Http\Resources\Mobile\V1\HomeResource;
+use App\Models\Category;
+use App\Models\HomePageSetting;
+use App\Models\SiteSetting;
+use App\Models\StorefrontBanner;
+use App\Models\StorefrontCampaign;
+use App\Models\StorefrontCollection;
+use App\Models\StorefrontSetting;
+use App\Models\Product;
+use App\Domain\Products\Models\ProductImage;
+use App\Services\Storefront\CampaignPlacementService;
+use App\Services\Storefront\HeroSettings;
+use App\Services\Storefront\HomeBuilderService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
+
+class HomeController extends ApiController
+{
+    /**
+     * @return list<string>
+     */
+    private function pinnedCategoryKeys(): array
+    {
+        return [
+            'womens clothing',
+            'womens-clothing',
+            'women clothing',
+            'mens clothing',
+            'mens-clothing',
+            'men clothing',
+        ];
+    }
+
+    private function normalizePinnedCategoryValue(?string $value): string
+    {
+        $value = strtolower((string) $value);
+        $value = str_replace(["'", '’'], '', $value);
+
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $value));
+    }
+
+    private function pinnedCategoryPriority(Category $category, string $locale): int
+    {
+        $name = $this->normalizePinnedCategoryValue($category->translatedValue('name', $locale));
+        $slug = $this->normalizePinnedCategoryValue($category->slug);
+
+        $women = ['womens clothing', 'womens clothing', 'women clothing'];
+        $men = ['mens clothing', 'mens clothing', 'men clothing'];
+
+        if (in_array($name, $women, true) || in_array($slug, $women, true)) {
+            return 0;
+        }
+
+        if (in_array($name, $men, true) || in_array($slug, $men, true)) {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    public function index(HomeBuilderService $homeBuilder, Request $request): JsonResponse
+    {
+        $currency = 'XOF';
+
+        $locale = app()->getLocale();
+        $cacheKey = "mobile:home:{$locale}:{$currency}";
+
+        $payload = Cache::lock("mobile:home:lock:{$locale}:{$currency}", 10)->block(10, function () use ($cacheKey, $homeBuilder, $currency, $locale) {
+            return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($homeBuilder, $currency, $locale) {
+                return $this->buildHomePayload($homeBuilder, $currency, $locale);
+            });
+        });
+
+        return $this->success(new HomeResource($payload));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildHomePayload(HomeBuilderService $homeBuilder, string $currency, string $locale): array
+    {
+        $sections = $homeBuilder->buildProductSections(6);
+        $featured = $sections['featured'];
+        $bestSellers = $sections['bestSellers'];
+        $recommended = $sections['recommended'];
+
+        $categories = $this->buildCategoryCards($homeBuilder);
+
+        $homeContent = HomePageSetting::latestForLocale($locale);
+        $campaignPlacements = app(CampaignPlacementService::class);
+        $campaignHeroBanners = $campaignPlacements->placementBanners('home_hero', $locale, 1);
+        $campaignCarouselBanners = $campaignPlacements->placementBanners('home_carousel', $locale);
+        $campaignStripBanners = $campaignPlacements->placementBanners('home_strip', $locale, 1);
+        $seasonalDrops = $this->mapSeasonalDrops($locale, $homeBuilder);
+
+        $heroBannerModels = $this->heroBannerModels();
+        $campaignHeroOverride = HeroSettings::campaignOverrideEnabled();
+        $hero = $this->mapHeroSlides($homeContent, $homeBuilder, $heroBannerModels);
+        if ($campaignHeroOverride && ! empty($campaignHeroBanners)) {
+            $hero = $this->mapHeroFromBannerPayloads($campaignHeroBanners);
+        }
+
+        $heroBanners = $this->mapBannerCollection($heroBannerModels, $homeBuilder);
+        if ($campaignHeroOverride && ! empty($campaignHeroBanners)) {
+            $heroBanners = $this->mapCampaignBannerPayloads($campaignHeroBanners);
+        }
+
+        $carouselBanners = $this->mapBannerCollection($this->carouselBannerModels(), $homeBuilder);
+        if (! empty($campaignCarouselBanners)) {
+            $carouselBanners = array_values(array_merge($this->mapCampaignBannerPayloads($campaignCarouselBanners), $carouselBanners));
+        }
+
+        $stripBanners = $this->mapBannerCollection($this->stripBannerModels(), $homeBuilder);
+        if (! empty($campaignStripBanners)) {
+            $stripBanners = $this->mapCampaignBannerPayloads($campaignStripBanners);
+        }
+
+        $fullBanners = $this->mapBannerCollection($this->fullBannerModels(), $homeBuilder);
+        $popupBanners = $this->mapBannerCollection($this->popupBannerModels(), $homeBuilder);
+        $storefront = $this->mapStorefrontSettings($homeBuilder);
+
+        return [
+            'currency' => $currency,
+            'hero' => $hero,
+            'categories' => $categories,
+            'featuredCategories' => $this->featuredCategoriesForHome($locale),
+            'categoryHighlights' => $this->mapCategoryHighlights($homeContent, $homeBuilder),
+            'flashDeals' => $featured,
+            'trending' => $bestSellers,
+            'recommended' => $recommended,
+            'topStrip' => $this->mapTopStrip($homeContent),
+            'valueProps' => $this->defaultValueProps(),
+            'seasonalDrops' => $seasonalDrops,
+            'banners' => [
+                'hero' => $heroBanners,
+                'carousel' => $carouselBanners,
+                'strip' => $stripBanners,
+                'full' => $fullBanners,
+                'popup' => $popupBanners,
+            ],
+            'newsletterPopup' => $this->mapNewsletterPopup($homeBuilder),
+            'storefront' => $storefront,
+        ];
+    }
+
+    private function buildCategoryCards(HomeBuilderService $homeBuilder): array
+    {
+        $locale = app()->getLocale();
+
+        return Cache::remember("home:categories:{$locale}", now()->addMinutes(10), function () use ($homeBuilder, $locale) {
+            $childIdsSubquery = Category::query()
+                ->select('id')
+                ->whereColumn('parent_id', 'categories.id');
+
+            $productsCountSubquery = Product::query()
+                ->selectRaw('COUNT(*)')
+                ->where('is_active', true)
+                ->where(function ($query) use ($childIdsSubquery) {
+                    $query->whereColumn('category_id', 'categories.id')
+                        ->orWhereIn('category_id', $childIdsSubquery);
+                });
+
+            $parents = Category::query()
+                ->select('categories.*')
+                ->addSelect(['products_count' => $productsCountSubquery])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+                ->whereNull('parent_id')
+                ->where('is_active', true)
+                ->having('products_count', '>', 0)
+                ->orderByDesc('products_count')
+                ->orderByDesc('updated_at')
+                ->take(10)
+                ->get();
+
+            $parents = $parents
+                ->sortBy(fn (Category $category) => [
+                    $this->pinnedCategoryPriority($category, $locale),
+                    -1 * (int) ($category->products_count ?? 0),
+                    -1 * (int) optional($category->updated_at)?->getTimestamp(),
+                ])
+                ->values();
+
+            if ($parents->isEmpty()) {
+                return [];
+            }
+
+            $children = Category::query()
+                ->whereIn('parent_id', $parents->pluck('id'))
+                ->where('is_active', true)
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)])
+                ->orderByDesc('view_count')
+                ->orderByDesc('updated_at')
+                ->get()
+                ->groupBy('parent_id');
+
+            $childIds = $children->flatten()->pluck('id')->unique();
+            $latestProductIdsByCategory = $childIds->isEmpty()
+                ? collect()
+                : Product::query()
+                    ->whereIn('category_id', $childIds)
+                    ->where('is_active', true)
+                    ->selectRaw('MAX(id) as id, category_id')
+                    ->groupBy('category_id')
+                    ->pluck('id', 'category_id');
+
+            $productImages = $latestProductIdsByCategory->isEmpty()
+                ? collect()
+                : ProductImage::query()
+                    ->whereIn('product_id', $latestProductIdsByCategory->values())
+                    ->orderBy('position')
+                    ->get()
+                    ->groupBy('product_id');
+
+            $previewLookup = $parents->mapWithKeys(function (Category $parent) use ($children, $homeBuilder, $latestProductIdsByCategory, $productImages, $locale) {
+                $previews = $children->get($parent->id, collect())
+                    ->take(4)
+                    ->map(function (Category $child) use ($homeBuilder, $latestProductIdsByCategory, $productImages, $locale) {
+                        $image = $homeBuilder->normalizeImage($child->hero_image);
+                        if (! $image) {
+                            $productId = $latestProductIdsByCategory->get($child->id);
+                            $image = $productId
+                                ? $homeBuilder->normalizeImage(optional($productImages->get($productId))->first()?->url)
+                                : null;
+                        }
+
+                        return [
+                            'id' => $child->id,
+                            'name' => $child->translatedValue('name', $locale),
+                            'slug' => $child->slug,
+                            'image_url' => $image,
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return [$parent->id => $previews];
+            });
+
+            return $parents
+                ->map(fn (Category $category, int $index) => $this->mapCategoryCard($category, $index, $homeBuilder, $previewLookup->get($category->id, [])))
+                ->values()
+                ->all();
+        });
+    }
+
+    private function featuredCategoriesForHome(string $locale): array
+    {
+        $flagColumn = Schema::hasColumn('categories', 'is_featured')
+            ? 'is_featured'
+            : (Schema::hasColumn('categories', 'is_feature') ? 'is_feature' : null);
+
+        if (! $flagColumn) {
+            return [];
+        }
+
+        $idSignature = Category::query()
+            ->where($flagColumn, true)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->pluck('id')
+            ->implode(',');
+
+        $cacheKey = "mobile:featured-categories:{$locale}:" . md5($idSignature);
+
+        return Cache::remember($cacheKey, now()->addMinutes(20), function () use ($flagColumn, $locale) {
+            $query = Category::query()
+                ->where('is_active', true)
+                ->where($flagColumn, true)
+                ->select(['id', 'name', 'slug', 'hero_image', 'parent_id', 'created_at', "{$flagColumn} as is_featured"])
+                ->with(['translations' => fn ($q) => $q->where('locale', $locale)]);
+
+            if (Schema::hasColumn('categories', 'featured_order')) {
+                $query->orderByRaw('featured_order is null')->orderBy('featured_order');
+            }
+
+            $query->orderBy('created_at')->orderBy('name');
+
+            return $query->get()
+                ->sortBy(fn (Category $category) => [
+                    $this->pinnedCategoryPriority($category, $locale),
+                    (int) ($category->featured_order ?? PHP_INT_MAX),
+                    optional($category->created_at)?->getTimestamp() ?? 0,
+                    $category->translatedValue('name', $locale),
+                ])
+                ->values()
+                ->map(function (Category $category) use ($locale) {
+                    return [
+                    'id' => $category->id,
+                    'name' => $category->translatedValue('name', $locale),
+                    'slug' => $category->slug,
+                    'image' => $category->hero_image,
+                    'parent_id' => $category->parent_id,
+                    'is_featured' => (bool) $category->is_featured,
+                    ];
+                })->all();
+        });
+    }
+
+    private function mapCategoryCard(Category $category, int $index, HomeBuilderService $homeBuilder, array $subcategoryPreviews = []): array
+    {
+        $image = $homeBuilder->normalizeImage($category->hero_image);
+        $locale = app()->getLocale();
+
+        return [
+            'id' => $category->id,
+            'name' => $category->translatedValue('name', $locale),
+            'slug' => $category->slug,
+            'count' => $category->products_count ?? 0,
+            'product_count' => (int) ($category->products_count ?? 0),
+            'image' => $image,
+            'heroImage' => $image,
+            'accent' => $this->accentForIndex($category->id ?: $index),
+            'subcategory_previews' => $subcategoryPreviews,
+        ];
+    }
+
+    private function mapHeroSlides(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder, ?Collection $fallbackBanners = null): array
+    {
+        $slides = $homeContent?->hero_slides ?? [];
+        if (! is_array($slides) || empty($slides)) {
+            return $this->mapHeroFromBanners($homeBuilder, $fallbackBanners);
+        }
+
+        return collect($slides)->map(function (array $slide, int $index) use ($homeBuilder) {
+            $image = $homeBuilder->normalizeImage($slide['image'] ?? null);
+
+            return [
+                'id' => $slide['id'] ?? 'hero-' . $index,
+                'kicker' => $slide['kicker'] ?? 'Featured',
+                'title' => $slide['title'] ?? '',
+                'subtitle' => $slide['subtitle'] ?? '',
+                'cta' => $slide['primary_label'] ?? 'Shop now',
+                'href' => $slide['primary_href'] ?? '/products',
+                'image' => $image,
+                'tone' => $this->toneForIndex($index),
+            ];
+        })->values()->all();
+    }
+
+    private function mapHeroFromBanners(HomeBuilderService $homeBuilder, ?Collection $banners = null): array
+    {
+        $banners = $banners ?? $this->heroBannerModels();
+        $locale = app()->getLocale();
+
+        return $banners->map(function (StorefrontBanner $banner, int $index) use ($homeBuilder, $locale) {
+            return [
+                'id' => $banner->id,
+                'kicker' => $banner->localizedValue('badge_text', $locale) ?? 'Featured',
+                'title' => $banner->localizedValue('title', $locale) ?? 'Shop now',
+                'subtitle' => $banner->localizedValue('description', $locale) ?? '',
+                'cta' => $banner->localizedValue('cta_text', $locale) ?? 'Shop now',
+                'href' => $banner->getCtaUrl(),
+                'image' => $this->resolveBannerImage($banner, $homeBuilder),
+                'tone' => $banner->background_color ?? $this->toneForIndex($index),
+            ];
+        })->values()->all();
+    }
+
+    private function mapHeroFromBannerPayloads(array $banners): array
+    {
+        return collect($banners)->map(function (array $banner, int $index) {
+            return [
+                'id' => $banner['id'] ?? 'campaign-' . $index,
+                'kicker' => $banner['badgeText'] ?? 'Featured',
+                'title' => $banner['title'] ?? 'Shop now',
+                'subtitle' => $banner['description'] ?? '',
+                'cta' => $banner['ctaText'] ?? 'Shop now',
+                'href' => $banner['ctaUrl'] ?? '/products',
+                'image' => $banner['imagePath'] ?? null,
+                'tone' => $banner['backgroundColor'] ?? $this->toneForIndex($index),
+            ];
+        })->values()->all();
+    }
+
+    private function heroBannerModels(): Collection
+    {
+        return StorefrontBanner::active()
+            ->byDisplayType('hero')
+            ->where(function ($query) {
+                $query->where('target_type', 'none')
+                    ->orWhereNull('target_type');
+            })
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    private function carouselBannerModels(): Collection
+    {
+        return StorefrontBanner::active()
+            ->byDisplayType('carousel')
+            ->where(function ($query) {
+                $query->where('target_type', 'none')
+                    ->orWhereNull('target_type');
+            })
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    private function stripBannerModels(): Collection
+    {
+        return StorefrontBanner::active()
+            ->byDisplayType('strip')
+            ->where(function ($query) {
+                $query->where('target_type', 'none')
+                    ->orWhereNull('target_type');
+            })
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    private function fullBannerModels(): Collection
+    {
+        return StorefrontBanner::active()
+            ->whereIn('display_type', ['full', 'full_image'])
+            ->where(function ($query) {
+                $query->where('target_type', 'none')
+                    ->orWhereNull('target_type');
+            })
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    private function popupBannerModels(): Collection
+    {
+        return StorefrontBanner::active()
+            ->byDisplayType('popup')
+            ->with(['product.images', 'category'])
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    private function mapBannerCollection(Collection $banners, HomeBuilderService $homeBuilder): array
+    {
+        $locale = app()->getLocale();
+
+        return $banners->map(function (StorefrontBanner $banner) use ($homeBuilder, $locale) {
+            $targeting = is_array($banner->targeting ?? null) ? $banner->targeting : [];
+
+            return [
+                'id' => (string) $banner->id,
+                'title' => $banner->localizedValue('title', $locale),
+                'description' => $banner->localizedValue('description', $locale),
+                'type' => $banner->type,
+                'displayType' => $banner->display_type,
+                'image' => $this->resolveBannerImage($banner, $homeBuilder),
+                'imageMode' => $targeting['image_mode'] ?? 'cover',
+                'backgroundColor' => $banner->background_color,
+                'textColor' => $banner->text_color,
+                'badgeText' => $banner->localizedValue('badge_text', $locale),
+                'badgeColor' => $banner->badge_color,
+                'ctaText' => $banner->localizedValue('cta_text', $locale),
+                'ctaUrl' => $banner->getCtaUrl(),
+                'endsAt' => $banner->ends_at?->toIso8601String(),
+            ];
+        })->values()->all();
+    }
+
+    private function mapCampaignBannerPayloads(array $banners): array
+    {
+        return collect($banners)->map(function (array $banner, int $index) {
+            return [
+                'id' => (string) ($banner['id'] ?? 'campaign-' . $index),
+                'title' => $banner['title'] ?? null,
+                'description' => $banner['description'] ?? null,
+                'type' => $banner['type'] ?? 'campaign',
+                'displayType' => $banner['displayType'] ?? 'hero',
+                'image' => $banner['imagePath'] ?? null,
+                'imageMode' => $banner['imageMode'] ?? null,
+                'backgroundColor' => $banner['backgroundColor'] ?? null,
+                'textColor' => $banner['textColor'] ?? null,
+                'badgeText' => $banner['badgeText'] ?? null,
+                'badgeColor' => $banner['badgeColor'] ?? null,
+                'ctaText' => $banner['ctaText'] ?? null,
+                'ctaUrl' => $banner['ctaUrl'] ?? null,
+                'endsAt' => null,
+            ];
+        })->values()->all();
+    }
+
+    private function mapTopStrip(?HomePageSetting $homeContent): array
+    {
+        $strip = $homeContent?->top_strip ?? [];
+        if (! is_array($strip) || empty($strip)) {
+            return [
+                ['icon' => 'zap', 'title' => 'Flash deals daily', 'subtitle' => 'New drops every 24h.'],
+                ['icon' => 'check-circle', 'title' => 'Verified stock', 'subtitle' => 'We check suppliers for you.'],
+                ['icon' => 'truck', 'title' => 'Fast delivery', 'subtitle' => 'Clear ETAs at checkout.'],
+            ];
+        }
+
+        return collect($strip)->map(fn (array $item) => [
+            'icon' => (string) ($item['icon'] ?? 'zap'),
+            'title' => $item['title'] ?? 'Flash deals daily',
+            'subtitle' => $item['subtitle'] ?? 'New drops every 24h.',
+        ])->values()->all();
+    }
+
+    private function mapSeasonalDrops(string $locale, HomeBuilderService $homeBuilder): array
+    {
+        $campaigns = StorefrontCampaign::query()
+            ->where('is_active', true)
+            ->orderByDesc('priority')
+            ->orderByDesc('starts_at')
+            ->get()
+            ->filter(fn (StorefrontCampaign $campaign) => $campaign->isActiveForLocale($locale))
+            ->filter(fn (StorefrontCampaign $campaign) => in_array($campaign->type, ['seasonal', 'drop', 'event'], true))
+            ->take(4);
+
+        $collections = StorefrontCollection::query()
+            ->orderBy('display_order')
+            ->get()
+            ->filter(fn (StorefrontCollection $collection) => $collection->isActiveForLocale($locale))
+            ->filter(fn (StorefrontCollection $collection) => in_array($collection->type, ['seasonal', 'drop', 'guide', 'collection'], true))
+            ->take(6);
+
+        $campaignItems = [];
+
+        foreach ($campaigns as $campaign) {
+            $campaignItems[] = [
+                'id' => 'campaign-' . $campaign->id,
+                'kind' => 'campaign',
+                'kicker' => $campaign->localizedValue('hero_kicker', $locale) ?? strtoupper($campaign->type),
+                'title' => $campaign->localizedValue('name', $locale) ?? $campaign->name,
+                'subtitle' => $campaign->localizedValue('hero_subtitle', $locale) ?? '',
+                'image' => $homeBuilder->normalizeImage($campaign->hero_image),
+                'href' => '/campaigns/' . $campaign->slug,
+                'tag' => $campaign->stacking_mode === 'exclusive' ? 'Exclusive' : 'Drop',
+            ];
+        }
+
+        $collectionItems = [];
+
+        foreach ($collections as $collection) {
+            $collectionItems[] = [
+                'id' => 'collection-' . $collection->id,
+                'kind' => 'collection',
+                'kicker' => $collection->localizedValue('hero_kicker', $locale) ?? strtoupper($collection->type),
+                'title' => $collection->localizedValue('title', $locale) ?? $collection->title,
+                'subtitle' => $collection->localizedValue('description', $locale) ?? '',
+                'image' => $homeBuilder->normalizeImage($collection->hero_image),
+                'href' => '/collections/' . $collection->slug,
+                'tag' => $collection->type === 'guide' ? 'Guide' : 'Collection',
+            ];
+        }
+
+        $items = array_merge(
+            array_slice($campaignItems, 0, 3),
+            array_slice($collectionItems, 0, 3),
+        );
+
+        if (count($items) < 6) {
+            $items = array_slice(array_merge(
+                $items,
+                array_slice($campaignItems, 3),
+                array_slice($collectionItems, 3),
+            ), 0, 6);
+        }
+
+        return $items;
+    }
+
+    private function mapNewsletterPopup(HomeBuilderService $homeBuilder): ?array
+    {
+        $settings = StorefrontSetting::latestForLocale(app()->getLocale());
+        if (! $settings?->newsletter_popup_enabled) {
+            return null;
+        }
+
+        return [
+            'enabled' => true,
+            'title' => $settings->newsletter_popup_title,
+            'body' => $settings->newsletter_popup_body,
+            'incentive' => $settings->newsletter_popup_incentive,
+            'image' => $homeBuilder->normalizeImage($settings->newsletter_popup_image),
+            'delaySeconds' => $settings->newsletter_popup_delay_seconds,
+            'dismissDays' => $settings->newsletter_popup_dismiss_days,
+            'source' => 'mobile_popup',
+        ];
+    }
+
+    private function resolveBannerImage(StorefrontBanner $banner, HomeBuilderService $homeBuilder): ?string
+    {
+        if ($banner->image_path) {
+            return $homeBuilder->normalizeImage($banner->image_path);
+        }
+
+        if ($banner->target_type === 'product' && $banner->product) {
+            $image = $banner->product->images?->first()?->url ?? null;
+            return $homeBuilder->normalizeImage($image);
+        }
+
+        if ($banner->target_type === 'category' && $banner->category) {
+            return $homeBuilder->normalizeImage($banner->category->hero_image ?? null);
+        }
+
+        return null;
+    }
+
+    private function mapStorefrontSettings(HomeBuilderService $homeBuilder): array
+    {
+        $storefront = StorefrontSetting::latestForLocale(app()->getLocale());
+        $site = SiteSetting::query()->latest()->first();
+
+        return [
+            'brandName' => $storefront?->brand_name ?? $site?->site_name ?? config('app.name', 'Store'),
+            'logo' => $this->resolveLogoPath($site, $homeBuilder),
+        ];
+    }
+
+    private function resolveLogoPath(?SiteSetting $site, HomeBuilderService $homeBuilder): ?string
+    {
+        $logo = $site?->logo_path ?? null;
+        if (is_array($logo)) {
+            $logo = $logo['path'] ?? $logo['url'] ?? $logo[0] ?? null;
+        }
+        if (is_string($logo) && $logo !== '') {
+            return $homeBuilder->normalizeImage($logo);
+        }
+        return null;
+    }
+
+    private function mapCategoryHighlights(?HomePageSetting $homeContent, HomeBuilderService $homeBuilder): array
+    {
+        $highlights = $homeContent ? $homeContent->category_highlights : [];
+        if (!is_array($highlights) || empty($highlights)) {
+            return [];
+        }
+
+        $locale = app()->getLocale();
+        
+        return collect($highlights)->map(function (array $highlight, int $index) use ($homeBuilder, $locale) {
+            $categoryId = $highlight['category_id'] ?? null;
+            if (!$categoryId) {
+                return null;
+            }
+            
+            $category = Category::find($categoryId);
+            if (!$category) {
+                return null;
+            }
+
+            $image = $highlight['image'] ?? null;
+            if (is_string($image) && $image !== '') {
+                $image = $homeBuilder->normalizeImage($image);
+            }
+            if (!$image && $category->hero_image) {
+                $image = $homeBuilder->normalizeImage($category->hero_image);
+            }
+            if (!$image) {
+                // Get a product image from this category as fallback
+                $productImage = Product::query()
+                    ->where('category_id', $category->id)
+                    ->where('is_active', true)
+                    ->join('product_images', 'products.id', '=', 'product_images.product_id')
+                    ->orderBy('product_images.position')
+                    ->value('product_images.url');
+                $image = $productImage ? $homeBuilder->normalizeImage($productImage) : null;
+            }
+
+            $categoryName = $category->name ?? 'Category';
+            $title = $highlight['title'] ?? $categoryName;
+            $ctaLink = $highlight['cta_link'] ?? '/products?category=' . urlencode($category->slug);
+
+            return [
+                'id' => 'highlight-' . $categoryId,
+                'categoryId' => $category->id,
+                'categorySlug' => $category->slug,
+                'title' => $title,
+                'description' => $highlight['description'] ?? null,
+                'image' => $image,
+                'ctaLabel' => $highlight['cta_label'] ?? 'Shop Now',
+                'ctaLink' => $ctaLink,
+                'accentColor' => $highlight['accent_color'] ?? $this->accentForIndex($index),
+                'featured' => (bool) ($highlight['featured'] ?? false),
+                'productCount' => (int) ($category->products_count ?? $this->getCategoryProductCount($category)),
+            ];
+        })->filter()->values()->all();
+    }
+
+    private function getCategoryProductCount(Category $category): int
+    {
+        $childIds = Category::query()
+            ->where('parent_id', $category->id)
+            ->pluck('id')
+            ->toArray();
+
+        return Product::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($category, $childIds) {
+                $query->where('category_id', $category->id)
+                    ->orWhereIn('category_id', $childIds);
+            })
+            ->count();
+    }
+
+    private function defaultValueProps(): array
+    {
+        return [
+            [
+                'title' => 'Fast dispatch',
+                'body' => 'Suppliers confirm within 24-48 hours.',
+            ],
+            [
+                'title' => 'Easy returns',
+                'body' => 'Refunds if your item has issues.',
+            ],
+            [
+                'title' => 'Live support',
+                'body' => 'Chat with us 24/7 for order help.',
+            ],
+        ];
+    }
+
+    private function toneForIndex(int $index): string
+    {
+        return ['#1f2937', '#111827', '#0f172a', '#1e1b4b'][$index % 4];
+    }
+
+    private function accentForIndex(int $index): string
+    {
+        return ['#f97316', '#0ea5e9', '#22c55e', '#f59e0b'][$index % 4];
+    }
+}

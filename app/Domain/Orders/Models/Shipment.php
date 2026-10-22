@@ -1,0 +1,257 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Orders\Models;
+
+use App\Enums\ShipmentExceptionCode;
+use App\Events\Orders\CustomsUpdated;
+use App\Events\Orders\FulfillmentDelayed;
+use App\Models\ShipmentItem;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Order as AppOrder;
+use App\Domain\Orders\Models\Order as DomainOrder;
+use App\Domain\Orders\Models\OrderItem as DomainOrderItem;
+
+class Shipment extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'order_id',
+        'order_item_id',
+        'cj_order_id',
+        'shipment_order_id',
+        'tracking_number',
+        'carrier',
+        'logistic_name',
+        'tracking_url',
+        'postage_amount',
+        'currency',
+        'shipped_at',
+        'delivered_at',
+        'raw_events',
+        'exception_code',
+        'exception_reason',
+        'exception_at',
+        'resolved_at',
+        'admin_notes',
+        'is_at_risk',
+    ];
+
+    protected $casts = [
+        'raw_events' => 'array',
+        'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'exception_at' => 'datetime',
+        'resolved_at' => 'datetime',
+        'postage_amount' => 'decimal:2',
+        'exception_code' => ShipmentExceptionCode::class,
+        'is_at_risk' => 'boolean',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updated(function (Shipment $shipment): void {
+            if (!$shipment->wasChanged('exception_code')) {
+                return;
+            }
+
+            $exception = $shipment->exception_code;
+            if (!$exception instanceof ShipmentExceptionCode) {
+                return;
+            }
+
+            $order = $shipment->orderItem?->order;
+            if (!$order) {
+                return;
+            }
+
+            // Ensure we dispatch events with App\Models\Order (listeners expect it).
+            $appOrder = $order instanceof AppOrder
+                ? $order
+                : AppOrder::query()->find($order->id);
+
+            if (!$appOrder) {
+                return;
+            }
+
+            $reason = $shipment->exception_reason ?: $exception->label();
+
+            if ($exception->isCustomsIssue()) {
+                event(new CustomsUpdated($appOrder, $reason));
+            }
+
+            if ($exception->isTrackingIssue()) {
+                event(new FulfillmentDelayed($appOrder, null, $reason));
+            }
+        });
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function orderItem(): BelongsTo
+    {
+        return $this->belongsTo(OrderItem::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(ShipmentItem::class);
+    }
+
+    public function trackingEvents(): HasMany
+    {
+        return $this->hasMany(TrackingEvent::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    public function exceptions(): HasMany
+    {
+        return $this->hasMany(ShipmentException::class);
+    }
+
+    public function latestException()
+    {
+        return $this->hasOne(ShipmentException::class)
+            ->latestOfMany('occurred_at');
+    }
+
+    public function exceptionResolutions(): HasMany
+    {
+        return $this->hasMany(ShipmentExceptionResolution::class);
+    }
+
+    public function messageLogs(): HasMany
+    {
+        return $this->hasMany(\App\Domain\Messaging\Models\MessageLog::class);
+    }
+
+    // ==================== Helper Methods ====================
+
+    public function hasException(): bool
+    {
+        return !is_null($this->exception_code);
+    }
+
+    public function isResolved(): bool
+    {
+        return !is_null($this->resolved_at);
+    }
+
+    public function isAtRisk(): bool
+    {
+        return $this->is_at_risk === true;
+    }
+
+    public function markAsAtRisk(string $reason = 'No tracking updates'): void
+    {
+        $this->update([
+            'is_at_risk' => true,
+            'exception_code' => ShipmentExceptionCode::TRACKING_NO_UPDATES,
+            'exception_reason' => $reason,
+            'exception_at' => now(),
+        ]);
+
+        // Create exception record
+        $this->exceptions()->create([
+            'exception_code' => ShipmentExceptionCode::TRACKING_NO_UPDATES,
+            'exception_reason' => $reason,
+            'occurred_at' => now(),
+            'source' => 'system',
+        ]);
+    }
+
+    public function markExceptionResolved(string $resolutionCode, string $adminNotes, ?\App\Models\User $user = null): void
+    {
+        $user = $user ?? auth()->user();
+
+        $this->update([
+            'resolved_at' => now(),
+            'admin_notes' => $adminNotes,
+            'is_at_risk' => false,
+        ]);
+
+        // Get latest exception
+        $exception = $this->latestException;
+        if ($exception) {
+            $exception->resolutions()->create([
+                'shipment_id' => $this->id,
+                'resolution_code' => $resolutionCode,
+                'admin_notes' => $adminNotes,
+                'resolved_at' => now(),
+                'resolved_by' => $user?->id,
+            ]);
+        }
+    }
+
+    public function scopeAtRisk($query)
+    {
+        return $query->where('is_at_risk', true);
+    }
+
+    /**
+     * Build stable lookup keys for shipment upserts before tracking exists.
+     *
+     * @return array<string, mixed>
+     */
+    public static function matchAttributesForOrderItem(DomainOrderItem $orderItem, ?string $trackingNumber, ?string $shipmentOrderId, ?string $cjOrderId): array
+    {
+        if ($shipmentOrderId) {
+            return ['shipment_order_id' => $shipmentOrderId];
+        }
+
+        if ($trackingNumber) {
+            return [
+                'order_item_id' => $orderItem->id,
+                'tracking_number' => $trackingNumber,
+            ];
+        }
+
+        if ($cjOrderId) {
+            return [
+                'order_item_id' => $orderItem->id,
+                'cj_order_id' => $cjOrderId,
+            ];
+        }
+
+        return ['order_item_id' => $orderItem->id];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function matchAttributesForOrder(DomainOrder $order, ?string $trackingNumber, ?string $shipmentOrderId, ?string $cjOrderId): array
+    {
+        if ($shipmentOrderId) {
+            return ['shipment_order_id' => $shipmentOrderId];
+        }
+
+        if ($trackingNumber) {
+            return [
+                'order_id' => $order->id,
+                'tracking_number' => $trackingNumber,
+            ];
+        }
+
+        if ($cjOrderId) {
+            return [
+                'order_id' => $order->id,
+                'cj_order_id' => $cjOrderId,
+            ];
+        }
+
+        return ['order_id' => $order->id];
+    }
+
+}

@@ -1,0 +1,119 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Webhooks;
+
+use App\Domain\Payments\Models\PaymentWebhook;
+use App\Domain\Payments\PaymentService;
+use App\Infrastructure\Payments\Paystack\PaystackService;
+use App\Models\Payment;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+
+class PaystackWebhookController
+{
+    public function __invoke(
+        Request $request,
+        PaystackService $paystackService,
+        PaymentService $paymentService
+    ): Response {
+        // ✅ Webhooks should be POST-only
+        if (!$request->isMethod('POST')) {
+            return response('Method not allowed', SymfonyResponse::HTTP_METHOD_NOT_ALLOWED);
+        }
+
+        $payload = $request->getContent();
+        $signature = (string) $request->header('x-paystack-signature', '');
+
+        // ✅ Validate webhook signature
+        if ($signature === '' || !$paystackService->validateWebhook($payload, $signature)) {
+            return response('Invalid signature', SymfonyResponse::HTTP_UNAUTHORIZED);
+        }
+
+        $event = (string) $request->input('event');
+        $data = $request->input('data');
+
+        // ✅ Only handle success
+        if ($event !== 'charge.success' || !is_array($data)) {
+            return response('Ignored', SymfonyResponse::HTTP_OK);
+        }
+
+        $reference = (string) ($data['reference'] ?? '');
+        $eventId = (string) ($data['id'] ?? ('charge.success:' . $reference));
+
+        if ($reference === '') {
+            return response('Missing reference', SymfonyResponse::HTTP_BAD_REQUEST);
+        }
+
+        // ✅ Prevent duplicate processing
+        $existing = PaymentWebhook::query()
+            ->where('provider', 'paystack')
+            ->where('external_event_id', $eventId)
+            ->whereNotNull('processed_at')
+            ->first();
+
+        if ($existing) {
+            return response('Already processed', SymfonyResponse::HTTP_OK);
+        }
+
+        DB::transaction(function () use ($reference, $eventId, $paystackService, $paymentService) {
+
+            $verification = $paystackService->verifyTransaction($reference);
+
+            if (($verification['status'] ?? null) !== 'success') {
+                return;
+            }
+
+            $payment = Payment::query()
+                ->where('provider', 'paystack')
+                ->where('provider_reference', $reference)
+                ->with('order')
+                ->lockForUpdate()
+                ->latest('id')
+                ->firstOrFail();
+
+            if ($payment->status === 'paid') {
+                return;
+            }
+
+            // ✅ Save webhook record
+            PaymentWebhook::create([
+                'provider' => 'paystack',
+                'external_event_id' => $eventId,
+                'payment_id' => $payment->id,
+                'payload' => $verification,
+                'processed_at' => now(),
+            ]);
+
+            // ✅ Mark as paid
+            $paymentService->markAsPaid($payment);
+
+            // Clear cart after successful payment via webhook (backup for callback bypass)
+            if ($payment->order && $payment->order->customer_id) {
+                Log::info("Clearing customer cart via webhook", [
+                    "reference" => $reference,
+                    "payment_id" => $payment->id,
+                    "order_id" => $payment->order->id,
+                    "customer_id" => $payment->order->customer_id,
+                ]);
+
+                $cart = \App\Models\Cart::where("user_id", $payment->order->customer_id)->first();
+                if ($cart) {
+                    $cart->emptyCart();
+                    \App\Services\AbandonedCartService::markRecovered();
+                    
+                    Log::info("Cart cleared via webhook", [
+                        "cart_id" => $cart->id,
+                        "payment_id" => $payment->id,
+                    ]);
+                }
+            }
+        });
+
+        return response('OK', SymfonyResponse::HTTP_OK);
+    }
+}

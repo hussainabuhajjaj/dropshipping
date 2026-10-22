@@ -1,0 +1,47 @@
+<?php
+
+namespace App\Http\Resources\User;
+
+use App\Support\ResolvesStorefrontVariantLabels;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class CartResource extends JsonResource
+{
+    use ResolvesStorefrontVariantLabels;
+
+    /**
+     * Transform the resource into an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        $product = $this->product;
+        $variant = $this->variant;
+        $attributes = is_array($product?->attributes ?? null) ? $product->attributes : [];
+        $variantTitle = $variant
+            ? $this->resolveVariantDisplayTitle($variant, $variant->title, $product?->name)
+            : null;
+
+        return [
+            'id' => $this['id'],
+            'product_id' => $this['product_id'],
+            'variant_id' => $this['variant_id'],
+            'fulfillment_provider_id' => $this['fulfillment_provider_id'],
+            'quantity' => $this['quantity'],
+            'stock_on_hand' => $this['stock_on_hand'],
+            'category_id' => $product?->category_id,
+            'slug' => $product?->slug,
+            'name' => $product?->name,
+            'variant' => $variantTitle ?: $variant?->sku,
+            'price' => $this->getSinglePrice(),
+            'compare_at_price' => $variant?->compare_at_price !== null ? (float) $variant->compare_at_price : null,
+            'currency' => $variant?->currency ?? $product?->currency ?? 'USD',
+            'media' => $product?->images?->sortBy('position')->pluck('url')->values()->all() ?? [],
+            'sku' => $variant?->sku,
+            'cj_pid' => $attributes['cj_pid'] ?? null,
+            'cj_vid' => $variant?->metadata['cj_vid'] ?? null,
+        ];
+    }
+}

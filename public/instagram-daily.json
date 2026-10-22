@@ -1,0 +1,66 @@
+{
+    "date": "2026-07-31",
+    "category": "mixed",
+    "posts": [
+        {
+            "date": "2026-07-31",
+            "rank": 1,
+            "product": {
+                "id": 1,
+                "name": "Princess-style Girls' Model Runway Dress",
+                "price": "35.09",
+                "url": "http://localhost/products/1"
+            },
+            "image_url": "https://cf.cjdropshipping.com/quick/product/75ffe1e4-30ee-41bc-8570-d4dffbdcd21f.jpg",
+            "caption": "\ud83d\udecd\ufe0f Psst\u2026 your new favorite dress just dropped at $35.09\n\n\ud83d\udd17 http://localhost/products/1",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#onlineshopping",
+                "#newarrivals",
+                "#dropshipping"
+            ]
+        },
+        {
+            "date": "2026-07-31",
+            "rank": 2,
+            "product": {
+                "id": 6,
+                "name": "Women's Low-cut Stiletto Heels With Crystal Silver Bow",
+                "price": "43.83",
+                "url": "http://localhost/products/6"
+            },
+            "image_url": "https://cf.cjdropshipping.com/ac354c72-4768-4240-a483-0b24c77fa17b.jpg",
+            "caption": "\u2b50 Customer fave alert! Women's Low-cut Stiletto Heels With Crystal Silver Bow \u2014 $43.83 and ready to ship\n\n\ud83d\udd17 http://localhost/products/6",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#musthave",
+                "#shopnow",
+                "#onlineshopping"
+            ]
+        },
+        {
+            "date": "2026-07-31",
+            "rank": 3,
+            "product": {
+                "id": 3531,
+                "name": "Women's Fashionable Two-Piece Dress Set",
+                "price": "69.52",
+                "url": "http://localhost/products/3531"
+            },
+            "image_url": "https://cf.cjdropshipping.com/quick/product/5e414874-53bd-4ac4-aded-210288b57c2e.jpg",
+            "caption": "\ud83d\udd25 You asked, we delivered! Women's Fashionable Two-Piece Dress Set is now available for $69.52\n\nTap to shop \ud83d\udc46\n\n\ud83d\udd17 http://localhost/products/3531",
+            "hashtags": [
+                "#simbazustyle",
+                "#fashion",
+                "#style",
+                "#musthave",
+                "#shopnow",
+                "#newarrivals"
+            ]
+        }
+    ]
+}

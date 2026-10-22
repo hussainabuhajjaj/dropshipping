@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use App\Domain\Fulfillment\Models\FulfillmentProvider;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class SiteSetting extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'default_fulfillment_provider_id',
+        'support_email',
+        'support_whatsapp',
+        'support_phone',
+        'support_hours',
+        'site_name',
+        'site_description',
+        'meta_title',
+        'meta_description',
+        'meta_keywords',
+        'logo_path',
+        'favicon_path',
+        'timezone',
+        'primary_color',
+        'secondary_color',
+        'accent_color',
+        'delivery_window',
+        'shipping_message',
+        'customs_message',
+        'tax_label',
+        'tax_rate',
+        'tax_included',
+        'shipping_handling_fee',
+        'free_shipping_threshold',
+        'shipping_policy',
+        'refund_policy',
+        'privacy_policy',
+        'terms_of_service',
+        'customs_disclaimer',
+        'about_page_html',
+        'auto_approve_reviews',
+        'auto_approve_review_days',
+        'cj_last_sync_at',
+        'cj_last_sync_summary',
+        'cj_auto_approve_delay_hours',
+        'min_cart_total',
+        'min_cart_total_enabled',
+        'locale_overrides',
+        'typesense_search_key',
+        'typesense_admin_key',
+        'abandoned_cart_config',
+        'cross_sell_config',
+        'win_back_config',
+    ];
+
+    protected $casts = [
+        'auto_approve_reviews' => 'boolean',
+        'auto_approve_review_days' => 'integer',
+        'tax_rate' => 'float',
+        'tax_included' => 'boolean',
+        'shipping_handling_fee' => 'float',
+        'free_shipping_threshold' => 'float',
+        'min_cart_total' => 'float',
+        'min_cart_total_enabled' => 'boolean',
+        'cj_last_sync_at' => 'datetime',
+        'support_hours' => 'string',
+        'about_page_html' => 'string',
+        'logo_path' => 'array',
+        'locale_overrides' => 'array',
+        'typesense_search_key' => 'string',
+        'typesense_admin_key' => 'string',
+        'abandoned_cart_config' => 'array',
+        'cross_sell_config' => 'array',
+        'win_back_config' => 'array',
+    ];
+
+    // Accessor/mutator for CJ auto-approve delay (hours)
+    public function getCjAutoApproveDelayHoursAttribute(): int
+    {
+        return (int) ($this->attributes['cj_auto_approve_delay_hours'] ?? 24);
+    }
+
+    public function setCjAutoApproveDelayHoursAttribute($value): void
+    {
+        $this->attributes['cj_auto_approve_delay_hours'] = (int) $value;
+    }
+
+    public function defaultFulfillmentProvider(): BelongsTo
+    {
+        return $this->belongsTo(FulfillmentProvider::class, 'default_fulfillment_provider_id');
+    }
+
+    public function localeOverrideMap(): array
+    {
+        $overrides = $this->locale_overrides ?? [];
+
+        return collect($overrides)
+            ->filter(fn ($row) => is_array($row) && ! empty($row['locale']))
+            ->keyBy('locale')
+            ->all();
+    }
+
+    public function localizedValue(string $field, ?string $locale): ?string
+    {
+        if (! $locale) {
+            return $this->{$field} ?? null;
+        }
+
+        $override = $this->localeOverrideMap()[$locale] ?? null;
+        if ($override && array_key_exists($field, $override) && $override[$field] !== null && $override[$field] !== '') {
+            return (string) $override[$field];
+        }
+
+        return $this->{$field} ?? null;
+    }
+}
