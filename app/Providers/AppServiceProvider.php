@@ -79,6 +79,13 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureRateLimiting();
 
+        // Laravel 12 bootstrap does not register app/Console/Kernel, so the
+        // legacy $commands list / commands() loader never runs. Auto-discover
+        // all console commands in app/Console/Commands (same as the old Kernel).
+        if ($this->app->runningInConsole()) {
+            $this->loadCommandsFrom(app_path('Console/Commands'));
+        }
+
         $this->registerFilamentWidgetAliases();
     }
 
@@ -121,6 +128,43 @@ class AppServiceProvider extends ServiceProvider
                 ? Limit::perMinute(10)->by($request->user()->id)
                 : Limit::perMinute(5)->by($request->ip());
         });
+    }
+
+    /**
+     * Register all artisan command classes found in the given directory.
+     * Mirrors Illuminate\Console\Application::commands() / the old Kernel loader.
+     */
+    private function loadCommandsFrom(string $path): void
+    {
+        if (! is_dir($path)) {
+            return;
+        }
+
+        $commands = [];
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $relative = str_replace($path . DIRECTORY_SEPARATOR, '', $file->getPathname());
+            $class = 'App\\Console\\Commands\\' . str_replace(
+                ['.php', DIRECTORY_SEPARATOR],
+                ['', '\\'],
+                $relative
+            );
+
+            if (class_exists($class)) {
+                $commands[] = $class;
+            }
+        }
+
+        $this->app[\Illuminate\Contracts\Console\Kernel::class]->resolveCommands($commands);
     }
 
     private function registerFilamentWidgetAliases(): void
