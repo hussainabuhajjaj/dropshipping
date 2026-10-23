@@ -145,6 +145,22 @@ class HandleInertiaRequests extends Middleware
             'storefront' => $storefront,
             'appUrl' => rtrim(config('app.url'), '/'),
             'locale' => $locale,
+            // Market-aware pricing (Phase 1 — UAE): current storefront market
+            // for display purposes only. Checkout always re-derives the market
+            // from the authoritative shipping destination country.
+            'market' => [
+                'country' => \App\Support\StorefrontMarket::resolveCountry($request),
+                'id' => \App\Support\StorefrontMarket::currentMarket($request),
+                'label' => (string) config("markets.markets.".(\App\Support\StorefrontMarket::currentMarket($request))).".label",
+                'options' => collect((array) config('markets.markets', []))
+                    ->map(fn (array $m, string $key) => [
+                        'id' => $key,
+                        'label' => $m['label'] ?? $key,
+                        'country' => $m['countries'][0] ?? strtoupper($key),
+                    ])
+                    ->values()
+                    ->all(),
+            ],
             'availableLocales' => $this->preferenceService->getAvailableLanguages(),
             'user_preferences' => $userPreferences,
             'translations' => $translations,

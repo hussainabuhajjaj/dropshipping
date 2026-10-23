@@ -235,8 +235,27 @@ class CheckoutController extends Controller
 
         $customer = auth('customer')->user();
         $locale = app()->getLocale();
+
+        // Market-aware pricing (Phase 1 — UAE): the checkout destination
+        // country is the authoritative market selector. Pin the storefront
+        // market to it BEFORE any subtotal/shipping calculation so prices and
+        // freight quotes are consistent for this request. CI destinations keep
+        // the exact existing behavior; AE switches to UAE pricing + CN->AE
+        // CJ freight. The submitted shipping country always wins over the
+        // session/query market preference (?country= can never mis-price an
+        // order relative to its real destination).
+        [$destinationCountry, $destinationAddressId] = $this->resolveDestinationCountry($request, $validatedData);
+        $marketContext = app(\App\Services\Pricing\MarketPriceContext::class);
+        $marketContext->setCountry($destinationCountry);
+        session()->put(\App\Support\StorefrontMarket::SESSION_KEY, $destinationCountry);
+
         $subtotal = $cart->subTotal();
-        $shippingQuote = $cart->quoteShippingForItems($cart_items, true);
+        $shippingQuote = $cart->quoteShippingForItems($cart_items, true, [
+            'country' => $destinationCountry,
+            'province' => $validatedData['state'] ?? null,
+            'city' => $validatedData['city'] ?? null,
+            'zip' => $validatedData['postal_code'] ?? null,
+        ]);
         if ((bool) ($shippingQuote['unavailable'] ?? false)) {
             return back()->withErrors([
                 'cart' => $shippingQuote['reason'] ?? 'Shipping is unavailable for one or more items in your cart.',

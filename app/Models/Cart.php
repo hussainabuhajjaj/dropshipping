@@ -79,11 +79,27 @@ class Cart extends Model
 
     /**
      * @param  \Illuminate\Support\Collection<int, \App\Models\CartItem>  $items
+     * @param  array{country?:string,province?:string,city?:string,zip?:string}|null $destination
+     *         Optional checkout destination. When provided with a UAE country
+     *         code, CJ freight is quoted CN -> AE via CJFreightService instead
+     *         of the legacy CN -> default-warehouse quote. Omitting it keeps
+     *         the existing CI behavior byte-for-byte for all current callers.
      * @return array{total: float, lines: array<int, array<string, mixed>>, unavailable: bool, reason: ?string}
      */
-    public function quoteShippingForItems(Collection $items, bool $persist = false): array
+    public function quoteShippingForItems(Collection $items, bool $persist = false, ?array $destination = null): array
     {
         $this->removeInvalidCjItems();
+
+        // Market-aware pricing (Phase 1 — UAE). When no explicit destination is
+        // passed by the caller, fall back to the session market selector so a
+        // UAE-selected customer gets CN -> AE freight without touching any of
+        // the existing call sites. CI / unset sessions keep the legacy path.
+        if ($destination === null) {
+            $sessionCountry = session(\App\Support\StorefrontMarket::SESSION_KEY);
+            if (\App\Support\StorefrontMarket::isUaeCountry(is_string($sessionCountry) ? $sessionCountry : null)) {
+                $destination = ['country' => strtoupper(trim((string) $sessionCountry))];
+            }
+        }
 
         $providers = $items->groupBy('fulfillment_provider_id');
         $shippingLines = [];
@@ -115,7 +131,9 @@ class Cart extends Model
             $providerSupplierType = (string) ($firstProviderItem?->product?->supplier_type ?? '');
 
             if ($provider_id == 1) {
-                $result = $this->cjShippingQuote($providerItems, $default_warehouse, $persist);
+                $result = \App\Support\StorefrontMarket::isUaeCountry($destination['country'] ?? null)
+                    ? $this->cjUaeFreightQuote($providerItems, $destination, $persist)
+                    : $this->cjShippingQuote($providerItems, $default_warehouse, $persist);
             } elseif ($providerSupplierType === 'aliexpress') {
                 $result = $this->aliexpressShippingQuote($providerItems, $default_warehouse, $persist);
             } else {
@@ -144,6 +162,79 @@ class Cart extends Model
             'unavailable' => $shippingUnavailable,
             'reason' => $shippingUnavailableReason,
         ];
+    }
+
+    /**
+     * UAE checkout freight: reuse the existing destination-aware CJ freight
+     * service (CN -> AE). No CI warehouse rates, no $14/$15 per-kg fallbacks,
+     * no invented rates — only what CJ itself quotes for the destination.
+     */
+    private function cjUaeFreightQuote(Collection $providerItems, ?array $destination, bool $persist): array
+    {
+        $productsForQuote = $providerItems->map(function ($item) {
+            $variant = ProductVariant::query()->find($item['variant_id'] ?? null);
+            $meta = is_array($variant?->metadata ?? null) ? $variant->metadata : [];
+            $vid = $meta['cj_vid'] ?? null;
+
+            if (! $vid) {
+                return null;
+            }
+
+            return [
+                'quantity' => (int) (@$item['quantity'] ?? 1),
+                'vid' => (string) $vid,
+            ];
+        })->filter()->values()->all();
+
+        if (empty($productsForQuote)) {
+            Log::warning('Skipping CN->AE CJ freight quote because no valid cj_vid lines were found', [
+                'cart_id' => $this->id,
+                'provider_id' => 1,
+            ]);
+            return ['line' => null, 'unavailable' => true, 'reason' => 'No valid CJ variants found for shipping quote.'];
+        }
+
+        $country = strtoupper((string) ($destination['country'] ?? 'AE'));
+
+        try {
+            $options = app(\App\Domain\Fulfillment\Services\CJFreightService::class)->quote(
+                array_filter([
+                    'country' => $country,
+                    'province' => $destination['province'] ?? $destination['state'] ?? null,
+                    'city' => $destination['city'] ?? null,
+                    'zip' => $destination['zip'] ?? $destination['postal_code'] ?? null,
+                ], fn ($v) => $v !== null && $v !== ''),
+                $productsForQuote
+            );
+        } catch (\Throwable $e) {
+            Log::warning('CN->AE CJ freight calculation failed', [
+                'cart_id' => $this->id,
+                'error' => $e->getMessage(),
+            ]);
+            return ['line' => null, 'unavailable' => true, 'reason' => 'CJ shipping quote failed.'];
+        }
+
+        // Select the cheapest option, mirroring existing application behavior.
+        $company = collect($options)->sortBy('price')->first();
+
+        if (! $company) {
+            return ['line' => null, 'unavailable' => true, 'reason' => 'CJ returned no shipping options for one or more cart items.'];
+        }
+
+        $line = [
+            'cart_id' => $this['id'],
+            'fulfillment_provider_id' => 1,
+            'logistic_name' => $company['logisticName'] ?? null,
+            'logistic_price' => (float) ($company['price'] ?? 0),
+            'total_postage_fee' => (float) ($company['price'] ?? 0),
+            'aging' => isset($company['estimatedDays']) ? json_encode($company['estimatedDays']) : null,
+        ];
+
+        if ($persist) {
+            CartShipping::query()->create($line);
+        }
+
+        return ['line' => $line, 'unavailable' => false, 'reason' => null];
     }
 
     private function cjShippingQuote(Collection $providerItems, $defaultWarehouse, bool $persist): array

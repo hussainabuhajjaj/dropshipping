@@ -392,6 +392,11 @@ Route::get('/korapay/verify/{reference}', [KorapayController::class, 'verify'])-
 // Currency & Language routes (legacy - redirect to new API)
 Route::post('/currency', [UserPreferenceController::class, 'updateCurrency'])->name('currency.set');
 Route::post('/language', [UserPreferenceController::class, 'updateLanguage'])->name('language.set');
+// Storefront market selector (Phase 1 — UAE). Display preference only; the
+// checkout shipping country always overrides it for order correctness.
+Route::post('/market/{country}', [App\Http\Controllers\Storefront\MarketController::class, 'update'])
+    ->where('country', '[A-Za-z]{2}')
+    ->name('market.set');
 Route::post('/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'setPreferences'])->name('preferences.set');
 Route::get('/api/preferences', [App\Http\Controllers\Storefront\SessionController::class, 'getPreferences'])->name('preferences.get');
 Route::get('aa', function () {

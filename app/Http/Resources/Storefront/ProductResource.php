@@ -6,6 +6,7 @@ namespace App\Http\Resources\Storefront;
 
 use App\Domain\Products\Models\Product;
 use App\Services\Currency\CurrencyConversionService;
+use App\Services\Pricing\MarketPriceContext;
 use App\Services\Pricing\ProductCompareAtService as CompareAtService;
 use App\Services\Storefront\HomeBuilderService;
 use App\Support\ResolvesStorefrontVariantLabels;
@@ -40,6 +41,14 @@ class ProductResource extends JsonResource
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
             $variantImage = $homeBuilder->normalizeImage($this->resolveStorefrontVariantImage($variant));
             $price = $variant->price !== null ? (float) $variant->price : null;
+            // Market-aware override (Phase 1 — UAE): CI keeps stored values;
+            // UAE uses the computed price without CI external shipping.
+            if (app(MarketPriceContext::class)->isUae()) {
+                $marketPrice = app(MarketPriceContext::class)->tryPriceForVariant($variant, $product);
+                if ($marketPrice !== null) {
+                    $price = $marketPrice;
+                }
+            }
             $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
             $referencePrice = $this->compareAtService()->referencePrice(
                 $price,
@@ -69,6 +78,15 @@ class ProductResource extends JsonResource
         $defaultVariant = $pricedVariant ?? $variantPayload[0] ?? null;
         $variantPrice = $defaultVariant['price'] ?? null;
         $sellingPrice = $product->selling_price !== null ? (float) $product->selling_price : null;
+
+        // Market-aware product-level price (backend authoritative). CI keeps
+        // the stored selling_price path untouched; UAE uses the computed price.
+        if (app(MarketPriceContext::class)->isUae()) {
+            $marketProductPrice = app(MarketPriceContext::class)->tryPriceForProduct($product);
+            if ($marketProductPrice !== null) {
+                $sellingPrice = $marketProductPrice;
+            }
+        }
 
         if ($sellingPrice !== null && ($variantPrice === null || $sellingPrice < $variantPrice)) {
             $price = $sellingPrice;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Storefront\Concerns;
 
 use App\Domain\Products\Models\Product;
+use App\Services\Pricing\MarketPriceContext;
 use App\Services\Pricing\ProductCompareAtService as CompareAtService;
 use App\Services\Storefront\HomeBuilderService;
 use App\Support\ResolvesStorefrontVariantLabels;
@@ -15,6 +16,25 @@ trait TransformsProducts
     use ResolvesStorefrontVariantLabels;
 
     protected ?CompareAtService $compareAtService = null;
+
+    /**
+     * Market-aware price for a product (Phase 1 — UAE). CI returns the stored
+     * selling_price exactly as before; UAE computes without CI external
+     * shipping. Returns null when no safe market price exists.
+     */
+    protected function marketProductPrice(Product $product): ?float
+    {
+        return app(MarketPriceContext::class)->tryPriceForProduct($product);
+    }
+
+    protected function marketVariantPrice(mixed $variant, Product $product): ?float
+    {
+        if ($variant === null) {
+            return null;
+        }
+
+        return app(MarketPriceContext::class)->tryPriceForVariant($variant, $product);
+    }
 
     protected function transformProduct(Product $product, bool $includeMeta = false): array
     {
@@ -35,6 +55,14 @@ trait TransformsProducts
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
             $variantImage = $homeBuilder->normalizeImage($this->resolveStorefrontVariantImage($variant));
             $price = $variant->price !== null ? (float) $variant->price : null;
+            // Market-aware override: CI keeps the stored value untouched; UAE
+            // replaces it with the computed price (never silently the CI one).
+            if (app(MarketPriceContext::class)->isUae()) {
+                $marketPrice = $this->marketVariantPrice($variant, $product);
+                if ($marketPrice !== null) {
+                    $price = $marketPrice;
+                }
+            }
             $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
             $referencePrice = $this->compareAtService()->referencePrice(
                 $price,
@@ -58,6 +86,13 @@ trait TransformsProducts
 
         $defaultVariant = $variantPayload[0] ?? null;
         $price = $defaultVariant['price'] ?? (float) ($product->selling_price ?? 0);
+        // Market-aware product-level price for listings (backend authoritative).
+        if (app(MarketPriceContext::class)->isUae()) {
+            $marketProductPrice = $this->marketProductPrice($product);
+            if ($marketProductPrice !== null) {
+                $price = $marketProductPrice;
+            }
+        }
         $currency = $defaultVariant['currency'] ?? $product->currency ?? 'USD';
 
         $wishlist = collect(session('wishlist', []));
