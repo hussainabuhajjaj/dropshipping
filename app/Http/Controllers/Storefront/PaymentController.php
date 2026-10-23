@@ -149,6 +149,14 @@ class PaymentController extends Controller
             return redirect()->route('products.index');
         }
 
+        // Market-aware pricing (Phase 1 — UAE): pin the market BEFORE the cart
+        // summary is computed so subtotal/shipping/order item snapshots all use
+        // the same market. The destination mirrors the address that will
+        // actually be created/used; session or ?country= alone never wins.
+        $destinationCountry = $this->resolvePaymentDestinationCountry($request);
+        app(\App\Services\Pricing\MarketPriceContext::class)->setCountry($destinationCountry);
+        session()->put(\App\Support\StorefrontMarket::SESSION_KEY, $destinationCountry);
+
         $summery = $cart->getSummery();
 
         $extraValidationRules = $this->getItemValidationArray('cart');
@@ -159,27 +167,6 @@ class PaymentController extends Controller
         $method = (string) $request->input('method');
 
         session()->put('request_body', $request->all());
-
-        // Market-aware pricing (Phase 1 — UAE): pin the storefront market to
-        // the submitted/selected destination country BEFORE order creation so
-        // unit prices snapshotted into order_items use the same market price
-        // shown at checkout. CI destinations keep the existing stored-price
-        // behavior byte-for-byte.
-        $destinationCountry = null;
-        if ($request->filled('country')) {
-            $destinationCountry = strtoupper((string) $request->input('country'));
-        } elseif ($request->filled('address_id') && auth('customer')->check()) {
-            $destinationCountry = strtoupper((string) (Address::query()
-                ->where('customer_id', auth('customer')->id())
-                ->where('id', $request->integer('address_id'))
-                ->value('country') ?? ''));
-        } else {
-            $destinationCountry = strtoupper((string) session(\App\Support\StorefrontMarket::SESSION_KEY, '')) ?: null;
-        }
-        if ($destinationCountry !== null && $destinationCountry !== '') {
-            app(\App\Services\Pricing\MarketPriceContext::class)->setCountry($destinationCountry);
-            session()->put(\App\Support\StorefrontMarket::SESSION_KEY, $destinationCountry);
-        }
 
         try {
             $order = null;
@@ -424,6 +411,45 @@ class PaymentController extends Controller
                 'message' => 'Checkout failed: ' . $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Resolve the authoritative destination country for order creation.
+     *
+     * It mirrors the address that checkout will actually use: a saved address
+     * first, then the submitted shipping country, then the checkout payload
+     * captured earlier in the session. Falls back to the default market (CI).
+     * This guarantees the market can never be forced by ?country= or a stale
+     * storefront session that disagrees with the real shipping country.
+     */
+    private function resolvePaymentDestinationCountry(Request $request): string
+    {
+        $customer = auth('customer')->user();
+        $addressId = $request->integer('address_id');
+
+        if ($customer && $addressId) {
+            $addressCountry = strtoupper((string) (Address::query()
+                ->where('customer_id', $customer->id)
+                ->where('id', $addressId)
+                ->value('country') ?? ''));
+
+            if ($addressCountry !== '') {
+                return $addressCountry;
+            }
+        }
+
+        $submittedCountry = strtoupper(trim((string) $request->input('country', '')));
+        if ($submittedCountry !== '') {
+            return $submittedCountry;
+        }
+
+        $checkoutPayload = (array) session('request_body', []);
+        $payloadCountry = strtoupper(trim((string) ($checkoutPayload['country'] ?? '')));
+        if ($payloadCountry !== '') {
+            return $payloadCountry;
+        }
+
+        return \App\Support\StorefrontMarket::defaultCountry();
     }
 
     public function redirect(Request $request, $type, $id = null)

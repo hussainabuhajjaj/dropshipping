@@ -26,8 +26,10 @@ use App\Services\CampaignManager;
 use App\Services\CartMinimumService;
 use App\Services\Coupons\CouponValidator;
 use App\Services\Currency\CurrencyConversionService;
+use App\Services\Pricing\MarketPriceContext;
 use App\Services\Promotions\PromotionEngine;
 use App\Services\User\UserPreferenceService;
+use App\Support\StorefrontMarket;
 use App\Support\ResolvesStorefrontVariantLabels;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,7 +48,11 @@ class CheckoutController extends ApiController
         if ($message = $this->validateAliExpressStockForCheckoutItems($cartItems, (string) $request->input('country', 'CN'))) {
             return $this->error($message, 422);
         }
-        $payload = $this->buildPricingPayload($cart, $request->user(), $cartItems);
+
+        $destination = $this->resolveCheckoutDestination($request->only(['country']));
+        app(MarketPriceContext::class)->setCountry($destination['country']);
+
+        $payload = $this->buildPricingPayload($cart, $request->user(), $cartItems, $destination);
 
         return $this->success(new CheckoutPreviewResource($payload));
     }
@@ -68,7 +74,13 @@ class CheckoutController extends ApiController
         $customer = $request->user();
         $locale = app()->getLocale();
 
-        $pricing = $this->buildPricingPayload($cart, $customer, $cartItems);
+        // The submitted shipping country is authoritative for mobile checkout.
+        // Pin it before pricing so cart totals, shipping, and the order-item
+        // snapshot all use the same market (never the storefront selection).
+        $destination = $this->resolveCheckoutDestination($validated);
+        app(MarketPriceContext::class)->setCountry($destination['country']);
+
+        $pricing = $this->buildPricingPayload($cart, $customer, $cartItems, $destination);
         if ((bool) ($pricing['shipping_unavailable'] ?? false)) {
             return $this->error((string) ($pricing['shipping_unavailable_reason'] ?? 'Shipping is unavailable for one or more items in your cart.'), 422);
         }
@@ -415,11 +427,36 @@ class CheckoutController extends ApiController
         return null;
     }
 
-    private function buildPricingPayload(Cart $cart, ?Customer $customer, $cartItems = null): array
+    /**
+     * Build the authoritative checkout destination from validated mobile input.
+     * Country defaults to the configured CI market so existing behavior is
+     * unchanged when the app does not send a destination.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{country:string,province?:string,city?:string,zip?:string}
+     */
+    private function resolveCheckoutDestination(array $input): array
+    {
+        $country = strtoupper(trim((string) ($input['country'] ?? '')));
+        if ($country === '') {
+            $country = strtoupper(trim(StorefrontMarket::defaultCountry()));
+        }
+
+        return array_filter([
+            'country' => $country,
+            'province' => $input['state'] ?? null,
+            'city' => $input['city'] ?? null,
+            'zip' => $input['postal_code'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function buildPricingPayload(Cart $cart, ?Customer $customer, $cartItems = null, ?array $destination = null): array
     {
         $cartItems = $cartItems ?? $cart->items;
+        $destination ??= $this->resolveCheckoutDestination([]);
 
-        // Create cache key based on cart state
+        // Create cache key based on cart state AND destination, so CI and UAE
+        // pricing/shipping responses can never be served from each other.
         $cartItemsHash = md5(serialize($cartItems->map(fn ($item) => [
             'id' => $item->id,
             'product_id' => $item->product_id,
@@ -427,9 +464,10 @@ class CheckoutController extends ApiController
             'quantity' => $item->quantity,
             'price' => $item->getSinglePrice(),
         ])->toArray()));
-        $cacheKey = "checkout:pricing:{$cart->id}:{$customer?->id}:{$cartItemsHash}";
+        $destinationHash = md5(json_encode($destination) ?: '');
+        $cacheKey = "checkout:pricing:{$cart->id}:{$customer?->id}:{$cartItemsHash}:{$destinationHash}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($cart, $customer, $cartItems) {
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($cart, $customer, $cartItems, $destination) {
             $sourceCurrency = $this->resolveCheckoutCurrency($cartItems);
             $targetCurrency = app(UserPreferenceService::class)->getPreferences()['currency'] ?? 'XOF';
             $currencyConverter = app(CurrencyConversionService::class);
@@ -443,7 +481,7 @@ class CheckoutController extends ApiController
         $discount = (float) ($discounts['amount'] ?? 0);
         $couponValidator = app(CouponValidator::class);
         $couponModel = $couponValidator->resolveFromSession($coupon);
-        $shippingQuote = $cart->quoteShippingForItems($cartItems);
+        $shippingQuote = $cart->quoteShippingForItems($cartItems, false, $destination);
         $settings = SiteSetting::query()->first();
         $shippingTotal = $this->applyShippingRules((float) ($shippingQuote['total'] ?? 0), $subtotal, $discount, $settings, (bool) ($discounts['free_shipping'] ?? false));
         $taxTotal = $this->calculateTax(max(0, $subtotal - $discount), $settings);
