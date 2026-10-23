@@ -235,8 +235,27 @@ class CheckoutController extends Controller
 
         $customer = auth('customer')->user();
         $locale = app()->getLocale();
+
+        // Market-aware pricing (Phase 1 — UAE): the checkout destination
+        // country is the authoritative market selector. Pin the storefront
+        // market to it BEFORE any subtotal/shipping calculation so prices and
+        // freight quotes are consistent for this request. CI destinations keep
+        // the exact existing behavior; AE switches to UAE pricing + CN->AE
+        // CJ freight. The submitted shipping country always wins over the
+        // session/query market preference (?country= can never mis-price an
+        // order relative to its real destination).
+        [$destinationCountry, $destinationAddressId] = $this->resolveDestinationCountry($request, $validatedData);
+        $marketContext = app(\App\Services\Pricing\MarketPriceContext::class);
+        $marketContext->setCountry($destinationCountry);
+        session()->put(\App\Support\StorefrontMarket::SESSION_KEY, $destinationCountry);
+
         $subtotal = $cart->subTotal();
-        $shippingQuote = $cart->quoteShippingForItems($cart_items, true);
+        $shippingQuote = $cart->quoteShippingForItems($cart_items, true, [
+            'country' => $destinationCountry,
+            'province' => $validatedData['state'] ?? null,
+            'city' => $validatedData['city'] ?? null,
+            'zip' => $validatedData['postal_code'] ?? null,
+        ]);
         if ((bool) ($shippingQuote['unavailable'] ?? false)) {
             return back()->withErrors([
                 'cart' => $shippingQuote['reason'] ?? 'Shipping is unavailable for one or more items in your cart.',
@@ -504,6 +523,38 @@ class CheckoutController extends Controller
         app(AbandonedCartService::class)->markRecovered();
 
         return redirect()->route('orders.confirmation', ['number' => $order->number]);
+    }
+
+    /**
+     * Resolve the authoritative destination country for market pricing and
+     * shipping. The submitted shipping country always wins because it is the
+     * country written on the created order address; a saved address, session
+     * market, or ?country= value is only a fallback when it is missing.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array{0: string, 1: ?int} [country, addressId]
+     */
+    private function resolveDestinationCountry(Request $request, array $validated): array
+    {
+        $addressId = $request->filled('address_id')
+            ? $request->integer('address_id')
+            : (isset($validated['address_id']) ? (int) $validated['address_id'] : null);
+
+        $country = strtoupper(trim((string) ($validated['country'] ?? '')));
+
+        if ($country === '' && $addressId !== null && auth('customer')->check()) {
+            $country = strtoupper((string) (Address::query()
+                ->where('customer_id', auth('customer')->id())
+                ->where('id', $addressId)
+                ->value('country') ?? ''));
+        }
+
+        if ($country === '') {
+            $sessionCountry = strtoupper(trim((string) session(\App\Support\StorefrontMarket::SESSION_KEY, '')));
+            $country = $sessionCountry !== '' ? $sessionCountry : \App\Support\StorefrontMarket::defaultCountry();
+        }
+
+        return [$country, $addressId];
     }
 
     public function confirmation(string $number): Response

@@ -36,7 +36,7 @@
                     </svg>
                     <div class="text-left leading-tight">
                         <div class="text-xs text-slate-400">Deliver to</div>
-                        <div class="font-semibold">{{ selectedLocation }}</div>
+                        <div class="font-semibold">{{ marketLabel }}</div>
                     </div>
                     <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor">
                         <path
@@ -46,6 +46,27 @@
                         />
                     </svg>
                 </button>
+
+                <!-- Market selector dropdown (Phase 1: CI / UAE display preference only).
+                     The checkout shipping country always overrides this selection. -->
+                <div
+                    v-if="locationOpen"
+                    class="absolute left-0 top-full z-50 mt-1 w-64 rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-lg"
+                >
+                    <button
+                        v-for="option in marketOptions"
+                        :key="option.country"
+                        type="button"
+                        class="block w-full rounded-lg px-3 py-2 text-left transition"
+                        :class="option.country === currentMarketCountry ? 'bg-[#f59e0b] text-white' : 'text-slate-600 hover:bg-slate-50'"
+                        @click="setMarket(option.country)"
+                    >
+                        {{ option.label }}
+                    </button>
+                    <p class="px-3 pb-1 pt-2 text-xs text-slate-400">
+                        Display prices for this market. Final price always follows the shipping country at checkout.
+                    </p>
+                </div>
 
                 <!-- Large Search Bar (desktop) -->
                 <form class="hidden flex-1 items-center lg:flex" @submit.prevent="submitSearch">
@@ -227,7 +248,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 
 // Props
 const props = defineProps({
@@ -248,7 +269,20 @@ const locationOpen = ref(false)
 const accountRef = ref(null)
 const cartRef = ref(null)
 const search = ref('')
-const selectedLocation = ref('Abidjan')
+
+// Market selector (Phase 1 — UAE). Shared 'market' Inertia prop is the only
+// source of truth for display; checkout shipping country always overrides it.
+const page = usePage()
+const marketOptions = computed(() => page.props.market?.options ?? [
+    { id: 'ci', label: 'Côte d\u2019Ivoire', country: 'CI' },
+    { id: 'uae', label: 'United Arab Emirates', country: 'AE' },
+])
+const currentMarketCountry = computed(() => page.props.market?.country ?? 'CI')
+const marketLabel = computed(() => {
+    const found = marketOptions.value.find((o) => o.country === currentMarketCountry.value)
+    return found ? found.label : currentMarketCountry.value
+})
+
 const selectedCurrency = ref('JOD')
 const locale = ref('en')
 const wishlistCount = ref(0)
@@ -284,6 +318,16 @@ const setLocale = (code) => {
     if (!code || code === locale.value) return
     router.post('/language', { language: code }, {
         preserveScroll: true,
+        headers: csrfHeaders(),
+    })
+}
+
+const setMarket = (country) => {
+    locationOpen.value = false
+    if (!country || country === currentMarketCountry.value) return
+    router.post(`/market/${country}`, {}, {
+        preserveScroll: true,
+        preserveState: false,
         headers: csrfHeaders(),
     })
 }

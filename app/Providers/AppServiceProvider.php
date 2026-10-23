@@ -54,6 +54,15 @@ class AppServiceProvider extends ServiceProvider
 
             return new AdminPanelNotification($id);
         });
+
+        // Market-aware pricing (Phase 1 — UAE). Scoped so product pages,
+        // listings, cart, and checkout share one price cache per request
+        // without leaking state across requests under Octane/workers.
+        $this->app->scoped(\App\Services\Pricing\MarketPriceContext::class, function ($app) {
+            return new \App\Services\Pricing\MarketPriceContext(
+                $app->make(\App\Services\Pricing\MarketPriceResolver::class)
+            );
+        });
     }
 
     /**

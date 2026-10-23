@@ -27,6 +27,17 @@ class CartItem extends Model
 
     public function getSinglePrice(): float
     {
+        // Market-aware pricing (Phase 1 — UAE). For the CI market this returns
+        // exactly the same value as before (stored variant/product price path).
+        // For the UAE market it computes a price WITHOUT the CI external
+        // shipping component and NEVER silently falls back to the CI price.
+        $marketContext = app(\App\Services\Pricing\MarketPriceContext::class);
+        if ($marketContext->isUae() && $this->product !== null) {
+            return $this->variant !== null
+                ? $marketContext->priceForVariant($this->variant, $this->product)
+                : $marketContext->priceForProduct($this->product);
+        }
+
         // Try variant price first
         $price = (float)($this?->variant?->price ?? 0);
         

@@ -160,6 +160,27 @@ class PaymentController extends Controller
 
         session()->put('request_body', $request->all());
 
+        // Market-aware pricing (Phase 1 — UAE): pin the storefront market to
+        // the submitted/selected destination country BEFORE order creation so
+        // unit prices snapshotted into order_items use the same market price
+        // shown at checkout. CI destinations keep the existing stored-price
+        // behavior byte-for-byte.
+        $destinationCountry = null;
+        if ($request->filled('country')) {
+            $destinationCountry = strtoupper((string) $request->input('country'));
+        } elseif ($request->filled('address_id') && auth('customer')->check()) {
+            $destinationCountry = strtoupper((string) (Address::query()
+                ->where('customer_id', auth('customer')->id())
+                ->where('id', $request->integer('address_id'))
+                ->value('country') ?? ''));
+        } else {
+            $destinationCountry = strtoupper((string) session(\App\Support\StorefrontMarket::SESSION_KEY, '')) ?: null;
+        }
+        if ($destinationCountry !== null && $destinationCountry !== '') {
+            app(\App\Services\Pricing\MarketPriceContext::class)->setCountry($destinationCountry);
+            session()->put(\App\Support\StorefrontMarket::SESSION_KEY, $destinationCountry);
+        }
+
         try {
             $order = null;
             $payment = null;
