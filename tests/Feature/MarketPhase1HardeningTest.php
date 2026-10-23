@@ -280,6 +280,42 @@ class MarketPhase1HardeningTest extends TestCase
         $this->assertSame(17.40, (float) $payload['price']);
     }
 
+    public function test_uae_listing_never_falls_back_to_stored_ci_price(): void
+    {
+        $product = $this->persistProduct(['cost_price' => null]);
+        $this->persistVariant($product);
+
+        $request = Request::create('/products?country=AE', 'GET');
+        $this->app->instance('request', $request);
+        app(MarketPriceContext::class)->setCountry('AE');
+
+        $payload = \App\Http\Resources\Storefront\ProductResource::make($product->refresh())
+            ->resolve($request);
+
+        // Stored selling_price is 26.10 and the variant is 31.50, but UAE must
+        // never show either stored CI value when its price cannot be computed.
+        $this->assertSame(0.0, (float) $payload['price']);
+        $this->assertTrue($payload['price_unavailable'] ?? false);
+        $this->assertSame(0.0, (float) $payload['variants'][0]['price']);
+        $this->assertTrue($payload['variants'][0]['price_unavailable'] ?? false);
+    }
+
+    public function test_ci_listing_still_uses_stored_price_without_unavailable_flag(): void
+    {
+        $product = $this->persistProduct(['cost_price' => null]);
+        $this->persistVariant($product);
+
+        $request = Request::create('/products', 'GET');
+        $this->app->instance('request', $request);
+        app(MarketPriceContext::class)->setCountry('CI');
+
+        $payload = \App\Http\Resources\Storefront\ProductResource::make($product->refresh())
+            ->resolve($request);
+
+        $this->assertSame(26.10, (float) $payload['price']);
+        $this->assertArrayNotHasKey('price_unavailable', $payload);
+    }
+
     public function test_payment_destination_ignores_stale_uae_session_when_no_country_is_submitted(): void
     {
         session()->put(StorefrontMarket::SESSION_KEY, 'AE');

@@ -32,8 +32,9 @@ class ProductResource extends JsonResource
             ->values()
             ->all();
         $locale = app()->getLocale();
+        $isUae = app(MarketPriceContext::class)->isUae();
         $variants = collect($product->variants ?? []);
-        $variantPayload = $variants->map(function ($variant) use ($locale, $product, $homeBuilder) {
+        $variantPayload = $variants->map(function ($variant) use ($locale, $product, $homeBuilder, $isUae) {
             $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
             $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
             $localizedTitle = $translations[$locale]['title'] ?? null;
@@ -41,21 +42,19 @@ class ProductResource extends JsonResource
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
             $variantImage = $homeBuilder->normalizeImage($this->resolveStorefrontVariantImage($variant));
             $price = $variant->price !== null ? (float) $variant->price : null;
-            // Market-aware override (Phase 1 — UAE): CI keeps stored values;
-            // UAE uses the computed price without CI external shipping.
-            if (app(MarketPriceContext::class)->isUae()) {
-                $marketPrice = app(MarketPriceContext::class)->tryPriceForVariant($variant, $product);
-                if ($marketPrice !== null) {
-                    $price = $marketPrice;
-                }
+            // Market-aware override (Phase 1 — UAE): CI keeps stored values.
+            // UAE replaces them with the computed price. When the computation
+            // is impossible the variant has NO price (never the stored CI one).
+            if ($isUae) {
+                $price = app(MarketPriceContext::class)->tryPriceForVariant($variant, $product);
             }
             $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
             $referencePrice = $this->compareAtService()->referencePrice(
                 $price,
-                $product->selling_price !== null ? (float) $product->selling_price : null
+                $isUae ? null : ($product->selling_price !== null ? (float) $product->selling_price : null)
             );
 
-            return [
+            $variantData = [
                 'id' => $variant->id,
                 'title' => $displayTitle,
                 'full_title' => $fullTitle,
@@ -68,6 +67,12 @@ class ProductResource extends JsonResource
                 'stock_on_hand' => $variant->stock_on_hand,
                 'low_stock_threshold' => $variant->low_stock_threshold,
             ];
+
+            if ($isUae && $price === null) {
+                $variantData['price_unavailable'] = true;
+            }
+
+            return $variantData;
         })->values()->all();
 
         $pricedVariant = collect($variantPayload)
@@ -77,15 +82,13 @@ class ProductResource extends JsonResource
 
         $defaultVariant = $pricedVariant ?? $variantPayload[0] ?? null;
         $variantPrice = $defaultVariant['price'] ?? null;
-        $sellingPrice = $product->selling_price !== null ? (float) $product->selling_price : null;
 
         // Market-aware product-level price (backend authoritative). CI keeps
-        // the stored selling_price path untouched; UAE uses the computed price.
-        if (app(MarketPriceContext::class)->isUae()) {
-            $marketProductPrice = app(MarketPriceContext::class)->tryPriceForProduct($product);
-            if ($marketProductPrice !== null) {
-                $sellingPrice = $marketProductPrice;
-            }
+        // the stored selling_price path untouched; UAE never falls back to it.
+        if ($isUae) {
+            $sellingPrice = app(MarketPriceContext::class)->tryPriceForProduct($product);
+        } else {
+            $sellingPrice = $product->selling_price !== null ? (float) $product->selling_price : null;
         }
 
         if ($sellingPrice !== null && ($variantPrice === null || $sellingPrice < $variantPrice)) {
@@ -94,11 +97,13 @@ class ProductResource extends JsonResource
             $compareAt = null;
             $variantForDisplay = null;
         } else {
-            $price = $variantPrice ?? (float) ($product->selling_price ?? 0);
+            $price = $variantPrice ?? $sellingPrice ?? 0.0;
             $currency = $defaultVariant['currency'] ?? $product->currency ?? 'USD';
             $compareAt = $defaultVariant['compare_at_price'] ?? null;
             $variantForDisplay = $defaultVariant;
         }
+
+        $priceUnavailable = $isUae && $sellingPrice === null && ($variantPrice === null || $variantPrice <= 0);
 
         $translation = $product->translationForLocale($locale);
 
@@ -135,6 +140,10 @@ class ProductResource extends JsonResource
             'currency' => $currency,
             'is_in_wishlist' => false,
         ];
+
+        if ($priceUnavailable) {
+            $data['price_unavailable'] = true;
+        }
 
         // Disable backend conversion - handle it all on frontend
         // $converter = app(CurrencyConversionService::class);

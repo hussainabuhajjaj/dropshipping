@@ -46,30 +46,28 @@ trait TransformsProducts
             ->values()
             ->all();
         $locale = app()->getLocale();
+        $isUae = app(MarketPriceContext::class)->isUae();
         $variants = collect($product->variants ?? []);
-        $variantPayload = $variants->map(function ($variant) use ($locale, $product, $homeBuilder) {
+        $variantPayload = $variants->map(function ($variant) use ($locale, $product, $homeBuilder, $isUae) {
             $metadata = is_array($variant->metadata ?? null) ? $variant->metadata : [];
             $translations = is_array($metadata['translations'] ?? null) ? $metadata['translations'] : [];
             $localizedTitle = $translations[$locale]['title'] ?? null;
             $fullTitle = $localizedTitle ?: $variant->title;
             $displayTitle = $this->resolveVariantDisplayTitle($variant, $fullTitle, $product->name);
             $variantImage = $homeBuilder->normalizeImage($this->resolveStorefrontVariantImage($variant));
-            $price = $variant->price !== null ? (float) $variant->price : null;
-            // Market-aware override: CI keeps the stored value untouched; UAE
-            // replaces it with the computed price (never silently the CI one).
-            if (app(MarketPriceContext::class)->isUae()) {
-                $marketPrice = $this->marketVariantPrice($variant, $product);
-                if ($marketPrice !== null) {
-                    $price = $marketPrice;
-                }
-            }
+            // Market-aware override: CI keeps the stored value untouched. UAE
+            // replaces it with the computed price and never falls back to the
+            // stored CI price when the computation is impossible.
+            $price = $isUae
+                ? $this->marketVariantPrice($variant, $product)
+                : ($variant->price !== null ? (float) $variant->price : null);
             $compareAt = $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null;
             $referencePrice = $this->compareAtService()->referencePrice(
                 $price,
-                $product->selling_price !== null ? (float) $product->selling_price : null
+                $isUae ? null : ($product->selling_price !== null ? (float) $product->selling_price : null)
             );
 
-            return [
+            $variantData = [
                 'id' => $variant->id,
                 'title' => $displayTitle,
                 'full_title' => $fullTitle,
@@ -82,17 +80,23 @@ trait TransformsProducts
                 'stock_on_hand' => $variant->stock_on_hand,
                 'low_stock_threshold' => $variant->low_stock_threshold,
             ];
+
+            if ($isUae && $price === null) {
+                $variantData['price_unavailable'] = true;
+            }
+
+            return $variantData;
         })->values()->all();
 
         $defaultVariant = $variantPayload[0] ?? null;
-        $price = $defaultVariant['price'] ?? (float) ($product->selling_price ?? 0);
-        // Market-aware product-level price for listings (backend authoritative).
-        if (app(MarketPriceContext::class)->isUae()) {
-            $marketProductPrice = $this->marketProductPrice($product);
-            if ($marketProductPrice !== null) {
-                $price = $marketProductPrice;
-            }
+        // UAE never falls back to products.selling_price: if the computed price
+        // is unavailable the listing reports 0 + price_unavailable instead.
+        $price = $defaultVariant['price'] ?? ($isUae ? 0.0 : (float) ($product->selling_price ?? 0));
+        $marketProductPrice = $isUae ? $this->marketProductPrice($product) : null;
+        if ($marketProductPrice !== null) {
+            $price = $marketProductPrice;
         }
+        $priceUnavailable = $isUae && $marketProductPrice === null && ($price ?? 0) <= 0;
         $currency = $defaultVariant['currency'] ?? $product->currency ?? 'USD';
 
         $wishlist = collect(session('wishlist', []));
@@ -144,6 +148,10 @@ trait TransformsProducts
                 'days' => $product->shipping_estimate_days,
             ],
         ];
+
+        if ($priceUnavailable) {
+            $data['price_unavailable'] = true;
+        }
 
         if ($includeMeta) {
             $data['variants'] = $variantPayload;
