@@ -158,6 +158,7 @@ const heroSlides = computed(() => {
       subtitle: slide.subtitle || activeSeason.value.subtitle,
       image: slide.image || heroImage.value,
       primary: slide.primary || { label: activeSeason.value.primaryLabel, href: activeSeason.value.href },
+      secondary: slide.secondary || null,
     }))
   }
 

@@ -165,10 +165,51 @@ class HomeController extends Controller
                     $slide['image'] = $homeBuilder->normalizeImage($image);
                 }
 
+                $slide['primary'] = $this->normalizeHeroCta(
+                    $slide['primary'] ?? null,
+                    $slide['primary_label'] ?? null,
+                    $slide['primary_href'] ?? null,
+                );
+
+                $slide['secondary'] = $this->normalizeHeroCta(
+                    $slide['secondary'] ?? null,
+                    $slide['secondary_label'] ?? null,
+                    $slide['secondary_href'] ?? null,
+                );
+
                 return $slide;
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Normalize a hero CTA into a consistent {label, href} shape.
+     * Accepts either the nested {label, href} shape (campaign overrides) or the
+     * flat *_label / *_href keys stored by the Home Page Settings form.
+     *
+     * @return array{label: ?string, href: ?string}|null
+     */
+    private function normalizeHeroCta(mixed $nested, mixed $label, mixed $href): ?array
+    {
+        $cta = is_array($nested) ? $nested : [];
+
+        $labelValue = is_string($label) && trim($label) !== ''
+            ? trim($label)
+            : (is_string($cta['label'] ?? null) ? trim($cta['label']) : null);
+
+        $hrefValue = is_string($href) && trim($href) !== ''
+            ? trim($href)
+            : (is_string($cta['href'] ?? null) ? trim($cta['href']) : null);
+
+        if ($labelValue === null && $hrefValue === null) {
+            return null;
+        }
+
+        return [
+            'label' => $labelValue,
+            'href' => $hrefValue,
+        ];
     }
 
     /**

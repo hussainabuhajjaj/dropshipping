@@ -32,6 +32,7 @@ const displaySlides = computed(() => {
     subtitle: slide.subtitle || props.season.subtitle,
     image: slide.image || null,
     primary: slide.primary || { label: props.season.primaryLabel, href: props.season.href },
+    secondary: slide.secondary || null,
   }))
 })
 
@@ -125,10 +126,11 @@ const prevSlide = () => {
               {{ t(currentSlide.primary?.label || season.primaryLabel) }}
             </Link>
             <Link
-              href="/products?sort=bestsellers"
+              v-if="currentSlide.secondary?.href || season.secondaryHref"
+              :href="currentSlide.secondary?.href || season.secondaryHref"
               class="inline-flex min-h-10 items-center justify-center rounded-md bg-white/12 px-4 text-sm font-bold text-white ring-1 ring-white/16 transition hover:bg-white/18 active:scale-95"
             >
-              {{ t(season.secondaryLabel) }}
+              {{ t(currentSlide.secondary?.label || season.secondaryLabel) }}
             </Link>
           </div>
 

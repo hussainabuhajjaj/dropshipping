@@ -65,6 +65,21 @@ class HeroCampaignOverrideTest extends TestCase
             ->assertSee('Priority chain');
     }
 
+    public function test_hero_slide_ctas_are_read_from_database(): void
+    {
+        HeroSettings::setCampaignOverrideEnabled(false);
+        $this->createHomePageSetting('CMS Slide');
+
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('homeContent.hero_slides.0.primary.label', 'Shop now')
+                ->where('homeContent.hero_slides.0.primary.href', '/products')
+                ->where('homeContent.hero_slides.0.secondary.label', 'Track order')
+                ->where('homeContent.hero_slides.0.secondary.href', '/orders/track')
+            );
+    }
+
     private function createHomePageSetting(string $title): HomePageSetting    {
         return HomePageSetting::query()->create([
             'locale' => 'fr',
@@ -76,6 +91,8 @@ class HeroCampaignOverrideTest extends TestCase
                     'image' => 'https://example.com/slide.jpg',
                     'primary_label' => 'Shop now',
                     'primary_href' => '/products',
+                    'secondary_label' => 'Track order',
+                    'secondary_href' => '/orders/track',
                 ],
             ],
         ]);
