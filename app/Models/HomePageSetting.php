@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class HomePageSetting extends Model
 {
@@ -26,6 +27,23 @@ class HomePageSetting extends Model
         'banner_strip' => 'array',
         'app_download' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(static fn () => static::clearHomePageCache());
+        static::deleted(static fn () => static::clearHomePageCache());
+    }
+
+    /**
+     * Drop cached homepage payloads so settings edits (hero slides, CTA hrefs,
+     * strips, etc.) reflect immediately instead of waiting for the 5-minute TTL.
+     */
+    public static function clearHomePageCache(): void
+    {
+        foreach (['fr', 'en', ''] as $locale) {
+            Cache::forget('home:page:' . $locale);
+        }
+    }
 
     public static function latestForLocale(?string $locale): ?self
     {
