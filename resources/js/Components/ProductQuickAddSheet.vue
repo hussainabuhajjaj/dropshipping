@@ -229,7 +229,7 @@ const {
   submit: submitToCart,
   successMessage,
 } = useProductCartForm({
-  product: props.product,
+  product: computed(() => props.product),
   t,
   requireExplicitVariantSelection: true,
   onAdded: () => {
